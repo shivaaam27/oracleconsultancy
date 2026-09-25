@@ -1,18 +1,18 @@
 ---
 name: mcp-extending
-description: What happens to Claude's access when COS grows — how MCP behaves when you add features, and the one rule that keeps it honest
+description: What happens to Claude's access when Oracle grows — how MCP behaves when you add features, and the one rule that keeps it honest
 metadata:
   type: project
 ---
 
-# When COS grows, what does MCP do?
+# When Oracle grows, what does MCP do?
 
 Read [[mcp_plan]] for the architecture. This file answers the owner's question
 (Aug 2026): *"if I add new things and features to my site, how will MCP behave?"*
 
 ## Coverage today (Aug 2026) — 24 tools
 
-Every module of COS is now reachable. **Reading: all of it.** Writing: tasks,
+Every module of Oracle is now reachable. **Reading: all of it.** Writing: tasks,
 calendar, documents, assets, and four of the wider modules.
 
 `list_records` is the pattern to copy — ONE tool with a `type` argument covers

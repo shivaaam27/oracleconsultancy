@@ -17,7 +17,7 @@ On reliability: **no AI call has a timeout** (a hung Groq request hangs until th
 platform wall), and only **4 of ~18 calls retry** on a transient hiccup — the rest fail
 or silently drop to weaker rule output on the first 429. Fixes reuse machinery we already
 have (`callGroqJson`). Two quality gaps: meeting minutes/summaries are saved verbatim with
-no check the AI didn't invent a name/figure, and Ask COS uses crude word-matching with no
+no check the AI didn't invent a name/figure, and Ask Oracle uses crude word-matching with no
 relevance ranking. None of this is data-loss or a security defect — it is reliability,
 quality, and privacy-posture work.
 
@@ -33,7 +33,7 @@ quality, and privacy-posture work.
 
 | Feature | file:line | Model | Retry? | Timeout? | Fallback (short) |
 |---|---|---|---|---|---|
-| Ask COS (RAG chat / day-plan) | `api/ask/route.ts:461` | FAST | No | No | no-key→503; non-OK→502; **stream errors truncate silently** |
+| Ask Oracle (RAG chat / day-plan) | `api/ask/route.ts:461` | FAST | No | No | no-key→503; non-OK→502; **stream errors truncate silently** |
 | ⌘K command parser | `api/action/route.ts:324` | FAST | No | No | failure→`{type:"unknown"}` (command ignored) |
 | Director Brief narrative | `api/digest-narrative/route.ts:32` | FAST | No | No | always ""; **endpoint has NO caller (dead code)** |
 | Follow-up email draft | `api/draft-email/route.ts:79` | FAST | No | No | no-key→503; non-OK→502; no rules fallback |
@@ -69,10 +69,10 @@ action(324), draft-email(79), people(396, also removes inlined-fetch dup), meeti
 Add a `callGroqText` sibling (lift `groqChat`) for prose callers: ask non-stream(461),
 company-summary(112), polish(72), digest-narrative(32), meeting 175/235/316. Each keeps
 its current final-failure fallback but now survives one 429/5xx.
-**Impact order:** Ask COS → command → meeting prose → draft-email → company-summary →
+**Impact order:** Ask Oracle → command → meeting prose → draft-email → company-summary →
 people → polish → digest.
 
-## §4 Ask COS retrieval → Phase 3 plan
+## §4 Ask Oracle retrieval → Phase 3 plan
 
 All in `api/ask/route.ts`. Tokeniser keeps first 10 words (line 90). **Retrieval is OR-ilike
 substring with NO relevance ranking** — a 1-token match ranks same as a 5-token match
@@ -107,7 +107,7 @@ leave it. Optionally add a `v2.aiQuality` setting to make it reversible/toggleab
 
 **Prose hallucination gap:** the 5 meeting prose tools (clean 267, minutes 213, insight 347)
 return RAW model text with NO source check — only empty-check. A fabricated name/figure is
-saved verbatim into the meeting record (system of record) and then **feeds Ask COS RAG**
+saved verbatim into the meeting record (system of record) and then **feeds Ask Oracle RAG**
 (ask 411-419), so it can propagate. Task extractor (432-451) validates every field — copy
 that rigor. Proposed new `src/lib/ai-verify.ts`: `verifyProseAgainstSource(output, source,
 knownNames)` → flags any money figure or Title-Case name in the output absent from the
@@ -144,7 +144,7 @@ risks), passwords/passkeys. **Easiest win:** trim the 150-name injection to the 
 If passport/ID processing stays on, document it in the privacy notice + staff consent.
 
 ## §8 Failure paths (worst silent gaps, priority order)
-1. **Ask COS mid-stream silent truncation** — SSE just closes on a Groq stream error; user
+1. **Ask Oracle mid-stream silent truncation** — SSE just closes on a Groq stream error; user
    sees a cut-off half-answer that looks complete. (Verify pass: a mid-stream read error
    rejects the stream abruptly; no error frame.) Highest severity.
 2. **People-enrich silent quality drop** — consumer `bulk-upload-dialog.tsx:154` ignores
@@ -164,7 +164,7 @@ announcements/draft-email/company-summary error honesty.
 
 ## §9 Commonly missed
 - **Caching:** only document extraction is cached (`documents.ts:310-330`, keyed on file
-  SHA-256). **`company-summary` is recomputed and re-billed on every page view.** Ask COS
+  SHA-256). **`company-summary` is recomputed and re-billed on every page view.** Ask Oracle
   uncached. The one cache has **no TTL and ignores the model** on read — a future vision-model
   swap keeps serving the OLD model's reads for the whole back-catalogue (fix: make key model-aware).
 - **`people/actions.ts:396` inlined fetch** lacks retry/backoff/timeout/schema/confidence that
@@ -185,7 +185,7 @@ announcements/draft-email/company-summary error honesty.
   Highest-value finding to monitor.
 - **Diagnostics asymmetry:** `recordEvent` (system_events) is wired into ONLY document
   extraction. Every other AI call logs to `console.error` (scrolls away on Vercel) — the
-  AI-health panel is blind to "Ask COS erroring for two days". (This is the Phase-0
+  AI-health panel is blind to "Ask Oracle erroring for two days". (This is the Phase-0
   observability gap from the plan.)
 
 ## §10 Reuse map (build on these)

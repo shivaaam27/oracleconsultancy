@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const vendor = (await listVendors().catch(() => [])).find((v) => v.id === Number(id));
-  return { title: vendor ? `${vendor.name} · Suppliers` : "Supplier · COS" };
+  return { title: vendor ? `${vendor.name} · Suppliers` : "Supplier · Oracle" };
 }
 
 export default async function VendorPage({ params }: { params: Promise<{ id: string }> }) {

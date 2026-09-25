@@ -57,7 +57,7 @@ export async function POST(req: Request) {
     zip.file(name, await data.arrayBuffer());
   }
   const out = await zip.generateAsync({ type: "uint8array", compression: "STORE" });
-  const label = (body.folders?.length === 1 && !(body.files ?? []).length ? folders.find((f) => f.id === body.folders![0])?.name : null) ?? "COS files";
+  const label = (body.folders?.length === 1 && !(body.files ?? []).length ? folders.find((f) => f.id === body.folders![0])?.name : null) ?? "Oracle files";
   return new NextResponse(Buffer.from(out), {
     headers: {
       "content-type": "application/zip",

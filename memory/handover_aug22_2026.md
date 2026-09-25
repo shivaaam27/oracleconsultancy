@@ -63,7 +63,7 @@ which are permanent by design; `gl_entries` for Furaha is back to **0**.
    sidebar appears (−208px) *and* every `hideBelow` column un-hides, so the card
    narrows exactly when it needs to be widest; `hideBelow` cannot fix that.
    **`gridFor()` in `record-list.tsx` now floors flexible tracks and makes fixed
-   ones shrinkable** — this protects every list in COS.
+   ones shrinkable** — this protects every list in Oracle.
 2. **Owed squeezed the customer to 120px even at 1440**, and to five 27px slivers
    on a phone. Count folded into the name cell; bands fold below `lg`.
 3. **The stock day book's ITEM column collapsed to 0px on a phone** — a

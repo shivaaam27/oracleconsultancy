@@ -204,7 +204,7 @@ function LogoTile({ size }: { size: number }) {
   );
 }
 
-/* The desk's left half: the brand, a line on what COS is, and the Studio's own
+/* The desk's left half: the brand, a line on what Oracle is, and the Studio's own
    motif — a row of bars, one per open task on Home — drawn from a fixed pattern
    (nothing here is data: this screen is before anyone signs in). */
 // The owner's words (25 Sept 2026).
@@ -276,7 +276,7 @@ export function BrandCompact() {
 const BARS = [34, 52, 40, 60, 46, 66, 38, 58, 44, 64, 50, 36, 62, 48, 56, 42, 66, 40, 54, 46, 60, 38, 52, 44, 58, 36, 62, 50, 46, 64, 42, 56, 40, 60, 48, 54];
 const BAR_C = (i: number) => (i > 29 ? "#E0479E" : i > 26 ? "#F5A524" : i > 5 ? "#19C37D" : "#CFE05A");
 
-/** Desk: the right of the frame — the name, the line on what COS is, and the
+/** Desk: the right of the frame — the name, the line on what Oracle is, and the
  *  Studio's bars drawn large along the foot (a fixed pattern, not data). */
 export function BrandSide() {
   return (

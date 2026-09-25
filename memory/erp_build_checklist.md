@@ -1,7 +1,7 @@
-# FULL ERP BUILD CHECKLIST — Scored Against COS System (No-AI Baseline)
+# FULL ERP BUILD CHECKLIST — Scored Against Oracle System (No-AI Baseline)
 
 > Owner-supplied 246-item ERP map (all buildable with zero AI). Scored against the live
-> COS system as of 2026-06-20. This is the **map, not the order** — sequencing is at the end.
+> Oracle system as of 2026-06-20. This is the **map, not the order** — sequencing is at the end.
 > Status key: ✅ built · 🟡 partial · ❌ not built. Companion to [build_checklist_baseline.md].
 > Context: pre-ERP audit already ran (see [audit_pre_erp_jun2026] + [phase0_hardening_jun2026]);
 > verdict = solid CoS command-centre, NOT yet a finance ERP, fixable without rewrite.

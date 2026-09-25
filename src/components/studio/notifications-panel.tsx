@@ -163,7 +163,7 @@ export function StudioNotificationsPanel({
           const prev = i > 0 ? notifBucket(view.groups[i - 1].lead.createdAt) : null;
           const n = g.lead;
           const isOpen = openKey === g.key;
-          const actor = n.actor || (isDailyReminder(n) ? "Reminder" : "COS");
+          const actor = n.actor || (isDailyReminder(n) ? "Reminder" : "Oracle");
           const task = n.body?.trim() || n.title;
           return (
             <div key={g.key}>
@@ -174,7 +174,7 @@ export function StudioNotificationsPanel({
                 <div className="min-w-0 flex-1">
                   <button type="button" onClick={() => setOpenKey(isOpen ? null : g.key)} className="block w-full text-left">
                     <span className="block text-[13px] leading-snug">
-                      <b className="font-semibold">{n.actor ?? (isDailyReminder(n) ? "Daily reminder" : "COS")}</b>{" "}
+                      <b className="font-semibold">{n.actor ?? (isDailyReminder(n) ? "Daily reminder" : "Oracle")}</b>{" "}
                       <span className="text-[var(--sh-sub)]">{VERB[n.kind] ?? "updated"}</span>{" "}
                       {n.taskCode && <span className="st-mono rounded-[5px] bg-[var(--sh-hover)] px-1.5 py-px text-[11px] text-[var(--sh-fg)]">{n.taskCode}</span>}
                       {notifLane(n) === "needs-you" && <span className="ml-1.5 rounded-[5px] bg-[var(--sh-pink-bg)] px-1.5 py-px text-[10px] text-[var(--sh-pink-fg)]">needs you</span>}

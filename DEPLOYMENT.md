@@ -1,6 +1,6 @@
 # Deployment & Portability Guide
 
-Plain-language reference for running the COS system and for moving it between
+Plain-language reference for running the Oracle system and for moving it between
 hosts. **This file lists variable _names_ and what they do — never the secret
 values.** The real values live only in your local `.env.local` and in your
 host's settings, and must never be committed to the repository.
@@ -40,7 +40,7 @@ Set these in your host's environment settings (and keep matching copies in
 
 | Name | What it is |
 |---|---|
-| `GROQ_API_KEY` | Groq Cloud key powering Ask COS, dictation polish, meeting intelligence, etc. If absent, AI features degrade gracefully and the rest of the app still works. **Secret.** |
+| `GROQ_API_KEY` | Groq Cloud key powering Ask Oracle, dictation polish, meeting intelligence, etc. If absent, AI features degrade gracefully and the rest of the app still works. **Secret.** |
 
 > **The Groq key can now be set two ways.** As of June 2026 the owner can paste the key
 > **in-app** (Settings → masked Groq key field) so it can be rotated without a redeploy, **or**
@@ -111,7 +111,7 @@ Vercel — Vercel Cron sends the secret for you.
 4. Deploy. Confirm the site loads and shows your existing data.
 5. **Re-create the scheduled jobs** on the new host (see above).
 6. Re-point your domain's DNS to the new host.
-7. Test: open the app, run an Ask COS query, send a test notification
+7. Test: open the app, run an Ask Oracle query, send a test notification
    (Settings → Notifications), and POST a test item to `/api/inbox`.
 
 That's the whole move. The app, data, and logic travel with you; only config

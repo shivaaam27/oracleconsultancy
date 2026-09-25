@@ -3,7 +3,7 @@
 /**
  * "Install Oracle" — the Settings card, minimal and icon-led (owner, 25 Sept
  * 2026: "there is so much info, make it minimal and icon based"; and the name
- * is Oracle, never COS). Three tiles — desk, iPhone, Android — each with its
+ * is Oracle, never Oracle). Three tiles — desk, iPhone, Android — each with its
  * route in a few words, the one for THIS device lit. Where the browser can
  * install in one click, one button does it.
  */

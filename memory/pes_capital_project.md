@@ -219,7 +219,7 @@ one priced PATAMELA line. `/projects/[id]/budget` is the screen;
   with a unique index per project. 270 lines typed over weeks WILL be typed
   inconsistently, and two rows differing only in case would split one item's
   budget in two.
-- **A budget line is DELETED, not archived** — the one place in COS where that is
+- **A budget line is DELETED, not archived** — the one place in Oracle where that is
   right, because until Phase 3 a line has no history to lose. ⚠️ **Revisit in
   Phase 3**: once a requisition points at an item code, deleting that line must
   be refused.
@@ -416,7 +416,7 @@ asked about first.** Everything is empty now; he starts fresh.
 # ▶ START HERE — handover, Aug 2026
 
 **One line for a new chat:** *PES construction workbook rebuilt as `/projects` in
-COS — committed locally (`53e9658`), never pushed, still being tested; read this
+Oracle — committed locally (`53e9658`), never pushed, still being tested; read this
 file.*
 
 ⚠️ **IT STAYS LOCAL. Do not offer to deploy or push.** His decision, 18 Aug 2026:
@@ -557,23 +557,23 @@ figures (1,000 / 500 / 300), every write path exercised, the trail read back
 audit rows**. No real figure was ever typed by Claude — the standing rule holds.
 
 
-## What the Excel still has that COS does not — checked 18 Aug 2026
+## What the Excel still has that Oracle does not — checked 18 Aug 2026
 
 Read against `PES CAPITAL PROJECT Site Work.xlsx` (repo root), sheet by sheet.
 Nothing here is a bug; each is a decision waiting to be made.
 
 1. **Store issues and stock on hand** — MAT ISSUE + INVENTORY. Never built, and
    broken in the workbook too (INVENTORY points at a deleted sheet), so nothing
-   was lost. It is the only whole sheet with no home in COS.
+   was lost. It is the only whole sheet with no home in Oracle.
 2. **What is still OWED on an invoice.** PAYMENTS carries `TOTAL PAYABLE`,
    `BALANCE` and `STATUS` per invoice/batch; `project_payments` records only what
    was paid. A part-paid supplier invoice therefore cannot be seen.
 3. **Payment-plan paperwork.** SNAPSHOT rows 39–48 track IPC submitted / IPC
    processed, **EFD (Y/N)** (the fiscal receipt), balance to invoice and net
-   receivable. COS keeps invoice date + amount and received date + amount only.
+   receivable. Oracle keeps invoice date + amount and received date + amount only.
 4. **Materials vs labour split on a budget line** — PATAMELA J (materials) and L
-   (labour charge) add up to M (total). COS stores the one total.
-5. **Job status per line** — PATAMELA N and REQUISITIONS E. COS has a requisition
+   (labour charge) add up to M (total). Oracle stores the one total.
+5. **Job status per line** — PATAMELA N and REQUISITIONS E. Oracle has a requisition
    workflow status but nothing that says how a *piece of work* stands.
 6. **A remarks box on spending.** `project_expenditures.notes` exists in the
    table but the form has no field for it (EXPENDITURES H). One-line fix.
@@ -584,7 +584,7 @@ Nothing here is a bug; each is a decision waiting to be made.
 9. **Quantities** — deliberately excluded (Phase 2 decision, money only). The
    columns exist and nothing reads them.
 
-Nothing in the workbook was found that COS *silently* gets wrong; these are
+Nothing in the workbook was found that Oracle *silently* gets wrong; these are
 absences, and 1, 2 and 3 are the ones that would be felt on a live job.
 
 ## Those gaps, closed — Aug 2026 (migration 0129)

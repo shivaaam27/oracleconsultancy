@@ -1,4 +1,4 @@
-// Hands Claude the COS access key at connection time.
+// Hands Claude the Oracle access key at connection time.
 //
 // Referenced by .mcp.json as `headersHelper`. Claude runs this, reads the JSON it
 // prints, and merges it into the connection headers. The point is that the key

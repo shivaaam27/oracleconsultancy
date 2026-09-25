@@ -6,7 +6,7 @@ import { db } from "@/db";
  * "Am I safe?" — in plain language, checked live, in whichever environment is
  * actually running.
  *
- * WHY THIS EXISTS. Two of the most important protections in COS are Vercel
+ * WHY THIS EXISTS. Two of the most important protections in Oracle are Vercel
  * environment variables, and until now the only way to know whether they were
  * set in PRODUCTION was to log into Vercel and look. A console.warn on a
  * serverless instance nobody reads is not a warning. So the app reports on

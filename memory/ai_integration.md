@@ -1,6 +1,6 @@
 ---
 name: ai-integration
-description: "Groq AI routes, Ask COS context, meeting intelligence, and fallback rules"
+description: "Groq AI routes, Ask Oracle context, meeting intelligence, and fallback rules"
 metadata:
   node_type: memory
   type: project
@@ -27,7 +27,7 @@ Speech-to-text engine (Phase 1): `/api/transcribe` (`src/app/api/transcribe/rout
 
 Clean-up actions in `src/app/voice/actions.ts`.
 
-- `polishDictation` cleans rough dictated speech into polished COS text. **Phase 2 (clean-up brain):** the system prompt resolves self-corrections (keeps the final value after cues like "actually", "no wait", "scratch that", "I mean", "sorry"), strips fillers, and collapses restarts/stutters — without dropping real information. **Phase 2 expansion:** (1) **real-name correction** — it loads the live company + people names via `loadContext()` from `src/lib/ai-context.ts`, merges them with the operator dictionary (deduped, capped at 200), and tells the model to fix mis-transcribed names to their exact spelling (e.g. "dar spaces" -> "Dar Spices"); a DB hiccup is swallowed so clean-up still runs. (2) **number/date/currency normalisation** — spoken numbers/times/dates/amounts become clear short forms (no invented currencies or calendar guesses). (3) **over-clean safety guard** — the rule fallback `basicClean` is deliberately conservative (only true tics um/uh/er/etc; it does NOT strip "actually/basically/literally" or resolve corrections, since without the model it can't tell a correction from real content). (4) **change count** — returns `changes` (word-level diff via `countChanges`); callers show "Tidied N things" plus a "Use raw" revert. Return type: `{ raw, polished, source, changes?, message? }`.
+- `polishDictation` cleans rough dictated speech into polished Oracle text. **Phase 2 (clean-up brain):** the system prompt resolves self-corrections (keeps the final value after cues like "actually", "no wait", "scratch that", "I mean", "sorry"), strips fillers, and collapses restarts/stutters — without dropping real information. **Phase 2 expansion:** (1) **real-name correction** — it loads the live company + people names via `loadContext()` from `src/lib/ai-context.ts`, merges them with the operator dictionary (deduped, capped at 200), and tells the model to fix mis-transcribed names to their exact spelling (e.g. "dar spaces" -> "Dar Spices"); a DB hiccup is swallowed so clean-up still runs. (2) **number/date/currency normalisation** — spoken numbers/times/dates/amounts become clear short forms (no invented currencies or calendar guesses). (3) **over-clean safety guard** — the rule fallback `basicClean` is deliberately conservative (only true tics um/uh/er/etc; it does NOT strip "actually/basically/literally" or resolve corrections, since without the model it can't tell a correction from real content). (4) **change count** — returns `changes` (word-level diff via `countChanges`); callers show "Tidied N things" plus a "Use raw" revert. Return type: `{ raw, polished, source, changes?, message? }`.
 - `teachVoiceDictionary` appends trusted names/phrases to the Settings voice dictionary.
 
 The action uses Groq when available and falls back to basic clean-up when AI is off or fails. It receives context such as meeting title/company/attendees or task code/status, and it preserves configured dictionary terms.
@@ -55,7 +55,7 @@ Drafts task follow-up email. Returns 503 when AI is unavailable.
 
 ### `/api/ask`
 
-Ask COS RAG endpoint.
+Ask Oracle RAG endpoint.
 
 Context includes:
 
@@ -76,7 +76,7 @@ When a task is focused (task page or open drawer), the assistant also shows **ag
 
 NOTE: `FloatingAssistant` uses `useSearchParams()` and is mounted in the root layout, so it MUST stay wrapped in `<Suspense>` there — otherwise the production build fails prerendering `/_not-found`.
 
-The Ask COS mic (`src/components/ask-cos.tsx`) now uses the shared `VoiceButton` (Groq Whisper engine with live captions), not its own browser recogniser.
+The Ask Oracle mic (`src/components/ask-cos.tsx`) now uses the shared `VoiceButton` (Groq Whisper engine with live captions), not its own browser recogniser.
 
 Intent filters include overdue, critical, escalated, and closed task requests. Meeting retrieval is triggered by matching keywords, company names, or meeting-oriented words such as meeting, minutes, notes, decision, risk, blocker, attendee, and follow-up.
 
@@ -140,6 +140,6 @@ Implemented in `src/app/documents/actions.ts`. Extracts document fields (title, 
 ## Planned AI Enhancements
 
 - Deeper multilingual meeting support: original-language notes plus optional English minutes/summary modes.
-- Use the personal dictionary more broadly in Ask COS, Outbox drafts, and action extraction.
+- Use the personal dictionary more broadly in Ask Oracle, Outbox drafts, and action extraction.
 - Extend voice intelligence to remaining long-form inputs and Outbox drafts.
 - Optional web search with explicit user control and source attribution.

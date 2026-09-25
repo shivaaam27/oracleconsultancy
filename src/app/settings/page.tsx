@@ -834,7 +834,7 @@ export default async function SettingsPage({
           </SettingsCard>
 
           {/* Claude / MCP access keys */}
-          <SettingsCard id="mcp-keys" icon={<Bot size={15} />} title="Claude access" desc="Let Claude read COS and do your day-to-day work in it." keywords="claude mcp ai assistant key token api access connector model context protocol oauth connect phone">
+          <SettingsCard id="mcp-keys" icon={<Bot size={15} />} title="Claude access" desc="Let Claude read Oracle and do your day-to-day work in it." keywords="claude mcp ai assistant key token api access connector model context protocol oauth connect phone">
             <p className="mb-3 text-xs leading-snug text-fg-muted">
               Claude can look at everything you can — tasks, people, attendance, calendar, documents,
               the brief — and do the ordinary work: raise tasks, post updates, complete and archive

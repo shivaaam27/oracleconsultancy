@@ -9,7 +9,7 @@ left = dark_card(card_title('Document room', '<span>197 documents</span>') + '''
 <button type="button" onClick="{{showSoon}}" style="border: 0; background: transparent; padding: 0; text-align: left; color: #F2F2F0"><div style="font-size: 30px; letter-spacing: -0.03em; line-height: 1">5</div><div style="font-size: 12px; color: #F5B94E; margin-top: 4px">due soon</div></button>
 </div>
 <span style="flex-grow: 1"></span>
-<div style="font-size: 12px; color: #8E9197; max-width: 200px; line-height: 1.5; padding-bottom: 6px">Expiry dates are typed by you. COS reminds you before each one and can open a renewal task.</div>
+<div style="font-size: 12px; color: #8E9197; max-width: 200px; line-height: 1.5; padding-bottom: 6px">Expiry dates are typed by you. Oracle reminds you before each one and can open a renewal task.</div>
 </div>''')
 
 exp = [('DarSpices Interim Pass — Sanjay Kaushik', 'Staff file', 'Today', '#F5B94E'), ('MES Interim Pass — Gangadhar Mathankar', 'Staff file', 'Sat 26 Sept', '#F5B94E'), ('DarSpices Business Licence', 'DSC Ltd', 'Mon 5 Oct', '#C9CBCF'), ('V1 Plant Import Permit', 'V1 Supermarket', '335 days ago', '#F07BBE')]

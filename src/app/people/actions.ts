@@ -457,7 +457,7 @@ export async function createPerson(formData: FormData): Promise<ActionResult> {
   const nameProblem = personNameProblem(name);
   if (nameProblem) return { ok: false, error: nameProblem };
 
-  // Duplicate-name guard — CASE-INSENSITIVE, like every lookup by name in COS:
+  // Duplicate-name guard — CASE-INSENSITIVE, like every lookup by name in Oracle:
   // "john smith" beside "John Smith" made each name lookup find two people and
   // fail (audit 24 Sept 2026). The column is unique, but only case-sensitively.
   const { data: existing } = await sb.from("people").select("id").ilike("name", escapeLike(name)).limit(1).maybeSingle();

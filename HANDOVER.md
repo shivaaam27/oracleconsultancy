@@ -14,7 +14,7 @@ A single-operator administrator for **Oracle Consultancy** and its 7 portfolio
 companies (Dar Spices, Cocozuri Chocolat, Terra Green, Oracle Consultancy, PES
 Ltd, MES Ltd, Pamoja Plus). It replaces an Excel workbook with task tracking,
 per-task timelines, risk views, meetings/notes, a personal to-do list, document
-& compliance tracking, outreach drafts, an Ask-COS assistant, and (V2) an HRMS
+& compliance tracking, outreach drafts, an Ask-Oracle assistant, and (V2) an HRMS
 area and a Director Brief report.
 
 No auth, single operator. `createdBy` is normally `"web-ui"`.

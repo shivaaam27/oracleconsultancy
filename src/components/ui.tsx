@@ -8,7 +8,7 @@ import type { ComponentProps, ReactNode } from "react";
  *  (name/defaultValue/value/onChange…) so it works in forms or controlled. */
 /* ══════════════════════════════════════════════════ ONE CONTROL BOX ══
  *
- * ⚠️ EVERY CONTROL IN COS IS THIS BOX: a text field, `Select`, `FluidSelect`,
+ * ⚠️ EVERY CONTROL IN Oracle IS THIS BOX: a text field, `Select`, `FluidSelect`,
  * `Combobox`, `SearchInput`. One height, one radius, one type size. If you
  * change one, you have changed them all — which is the point.
  *
@@ -75,7 +75,7 @@ export function SearchInput({
         {...p}
         className={cn(
           // ⚠️ THE ONE BOX. Was `h-9 rounded-xl`, which put a 36px pill beside
-          // 32px buttons and 28px fields on every list toolbar in COS.
+          // 32px buttons and 28px fields on every list toolbar in Oracle.
           "w-full h-8 pl-8 pr-2.5 text-sm rounded-md border border-border bg-bg-subtle/60",
           "focus:outline-none focus:ring-2 focus:ring-accent/50 placeholder:text-fg-subtle",
           className

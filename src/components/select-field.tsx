@@ -6,7 +6,7 @@ import { FluidSelect, type FluidOption } from "@/components/fluid-select";
 /**
  * A `FluidSelect` that can live inside an ordinary server-action form.
  *
- * ⚠️ COS DOES NOT USE NATIVE `<select>` — its popup mis-renders (see
+ * ⚠️ Oracle DOES NOT USE NATIVE `<select>` — its popup mis-renders (see
  * CLAUDE.md). But FluidSelect is a button, not a form control, so on its own it
  * submits nothing. This pairs it with a hidden input carrying the name, which
  * is the same trick `FormSwitch` uses for the iPhone toggle.

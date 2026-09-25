@@ -1,6 +1,6 @@
 // ============================================================================
 // Administrator — shared flag + date engine.
-// Adopted from the owner's COS handover (cosTypes.ts), mapped to our design
+// Adopted from the owner's Oracle handover (cosTypes.ts), mapped to our design
 // tokens. Flags are DERIVED, never stored — recompute from dates on render so
 // they're always correct relative to today. Bands differ by risk class:
 //   deadlines    : <0 overdue · ≤7 dueNow · ≤30 soon · else later

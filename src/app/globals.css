@@ -204,7 +204,7 @@
   [data-studio-goto], [data-studio-goto] * { border-color: var(--sh-line, #2A2C30); }
 }
 
-/* ⚠️ `html, body { height: 100% }` IS WHAT BREAKS EVERY "GO BACK" IN COS, and it
+/* ⚠️ `html, body { height: 100% }` IS WHAT BREAKS EVERY "GO BACK" IN Oracle, and it
    is not obvious. A fixed-height `html` plus the `overflow-x: hidden` below
    makes `body` the scrolling box, so `document.scrollingElement` (html) never
    moves: `window.scrollY` reads 0 however far down the page you are. Next's
@@ -233,7 +233,7 @@ html {
    the whole page rubber-banding sideways on mobile.
    ⚠️ `clip`, NOT `hidden`. `hidden` on `body` quietly makes it a scroll box
    (its overflow-y computes to `auto`) — one that never scrolls, because the
-   document does. Every `position: sticky` in COS then stuck to THAT box
+   document does. Every `position: sticky` in Oracle then stuck to THAT box
    instead of the screen, i.e. never stuck at all: the Settings save bar, the
    bulk-select bar, the Studio search bar. Measured: the Studio bar sat at
    5,682px on a 900px window. `clip` cuts the overflow without making a scroll
@@ -1340,7 +1340,7 @@ section[data-page-header],
    A writing surface, not a list row. Desk's 13px body is right for dense records
    and wrong for prose, so the canvas is the ONE documented place that opts out:
    14.5px with a 1.65 line-height, on the same tokens as everything else so it
-   still reads as COS. Everything here is scoped to .note-canvas — it cannot leak.
+   still reads as Oracle. Everything here is scoped to .note-canvas — it cannot leak.
 
    If the Notes module is abandoned after the spike, delete this block. */
 .note-canvas {
@@ -1625,7 +1625,7 @@ section[data-page-header],
 /* ═══════════════════════════ Studio (redesign) ═══════════════════════════
    The look from design/studio-mockup. ⚠️ EVERYTHING HERE IS SCOPED TO `.studio`
    — a page only wears it once its switch is on (src/lib/studio.ts), so nothing
-   else in COS changes. Colours are tokens so the dark theme can remap them. */
+   else in Oracle changes. Colours are tokens so the dark theme can remap them. */
 .studio {
   --st-ink: #111214;
   --st-page: #F3F3F1;

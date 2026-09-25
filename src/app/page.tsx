@@ -55,7 +55,7 @@ export default async function HubPage({ searchParams }: { searchParams: Promise<
     );
   }
 
-  // COS Home (mockup board Home). A director gets it cut down to their
+  // Oracle Home (mockup board Home). A director gets it cut down to their
   // companies — see StudioHomeServer.
   return <StudioHomeServer rows={await getAllTasks()} viewer={viewer} />;
 }

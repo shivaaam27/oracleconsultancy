@@ -102,7 +102,7 @@ export function McpKeyManager({ initial, create, revoke, connections = [], revok
       )}
 
       {keys.length === 0 ? (
-        <p className="text-xs text-fg-muted">No keys yet. Anything holding a key can read your COS data, so make one per device and revoke what you stop using.</p>
+        <p className="text-xs text-fg-muted">No keys yet. Anything holding a key can read your Oracle data, so make one per device and revoke what you stop using.</p>
       ) : (
         <ul className="divide-y divide-border/50">
           {keys.map((k) => (
@@ -134,7 +134,7 @@ export function McpKeyManager({ initial, create, revoke, connections = [], revok
           <p className="mb-1.5 text-xs font-medium text-fg">Connected assistants</p>
           {links.length === 0 ? (
             <p className="text-xs text-fg-muted">
-              None yet. When you add COS as a connector in Claude on your phone or on claude.ai, it
+              None yet. When you add Oracle as a connector in Claude on your phone or on claude.ai, it
               appears here — and disconnecting it takes effect straight away.
             </p>
           ) : (

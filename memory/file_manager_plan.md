@@ -90,7 +90,7 @@ app logos). The hover tile behind a folder is a soft grey rounded square.
   global company/person drawer on any page.
 - **Preview** (`file-preview.tsx`): PDF in the browser's viewer via `/api/files/[id]`
   (302 to a 5-minute signed URL; `?dl=1` downloads under the owner's name);
-  pictures; Word via mammoth → `srcDoc` (⚠️ not `src` — every COS page carries
+  pictures; Word via mammoth → `srcDoc` (⚠️ not `src` — every Oracle page carries
   X-Frame-Options: DENY). Details panel edits expiry, reminder, type, reference,
   issuer, notes; **"Read it for me"** fills EMPTY boxes from the AI reader and saves
   nothing; "Make a renewal task". ⚠️ Colours are inline there — the global field

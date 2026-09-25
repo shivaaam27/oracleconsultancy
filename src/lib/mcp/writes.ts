@@ -1,4 +1,4 @@
-// The write half of /api/mcp — what an assistant is allowed to CHANGE in COS.
+// The write half of /api/mcp — what an assistant is allowed to CHANGE in Oracle.
 //
 // STAGE 2. The two rules that govern every line here, set by the owner in Aug 2026
 // (memory/mcp_stage2_safe_writes.md):
@@ -22,7 +22,7 @@
 //  1. **Go in through the door the UI uses.** `createEventAction` pushes to Google,
 //     spawns the meeting task and notifies attendees; `createCalendarEvent` only
 //     writes a row. Calling the raw helper would produce an event that exists in
-//     COS and nowhere else. So: actions and shared cores, never raw inserts.
+//     Oracle and nowhere else. So: actions and shared cores, never raw inserts.
 //  2. **Nothing is created by accident.** Names resolve to EXISTING active people
 //     and companies. An assistant that mishears a name gets an error, never a new
 //     member of staff. (The web form deliberately does the opposite — the owner
@@ -1318,7 +1318,7 @@ export async function mcpDraftMessage(
 /**
  * Archive or restore a task.
  *
- * Archiving is COS's soft delete: the row stays, its history stays, and it stays
+ * Archiving is Oracle's soft delete: the row stays, its history stays, and it stays
  * searchable under "include history". That reversibility is the whole reason this
  * is allowed where a real delete is not — pass `archived: false` and it's back.
  */

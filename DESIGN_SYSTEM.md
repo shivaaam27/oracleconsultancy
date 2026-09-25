@@ -1,4 +1,4 @@
-# Desk — the COS Design System (flat, grey, dense; ERPNext-shaped)
+# Desk — the Oracle Design System (flat, grey, dense; ERPNext-shaped)
 
 **The design language is called "Desk"** — ERPNext's own word for its working
 interface, because that is exactly what this borrows. When the owner says *"make
@@ -8,7 +8,7 @@ being asked.**
 
 > **Replaced Aurora (liquid glass) in Stage 1 of the ERPNext redesign, Aug 2026.**
 > Aurora was Apple-inspired: translucent, rounded, atmospheric. It is gone — the
-> owner uses ERPNext daily and asked for COS in that shape. The old language
+> owner uses ERPNext daily and asked for Oracle in that shape. The old language
 > survives only in git history and as *class names* (`.glass`, `.elevated`) that
 > now resolve to flat surfaces, so 94 components needed no edit.
 > Programme + remaining stages: `memory/erpnext_redesign_plan.md`.
@@ -231,7 +231,7 @@ Reuse before inventing: `Card`, `Surface`, `Button`, `Badge`, `Pill`, `Switch`,
 
 ### ⚠️ ONE CONTROL BOX, ONE TYPE SCALE (settled Aug 2026, measured)
 
-**Every control in COS is the same box: `h-8` (32px) · `rounded-md` (6px) ·
+**Every control in Oracle is the same box: `h-8` (32px) · `rounded-md` (6px) ·
 `text-sm`.** A text field, `Select`, `FluidSelect`, `Combobox`, `SearchInput`,
 an action button. Declared once as **`CONTROL_BOX` / `FIELD` / `FIELD_NUM` in
 `ui.tsx`** — change one and you have changed them all, which is the point.
@@ -251,7 +251,7 @@ figure, where the size is a deliberate statement, and is left alone.
 **⚠️ THE TWO BUGS THIS FIXED WERE THE SAME SHAPE, and it is the one to watch
 for: a container that sets no `font-size`, so anything inside it falls back to
 the browser's 16px default.**
-- `Combobox`'s input had no size at all — *every* typeable dropdown in COS
+- `Combobox`'s input had no size at all — *every* typeable dropdown in Oracle
   rendered at 16px, a head taller than the field beside it.
 - `RecordList`'s row had no size — any cell that did not set its own rendered
   at 16px, which was most cells on most lists.
@@ -307,7 +307,7 @@ fixed or the second one bites:
    by ANY ancestor that scrolls or hides overflow — a bottom sheet, a drawer, a
    panel, a card. Photographed on "Start a batch": the option list ran past the
    bottom of the sheet and was chopped mid-row, so half the choices could not be
-   reached. **A dropdown inside a dialog is the normal case in COS.**
+   reached. **A dropdown inside a dialog is the normal case in Oracle.**
 2. **Stacking.** Portalling fixes the clipping and immediately puts the menu
    BEHIND the sheet, because it is now a sibling of every overlay. It needs
    `zIndex: MENU_Z` (1000) — a Tailwind `z-[60]` class was the first attempt and

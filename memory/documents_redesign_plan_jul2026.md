@@ -62,7 +62,7 @@ the reliable path — both modes feed one PDF. All captions from the session are
 kept in a ref and, on "Save as PDF", saved to ORI memory via
 `saveScanNarrationAction` → `recordQA("admin", …)` (best-effort, fire-and-forget,
 never blocks the save) — so "what did the camera see" becomes recallable through
-Ask COS's existing memory recall, same mechanism as any other remembered Q&A.
+Ask Oracle's existing memory recall, same mechanism as any other remembered Q&A.
 
 ### Scanner bugfixes — 2026-07-06 (owner-reported, same day as ship)
 Three bugs surfaced immediately on real-device use:

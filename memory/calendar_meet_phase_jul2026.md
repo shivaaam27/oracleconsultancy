@@ -14,7 +14,7 @@ better email previews, two-way sync.
 ## What was broken
 The Google Meet integration was already REAL (OAuth2 + `conferenceData.createRequest`,
 `src/lib/google-calendar.ts`). But `createGoogleEvent` returned `eventId` and **threw
-it away** — so a later COS edit or delete NEVER reached Google → guests kept a stale
+it away** — so a later Oracle edit or delete NEVER reached Google → guests kept a stale
 invite. That was the core bug.
 
 ## Built (Phase 3A — two-way sync)

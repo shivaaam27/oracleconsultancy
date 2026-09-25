@@ -1,6 +1,6 @@
 ---
 name: notes-module-plan
-description: "The COS Notes module: plan + build log. Phases 0-3 DONE (editor, shelf, slash menu, tables, tags, daily notes, @/[[ links + backlinks). Phase 4 (to-dos/reminders) is next."
+description: "The Oracle Notes module: plan + build log. Phases 0-3 DONE (editor, shelf, slash menu, tables, tags, daily notes, @/[[ links + backlinks). Phase 4 (to-dos/reminders) is next."
 metadata:
   node_type: memory
   type: project
@@ -50,7 +50,7 @@ the whole safety model is a single `updated_at` precondition.
 
 ---
 
-## 1. What COS already gives us (so we don't rebuild it)
+## 1. What Oracle already gives us (so we don't rebuild it)
 
 | Need | Already there | Verdict |
 |---|---|---|
@@ -74,10 +74,10 @@ those four. Do not contort the new module to fit `meetings`.
 
 **Choose Tiptap** (ProseMirror underneath), headless, MIT.
 
-| Option | Licence reality (checked Aug 2026) | Fit for COS |
+| Option | Licence reality (checked Aug 2026) | Fit for Oracle |
 |---|---|---|
 | **Tiptap** ✅ | Core + most extensions **MIT**; only the *Cloud* products (comments, snapshots, AI Toolkit, conversion) are paid, from $49/mo — and we need none of them | Headless: we render every control with our own Desk kit. Biggest extension set. ProseMirror is the most battle-tested engine going. |
-| Plate | **MIT**, and there is an official template on **React 19 + Next 16 + Tailwind 4** | Strong runner-up. Built around shadcn components — COS has its own kit, so we'd restyle everything anyway, which cancels its main advantage. |
+| Plate | **MIT**, and there is an official template on **React 19 + Next 16 + Tailwind 4** | Strong runner-up. Built around shadcn components — Oracle has its own kit, so we'd restyle everything anyway, which cancels its main advantage. |
 | BlockNote | Core MPL-2.0 (fine), but **XL packages — AI integration, multi-column, exporters — are GPL-3.0 or a paid commercial licence** | **Reject.** The AI integration is exactly what we want and exactly what is GPL/paid. Also the most opinionated look, which would fight Desk hardest. |
 | Lexical | MIT | Fine engine, thinner ecosystem for tables/slash menus; its wins (bundle size, RN) don't matter here. |
 
@@ -253,7 +253,7 @@ them simplifications:
 ## 9. Deliberately NOT doing (this is what keeps it from bloating)
 
 - **Real-time collaborative editing / CRDTs.** One operator. Yjs + a server is weeks
-  of work for a problem COS does not have. (Tiptap can add it later without a
+  of work for a problem Oracle does not have. (Tiptap can add it later without a
   rewrite — that is part of why it wins.)
 - **Nested folder trees.** Flat folders + tags + saved views cover it; trees are a
   maintenance tax and Apple Notes' own hierarchy is the thing people get lost in.
@@ -847,18 +847,18 @@ to fetch the result. A third-party bot that joins the call is the gimmick versio
 needs a paid seat per meeting, it shows up as a stranger in the participant list, and
 it is one more vendor holding the group's private conversations.
 
-**What already exists in COS:** Google OAuth (`src/lib/google.ts`), Meet links created
+**What already exists in Oracle:** Google OAuth (`src/lib/google.ts`), Meet links created
 and stored on `calendar_events.meet_link`, the notes module, the AI polish/summarise/
 extract actions, note links, and to-dos. The only genuinely new part is the fetch.
 
 **How it would work:**
-1. COS creates the meeting (it already does) **and turns transcription on in the
+1. Oracle creates the meeting (it already does) **and turns transcription on in the
    invite** — Google has allowed pre-configuring that on the Calendar event since Jul
    2024, so nobody has to remember to press record.
 2. The meeting happens. **Google transcribes it**, with speaker names.
 3. A cron picks up events whose end time has passed, and asks the **Meet REST API v2**
    for `conferenceRecords.transcripts.entries` — structured lines with who said what.
-4. COS makes a **note**, linked to the event and its company/people, holding the
+4. Oracle makes a **note**, linked to the event and its company/people, holding the
    transcript.
 5. The owner presses the buttons that already exist: **Tidy the writing** for readable
    minutes, **Find the jobs** for the actions, **Summarise** for the top.
@@ -867,9 +867,9 @@ extract actions, note links, and to-dos. The only genuinely new part is the fetc
 - **The Workspace plan must be Business Standard or higher.** Business Starter and
   personal Gmail have no transcription at all. ⚠️ **CHECK THIS FIRST — the whole idea
   dies here otherwise.**
-- **Transcription must be on for that meeting.** Step 1 handles the meetings COS
+- **Transcription must be on for that meeting.** Step 1 handles the meetings Oracle
   creates; a meeting someone else organised is *their* Drive and *their* transcript,
-  and COS cannot reach it.
+  and Oracle cannot reach it.
 
 **New scopes needed** beyond today's `calendar.events`: the Meet API's
 `meetings.space.readonly` (and Drive read if the Google Doc version is wanted). That
@@ -1086,13 +1086,13 @@ Desktop is untouched: same bordered card, same record bar, same right rail, same
 
 The shelf is a LIST, and a list is correctly a bordered card in Desk. Making
 lists full-bleed on a phone would mean changing `RecordList`, which is every list
-in COS — a separate decision, not a side effect of this one. It still carries
+in Oracle — a separate decision, not a side effect of this one. It still carries
 249px of header, chips, search and four buttons above the rows on a phone.
 
 ### The list too — same day
 
 The owner asked for the shelf to get the same treatment, so it went into
-`RecordList` rather than into notes: **every list in COS runs to both edges of a
+`RecordList` rather than into notes: **every list in Oracle runs to both edges of a
 phone now** (`bleed`, on by default; 50 lists use the component).
 
 - Measured at 375px: `main`'s 16px gutters left the card 343px, and each row gave

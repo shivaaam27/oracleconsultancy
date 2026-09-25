@@ -1,5 +1,5 @@
 // Entity registry — the SINGLE SOURCE OF TRUTH for every indexable/searchable
-// entity in the COS system.
+// entity in the Oracle system.
 //
 // Each EntityDef describes one of the 12 SourceType entities: which table it
 // lives in, which columns feed the search index, how to turn a row into the

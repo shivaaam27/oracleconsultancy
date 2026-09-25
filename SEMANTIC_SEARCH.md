@@ -1,9 +1,9 @@
-# Semantic search (Ask COS) — one-time setup
+# Semantic search (Ask Oracle) — one-time setup
 
-Semantic search lets **Ask COS find things by meaning, not just matching words**
+Semantic search lets **Ask Oracle find things by meaning, not just matching words**
 ("who's behind on paperwork?" finds tasks that say "documentation outstanding").
 It runs **entirely in your own Supabase region** — no text is sent to any outside
-AI company. It's **off by default** and the whole system works without it (Ask COS
+AI company. It's **off by default** and the whole system works without it (Ask Oracle
 uses keyword + synonym search until you switch it on), so there's no rush and
 nothing breaks if you never do this.
 
@@ -36,13 +36,13 @@ unchanged items are skipped. New tasks/meetings index themselves automatically o
 step 4 is on.
 
 ## 4. Turn it on
-**Settings → AI assistance → "Semantic search (Ask COS)"**. From now on Ask COS
+**Settings → AI assistance → "Semantic search (Ask Oracle)"**. From now on Ask Oracle
 blends meaning-based results with its keyword search.
 
 ---
 
 ### Good to know
-- **Safe to switch off** any time — Ask COS instantly falls back to keyword + synonym
+- **Safe to switch off** any time — Ask Oracle instantly falls back to keyword + synonym
   search. Switching off doesn't delete anything; the embeddings just stop being used.
 - **English-strong.** The built-in model reads English best; Swahili/Hindi/Gujarati text
   is embedded weakly, but keyword search still covers those by literal match. A fully
@@ -61,7 +61,7 @@ blends meaning-based results with its keyword search.
   it re-indexes changed rows, heals any missed hook and sweeps truly-deleted vectors.
 - **History is kept, not deleted.** When a record is archived, closed or made inactive
   it is **re-stamped as history** (the `embeddings.lifecycle` column, `active` vs
-  `history`; migration 0094) rather than dropped. By default Ask COS searches only
+  `history`; migration 0094) rather than dropped. By default Ask Oracle searches only
   current records; the deep search palette has an "Include history" toggle, and the
   underlying `hybrid_search` RPC takes a `filter_lifecycle` argument
   (`active` / `history` / all). Only genuinely hard-deleted rows have their vectors

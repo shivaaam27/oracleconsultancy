@@ -33,7 +33,7 @@ Three things, and only the first is hard.
    fetches the note, folders, links, backlinks, to-dos, revisions and templates
    on the server and sends finished HTML. With no server there is no page.
    The service worker deliberately **never caches an HTML page**, and that rule
-   is right: COS sits behind a login, and a cached page could flash another
+   is right: Oracle sits behind a login, and a cached page could flash another
    person's screen or freeze a stale "not found". So today, offline `/notes`
    gives the offline screen.
 
@@ -78,7 +78,7 @@ Each is useful on its own and can be stopped after.
 ## Stage 1 — Write a new note anywhere — ✅ BUILT 21 Aug 2026
 
 Offline, you can create and write a **new** note. It saves on the device and
-appears in COS when you are next online.
+appears in Oracle when you are next online.
 
 **Why first:** it is most of what "use it anytime" means — catching a thought —
 and it carries **no risk at all**, because a brand-new note cannot conflict with
@@ -246,7 +246,7 @@ connection and say so.**
 
 # 5. What I would deliberately not do
 
-- **Offline for the rest of COS.** Tasks, the ledger and the portal have many
+- **Offline for the rest of Oracle.** Tasks, the ledger and the portal have many
   writers and a real audit trail. The conflict problem there is genuine and the
   wrong answer corrupts history silently. Notes are the exception *because* they
   are owner-only.
@@ -258,7 +258,7 @@ connection and say so.**
 
 ---
 
-# 6. Offline looks like COS (21 Aug 2026, the owner's correction)
+# 6. Offline looks like Oracle (21 Aug 2026, the owner's correction)
 
 The first cut of Stages 2 and 3 was a **different screen** — tabs, a plain list, a
 boxed textarea. The owner's instruction, plainly: *"when i am offline i want to
@@ -276,7 +276,7 @@ So `/notes/offline` is now **the shelf and the note page**, not a substitute:
   sheet measured to the bottom of the window, the same 68-character paper, the same
   rail down the right. Writing happens IN the paper (a `.bare-field` textarea styled
   as the page), and anything written but not sent is shown **at the end of the
-  note, where it will land**, marked "not in COS yet".
+  note, where it will land**, marked "not in Oracle yet".
 - **One bar across the top** says which state you are in and what is waiting. It is
   there when you are connected too — that is how the device takes its copy, and the
   only place to see what has not gone yet.
@@ -285,7 +285,7 @@ So `/notes/offline` is now **the shelf and the note page**, not a substitute:
   buttons missing looks broken; a page with them greyed and explained looks honest.
 
 ⚠️ **Filters and rows do not navigate here.** Filters are URLs everywhere else in
-COS and should stay that way — it is what makes a list shareable and saveable —
+Oracle and should stay that way — it is what makes a list shareable and saveable —
 but following a link with no connection means asking the server for a page it
 cannot answer. `RecordFilter` gained an optional `onSelect`, and the rail renders a
 button that looks exactly the same. Rows use `onRowClick`.
@@ -343,13 +343,13 @@ opens with the server switched off.
 ## ⚠️ Bug 2 — it said "Connected" while nothing could be reached
 
 `navigator.onLine` is true whenever there is any network at all. It is not a test
-of whether COS answers: a hotel portal, a dropped VPN, a bar of signal carrying
+of whether Oracle answers: a hotel portal, a dropped VPN, a bar of signal carrying
 nothing, or the site being down all leave it saying yes. With the server dead the
 banner cheerfully read *"Connected."*
 
 **Fixed**: `refreshNoteCache()` reports `reachable`, set false only when a request
 gets no answer at all (a 401 counts as REACHED — the server replied). The banner
-now has three states, and the middle one is the honest new one: *"COS cannot be
+now has three states, and the middle one is the honest new one: *"Oracle cannot be
 reached. You are reading the copy on this device, and you can still write."* The
 Send and Refresh buttons stay visible whenever the browser thinks there is a
 network, so there is always a way to try again.
@@ -360,8 +360,8 @@ network, so there is always a way to try again.
   and all 10 notes readable.
 - Typing `/notes/21` redirects to `/notes/offline?note=21` and opens **that note**.
 - "Add to this note" writes, shows the text in place at the end of the note marked
-  *not in COS yet*, and counts it in the bar.
-- Server back up → banner returns to Connected → Send → *"1 sent to COS"* → the
+  *not in Oracle yet*, and counts it in the bar.
+- Server back up → banner returns to Connected → Send → *"1 sent to Oracle"* → the
   paragraph is in the real note. Verified in the database, then tidied away.
 
 ⚠️ **The app's start URL is `/`, not `/notes`.** Opening the installed app with no

@@ -7,7 +7,7 @@ import { BackLink } from "@/components/back-link";
 import { cn } from "@/lib/cn";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Connections · COS" };
+export const metadata = { title: "Connections · Oracle" };
 
 const ICON: Record<GraphNode["kind"], React.ComponentType<{ size?: number; className?: string }>> = {
   company: Building2, person: User, document: FileText, fact: Hash,

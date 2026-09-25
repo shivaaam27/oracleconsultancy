@@ -4,7 +4,7 @@
 // This is the point of the whole programme. ERPNext's uniformity is not design
 // discipline, it is METADATA: every DocType is a definition, and one list view
 // and one form view are generated for all of them. This file is that definition
-// layer for COS — it says what a record's LIST COLUMNS and FORM SECTIONS are,
+// layer for Oracle — it says what a record's LIST COLUMNS and FORM SECTIONS are,
 // and the two shells (RecordList / RecordPage) are generated from it.
 //
 // ⚠️ CLIENT-SAFE, and it must stay that way. `entity-registry.ts` imports the
@@ -89,7 +89,7 @@ export type FilterGroupDef = {
  *
  * `href` is all the metadata needs to carry: either a real create route
  * (`/task/new`) or a list URL the owning page understands (`/documents?newdoc=1`).
- * Most creates in COS are dialogs owned by a page, so the second form is the
+ * Most creates in Oracle are dialogs owned by a page, so the second form is the
  * common one — the owning component reads the param with `useCreateParam` and
  * opens its own dialog. No icons here: an icon is a component, and this file is
  * plain data. The menu maps type → icon, exactly as entity-cells maps
@@ -322,7 +322,7 @@ const EXTRA_CREATES: { id: string; create: CreateDef }[] = [
  * The New menu, in order.
  *
  * ⚠️ IT IS A SHORTLIST, NOT EVERYTHING CREATABLE (owner, 21 Sept 2026). The menu
- * had grown to twenty-odd entries — every record type in COS, module ones
+ * had grown to twenty-odd entries — every record type in Oracle, module ones
  * included — which made the seven things actually raised from scratch hard to
  * find. Vendor and Asset are still created, on their
  * own pages where the rest of that work happens; they are simply not worth a

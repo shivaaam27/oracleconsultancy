@@ -1,4 +1,4 @@
-# COS System - Codex Project Instructions
+# Oracle System - Codex Project Instructions
 
 Start with `memory/v2_plan.md`. The owner is non-technical; explain in plain language and use British English.
 
@@ -23,9 +23,9 @@ The system replaces an Excel workbook with:
 - company and portfolio risk views;
 - saved meeting notes and minutes;
 - AI-assisted meeting intelligence;
-- COS-native voice intelligence;
+- Oracle-native voice intelligence;
 - per-person reminder drafts;
-- Ask COS assistant.
+- Ask Oracle assistant.
 
 ## Stack
 
@@ -122,7 +122,7 @@ Removed standalone routes: `/capture`, `/task`, `/digest`, `/escalations`, `/aud
 - search/filter meeting history.
 - compact mobile layout with reduced vertical drag.
 
-Ask COS can use saved meeting minutes/raw notes in its RAG context.
+Ask Oracle can use saved meeting minutes/raw notes in its RAG context.
 
 ## Voice Intelligence
 
@@ -133,8 +133,8 @@ Voice is now a shared product layer, not only a microphone button:
 - Settings stores `v2.voiceLanguage` and `v2.voiceDictionary`.
 - Supported starting languages: English (`en-GB`), Swahili (`sw-TZ`), Hindi (`hi-IN`), Gujarati (`gu-IN`).
 - Meeting notes, Quick Capture, and task updates use "speak rough, save polished" behaviour.
-- Meeting Workspace includes a small quality loop to teach COS names/phrases into the voice dictionary.
-- Ask COS dictation now follows the browser language instead of a hardcoded speech locale.
+- Meeting Workspace includes a small quality loop to teach Oracle names/phrases into the voice dictionary.
+- Ask Oracle dictation now follows the browser language instead of a hardcoded speech locale.
 
 ## AI Conventions
 

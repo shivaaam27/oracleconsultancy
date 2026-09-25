@@ -69,7 +69,7 @@ Office equipment/stationery stock. Ported from a reference "stationery stock con
 1. Data layer + maths. 2. Page shell + nav. 3. Dashboard. 4. Register + TZS. 5. Purchases & Issues. 6. Simple edit/delete + hub restructure (OECR rename, OCR card).
 
 ### Remaining OECR ideas (optional, not requested)
-Per-company filtering; low-stock surfaced on Insights/Overview; voice capture / Ask COS awareness.
+Per-company filtering; low-stock surfaced on Insights/Overview; voice capture / Ask Oracle awareness.
 
 ---
 

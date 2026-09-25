@@ -4,11 +4,11 @@
  * Checkbox: the tick box (owner's component, Sept 2026, adapted).
  *
  * Built on Radix's checkbox like the prompt he supplied, with three changes
- * for COS:
- *  - `cn` comes from `@/lib/cn` (COS has no `@/lib/utils`), and the three sizes
+ * for Oracle:
+ *  - `cn` comes from `@/lib/cn` (Oracle has no `@/lib/utils`), and the three sizes
  *    are a plain map rather than `class-variance-authority`, one dependency
  *    fewer for the same result;
- *  - the colours are COS tokens, not shadcn's (`--primary`/`--input` do not
+ *  - the colours are Oracle tokens, not shadcn's (`--primary`/`--input` do not
  *    exist here): a hairline box that turns ink when ticked, in the Studio look
  *    and the Desk look alike;
  *  - a small, quick animation: the box gives under the finger, and the tick

@@ -1,6 +1,6 @@
 ---
 name: director-calendar-aug2026
-description: COS keeps the director's diary — every event (not just Meet ones) reaches Google, and reminders actually fire before the event
+description: Oracle keeps the director's diary — every event (not just Meet ones) reaches Google, and reminders actually fire before the event
 metadata:
   type: project
 ---
@@ -19,7 +19,7 @@ Two things, both quietly:
 1. **A plain event never reached Google at all.** The push to Google only happened
    inside `ensureEventMeetLink` (minting a Meet room) or `sendEventInviteAction`
    (a guest with an email). A site visit, a flight, a lunch — no Meet, no email
-   guest — was stored in COS and nowhere else. On the director's own event sheet,
+   guest — was stored in Oracle and nowhere else. On the director's own event sheet,
    turning "Add Meet" OFF skipped the push entirely (`portal/actions.ts`).
 2. **"Ping attendees before each meeting" was a promise nothing kept.** The
    setting existed and `settings.ts` described it as firing "at each event reminder
@@ -149,7 +149,7 @@ event permanently invisible on everyone's phone.
 - **Reminder alarms:** "Interview with Gopi" had three lead times chosen —
   `[60,30,0]` → three popup overrides. Not duplication. ⚠️ But the new ping engine
   fires at EVERY lead time too, so 3 chips = 3 Google popups + 3 pushes + 3 chat
-  lines + 3 emails. If that proves noisy, make the COS ping fire once per
+  lines + 3 emails. If that proves noisy, make the Oracle ping fire once per
   occurrence (nearest lead) rather than per lead, or cap the chips.
 
 ### 6b. REAL duplication — one event appearing THREE times (fixed)
@@ -221,7 +221,7 @@ the delete path.** Confirmed by running BOTH live:
 | cancellation email | **sent** (`outbox` `calendar-cancel`, status Sent) | none — nobody to email |
 | bell + push | sent to `person:71` | none |
 | Google event | `status: cancelled` | `status: cancelled` |
-| COS row | deleted | deleted |
+| Oracle row | deleted | deleted |
 
 **Meet room after deletion (measured):** the Google event keeps BOTH `hangoutLink`
 and the full `conferenceData` — the room is *not* scrubbed, it stays attached to a
@@ -255,7 +255,7 @@ Reminders are only as punctual as the sweep:
 Running it often is harmless — every reminder fires at most once.
 
 ## Known / worth knowing
-- Google is called with `sendUpdates: "none"` throughout (deliberate — COS sends
+- Google is called with `sendUpdates: "none"` throughout (deliberate — Oracle sends
   its own branded email). A Workspace guest still sees the event appear on their
   calendar; a guest on a personal Gmail whose setting is "only if I respond" will
   need the Add-to-Google button in our email. Worth checking once with the
@@ -358,7 +358,7 @@ test using both spellings.
   and the ledger shows a 30-minute reminder delivered. Reminders land within ~15
   minutes of the mark, not to the second.
 - **Editing reminders cannot change a guest's calendar alarm.** Google documents
-  `reminders` as "for the authenticated user" — they are per-person. COS holds
+  `reminders` as "for the authenticated user" — they are per-person. Oracle holds
   the OPERATOR's Google account, so it only ever sets the operator's alarms. The
-  guest is still reminded, by COS push + chat + email at the chosen lead times.
+  guest is still reminded, by Oracle push + chat + email at the chosen lead times.
   The owner asked for no note about this in the form (Aug 2026).

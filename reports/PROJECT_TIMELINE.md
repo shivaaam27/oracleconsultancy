@@ -43,7 +43,7 @@ an escalation board, and a weekly digest. Within days it also gained the things 
 made it more than a list:
 
 - **Smart Capture** — type or paste rough notes and it works out the task
-- **Ask COS** — ask the system questions in plain language
+- **Ask Oracle** — ask the system questions in plain language
 - **Voice input** — speak instead of typing
 - **Undo on everything** — so a mistake was never permanent
 - **Calendar** with drag-to-reschedule
@@ -138,5 +138,5 @@ document removal keeps a backup. That was a deliberate choice throughout.
 
 **The system was built conversationally.** There was no engineering team — it was
 built by describing what was needed in plain language and reviewing the result. The
-project's own task **OC-019 ("COS / HR system development")** records this from the
+project's own task **OC-019 ("Oracle / HR system development")** records this from the
 inside.

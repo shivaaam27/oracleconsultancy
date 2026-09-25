@@ -1,4 +1,4 @@
-# COS System - Project Instructions
+# Oracle System - Project Instructions
 
 **⚠️ THE STUDIO REDESIGN IS UNDER WAY (branch `studiotask`, Sept 2026) — read
 `memory/studio_redesign.md` before touching any page.** The mockup in
@@ -15,7 +15,7 @@ the frame is picked client-side by `PortalFrame` + `isStaffStudioPath`).** Read
 `memory/portal_unification_plan.md` and `src/lib/viewer.ts` before touching a
 server action: every one is guarded (`guardOwner` / `guardViewer`).
 
-**⚠️ COS IS A TASK-MANAGEMENT SYSTEM AGAIN (21 Sept 2026).** It was split into
+**⚠️ Oracle IS A TASK-MANAGEMENT SYSTEM AGAIN (21 Sept 2026).** It was split into
 six modules behind an `/apps` launcher in Aug 2026 — CocoZuri Operations, the
 general ledger, Orders & Imports, Capital projects, Marketing and Recruitment.
 **The owner asked for all five of the others to be removed, and for their
@@ -87,9 +87,9 @@ The system replaces an Excel workbook with:
 - company and portfolio risk views;
 - saved meeting notes and minutes;
 - AI-assisted meeting intelligence;
-- COS-native voice intelligence;
+- Oracle-native voice intelligence;
 - per-person reminder drafts;
-- Ask COS assistant.
+- Ask Oracle assistant.
 
 ## Stack
 
@@ -111,7 +111,7 @@ The system replaces an Excel workbook with:
   Verified live: that key could read `people`, `settings` (owner password hash),
   `people.portal_password_hash`, `mcp_keys`, `webauthn_credentials` — and PATCH/
   DELETE returned 204. **Migrations 0139 + 0140 turned RLS on for every table (no
-  policies) and revoked every anon/authenticated grant, on tables AND functions.** It breaks nothing: COS
+  policies) and revoked every anon/authenticated grant, on tables AND functions.** It breaks nothing: Oracle
   reads and writes only through `sb` (service role) and postgres.js as `postgres`,
   and both carry `rolbypassrls`. The anon key is used ONLY for Realtime
   **broadcast**, which is pub/sub over the socket and touches no table.
@@ -321,7 +321,7 @@ They create tables that 0167 then drops. **Do not delete them.**
 
 See `memory/database_schema.md`.
 
-## MCP — Claude reaches into COS (`/api/mcp`)
+## MCP — Claude reaches into Oracle (`/api/mcp`)
 
 Owner asks Claude a question in plain English; Claude answers from the live
 system — and, since stage 2, can raise the task too. **Stage 1 (read-only) is
@@ -332,7 +332,7 @@ BUILT**. Stages 3–5 are planned and not started.
 per stage: `mcp_stage1_read_only` → `mcp_stage2_safe_writes` → `mcp_stage3_sign_in`
 → `mcp_stage5_director_portal` (all ✅ done, Aug 2026) → `mcp_stage4_automatic`
 (⬜ the only one left). `memory/mcp_extending.md` covers **what happens to MCP when
-COS grows** — read it before adding a feature.
+Oracle grows** — read it before adding a feature.
 
 **⚠️ FORWARD RULE — ask the MCP question.** Nothing new reaches Claude by itself:
 a new page, module or table is invisible until a registry entry exists. That's the
@@ -517,7 +517,7 @@ external scheduler) — don't "fix" them by adding schedules.
 
 ## ⚠️ The redesign is under way — Stages 0–3 are built. Read before any UI work
 
-The owner uses ERPNext, loves it, and has asked for COS to be rebuilt in that
+The owner uses ERPNext, loves it, and has asked for Oracle to be rebuilt in that
 shape: flat/grey/dense, one uniform list + record screen everywhere, saved views
 and bulk edit. He chose the **full structural rebuild** with the cheaper options
 put to him first, so it is a settled decision — roughly 6–9 weeks, staged.
@@ -527,7 +527,7 @@ stages, the decisions, the measurements (already taken — don't repeat them), t
 palette, what is deliberately out of scope, and the mockup link.
 
 The key insight in one line: ERPNext's uniformity comes from **metadata**, and
-COS already has the seed of it in `src/lib/entity-registry.ts` — extend that with
+Oracle already has the seed of it in `src/lib/entity-registry.ts` — extend that with
 list columns and form sections and generate the screens, rather than hand-copying
 a layout across 58 pages.
 
@@ -581,7 +581,7 @@ Commitments. `RecordList` also owns the **column chooser** (`listKey`) and
 `src/lib/saved-views.ts` (`<listKey>.savedViews` in `settings`).
 
 **Every list FILLS THE WORKING AREA** (Aug 2026). A three-row list used to leave
-600–700px of bare grey under it — the owner's "dead space" — on every list in COS.
+600–700px of bare grey under it — the owner's "dead space" — on every list in Oracle.
 `src/lib/use-fill-viewport.ts` is now the ONE place that decides how tall a panel
 should be; `RecordList` uses it (`fillViewport`, on by default, off for `bare`)
 and so does the note sheet. ⚠️ It measures the element's top in DOCUMENT space and
@@ -632,7 +632,7 @@ faults, three separate fixes, and they are independent:
   `document.scrollingElement` before anything else.
 - **The address is carried, not guessed** (`lib/return-to.ts`). `RecordList`
   appends `?back=<the list you were on, filters and all>` to every `rowHref`, so
-  **every converted list in COS gets this without asking** — that is why it lives
+  **every converted list in Oracle gets this without asking** — that is why it lives
   there and not in each page. `BackLink` (`components/back-link.tsx`) reads it
   and names it, so the link says **"‹ Board"** when you came from the board.
   ⚠️ **`safeReturn` is the gate** — a query parameter is attacker-supplied, and a
@@ -681,7 +681,7 @@ faults, three separate fixes, and they are independent:
 (owner, 21 Sept 2026: *"searching tasks should be responsive and not when i
 just type and press enter"*). Every list on `useUrlFilters` had filtered live
 for months; the task bar's own box (`task-filter-bar.tsx`) still committed only
-on **Enter**, so it was the one search in COS that sat there while you typed.
+on **Enter**, so it was the one search in Oracle that sat there while you typed.
 It now settles 300ms after the keyboard goes quiet. Enter still works, it just
 skips the wait.
 - ⚠️ **IT REPLACES, NEVER PUSHES.** One history entry per keystroke makes the
@@ -747,7 +747,7 @@ already had. **A row of destinations is not a block of text.**
 `w-full` resolves against a shrink-wrapped parent and the control comes out the
 width of its longest option — ragged beside full-width text fields.
 **`src/components/select-field.tsx`** is the reusable fix, and is also how you
-get a FluidSelect into a server-action form: COS uses no native `<select>`, and
+get a FluidSelect into a server-action form: Oracle uses no native `<select>`, and
 a FluidSelect on its own submits nothing.
 
 ⚠️ **`gridFor()` FLATTENS AN fr MULTIPLIER.** A column written `minmax(0,1.6fr)`
@@ -790,7 +790,7 @@ holds the design for each, the traps, the other candidates, and what is
 deliberately not being done. **`RecordList` is the lever for three of the four**
 — build export and keyboard nav there once and every converted list gets them.
 
-**⚠️ MCP Stage 4 is the risky one** and should go last: it is the lane where COS
+**⚠️ MCP Stage 4 is the risky one** and should go last: it is the lane where Oracle
 wakes Claude on a schedule instead of the owner asking. Set a real
 `aiMonthlySpendCap` before enabling it — the default is 0 = unlimited.
 
@@ -869,7 +869,7 @@ the traps that cost real time.
     chunk and reading must not depend on it being cached. ⚠️ **The copy is cleared
     when the session ends**: on the sign-in screen (`forget-offline-notes.tsx`),
     and on any 401/redirect from the cache route. It never clears unsent writing.
-  - ⚠️ **OFFLINE LOOKS LIKE COS, and that is the point** (owner, 21 Aug 2026).
+  - ⚠️ **OFFLINE LOOKS LIKE Oracle, and that is the point** (owner, 21 Aug 2026).
     `/notes/offline` renders the REAL shelf (`RecordList` + `ENTITY_VIEWS.note`)
     and the REAL note page — same rail, same columns, same sheet measured to the
     bottom of the window — fed from IndexedDB. One bar says you are offline and
@@ -895,7 +895,7 @@ the traps that cost real time.
     worker (v15) now reads the page's `/_next/static/…` URLs out of its HTML and
     caches them with it, on install and on every later visit (a deploy renames
     every chunk). Measured: 0 chunks before, 46 after, from a single visit.
-  - ⚠️ **`navigator.onLine` IS NOT "can I reach COS".** It is true whenever any
+  - ⚠️ **`navigator.onLine` IS NOT "can I reach Oracle".** It is true whenever any
     network exists — a hotel portal, a dropped VPN, a bar of signal carrying
     nothing, the site being down. It printed "Connected" over a page that could
     reach nothing. `refreshNoteCache()` reports `reachable`, false only when a
@@ -1059,7 +1059,7 @@ Voice is now a shared product layer, not only a microphone button:
 - Settings stores `v2.voiceLanguage` and `v2.voiceDictionary`.
 - Supported starting languages: English (`en-GB`), Swahili (`sw-TZ`), Hindi (`hi-IN`), Gujarati (`gu-IN`).
 - Meeting notes, Quick Capture, and task updates use "speak rough, save polished" behaviour.
-- Ask COS dictation now follows the browser language instead of a hardcoded speech locale.
+- Ask Oracle dictation now follows the browser language instead of a hardcoded speech locale.
 
 ## HR & Admin Operating System (V3 — in progress)
 
@@ -1218,7 +1218,7 @@ auto without explicit opt-in**).
 
 ## Staff Portal Parity
 
-The staff portal (`/portal`) is a **first-class surface**, not an afterthought — it must keep pace with the admin side's look and feel. The portal deliberately drops anything that exposes admin data (the ⌘K command surface, Ask COS, drawers, capture wizard), but it should share everything that doesn't require those permissions: design kit, global styles, entrance motion, micro-interactions, accessibility.
+The staff portal (`/portal`) is a **first-class surface**, not an afterthought — it must keep pace with the admin side's look and feel. The portal deliberately drops anything that exposes admin data (the ⌘K command surface, Ask Oracle, drawers, capture wizard), but it should share everything that doesn't require those permissions: design kit, global styles, entrance motion, micro-interactions, accessibility.
 
 - **When you change shared visuals** (global CSS in `globals.css`, `surface-kit.tsx`, `reveal.tsx`/`motion.ts`), they flow to the portal automatically — keep it that way; prefer changing shared files over page-level styling.
 - **When you restyle an admin component that has a portal twin, update the twin in the same change.** Current twins (admin ↔ portal):

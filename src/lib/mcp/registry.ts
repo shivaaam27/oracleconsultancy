@@ -155,9 +155,9 @@ function isoDay(value: Date | string | null | undefined): string | null {
 export const MCP_TOOLS: McpTool[] = [
   {
     name: "search_cos",
-    title: "Search COS",
+    title: "Search Oracle",
     description:
-      "Search everything in COS at once — tasks, people, companies, documents, vendors, assets, " +
+      "Search everything in Oracle at once — tasks, people, companies, documents, vendors, assets, " +
       "governance records. Use this when you don't know which specific list something is in, or " +
       "when the person names something without saying what kind of thing it is.",
     schema: z.object({
@@ -714,7 +714,7 @@ export const MCP_TOOLS: McpTool[] = [
     name: "list_records",
     title: "Look at the other registers",
     description:
-      "Read the parts of COS beyond tasks. Pick a type:\n" +
+      "Read the parts of Oracle beyond tasks. Pick a type:\n" +
       "• todos — the to-do list\n" +
       "• risks / decisions — the board-level risk register and decision log\n" +
       "• governance — one company's shareholding, directors, signatories, resolutions (needs a company)\n" +
@@ -793,7 +793,7 @@ export const MCP_TOOLS: McpTool[] = [
     description:
       "Reverse something YOU changed in the last ten minutes — the most recent one, or a specific " +
       "undoToken returned by an earlier tool. It only reaches your own changes; it cannot undo " +
-      "anything a person did. Past ten minutes, it has to be changed by hand in COS.",
+      "anything a person did. Past ten minutes, it has to be changed by hand in Oracle.",
     schema: z.object({
       token: z.string().optional().describe("An undoToken from an earlier result; omit for the most recent change"),
     }),

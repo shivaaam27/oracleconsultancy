@@ -1,6 +1,6 @@
 /**
  * Derives a lightweight description of where the operator is — page AND
- * subsection (active tab, filters, open drawer) — so the COS assistant can
+ * subsection (active tab, filters, open drawer) — so the Oracle assistant can
  * answer "what's on this page" / "escalate this" / "summarise this view" and
  * tailor its starter prompts. Resolved from pathname + search params only (no
  * data fetch).

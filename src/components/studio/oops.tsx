@@ -2,7 +2,7 @@
 
 /**
  * "Not found" and "something went wrong", in the Studio look — one card for
- * every such page in COS (owner, 25 Sept 2026: "redesign the 404 page with our
+ * every such page in Oracle (owner, 25 Sept 2026: "redesign the 404 page with our
  * new design system wide"). The admin side, the portal and Notes all use it.
  *
  * A dark card on the grey page, the big figure (404, or a warning mark), what

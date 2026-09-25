@@ -208,7 +208,7 @@ export function FilesApp({ library, companies, initialOpen, initialCompany, init
     const res = await fetch("/api/files/zip", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ files: ids, folders: folderIds }) });
     if (!res.ok) { const e = await res.json().catch(() => ({})); toast(e.error || "Couldn't make the .zip.", { tone: "danger" }); return; }
     const blob = await res.blob();
-    const name = /filename="([^"]+)"/.exec(res.headers.get("content-disposition") ?? "")?.[1] ?? "COS files.zip";
+    const name = /filename="([^"]+)"/.exec(res.headers.get("content-disposition") ?? "")?.[1] ?? "Oracle files.zip";
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob); a.download = name; a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 4000);

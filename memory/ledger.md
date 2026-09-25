@@ -4,7 +4,7 @@ The plan and its seven phases are in `memory/erp_gap_plan.md`. **Read that
 first.** This file is what Phase 1 actually became, the decisions taken while
 building it, and the traps.
 
-COS is now the accounting system, by the owner's decision: *"build the ledger
+Oracle is now the accounting system, by the owner's decision: *"build the ledger
 since we want to transition to using erp now and nothing else."*
 
 ## What exists

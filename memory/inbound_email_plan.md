@@ -1,16 +1,16 @@
 ---
 name: inbound-email-plan
-description: Inbound email automation — catch chosen emails, extract attachments/contents, file to person/company/task/document via the existing intake brain. Review-first, scheduled sweep, forward-to-COS path.
+description: Inbound email automation — catch chosen emails, extract attachments/contents, file to person/company/task/document via the existing intake brain. Review-first, scheduled sweep, forward-to-Oracle path.
 metadata:
   node_type: memory
   type: project
 ---
 
-# COS System — Inbound Email Automation Plan
+# Oracle System — Inbound Email Automation Plan
 
 Sister project to the outbound comms work ([[project_outbound_comms]]). Where that
 closed the "last mile" of *sending*, this closes the last mile of *receiving*:
-chosen emails (and their attachments) get pulled into COS and filed to the right
+chosen emails (and their attachments) get pulled into Oracle and filed to the right
 person / company / task / document automatically, reusing the Smart Intake brain.
 
 ## Goal (owner's words)
@@ -29,7 +29,7 @@ without me getting involved, later or in real time."
 - **Fetch timing = SCHEDULED SWEEP FIRST.** Poll Gmail every ~10–15 min using
   `historyId` so nothing is missed or double-counted. Real-time Pub/Sub push is a
   later phase, not the starting point.
-- **Forward-to-COS path = YES, include it.** Besides automatic rules, the owner can
+- **Forward-to-Oracle path = YES, include it.** Besides automatic rules, the owner can
   forward any email (or apply a Gmail label) and it lands in `/inbox` for processing.
   Good for one-off items no rule covers.
 
@@ -73,7 +73,7 @@ This plan adds almost no new *concepts* — it points existing machinery at the 
 - `src/lib/gmail.ts`: authorised Gmail client, `listMessages(query)`,
   `getMessage(id)`, `getAttachment()`, helpers to parse from/subject/date/threadId.
   Graceful no-config fallback.
-- **Done when:** owner reconnects, COS can list (not act on) recent matching emails.
+- **Done when:** owner reconnects, Oracle can list (not act on) recent matching emails.
 
 ### Phase 2 — Inbox rules + manual forward path
 - `inbox_rules` table: `match_from` / `match_subject` / `match_has_attachment` /
@@ -81,8 +81,8 @@ This plan adds almost no new *concepts* — it points existing machinery at the 
   `enabled`, `sort_order`. Migration + `src/lib/inbox-rules.ts`.
 - Simple rules screen (Settings or an `/inbox` tab): add/edit/remove rules, plain-
   language preview ("From accountant@… → Oracle Consultancy · Finance · file document").
-- **Forward-to-COS:** document a Gmail label (e.g. `COS-file`) the owner applies (or
-  a forwarding filter); the sweep treats `label:COS-file` as a catch-all rule →
+- **Forward-to-Oracle:** document a Gmail label (e.g. `Oracle-file`) the owner applies (or
+  a forwarding filter); the sweep treats `label:Oracle-file` as a catch-all rule →
   bundle. (No inbound mail server needed — we read via Gmail API.)
 - **Done when:** rules persist and the rules list shows what each will catch.
 
@@ -112,12 +112,12 @@ This plan adds almost no new *concepts* — it points existing machinery at the 
 
 ### Phase 5 — Trust tiers + real-time (opt-in, later)
 - Per-rule/per-sender **trusted** flag → auto-file with an `undo_tokens` token; a
-  Home "inbox digest" ("COS filed 6 docs, drafted 2 tasks from email — review").
+  Home "inbox digest" ("Oracle filed 6 docs, drafted 2 tasks from email — review").
 - "Always do this for emails from X" suggestion after repeated approvals → new rule.
-- **Real-time push:** Gmail `watch` → Google Pub/Sub → COS webhook, replacing the
+- **Real-time push:** Gmail `watch` → Google Pub/Sub → Oracle webhook, replacing the
   timer for instant catches. More Google Cloud setup; only after the sweep is proven.
 
-## Guardrails (inherit COS rules)
+## Guardrails (inherit Oracle rules)
 - **No silent mutations / no auto-send** — phase 1–4 always end in a review the owner
   approves. Auto-file (phase 5) is opt-in and always Undo-able.
 - Blanks-only profile fill, always reviewed, never overwrites.

@@ -193,7 +193,7 @@ export async function syncDrafts(): Promise<SyncResult> {
   // The admin gate answers an unauthenticated request with a redirect to the
   // sign-in page. Say so plainly rather than looking like a network fault.
   if (res.redirected || res.status === 401 || res.status === 403) {
-    return { sent: 0, kept: drafts.length, error: "Sign in to COS, then these will send." };
+    return { sent: 0, kept: drafts.length, error: "Sign in to Oracle, then these will send." };
   }
   if (!res.ok) {
     return { sent: 0, kept: drafts.length, error: `The server refused them (${res.status}).` };
@@ -321,8 +321,8 @@ export async function forgetCachedNotes(): Promise<void> {
  *
  * ⚠️ `reachable` IS NOT `navigator.onLine`. The browser says it is online whenever
  * there is any network at all — a hotel portal you have not logged into, a VPN
- * that has dropped, a phone showing a bar of signal and carrying nothing, or COS
- * itself being down. So the honest test of "can I reach COS" is having just tried,
+ * that has dropped, a phone showing a bar of signal and carrying nothing, or Oracle
+ * itself being down. So the honest test of "can I reach Oracle" is having just tried,
  * and that is what this reports. Note a 401 counts as REACHED: the server answered.
  */
 export async function refreshNoteCache(): Promise<{ ok: boolean; count: number; reachable: boolean }> {
@@ -347,7 +347,7 @@ export async function refreshNoteCache(): Promise<{ ok: boolean; count: number; 
     await putCachedNotes(notes);
     return { ok: true, count: notes.length, reachable: true };
   } catch {
-    // The request never got an answer: COS cannot be reached from here.
+    // The request never got an answer: Oracle cannot be reached from here.
     return { ok: false, count: 0, reachable: false };
   }
 }
@@ -440,7 +440,7 @@ export async function syncEdits(): Promise<SyncResult & { keptBoth: number }> {
   }
 
   if (res.redirected || res.status === 401 || res.status === 403) {
-    return { sent: 0, kept: edits.length, keptBoth: 0, error: "Sign in to COS, then these will send." };
+    return { sent: 0, kept: edits.length, keptBoth: 0, error: "Sign in to Oracle, then these will send." };
   }
   if (!res.ok) {
     return { sent: 0, kept: edits.length, keptBoth: 0, error: `The server refused them (${res.status}).` };

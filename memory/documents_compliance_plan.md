@@ -37,10 +37,10 @@ for reminders. Reuses People/Companies, the reminder/notify+push engine, and Tas
    status); colour-coded expiry countdown; long-press peek + inline quick-edit; add/edit drawer
    with company + person pickers; one-tap "Renew" → linked task.
 3. **Expiry reminders** — extend cron notify to find `expiry_date - reminder_lead_days <= today`,
-   fold into the daily push + COS Home attention strip; "Renew" drafts an Outbox message.
+   fold into the daily push + Oracle Home attention strip; "Renew" drafts an Outbox message.
 4. **File storage (optional, later)** — Supabase Storage bucket + upload, only if owner wants it.
 5. **Intelligence & polish** — Groq date/reference extraction (rule fallback), Inbox "File as
-   document", Ask COS RAG over expiries, per-company compliance health → /insights + snapshots.
+   document", Ask Oracle RAG over expiries, per-company compliance health → /insights + snapshots.
 
 ## Suggested extras
 Renewal chains (auto-roll next expiry), per-category default lead times, responsible person +
@@ -65,7 +65,7 @@ per-document timeline.
   linked "Renew: <title>" task in the doc's company, priority High, deadline = expiry, links
   via `document_links`). Client-safe pure helpers split into `src/lib/documents-shared.ts`
   (so client can import derive/types without `sb`). Typecheck clean; route verified HTTP 200.
-- **Phase 3 — Expiry reminders: DONE (2026-06-04).** COS Home now shows an **"Documents
+- **Phase 3 — Expiry reminders: DONE (2026-06-04).** Oracle Home now shows an **"Documents
   needing attention"** card (`src/components/expiring-docs.tsx`, server-rendered, hidden when
   empty) listing expired + expiring docs (top 6, soonest first) — wired in `_hub/cos-home.tsx`
   via `listDocuments` + `deriveDocStatus`/`daysToExpiry`/`expiryLabel`. Daily push
@@ -91,7 +91,7 @@ per-document timeline.
      [ISO / dd-mm-yyyy / "12 March 2027"], category, reference no, title). Form has a "Auto-fill
      from text" panel (`document-form.tsx`) that fills fields via a form ref; verified extraction
      (5/5 fields from a sample licence).
-  2. **Ask COS RAG** — `/api/ask` now retrieves documents (`listDocuments` + derive), always
+  2. **Ask Oracle RAG** — `/api/ask` now retrieves documents (`listDocuments` + derive), always
      surfaces expired/expiring, includes more when the question is compliance-related; added to
      CONTEXT + a system-prompt rule. Degrades to 503 AI-off as before.
   3. **Compliance health on /insights** — new "Compliance by company" section: a stacked

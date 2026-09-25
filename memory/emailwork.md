@@ -36,7 +36,7 @@ provider** (ignored on Gmail SMTP, so nothing breaks before the switch):
 3. Vercel env: **add** `RESEND_API_KEY`; **remove** `GMAIL_USER` +
    `GMAIL_APP_PASSWORD` (code prefers Gmail while they exist). Redeploy.
 4. Test via Settings → Email send-test or a director portal reminder.
-- NOTE: this moves ALL outgoing COS mail (brief, renewals, reminders) to Resend.
+- NOTE: this moves ALL outgoing Oracle mail (brief, renewals, reminders) to Resend.
 
 ## Open idea (2026-06-17): per-director "send as myself" toggle
 Owner asked for a setting in the director portal to choose send-as-self vs
@@ -87,12 +87,12 @@ creds → mail is truly From him. Else fall back to admin (current behaviour).
 - **Delete then re-add**: revoke wiped the credential, so on re-grant he must
   RECONNECT his mailbox (re-enter app password). Deleting the whole person row
   removes everything incl. the encrypted credential. Secure by design.
-- **Edit COS portal password** (`setPortalAccess` reset): SEPARATE from the Gmail
+- **Edit Oracle portal password** (`setPortalAccess` reset): SEPARATE from the Gmail
   app password — resetting login does NOT touch mail sending. Label clearly.
 - **Edit his email** (`people.email`): the app password is bound to the old mailbox,
   so on email change AUTO-CLEAR `mail_app_password_enc` + require reconnect (else
   sends would auth-fail). Wire into the person-edit save path.
-- **He rotates the app password in Google**: COS keeps the old one → auth fails →
+- **He rotates the app password in Google**: Oracle keeps the old one → auth fails →
   graceful fall back to admin + "reconnect" prompt.
 
 ## Status: PLANNED ONLY — not built. Awaiting owner go-ahead (migration + crypto

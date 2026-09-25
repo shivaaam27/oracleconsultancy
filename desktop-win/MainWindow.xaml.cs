@@ -24,7 +24,7 @@ namespace OracleConsultancy;
 public partial class MainWindow : Window
 {
     /// <summary>
-    /// Where COS lives. Set the COS_URL environment variable to point the app at
+    /// Where Oracle lives. Set the COS_URL environment variable to point the app at
     /// a local dev server or a preview deployment instead.
     /// </summary>
     private static readonly string AppUrl =
@@ -32,7 +32,7 @@ public partial class MainWindow : Window
 
     private static readonly Uri AppUri = new(AppUrl);
 
-    /// <summary>The last COS page that actually loaded, so Retry goes back to it.</summary>
+    /// <summary>The last Oracle page that actually loaded, so Retry goes back to it.</summary>
     private string _lastGoodUrl = AppUrl;
 
     /// <summary>Where to open. The page you were last on, or Home.</summary>
@@ -123,7 +123,7 @@ public partial class MainWindow : Window
 
     /// <summary>
     /// What Windows itself is wearing. Only a first guess, for the moment
-    /// before the page loads and can say what IT is wearing — COS keeps its own
+    /// before the page loads and can say what IT is wearing — Oracle keeps its own
     /// theme and the two need not agree.
     /// </summary>
     private static bool WindowsPrefersDark()
@@ -143,7 +143,7 @@ public partial class MainWindow : Window
         InitializeComponent();
         RestoreWindowState();
         // The handle exists from here on, which is the earliest the caption can
-        // be painted. COS's own theme arrives a moment later from the page.
+        // be painted. Oracle's own theme arrives a moment later from the page.
         SourceInitialized += (_, _) => ApplyShellTheme(WindowsPrefersDark());
         Loaded += async (_, _) =>
         {
@@ -230,7 +230,7 @@ public partial class MainWindow : Window
         core.Settings.AreDefaultContextMenusEnabled = true;  // keep copy / paste
         core.Settings.IsStatusBarEnabled = false;
         core.Settings.AreBrowserAcceleratorKeysEnabled = true;
-        core.Settings.IsPasswordAutosaveEnabled = false;     // COS has passkeys
+        core.Settings.IsPasswordAutosaveEnabled = false;     // Oracle has passkeys
 
         core.NavigationStarting += OnNavigationStarting;
         core.NavigationCompleted += OnNavigationCompleted;
@@ -264,12 +264,12 @@ public partial class MainWindow : Window
 
     private void OnNavigationStarting(object? sender, CoreWebView2NavigationStartingEventArgs e)
     {
-        // Anything that is not COS opens in the real browser instead. That covers
+        // Anything that is not Oracle opens in the real browser instead. That covers
         // a stray link in a note, and also means a signed document link lands
         // where the user expects it, with their own downloads folder.
         //
         // ⚠️ Only EXTERNAL http(s) is redirected. An earlier version cancelled
-        // anything that was not the COS origin, which silently cancelled the
+        // anything that was not the Oracle origin, which silently cancelled the
         // app's OWN offline screen — NavigateToString loads through a data: URI,
         // so the offline page was being "sent to the browser" and the user was
         // left looking at Chromium's error page instead. about:, data: and
@@ -292,9 +292,9 @@ public partial class MainWindow : Window
 
     private void OnPermissionRequested(object? sender, CoreWebView2PermissionRequestedEventArgs e)
     {
-        // Deny by default. COS genuinely uses the microphone (voice notes),
+        // Deny by default. Oracle genuinely uses the microphone (voice notes),
         // notifications (reminders) and location (the weather chip) — and only
-        // COS is allowed to ask.
+        // Oracle is allowed to ask.
         bool allowed = IsOurs(e.Uri) && e.PermissionKind is
             CoreWebView2PermissionKind.Microphone or
             CoreWebView2PermissionKind.Camera or
@@ -313,7 +313,7 @@ public partial class MainWindow : Window
      * the dangerous case is not inconvenience, it is SILENCE: a stale window
      * that quietly misbehaves and never says why.
      *
-     * So on start-up the app asks COS what the newest window is, and if this one
+     * So on start-up the app asks Oracle what the newest window is, and if this one
      * is older it says so in a bar. It does not download or install anything —
      * deliberately. That is a later step, and it needs the installer to be
      * hosted somewhere first.
@@ -455,7 +455,7 @@ public partial class MainWindow : Window
      * thing this app does. Three rules make it safe, and none of them is
      * optional:
      *   1. HTTPS only — checked before the request is made.
-     *   2. The SHA-256 must match the one COS published. A file that does not
+     *   2. The SHA-256 must match the one Oracle published. A file that does not
      *      match is DELETED and never run. This is what stops a tampered
      *      download, a corrupted transfer, or a hostile network becoming code
      *      execution on every machine in the company.
@@ -561,7 +561,7 @@ public partial class MainWindow : Window
      * Notifications.
      *
      * ⚠️ WEBVIEW2 DOES NOT SHOW A WEB NOTIFICATION BY ITSELF. It hands it to the
-     * host and expects the host to display it. Without the handler below, COS
+     * host and expects the host to display it. Without the handler below, Oracle
      * raised a notification and NOTHING APPEARED — no error, no warning, just
      * silence. Measured 20 Aug 2026.
      *
@@ -572,7 +572,7 @@ public partial class MainWindow : Window
      * the non-persistent one came through.
      *
      * So do not promise that a pushed reminder pops up as a Windows toast in the
-     * app. It does still appear INSIDE COS — the bell and the Task-reminders
+     * app. It does still appear INSIDE Oracle — the bell and the Task-reminders
      * channel — which is where staff are actually looking.
      * ------------------------------------------------------------------ */
 
@@ -582,7 +582,7 @@ public partial class MainWindow : Window
     private void OnNotificationReceived(object? sender, CoreWebView2NotificationReceivedEventArgs e)
     {
         // SenderOrigin, not Uri — the origin that raised it.
-        if (!IsOurs(e.SenderOrigin)) return; // only COS may raise one
+        if (!IsOurs(e.SenderOrigin)) return; // only Oracle may raise one
 
         // ⚠️ READ EVERYTHING OFF THE NOTIFICATION FIRST, AND CLAIM IT, BEFORE
         // TOUCHING ANY UI. The object is only valid for the duration of the
@@ -642,7 +642,7 @@ public partial class MainWindow : Window
     /// <summary>
     /// ⚠️ THE TRAY ICON IS CREATED AT START-UP NOW, not on the first
     /// notification. It carries the only menu the app has, and a menu that
-    /// appears only after COS happens to send a reminder is not a menu anybody
+    /// appears only after Oracle happens to send a reminder is not a menu anybody
     /// can rely on finding.
     /// </summary>
     private void EnsureTray()
@@ -780,7 +780,7 @@ public partial class MainWindow : Window
     private void OnWebMessageReceived(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
     {
         // The offline screen's Retry button, and nothing else. Messages from the
-        // COS site itself are ignored — the website is an ordinary website and
+        // Oracle site itself are ignored — the website is an ordinary website and
         // must never depend on being inside this shell.
         string message;
         try { message = e.TryGetWebMessageAsString(); }
@@ -795,7 +795,7 @@ public partial class MainWindow : Window
         // is itself the problem, this window has no back button and the only
         // remaining move is closing the app. Home always exists.
         // What the PAGE is wearing, from ShellThemeScript in the site's <head>.
-        // COS keeps its own theme and need not agree with Windows, so the page
+        // Oracle keeps its own theme and need not agree with Windows, so the page
         // is the authority once it has loaded.
         else if (message == "theme:dark") ApplyShellTheme(true);
         else if (message == "theme:light") ApplyShellTheme(false);

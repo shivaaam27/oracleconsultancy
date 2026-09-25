@@ -23,7 +23,7 @@ import {
  * its toolbar strip and "All notes" first, same pills above a 38px title, same
  * rail of cards down the right (ORI, To-dos, Links, Versions). The owner's
  * instruction was that losing the connection should not mean arriving at a
- * different product — it should look like COS and simply say the connection is
+ * different product — it should look like Oracle and simply say the connection is
  * gone. So what changes is only what HAS to: the things that need the server
  * are visibly held back with a reason, rather than removed.
  *
@@ -99,8 +99,8 @@ export function OfflineNoteView({
     setMode("read");
     setSaid(
       online
-        ? "Kept on this device. Press Send to put it in COS."
-        : "Kept on this device. It reaches COS when the connection does.",
+        ? "Kept on this device. Press Send to put it in Oracle."
+        : "Kept on this device. It reaches Oracle when the connection does.",
     );
     await onChanged();
   }
@@ -214,11 +214,11 @@ export function OfflineNoteView({
                       <div key={e.editKey} className="group relative mt-3 border-l-2 border-[var(--st-soon)] pl-3">
                         <div className="whitespace-pre-wrap text-[15px] leading-[1.6] text-[var(--st-ink)] sm:text-[16px]">{e.text}</div>
                         <div className="mt-0.5 flex items-center gap-2 text-xs text-[var(--st-soon-text)]">
-                          <CloudOff size={11} /> not in COS yet
+                          <CloudOff size={11} /> not in Oracle yet
                           <button
                             type="button"
                             onClick={async () => {
-                              if (!confirm("Throw this away? It has not reached COS yet.")) return;
+                              if (!confirm("Throw this away? It has not reached Oracle yet.")) return;
                               await deleteEdit(e.editKey);
                               await onChanged();
                             }}
@@ -273,7 +273,7 @@ export function OfflineNoteView({
             <p className="m-0 text-[13px] leading-relaxed text-[var(--st-on-card-muted)]">ORI works on the server, so it waits for the connection.</p>
           </div>
           <RailCard title="To-dos">Making a to-do needs a connection — it has to reach the reminder that rings.</RailCard>
-          <RailCard title="Links">Links are worked out from the writing when it reaches COS.</RailCard>
+          <RailCard title="Links">Links are worked out from the writing when it reaches Oracle.</RailCard>
           <RailCard title="Versions" className="st-tex-paper-rings">A version is kept on the server, so this needs a connection too.</RailCard>
         </aside>
       </div>

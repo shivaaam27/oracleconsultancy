@@ -215,7 +215,7 @@ export async function setNoteFolder(id: number, folderId: number | null): Promis
   return { ok: !error };
 }
 
-/** Archive, never delete. Same posture as the rest of COS: the record and its
+/** Archive, never delete. Same posture as the rest of Oracle: the record and its
  *  history stay, they just leave the shelf. (A real delete can come later, behind
  *  a danger zone, once there is anything worth deleting.) */
 export async function setNoteArchived(id: number, archived: boolean): Promise<{ ok: boolean }> {

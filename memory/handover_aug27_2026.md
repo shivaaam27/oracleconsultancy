@@ -26,7 +26,7 @@ this file is the map:
 ## 1 · Two spreadsheets read, cell by cell
 
 **`Documents/Cocozuri/Details.xlsx`** — a stock position, not new data. 171 of
-171 raw materials and 75 of 76 finished goods already exist in COS; the one new
+171 raw materials and 75 of 76 finished goods already exist in Oracle; the one new
 item is `80% DARK CHOCOLATE ROASTED ALMOND SLAB`. ⚠️ **Seven closing figures are
 NEGATIVE**, which means the file is the spreadsheet's own arithmetic rather than
 a physical count. **Nothing was loaded** — it waits on two answers (below).
@@ -37,7 +37,7 @@ Matcha cookies sums 5 of its 11 ingredients (cost/pc 157 when it is 548), Saffro
 & Caramel counts its own per-piece figure as an ingredient, Mini dates lost its
 DATES line. ⚠️ **228 ingredient names are priced at 50 different rates** — butter
 at 28 a gram in 82 lines and 82.34 in one, cooking cream at 6.30 / 12.50 / 13.00.
-**That is the thing COS fixes for nothing**, because a recipe here has no cost
+**That is the thing Oracle fixes for nothing**, because a recipe here has no cost
 column and costs itself from what was actually paid.
 
 Full audit: **`cocozuri_manufacturing_plan.md` §7**.

@@ -87,7 +87,7 @@ export default async function McpConnectPage({
   return (
     <StudioConsentFrame
       title="Connect an assistant"
-      sub={<><span className="font-semibold">{client.clientName}</span> wants to connect to COS.</>}
+      sub={<><span className="font-semibold">{client.clientName}</span> wants to connect to Oracle.</>}
     >
       <ConnectForm params={params} signedInAs={signedInAs} />
     </StudioConsentFrame>

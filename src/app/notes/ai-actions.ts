@@ -118,7 +118,7 @@ export async function suggestLinksAction(text: string): Promise<AiResult<{ links
   await guardOwner();
   const candidates = await linkCandidates();
   if (candidates.length === 0) {
-    return { ok: false, reason: "empty", message: "There is nothing in COS to link to yet." };
+    return { ok: false, reason: "empty", message: "There is nothing in Oracle to link to yet." };
   }
 
   const res = await suggestLinks(
@@ -148,7 +148,7 @@ export async function suggestLinksAction(text: string): Promise<AiResult<{ links
   }
 
   if (links.length === 0) {
-    return { ok: false, reason: "empty", message: "Nothing in this note points at a record in COS." };
+    return { ok: false, reason: "empty", message: "Nothing in this note points at a record in Oracle." };
   }
   return { ok: true, data: { links } };
 }
@@ -167,7 +167,7 @@ export type AskResult =
  * Two steps, deliberately: FIND with the existing search (the Phase 6 index — no
  * bespoke retrieval here), then READ with the model. Only the notes that came back
  * are given to it, and it is told to say when they do not answer the question —
- * which matters more here than anywhere else in COS, because an invention would be
+ * which matters more here than anywhere else in Oracle, because an invention would be
  * read as something the owner had written himself.
  */
 export async function askNotesAction(question: string): Promise<AskResult> {

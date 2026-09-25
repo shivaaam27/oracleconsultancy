@@ -10,10 +10,10 @@ namespace OracleConsultancy;
 /// The version panel, off the tray icon.
 ///
 /// It exists because of a real failure: an installed copy turned out to predate
-/// the update checker itself, so it had never asked COS anything and never
+/// the update checker itself, so it had never asked Oracle anything and never
 /// would — and there was no way to see that from inside the app. Half an hour
 /// went on working out what was actually installed. This answers it in one
-/// glance: what you have, what COS publishes, and when it last managed to ask.
+/// glance: what you have, what Oracle publishes, and when it last managed to ask.
 ///
 /// ⚠️ "COULD NOT ASK" AND "UP TO DATE" MUST READ DIFFERENTLY. They are opposite
 /// facts and the older, quieter one is the dangerous one. A panel that shows a
@@ -81,7 +81,7 @@ public partial class AboutWindow : Window
             // happen to remember would look like a successful check.
             case MainWindow.CheckOutcome.CouldNotAsk:
                 Published.Text = "Could not ask";
-                Checked.Text = $"COS could not be reached, so this may not be the newest version. {When()}";
+                Checked.Text = $"Oracle could not be reached, so this may not be the newest version. {When()}";
                 break;
 
             default:

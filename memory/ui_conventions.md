@@ -21,7 +21,7 @@ metadata:
 - bottom `TopPill` (the single nav, all breakpoints)
 - task drawer
 - person drawer
-- floating COS assistant + `AssistantSuggestions`
+- floating Oracle assistant + `AssistantSuggestions`
 
 **The desktop sidebar was removed.** Navigation is now the **one bottom-floating pill on every breakpoint** (`top-pill.tsx`) — larger on `md+`. `sidebar.tsx` / `sidebar-server.tsx` are deleted. The pill is `relative` so the liquid lens overlay can sit inside it. Safe-area spacing for mobile.
 
@@ -81,9 +81,9 @@ Currently wired into:
 - Quick Capture;
 - Meeting Workspace raw notes;
 - task updates;
-- Ask COS dictation, using the browser speech language.
+- Ask Oracle dictation, using the browser speech language.
 
-Voice should feel native to COS:
+Voice should feel native to Oracle:
 
 - "speak rough, save polished";
 - clean dictation through `src/app/voice/actions.ts`;
@@ -92,7 +92,7 @@ Voice should feel native to COS:
 - preserve business vocabulary from the Settings voice dictionary;
 - expose a lightweight quality loop where misheard names/phrases can be taught back.
 
-## Floating COS Assistant
+## Floating Oracle Assistant
 
 `src/components/floating-assistant.tsx` is the app-wide assistant launcher.
 

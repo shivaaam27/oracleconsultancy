@@ -1,4 +1,4 @@
-// Shared "conversational synonym brain" for the whole COS system.
+// Shared "conversational synonym brain" for the whole Oracle system.
 //
 // Purpose: natural phrasing should resolve to the vocabulary actually stored in
 // the database, across search, ORI Ask, and matching. When someone types "who
@@ -13,7 +13,7 @@
 // Standalone and dependency-free: pure functions, server-safe, NO DB imports and
 // NO import from requirement-match (the two modules stay independent on purpose).
 
-// Conversational synonym groups covering the COS domain. If any token from a
+// Conversational synonym groups covering the Oracle domain. If any token from a
 // group is present, the whole group is added — so "owner" reaches "shareholder"
 // and "director", "vendor" reaches "supplier" and "contractor", etc. Tokens are
 // stored already-normalised (lowercase alphanumerics, accents stripped) so they

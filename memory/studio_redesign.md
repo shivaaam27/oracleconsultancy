@@ -3,7 +3,7 @@
 Branch **`studiotask`** (not pushed; deploys are master-only). Started 24 Sept 2026.
 
 ## What it is
-The owner showed two screenshots of the Superpower health app and asked for COS
+The owner showed two screenshots of the Superpower health app and asked for Oracle
 to look and work like them: a big title, two equal summary cards (dark, with
 textures, rings and arcs), then full-width rows or the record. On Tasks the right
 card is the **update card**: the unread updates, three at a time with ‹ ›. A
@@ -155,7 +155,7 @@ figure, from `getAllTasks`, with Tasks' own meaning of late/due soon) +
   someone · no updates yet), People (team load gauge · who carries most ·
   finished this month), Companies & the day (health · where the work is ·
   Run the day · What ORI did). "Send the Director Brief" asks twice — it
-  reaches people outside COS.
+  reaches people outside Oracle.
 - NOT carried over (reachable elsewhere): the ask bar (⌘K), the number
   cards for people/documents (Go to), the activity feed (Activity log),
   the controls panel (Settings).
@@ -205,7 +205,7 @@ screens are untouched — HideOnPortal).
 - ⚠️ THE PANEL IS AN ILLUSION. The document still scrolls; a fixed,
   click-through ring with a 100vmax dark box-shadow paints everything outside
   a rounded rectangle. Making `main` a scroll box would break every "back to
-  where you were" in COS (they read window.scrollY).
+  where you were" in Oracle (they read window.scrollY).
 - Everything keys off `body:has([data-studio-frame])` in globals.css: page
   colour, main's padding, `--page-foot` / `--page-top`, and sticky bars
   (`data-sticky-top`, `data-sticky-foot`, `data-savebar`) clearing the frame.
@@ -224,7 +224,7 @@ screens are untouched — HideOnPortal).
 ## Traps met so far
 - ⚠️ **"WHITE BORDERS" = globals.css's `* { border-color: hsl(var(--border)) }`.**
   It is UNLAYERED, so it beats every Tailwind border-colour utility (they live
-  in @layer utilities) — across all of COS, `border-[#…]`/`border-accent/30`
+  in @layer utilities) — across all of Oracle, `border-[#…]`/`border-accent/30`
   quietly draw Desk grey. Studio surfaces (`.studio`, `[data-studio-foot]`,
   `[data-studio-goto]`) are now excluded from it and get a layered default
   instead. Left alone for Desk on purpose (changing it re-colours every page).
@@ -234,7 +234,7 @@ screens are untouched — HideOnPortal).
   build in the same session): the served CSS stayed old even after a restart.
   Check the served stylesheet for your new selector before believing a visual;
   a fresh append to the file woke the watcher.
-- ⚠️ **`position: sticky` never worked anywhere in COS** until Phase 1:
+- ⚠️ **`position: sticky` never worked anywhere in Oracle** until Phase 1:
   `overflow-x: hidden` on `body` makes body a scroll box that never scrolls, so
   sticky stuck to body, not the screen. Now `overflow-x: clip` (globals.css).
   This also brought the Settings save bar and the bulk-select bar back to life.
@@ -670,7 +670,7 @@ company); the page switch is `companies` (switched on live).
   only where the wheel stops (420ms); a sideways swipe on a phone goes one
   page. Neighbours are prefetched (`<Link prefetch>` + `router.prefetch`).
 - **Tick box**: `components/ui/checkbox.tsx` (Radix, the owner's component,
-  COS tokens, spring tick). ⚠️ It sits in `components/ui/` beside the older
+  Oracle tokens, spring tick). ⚠️ It sits in `components/ui/` beside the older
   `components/ui.tsx` — `@/components/ui` still means the FILE.
 - **Bulk bar**: select-all is now a toggle (it could only ever select, so 70
   ticked tasks could not be let go). Close and Escalate confirm for >1 task —

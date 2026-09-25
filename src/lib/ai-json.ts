@@ -394,7 +394,7 @@ export const LOW_CONFIDENCE = 0.75;
 // Same retry / backoff / timeout guards as callAIJson, but returns free text
 // (no JSON mode) and supports an optional model-fallback ladder (e.g. try the
 // stronger model first, drop to the fast one if it is busy). Used by every prose
-// caller — Ask COS, company summary, meeting minutes/notes/insight, action-item
+// caller — Ask Oracle, company summary, meeting minutes/notes/insight, action-item
 // polish, draft narrative — so a brief 429 / 5xx / hang is retried instead of
 // dropping to a weaker fallback (or erroring) on the first hiccup.
 

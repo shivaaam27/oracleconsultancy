@@ -7,7 +7,7 @@
  * history switch, no Create group, no page directory. What is left:
  *
  *   - empty: your recent tasks and pages, and three questions ORI answers;
- *   - typing: the best eight things across COS in one list, ranked; a row of
+ *   - typing: the best eight things across Oracle in one list, ranked; a row of
  *     quiet kinds (All · Tasks 12 · People 7 …) to narrow it, which Tab steps
  *     through; and "Ask ORI" as the last row — or the FIRST when what you typed
  *     reads like a question or an instruction.
@@ -186,7 +186,7 @@ export function StudioSearch({
               setKind(seq[(i + (e.shiftKey ? seq.length - 1 : 1)) % seq.length]);
             }
           }}
-          placeholder="Search COS, or ask ORI"
+          placeholder="Search Oracle, or ask ORI"
           style={{ background: "transparent", border: 0, boxShadow: "none", color: "var(--sh-fg)" }}
           className="bare-field h-full min-w-0 flex-1 text-[17px] tracking-[-0.01em] outline-none placeholder:text-[var(--sh-muted)]"
         />

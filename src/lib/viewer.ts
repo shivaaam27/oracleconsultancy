@@ -4,7 +4,7 @@ import "server-only";
  * WHO IS LOOKING — the one question every shared screen and every server action
  * asks (portal unification, Sept 2026; plan in memory/portal_unification_plan.md).
  *
- * COS is one system now, the way an ERP is: the administrator and a director use
+ * Oracle is one system now, the way an ERP is: the administrator and a director use
  * the SAME screens, and what differs is what each may see and do.
  *   - The OWNER (admin cookie): everything, every company.
  *   - A DIRECTOR (portal cookie, role "director"): the same task and home powers

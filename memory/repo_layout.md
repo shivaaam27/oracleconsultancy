@@ -103,7 +103,7 @@ cos-system/
 - `src/components/today-todos.tsx` - Overview "to-dos for today" widget.
 - `src/lib/outbox-drafts.ts` / `src/lib/outbox-links.ts` / `src/app/outbox/drafts-list.tsx` - persisted outbox drafts + channel deep-links.
 - `src/lib/page-suggestions.ts` - shared per-page AI prompt set (chat home + suggestion reveal).
-- `src/app/api/ask/route.ts` - Ask COS RAG over tasks, meetings, and to-dos (incl. "Plan my day").
+- `src/app/api/ask/route.ts` - Ask Oracle RAG over tasks, meetings, and to-dos (incl. "Plan my day").
 - `src/db/schema.ts` - database schema.
 - `src/db/index.ts` - Drizzle/postgres.js pooler client. Do not remove `prepare: false` or `max: 1`.
 - `src/db/supabase.ts` - server Supabase client used by newer server actions/routes.

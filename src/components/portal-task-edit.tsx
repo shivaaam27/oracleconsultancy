@@ -120,7 +120,7 @@ export function PortalTaskEdit({
       {/* ⚠️ THE BUTTONS SIT AT THE BOTTOM RIGHT OF WHAT THEY ACT ON (owner,
           28 Aug 2026). Left-aligned under the fields they read as the start of
           the next thing; on the right they close the block they belong to, which
-          is where a form's buttons live everywhere else in COS.
+          is where a form's buttons live everywhere else in Oracle.
           ⚠️ CANCEL IS AN OUTLINED, RED BUTTON, not bare text — it was the only
           control in the pair without a box, so the pair looked like one button
           and a link. Red because it throws away what you just typed. */}

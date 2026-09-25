@@ -26,8 +26,8 @@
             <TextBlock x:Name="YouHaveLabel" Text="YOU HAVE" FontSize="10" />
             <TextBlock x:Name="YouHave" FontSize="14" FontWeight="SemiBold" Margin="0,2,0,0" />
 
-            <!-- What COS publishes -->
-            <TextBlock x:Name="PublishedLabel" Text="COS PUBLISHES" FontSize="10" Margin="0,14,0,0" />
+            <!-- What Oracle publishes -->
+            <TextBlock x:Name="PublishedLabel" Text="ORACLE PUBLISHES" FontSize="10" Margin="0,14,0,0" />
             <TextBlock x:Name="Published" FontSize="14" FontWeight="SemiBold" Margin="0,2,0,0" />
             <TextBlock x:Name="Checked" FontSize="11" Margin="0,3,0,0" TextWrapping="Wrap" />
 

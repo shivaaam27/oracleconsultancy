@@ -216,7 +216,7 @@ type Ok = { ok: true } | Denied;
  * Push the event's current paperclips to Google.
  *
  * These three actions take effect the moment you click, without going through
- * the event form — so without this they changed COS and nothing else. Adding a
+ * the event form — so without this they changed Oracle and nothing else. Adding a
  * file left it off the calendar entry until some later edit happened to sync;
  * removing one, or un-ticking "share with guests", left it STILL VISIBLE to
  * every guest on the Google event. That last one is a disclosure, not an

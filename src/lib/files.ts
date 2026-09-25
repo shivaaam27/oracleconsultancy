@@ -2,7 +2,7 @@ import "server-only";
 /**
  * Files Management — the server half (reads). A file is a `documents` row; a
  * folder is a `folders` row (migration 0169). Deleted = archived: every other
- * reader in COS already skips archived rows, so a deleted file disappears from
+ * reader in Oracle already skips archived rows, so a deleted file disappears from
  * the company page, the person page, search and the reminders without any of
  * them changing.
  */

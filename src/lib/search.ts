@@ -1,4 +1,4 @@
-// Unified "deep index" search across the whole COS system.
+// Unified "deep index" search across the whole Oracle system.
 //
 // One pass over the high-value entities — people, companies, documents,
 // vendors, assets — plus the board/governance/process data

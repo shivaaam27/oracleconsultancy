@@ -5,7 +5,7 @@ search = '''<label style="display: flex; align-items: center; gap: 8px; width: 4
 checks = [('Database', 'Locked to the service key — the public key reads nothing', 'Good', '#19C37D'), ('Sign-in cookies', 'Signed with your own secret', 'Good', '#19C37D'), ('Error alerts', 'Tells you when something breaks', 'Check', '#8E9197'), ('Content rules', 'Report-only — switch to enforcing', 'Needs you', '#F5A524')]
 left = dark_card(card_title('Security check', '<span>reads the live state · changes nothing</span>') + '<div style="flex-grow: 1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; align-content: end">' + ''.join(
     '<div style="border-radius: 12px; background: #1A1B1E; border: 1px solid #26282C; padding: 10px 12px"><div style="display: flex; align-items: center; gap: 8px; font-size: 13px"><span style="width: 8px; height: 8px; border-radius: 4px; background: %s"></span>%s<span style="margin-left: auto; font-size: 11px; color: %s">%s</span></div><div style="font-size: 11px; color: #8E9197; margin-top: 4px">%s</div></div>' % (c, n, c, s, d) for n, d, s, c in checks) + '</div>')
-right = dark_card(card_title('Install COS as an app', '<span>nothing to download</span>') + '''<div style="flex-grow: 1; display: flex; align-items: flex-end; gap: 20px"><div style="flex-grow: 1"><div style="font-size: 22px; font-weight: 500; letter-spacing: -0.015em; line-height: 1.25">Its own window, icon and taskbar spot — on Windows, Mac or a phone.</div><div style="font-size: 12px; color: #8E9197; margin-top: 8px">It opens the live site, so there is nothing to keep up to date.</div></div><button type="button" style="height: 36px; padding: 0 16px; border-radius: 10px; border: 0; background: #F2F2F0; color: #111214; font-size: 13px; font-weight: 600; flex-shrink: 0">Install</button></div>''', texture='rings')
+right = dark_card(card_title('Install Oracle as an app', '<span>nothing to download</span>') + '''<div style="flex-grow: 1; display: flex; align-items: flex-end; gap: 20px"><div style="flex-grow: 1"><div style="font-size: 22px; font-weight: 500; letter-spacing: -0.015em; line-height: 1.25">Its own window, icon and taskbar spot — on Windows, Mac or a phone.</div><div style="font-size: 12px; color: #8E9197; margin-top: 8px">It opens the live site, so there is nothing to keep up to date.</div></div><button type="button" style="height: 36px; padding: 0 16px; border-radius: 10px; border: 0; background: #F2F2F0; color: #111214; font-size: 13px; font-weight: 600; flex-shrink: 0">Install</button></div>''', texture='rings')
 
 card_tpl = '''<div style="background: #FFFFFF; border-radius: 18px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; min-width: 0; animation: pop 200ms ease-out">
 <div><div style="display: flex; align-items: center; gap: 8px"><span style="font-size: 15px; font-weight: 600; flex-grow: 1">{{c.title}}</span><span style="font-size: 11px; color: #A3A6AB">{{c.group}}</span></div><div style="font-size: 12px; color: #6E7177; margin-top: 3px; line-height: 1.45">{{c.desc}}</div></div>
@@ -38,7 +38,7 @@ class Component extends DCLogic {
     var B = function (opts, primary, danger) { return { t: 'buttons', opts: opts, primary: primary, danger: danger }; };
     var G = [
       ['general', 'General', [
-        ['About you', 'Your name, as COS greets you and signs messages.', [F('Your name', 'As you like to be greeted', true)]],
+        ['About you', 'Your name, as Oracle greets you and signs messages.', [F('Your name', 'As you like to be greeted', true)]],
         ['Risk rules', 'When a task counts as due soon, stalled or ageing.', [F('Due soon within', '3 days'), F('Stalled after', '14 days blocked'), F('Ageing after', 'Set in days', true)]],
         ['Financial year', 'The month your year starts — reports follow it.', [F('Starts in', 'July')]],
         ['Location & weather', 'For the weather chip on Home.', [F('City', 'Dar es Salaam'), F('Latitude · longitude', 'set from the city', true)]],
@@ -46,7 +46,7 @@ class Component extends DCLogic {
         ['Pinned pages', 'Which pages sit first in Go to — reorder or remove.', [C('Pinned', ['Approvals', 'Outbox', 'Chat', '+ Add'], ['Approvals', 'Outbox', 'Chat'])]]]],
       ['ai', 'AI & Voice', [
         ['AI assistance', 'Reading, search and ORI — all on Gemini.', [T('Enable AI features', true), T('Higher-quality reading', false), T('Semantic search', false), F('Gemini key', 'Set here · replace or remove')]],
-        ['Voice', 'Speak rough, save polished.', [C('Dictation language', ['English', 'Swahili', 'Hindi', 'Gujarati'], ['English']), F('Voice dictionary', 'Names COS should spell right', true)]],
+        ['Voice', 'Speak rough, save polished.', [C('Dictation language', ['English', 'Swahili', 'Hindi', 'Gujarati'], ['English']), F('Voice dictionary', 'Names Oracle should spell right', true)]],
         ['AI usage', 'Calls and tokens today, quota per model, the last 7 days.', [B(['Refresh'], []), F('Monthly spend cap', '0 = no limit', true)]]]],
       ['auto', 'Automation', [
         ['Automations', 'Auto, suggest or off — per kind of job.', [C('Complete fulfilled tasks', ['Auto', 'Suggest', 'Off'], []), C('Renewal and notice tasks', ['Auto', 'Suggest', 'Off'], []), F('Four more rules', 'Onboarding, applications, records…', true)]],
@@ -64,7 +64,7 @@ class Component extends DCLogic {
       ['security', 'Security & Access', [
         ['Owner sign-in', 'Your name and email, and your password.', [F('Identity', 'Name + email (second factor)'), B(['Change password', 'Sign out here'], [])]],
         ['Face ID & fingerprint', 'Passkeys on each of your devices.', [B(['Add a device'], ['Add a device'])]],
-        ['Claude access', 'Keys for Claude to read and act in COS.', [B(['Create a key', 'Connected assistants'], ['Create a key'])]]]],
+        ['Claude access', 'Keys for Claude to read and act in Oracle.', [B(['Create a key', 'Connected assistants'], ['Create a key'])]]]],
       ['more', 'Notifications & More', [
         ['Notifications', 'Alerts on this device.', [B(['Turn on here', 'Send a test'], ['Turn on here'])]],
         ['Quiet hours & batching', 'Hold routine alerts overnight.', [F('Quiet from – to', 'Pick the hours', true), T('Batch routine alerts into a digest', true)]],

@@ -31,7 +31,7 @@ database and their code is deployed with them.
 - On offline notes: *"when i am offline i want to have the same notes experience
   and not a different one. basically everything looks the same but if i am offline
   it informed me."*
-- On the sidebar: a landing page of module icons, so COS *"starts behaving as a
+- On the sidebar: a landing page of module icons, so Oracle *"starts behaving as a
   proper erp system"*, with Task Management holding everything except Projects,
   Ledger and Recruitment.
 - Twice: **"dont push"**.

@@ -243,7 +243,7 @@ These three migrations underpin universal search/find/trace + ORI memory + AI sp
 ## General ledger (ERP Phase 1, migrations 0137/0138 — APPLIED)
 
 **Read `memory/ledger.md` and `memory/erp_gap_plan.md` before touching any of
-this.** COS is the accounting system now (owner's decision, Aug 2026).
+this.** Oracle is the accounting system now (owner's decision, Aug 2026).
 
 - **`gl_accounts`** — the chart, a tree, ONE PER COMPANY (all seeded from the
   same template in `lib/ledger-coa-template.ts`, so the numbers line up across
@@ -269,5 +269,5 @@ this.** COS is the accounting system now (owner's decision, Aug 2026).
 
 ⚠️ **There is no `balance` column anywhere and there must never be one.** Every
 balance, trial balance, P&L and statement is worked out on read from
-`gl_entries`. That is rule 3 of the plan and the founding principle of COS one
+`gl_entries`. That is rule 3 of the plan and the founding principle of Oracle one
 level up.

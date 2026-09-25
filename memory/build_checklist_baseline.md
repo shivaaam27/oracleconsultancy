@@ -1,7 +1,7 @@
 # Complete System Build Checklist — Baseline Audit (No-AI + Behind-the-Scenes)
 
 > Owner-supplied checklist of 84 foundational items (data/storage/search/automation/
-> security/etc.), scored against what the COS system actually has as of 2026-06-20.
+> security/etc.), scored against what the Oracle system actually has as of 2026-06-20.
 > Status key: ✅ built · 🟡 partial / present but not complete · ❌ not built.
 
 ## A. DATA FOUNDATION

@@ -1,6 +1,6 @@
 ---
 name: mcp-stage1-read-only
-description: MCP stage 1 — Claude can read COS from the administrator; nothing can be changed
+description: MCP stage 1 — Claude can read Oracle from the administrator; nothing can be changed
 metadata:
   type: project
 ---
@@ -110,7 +110,7 @@ through `companyScope()`, even though the owner bypasses both. That is deliberat
 groundwork for [[mcp_stage5_director_portal]] — do not strip it as dead code.
 
 **Goal:** the owner asks Claude a question in plain English and gets a true
-answer out of the live system. Nothing in COS can be altered by anything in this
+answer out of the live system. Nothing in Oracle can be altered by anything in this
 stage — every tool is a read.
 
 **Why read-only first:** it is cheap, it cannot break anything, and a few weeks

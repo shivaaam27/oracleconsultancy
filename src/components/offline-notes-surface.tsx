@@ -21,7 +21,7 @@ import {
 /* ------------------------------------------------------------------ *
  * Notes, with no connection.
  *
- * ⚠️ THE POINT IS THAT THIS LOOKS LIKE COS. The owner's instruction, plainly:
+ * ⚠️ THE POINT IS THAT THIS LOOKS LIKE Oracle. The owner's instruction, plainly:
  * offline should not be a different product — everything looks the same, and it
  * tells you the connection is gone. So this is the Studio shelf and the Studio
  * note page (25 Sept 2026 — they were the old Desk ones until then), fed from the
@@ -45,9 +45,9 @@ export function OfflineNotesSurface() {
   const [drafts, setDrafts] = useState(0);
   const [cachedAt, setCachedAt] = useState<string | null>(null);
   /* ⚠️ TWO DIFFERENT QUESTIONS. `online` is what the browser claims; `reachable`
-     is whether COS actually answered when we last asked. They disagree more often
+     is whether Oracle actually answered when we last asked. They disagree more often
      than you would think — a hotel portal, a dropped VPN, a bar of signal
-     carrying nothing, or COS itself being down all leave `navigator.onLine`
+     carrying nothing, or Oracle itself being down all leave `navigator.onLine`
      saying yes. Believing it printed "Connected" across the top of a page that
      could not reach anything, which is worse than saying nothing. */
   const [online, setOnline] = useState(true);
@@ -113,7 +113,7 @@ export function OfflineNotesSurface() {
   }, [edits]);
 
   const waiting = edits.length + drafts;
-  /* Connected means connected TO COS, not to a network. */
+  /* Connected means connected TO Oracle, not to a network. */
   const connected = online && reachable;
 
   async function send() {
@@ -127,9 +127,9 @@ export function OfflineNotesSurface() {
     if (res.error) setSaid(res.error);
     else if (res.keptBoth > 0)
       setSaid(
-        `${sent} sent. ${res.keptBoth} had changed in COS since, so both versions were kept — look for “(also edited offline)”.`,
+        `${sent} sent. ${res.keptBoth} had changed in Oracle since, so both versions were kept — look for “(also edited offline)”.`,
       );
-    else if (sent > 0) setSaid(`${sent} sent to COS.`);
+    else if (sent > 0) setSaid(`${sent} sent to Oracle.`);
     else setSaid("Nothing to send.");
   }
 
@@ -139,7 +139,7 @@ export function OfflineNotesSurface() {
     setReachable(r.reachable);
     await load();
     setBusy(false);
-    if (report) setSaid(r.ok ? "Fresh copy taken." : "COS could not be reached.");
+    if (report) setSaid(r.ok ? "Fresh copy taken." : "Oracle could not be reached.");
   }
 
   const open = view.name === "note" ? (notes ?? []).find((n) => n.id === view.id) ?? null : null;
@@ -163,7 +163,7 @@ export function OfflineNotesSurface() {
           {connected
             ? "Connected. This is the copy kept on this device, so it works when the connection does not."
             : online
-              ? "COS cannot be reached. You are reading the copy on this device, and you can still write."
+              ? "Oracle cannot be reached. You are reading the copy on this device, and you can still write."
               : "No connection. You are reading the copy on this device, and you can still write."}
         </span>
         {waiting > 0 && (
@@ -174,8 +174,8 @@ export function OfflineNotesSurface() {
         {said && <span className="w-full text-xs opacity-80">{said}</span>}
       </div>
       {/* ⚠️ Shown whenever the browser thinks there is a network, NOT only when
-          COS answered. Hiding them the moment a request failed would leave no
-          way to try again — and "cannot reach COS" is usually the state you
+          Oracle answered. Hiding them the moment a request failed would leave no
+          way to try again — and "cannot reach Oracle" is usually the state you
           most want a Retry for. Pressing them says plainly what happened. */}
       {online && (
         <span className="flex shrink-0 items-center gap-1.5">

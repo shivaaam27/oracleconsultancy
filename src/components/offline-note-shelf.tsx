@@ -13,12 +13,12 @@ import { cn } from "@/lib/cn";
  *
  * ⚠️ IT IS THE SAME SHELF ON PURPOSE — same header and lanes, same two cards,
  * same rows, same search bar floating at the foot. The owner's instruction was
- * that offline should not be a different product: it should look like COS and
+ * that offline should not be a different product: it should look like Oracle and
  * simply tell you the connection is gone. A second, plainer notes screen is a
  * second thing to learn at the worst possible moment.
  *
  * What differs under the bonnet:
- * - **Nothing here navigates.** Filters are URLs everywhere else in COS, and
+ * - **Nothing here navigates.** Filters are URLs everywhere else in Oracle, and
  *   should stay that way — but following a link here means asking the server for
  *   a page it cannot answer. So the lanes, the folder menu and the rows are
  *   buttons that change state on this page.
@@ -160,7 +160,7 @@ export function OfflineNoteShelf({
               <span className="flex h-8 shrink-0 items-center gap-1.5 rounded-[9px] bg-[#F2F2F0]/40 px-3 text-xs font-semibold text-[#111214]"><Lock size={11} />Ask</span>
             </div>
             <p className="m-0 text-[13px] leading-relaxed text-[var(--st-on-card-muted)]">
-              ORI reads your notes in COS, so asking needs a connection. Searching the words below works on this device.
+              ORI reads your notes in Oracle, so asking needs a connection. Searching the words below works on this device.
             </p>
           </div>
         </StudioCard>
@@ -180,7 +180,7 @@ export function OfflineNoteShelf({
               <>
                 <div className="text-[24px] font-medium tracking-[-0.02em] sm:text-[28px]">Not on this device</div>
                 <div className="text-[13px] text-[var(--st-on-card-muted)]">
-                  Starting today’s page needs a connection — it opens from your daily template in COS. A new note works either way.
+                  Starting today’s page needs a connection — it opens from your daily template in Oracle. A new note works either way.
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <button type="button" onClick={onNew} className={stBtn.onCard}>Write a new note</button>

@@ -1,4 +1,4 @@
-// COS service worker — bump CACHE_VERSION to force clients onto new assets.
+// Oracle service worker — bump CACHE_VERSION to force clients onto new assets.
 const CACHE_VERSION = "cos-v16"; // v16 = the offline screen in the Studio look. v15 = a cached page keeps its own JS (one visit is now enough). v14 = the offline screen matches the real one.
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const OFFLINE_URL = "/offline.html";
@@ -6,7 +6,7 @@ const OFFLINE_URL = "/offline.html";
 /* The one page of the app itself that is kept for offline use.
  *
  * ⚠️ EXACTLY ONE, AND IT MUST HOLD NO DATA. Everything else here refuses to cache
- * an HTML page on purpose: COS sits behind a login, and a cached page could show
+ * an HTML page on purpose: Oracle sits behind a login, and a cached page could show
  * a stale or another person's screen. /notes/offline is the deliberate exception
  * because it is an EMPTY SHEET OF PAPER — a client-only page with nothing from
  * the server in it. What you write lives in the device's own store, never in this
@@ -177,9 +177,9 @@ self.addEventListener("push", (event) => {
   try {
     data = event.data ? event.data.json() : {};
   } catch {
-    data = { title: "COS", body: event.data ? event.data.text() : "" };
+    data = { title: "Oracle", body: event.data ? event.data.text() : "" };
   }
-  const title = data.title || "COS";
+  const title = data.title || "Oracle";
 
   // Build the action buttons from the payload's action ids. We never show
   // "open" as a button — tapping the notification body already opens it,

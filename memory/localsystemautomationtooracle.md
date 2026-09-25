@@ -2,7 +2,7 @@
 
 **What this is.** The complete record of integrating the local Dropbox+PowerShell compliance
 "smart folder" (the *transfer-pack* blueprint at `C:\Users\User\Documents\Companies\transfer-pack\`)
-into the live COS site (Next.js 16 + Supabase + Vercel), done across one long session (June 2026).
+into the live Oracle site (Next.js 16 + Supabase + Vercel), done across one long session (June 2026).
 Read this first to understand what exists and why. Deep technical detail lives in
 [[transfer_pack_integration]]; this is the readable master index.
 

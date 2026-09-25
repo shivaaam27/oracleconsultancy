@@ -1,6 +1,6 @@
 ---
 name: mcp-stage4-automatic
-description: MCP stage 4 — COS runs Claude on a schedule, using its own tools, drafting rather than sending
+description: MCP stage 4 — Oracle runs Claude on a schedule, using its own tools, drafting rather than sending
 metadata:
   type: project
 ---
@@ -9,7 +9,7 @@ metadata:
 
 Read [[mcp_plan]] first. Stages 1–2 must be solid; stage 3 is not a prerequisite.
 
-**Goal:** nobody asks. Every morning COS looks at itself, works out what needs
+**Goal:** nobody asks. Every morning Oracle looks at itself, works out what needs
 attention, and leaves the results where the owner will see them.
 
 Examples worth having:
@@ -19,10 +19,10 @@ Examples worth having:
 
 ## Two ways to schedule, and which to pick
 
-**A — COS runs it (recommended).** An existing cron route calls the Claude API,
-handing it the COS MCP server as a tool source (the API's MCP connector: an
+**A — Oracle runs it (recommended).** An existing cron route calls the Claude API,
+handing it the Oracle MCP server as a tool source (the API's MCP connector: an
 `mcp_servers` entry plus a matching `mcp_toolset`, beta `mcp-client-2025-11-20`).
-Claude reasons, calls COS tools, writes drafts, finishes.
+Claude reasons, calls Oracle tools, writes drafts, finishes.
 
 - Uses the cron spine that already exists — `vercel.json` for daily jobs,
   `/api/cron/tick` with the external scheduler for anything finer.
@@ -31,8 +31,8 @@ Claude reasons, calls COS tools, writes drafts, finishes.
 - Spend lands in the existing **`ai_usage` ledger** and honours `aiMonthlySpendCap`.
 - Failures land in `system_events` and the self-repair path already built.
 
-**B — Claude runs it.** A scheduled task on claude.ai fires and connects to COS.
-Simpler to set up, but the schedule and its history live outside COS, and an
+**B — Claude runs it.** A scheduled task on claude.ai fires and connects to Oracle.
+Simpler to set up, but the schedule and its history live outside Oracle, and an
 interactively-authorised connector is not guaranteed to be present in an
 unattended run. Fine for personal reminders; not where the business's morning
 routine should live.

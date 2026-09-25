@@ -61,7 +61,7 @@ export function OfflineNoteWriter({ onBack }: { onBack?: () => void } = {}) {
       setSyncing(false);
       await refresh();
       if (res.error) setStatus(res.error);
-      else if (res.sent > 0) setStatus(`${res.sent} note${res.sent > 1 ? "s" : ""} sent to COS.`);
+      else if (res.sent > 0) setStatus(`${res.sent} note${res.sent > 1 ? "s" : ""} sent to Oracle.`);
       else if (!quiet) setStatus(res.kept > 0 ? "Nothing sent yet." : "Nothing waiting.");
     },
     [refresh, syncing]
@@ -163,7 +163,7 @@ export function OfflineNoteWriter({ onBack }: { onBack?: () => void } = {}) {
             <button type="button" onClick={() => void runSync(false)} disabled={syncing || !online}
               className={cn(tool, "text-[var(--st-ink)] hover:bg-[var(--st-page)] disabled:opacity-50")}>
               {syncing ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}
-              Send {drafts.length} to COS
+              Send {drafts.length} to Oracle
             </button>
           )}
           <button type="button" onClick={keepAndClear} disabled={!text.trim() || !supported}
@@ -215,7 +215,7 @@ export function OfflineNoteWriter({ onBack }: { onBack?: () => void } = {}) {
                   onClick={async () => {
                     // Deliberately explicit: this is the only way writing is
                     // ever thrown away here, and it takes a click to do it.
-                    if (!confirm("Discard this note? It has not reached COS yet.")) return;
+                    if (!confirm("Discard this note? It has not reached Oracle yet.")) return;
                     await deleteDraft(d.clientKey);
                     await refresh();
                   }}
@@ -230,7 +230,7 @@ export function OfflineNoteWriter({ onBack }: { onBack?: () => void } = {}) {
       )}
 
       <p className="m-0 px-1 text-xs text-[var(--st-muted)]">
-        Notes written here are held on this device until COS can be reached, then they appear on your
+        Notes written here are held on this device until Oracle can be reached, then they appear on your
         shelf. Nothing is deleted from here until the server confirms it has it.
       </p>
     </div>

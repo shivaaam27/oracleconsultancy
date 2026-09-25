@@ -18,9 +18,9 @@ for whichever thread you are picking up.
 
 ## 2. ⚠️ Two things waiting on the OWNER, not on code
 
-**Ask about these before treating COS as secure.**
+**Ask about these before treating Oracle as secure.**
 
-1. **Rotate the credentials** — COS to-do **#420**. The public browser key could
+1. **Rotate the credentials** — Oracle to-do **#420**. The public browser key could
    read every table for a long time, including the owner password hash and every
    staff portal password hash. Locking the door does not un-copy them. Change the
    owner password, reset every staff portal password, re-mint the MCP keys, skim
@@ -86,7 +86,7 @@ it. A mismatch is deleted and never run; no checksum means no Download button.
 
 **Known gap:** a *pushed* task reminder does not appear as a Windows toast.
 WebView2 hands over non-persistent notifications only, and this SDK has no event
-for service-worker ones. Reminders still show inside COS.
+for service-worker ones. Reminders still show inside Oracle.
 
 ---
 

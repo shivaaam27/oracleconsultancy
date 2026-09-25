@@ -42,13 +42,13 @@ All 87 tasks raised since the system went live, with their written progress note
 **Progress (1 update):**
 - *31 May 2026* — Contracts and compliance records refreshed across the portfolio.
 
-#### OC-019 — COS / HR system development (May)
+#### OC-019 — Oracle / HR system development (May)
 **Status:** Closed · **Priority:** Medium · **Area:** Admin · **Owner:** Mr Shivam Parmar · **Raised:** 31 May 2026 by Shivam — Command Centre · **Due:** 31 May 2026 · **Closed:** 31 May 2026
 
-> Researched and built the in-house COS/HR admin system: web-development research, Claude AI tooling understanding, and iterative HR system development.
+> Researched and built the in-house Oracle/HR admin system: web-development research, Claude AI tooling understanding, and iterative HR system development.
 
 **Progress (1 update):**
-- *31 May 2026* — HR/COS system development progressed through May.
+- *31 May 2026* — HR/Oracle system development progressed through May.
 
 #### OC-020 — Insurance & labour-law research (May)
 **Status:** Closed · **Priority:** Medium · **Area:** Admin · **Owner:** Mr Shivam Parmar · **Raised:** 31 May 2026 by Shivam — Command Centre · **Due:** 31 May 2026 · **Closed:** 31 May 2026

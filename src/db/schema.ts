@@ -74,7 +74,7 @@ export const webauthnCredentials = pgTable("webauthn_credentials", {
   lastUsedAt: timestamp("last_used_at", { mode: "date", withTimezone: true }),
 });
 
-// MCP access keys — the credential an AI assistant presents to reach COS through
+// MCP access keys — the credential an AI assistant presents to reach Oracle through
 // the Model Context Protocol (/api/mcp). See memory/mcp_plan.md.
 //
 // `person_id` NULL = the owner (administrator, full reach); otherwise the key
@@ -1105,7 +1105,7 @@ export const calendarEvents = pgTable("calendar_events", {
   sequence: integer("sequence").notNull().default(0),
   status: text("status").notNull().default("confirmed"), // confirmed | cancelled
   // Google Calendar event id (set once the event is pushed to Google). Lets a
-  // later COS edit/cancel patch/delete the same Google event so guests are told.
+  // later Oracle edit/cancel patch/delete the same Google event so guests are told.
   googleEventId: text("google_event_id"),
   // Owner-managed category (Board / Site visit / …). NULL = uncategorised.
   categoryId: integer("category_id").references(() => eventCategories.id, { onDelete: "set null" }),
@@ -2099,10 +2099,10 @@ export const noteLinks = pgTable("note_links", {
 // ═════════════════════════════════════════════════════════════════════════════
 // THE GENERAL LEDGER — the spine (ERP Phase 1).
 //
-// COS was an operations tracker that worked every figure out by scanning
+// Oracle was an operations tracker that worked every figure out by scanning
 // documents. That is why nothing in it could go stale, and also why it could say
 // what was left to bill on a PO but not what a company earned last quarter.
-// The owner's decision (Aug 2026): **COS becomes the accounting system.**
+// The owner's decision (Aug 2026): **Oracle becomes the accounting system.**
 //
 // Read `memory/erp_gap_plan.md` before touching any of this. Five rules run
 // through every line below and they are not negotiable:
@@ -2110,7 +2110,7 @@ export const noteLinks = pgTable("note_links", {
 //   1. **Every voucher balances.** Debits equal credits, checked BEFORE it is
 //      written and refused otherwise. `checkVoucher()` in `ledger-shared.ts`.
 //   2. **A posted entry is NEVER edited or deleted.** To change it you post a
-//      reversal — which is COS's never-delete habit and the accounting rule
+//      reversal — which is Oracle's never-delete habit and the accounting rule
 //      agreeing with each other. `gl_entries` therefore has no `archived`
 //      column and no update path anywhere in the codebase.
 //   3. **Balances are DERIVED, never stored.** The entries are the stored fact;
@@ -2213,7 +2213,7 @@ export const noteLinks = pgTable("note_links", {
  *
  * ⚠️ NO TOTAL COLUMN, ANYWHERE. The lines are the fact; the total, the VAT and
  * the balance are worked out on read. Same rule as the general ledger, and the
- * reason nothing in COS goes stale.
+ * reason nothing in Oracle goes stale.
  * ================================================================== */
 
 

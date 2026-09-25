@@ -485,10 +485,10 @@ subscribed to yet; see the comment in `documents-workspace.tsx`).
 
 **Read `memory/mcp_stage4_automatic.md` for the original plan.** In plain terms:
 
-Stages 1–3 and 5 are done. Today Claude can read COS and make safe changes, but
+Stages 1–3 and 5 are done. Today Claude can read Oracle and make safe changes, but
 **only while the owner is talking to it**. Every action is a reply to a question.
 
-**Stage 4 is the lane where COS asks Claude to do something, unprompted** — the
+**Stage 4 is the lane where Oracle asks Claude to do something, unprompted** — the
 system wakes the assistant on a schedule or a trigger, instead of the other way
 round. The groundwork is already in the repo and deliberately unused:
 `src/lib/agent-context.ts` (gathers the facts a job needs, no API call) and

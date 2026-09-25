@@ -1,4 +1,4 @@
-# COS System
+# Oracle System
 
 A **Chief-of-Staff administrator** for Oracle Consultancy's 7 portfolio companies (the parent brand was renamed from "Oracle Group" in V2; note "Oracle Consultancy" is also one of the 7 companies):
 
@@ -22,8 +22,8 @@ Built with **Next.js 16**, **React 19**, **TypeScript**, **Drizzle ORM**, **Supa
 - **Director Brief** (`/brief`): glanceable portfolio report incl. completed/closed this month, with **WhatsApp/Email/Copy** share and a multi-page **print-to-PDF** detailed report.
 - **Documents & Compliance** (`/documents`): track licences/contracts/visas with expiry reminders; **AI reads uploads** — text PDFs, photos, and **scanned/handwritten PDFs** (rasterised → vision model) — and folds extra detail into Notes.
 - Mobile-tight Meeting Workspace with saved notes, AI minutes, decisions/risks/follow-up intelligence, history search, and linked tasks.
-- Ask COS assistant over tasks, updates, companies, people, and saved meeting minutes.
-- COS-native voice intelligence (English, Swahili, Hindi, Gujarati) + a COS vocabulary dictionary.
+- Ask Oracle assistant over tasks, updates, companies, people, and saved meeting minutes.
+- Oracle-native voice intelligence (English, Swahili, Hindi, Gujarati) + a Oracle vocabulary dictionary.
 - People directory (internal/external/expat) with bulk deactivate; notes surfaced on cards.
 - Outbox reminder drafts (priority + description + latest update; no code/status) and sent-record history.
 - Single centred **HRMS "Go to" launcher** for all secondary destinations; settings for risk thresholds, weather, AI master switch, reminders.
@@ -35,7 +35,7 @@ Built with **Next.js 16**, **React 19**, **TypeScript**, **Drizzle ORM**, **Supa
 3. `CLAUDE.md` / `AGENTS.md` - project instructions for coding agents.
 4. `memory/hrms.md` - HRMS hub, OECR (stock) and OCR (cleaning).
 5. `memory/outbox_and_reminders.md` - reminder drafts + Director Brief.
-6. `memory/ai_integration.md` - Groq, Ask COS, meeting/document AI, voice.
+6. `memory/ai_integration.md` - Groq, Ask Oracle, meeting/document AI, voice.
 7. `memory/database_schema.md` - current schema.
 8. `memory/routes_and_pages.md` - current pages and API routes.
 

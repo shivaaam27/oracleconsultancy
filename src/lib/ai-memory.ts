@@ -1,4 +1,4 @@
-// Conversational memory for Ask COS (and any future assistant surface).
+// Conversational memory for Ask Oracle (and any future assistant surface).
 //
 // Purpose: let the assistant remember what it has already answered, the owner's
 // stated working preferences, and stable facts — then RECALL the most relevant

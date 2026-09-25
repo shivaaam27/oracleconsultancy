@@ -110,12 +110,12 @@ Owner: drafts took too much vertical space (each rendered full message body, alw
 
 ## Reminders Phase 1 — last-chased + bulk send + auto-send cooldown (2026-06-15)
 
-Owner brief: "work on reminders", **auto-send the safe ones / prepare the rest**, WhatsApp **stays tap-to-send**, and sweep leftover "COS" naming. Built (tsc clean; verified live on `/outbox`, no console errors):
+Owner brief: "work on reminders", **auto-send the safe ones / prepare the rest**, WhatsApp **stays tap-to-send**, and sweep leftover "Oracle" naming. Built (tsc clean; verified live on `/outbox`, no console errors):
 
 - **Last-chased memory.** `lastChasedByName()` in `outbox-history.ts` = most recent **Sent** `outbox` row per lowercased recipient name (any channel). Surfaced in `outbox-workspace.tsx`: a "chased Nd ago" hint on each reminder row + a "Last chased Nd ago · {channel}" line atop the reminder detail. `chasedAgo()` formatter lives client-side (can't import the server `outbox-history` fn into the client component — `LastChased` is `import type` only).
 - **Bulk send.** `sendAllEmailDrafts()` in `outbox/actions.ts` loops `sendDraftEmail` over every EMAIL Draft with a valid address; stops on not-configured. Toolbar button **"Send all email (N)"** in the workspace (shows only when emailDraftCount>0; degrades exactly like the per-draft Send-email button).
 - **Auto-send cooldown (the "safe auto-send" the owner chose).** New `cooldownDays` on `AutomationConfig` (**default 2**). The `overdue` category — already the scheduled safe-nudge engine via `/api/cron/email` — now skips anyone chased within N days in **both** `auto` mode (`email-automation.ts`) and `prepare` mode (`createOverdueReminderDrafts(rows, { cooldownDays })`). Auto-sends now also write a **Sent `outbox` row** (`source: automation-overdue`) so they show in the sent log + feed last-chased + the next cooldown (previously auto-sends were unlogged — a real gap).
-- **Brand sweep.** Visible "COS" → **"Oracle Consultancy"** (Google-Calendar settings desc, test-email subject, automation-suggestion/signal/person-pack copy, `.ics` PRODID); the **"COS Assistant"** actor name → **"ORI"** (task-detail route + portal task/activity pages). Pure code comments left as-is. Rule: system→Oracle Consultancy, assistant→ORI.
+- **Brand sweep.** Visible "Oracle" → **"Oracle Consultancy"** (Google-Calendar settings desc, test-email subject, automation-suggestion/signal/person-pack copy, `.ics` PRODID); the **"Oracle Assistant"** actor name → **"ORI"** (task-detail route + portal task/activity pages). Pure code comments left as-is. Rule: system→Oracle Consultancy, assistant→ORI.
 
 `cooldownDays` has no Settings control yet (default 2 is sensible). Still NOT done (the agreed later phases): morning digest (#3), ad-hoc "remind me" (#4), unified Reminders view (#5). WhatsApp real send stays deferred by owner choice.
 

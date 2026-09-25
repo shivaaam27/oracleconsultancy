@@ -351,7 +351,7 @@ export function TaskFilterBar({
   /* ⚠️ THE LIST FILTERS AS YOU TYPE (owner, 21 Sept 2026: "searching tasks
    * should be responsive and not when i just type and press enter"). It used to
    * commit only on Enter, which meant the list sat there unchanged while you
-   * typed — and every other list in COS has filtered live for months, so this
+   * typed — and every other list in Oracle has filtered live for months, so this
    * one was the odd one out. `useUrlFilters` is the same idea; this bar cannot
    * use it directly because its address is built server-side into
    * `searchHrefBase`.

@@ -78,7 +78,7 @@ All the Phase-0 deferred follow-ups folded in; build/tests green again. What lan
 - Retention/purge job for soft-deleted task_updates/audit rows before the table grows large.
 - DBSPINE-05 durable DB-level cycle constraint (app-side guard is in; FK stops dangling only).
 - Remove now-unused HTTP `returnAssetsForPerson`/`clearCustodianForPerson` (superseded by tx-variants).
-- Broader prompt-safety coverage (Ask COS, meeting tools); stock-shared.ts exact minor-units (safe as-is).
+- Broader prompt-safety coverage (Ask Oracle, meeting tools); stock-shared.ts exact minor-units (safe as-is).
 
 ## Next
 Owner review → commit/push → apply migration (gated) → then Phase 1 (Finance core: chart of

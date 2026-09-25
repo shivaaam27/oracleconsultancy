@@ -49,7 +49,7 @@ jobs:
           dotnet wix build installer/Package.wxs -o "installer/out/Oracle Consultancy Setup.msi"
           dotnet wix build installer/Bundle.wxs -ext WixToolset.BootstrapperApplications.wixext -ext WixToolset.Netfx.wixext -o "installer/out/Oracle Consultancy Setup.exe"
 
-      # The checksum COS publishes must match the file people download, so print
+      # The checksum Oracle publishes must match the file people download, so print
       # it here — it is what goes into DESKTOP_SHA256.
       - name: Checksum
         working-directory: desktop-win

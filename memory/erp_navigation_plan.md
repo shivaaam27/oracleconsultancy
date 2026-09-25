@@ -2,7 +2,7 @@
 description: "Turning the one long sidebar into ERP modules — the launcher, the module-scoped sidebar, and a line-by-line audit of everything that could break."
 ---
 
-# Modules — making COS navigate like an ERP
+# Modules — making Oracle navigate like an ERP
 
 The sidebar has grown to **23 destinations in four groups** and a fifth module
 (CocoZuri Operations) is coming. This is the plan to put a module layer above it,

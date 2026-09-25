@@ -1,6 +1,6 @@
-// The diary COS keeps on someone else's behalf — the director's.
+// The diary Oracle keeps on someone else's behalf — the director's.
 //
-// COS holds ONE Google connection (the operator's account, see lib/google.ts), so
+// Oracle holds ONE Google connection (the operator's account, see lib/google.ts), so
 // there is no way to write directly into the director's own calendar. Instead we
 // put him on every event as a guest: Google then shows the event on his calendar,
 // and our own branded invitation reaches his inbox. One person, set in Settings
@@ -19,7 +19,7 @@ export type ManagedPerson = {
 };
 
 /**
- * The person whose calendar COS manages, or null when the setting is blank, the
+ * The person whose calendar Oracle manages, or null when the setting is blank, the
  * person has been archived, or the row has gone. Never throws — a calendar write
  * must not fail because this lookup did.
  */

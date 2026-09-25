@@ -23,7 +23,7 @@ export type Doc = {
  * ⚠️ A BLANK LINE STAYS A BLANK LINE. Collapsing them would silently reflow
  * somebody's writing — the paragraph breaks are the writing. An empty paragraph
  * node is exactly what the editor produces for an empty line, so what opens in
- * COS matches what was typed on the device.
+ * Oracle matches what was typed on the device.
  */
 export function textToDoc(text: string): Doc {
   const lines = text.replace(/\r\n/g, "\n").split("\n");

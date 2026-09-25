@@ -1,4 +1,4 @@
-// The rest of COS, reachable from /api/mcp — the modules beyond tasks.
+// The rest of Oracle, reachable from /api/mcp — the modules beyond tasks.
 //
 // WHY ONE READING TOOL AND NOT TWELVE. Every tool's description sits in the
 // prompt of EVERY conversation. Nineteen tools is comfortable; a hundred and

@@ -1,11 +1,11 @@
 ---
 name: erpnext-redesign-plan
-description: The owner wants COS rebuilt in the ERPNext shape — flat/dense look, uniform list+record screens, saved views and bulk edit. Staged plan, decisions taken, and the measurements behind them.
+description: The owner wants Oracle rebuilt in the ERPNext shape — flat/dense look, uniform list+record screens, saved views and bulk edit. Staged plan, decisions taken, and the measurements behind them.
 metadata:
   type: project
 ---
 
-# COS in the ERPNext shape — the plan (Aug 2026)
+# Oracle in the ERPNext shape — the plan (Aug 2026)
 
 **Status: ALL FIVE STAGES BUILT + the left sidebar (13 Aug 2026).** **Aurora is
 gone**; the design language is **Desk** (`DESIGN_SYSTEM.md`), live on every page
@@ -16,7 +16,7 @@ including the staff portal. Read this whole file before touching any UI.
 **Where the work is.** A git worktree, NOT the main folder:
 `C:\Users\Shivam Parmar\Documents\cos-system\.claude\worktrees\ai-document-event-attachment-e20b1d`
 on branch **`claude/server-status-check-91a135`**, where the whole programme
-landed as commit `d804ad5` ("Rebuild COS in the ERPNext shape — all five stages,
+landed as commit `d804ad5` ("Rebuild Oracle in the ERPNext shape — all five stages,
 plus the sidebar"). *(It was built in an earlier worktree, `mpc-stage-2-556d33`
 on `claude/erpnext-redesign-stage-0-0b5839` — that path is stale, don't look for
 it.)* The owner's normal checkout (`Documents\cos-system`, `master`) still has
@@ -135,7 +135,7 @@ is a definition, and one list view and one form view are *generated* for all of
 them. That is why every screen behaves identically and why a new record type
 costs nothing.
 
-**COS already has the seed of it.** `src/lib/entity-registry.ts` defines each
+**Oracle already has the seed of it.** `src/lib/entity-registry.ts` defines each
 entity — table, columns, indexable text, lifecycle, search mapping, trace mode —
 and `CLAUDE.md` already carries the rule *"to make a new entity searchable, add
 ONE EntityDef"*. Today it only drives search.
@@ -169,7 +169,7 @@ Changing them changes every screen at once, and it is reversible.
 Ordered so he can stop after any one and still be better off.
 
 ### Stage 0 — see it before committing (~half a day) ✅ BUILT 13 Aug 2026
-Re-skin the tokens on ONE page (Tasks) so he can judge COS flat/grey/tight beside
+Re-skin the tokens on ONE page (Tasks) so he can judge Oracle flat/grey/tight beside
 the current look, in the running app rather than a mockup. Fully reversible.
 
 **How he uses it:** hub → Tasks. A **Look: Current | ERPNext** switch sits in the
@@ -182,7 +182,7 @@ for open question 1.
 
 **What was built** (4 files):
 - `src/app/globals.css` — one additive block at the very bottom, under
-  `:root[data-skin="erp"]`: the ERPNext palette (light + dark) mapped onto COS's
+  `:root[data-skin="erp"]`: the ERPNext palette (light + dark) mapped onto Oracle's
   existing ~121 tokens, 6/8px radii, glass and blur and lift stripped from
   `.glass`/`.nav-frost`/`.glass-menu`/`.vibrancy`/`.elevated`/`.wash-accent`, and
   the 9px/4px row density. Nothing above it was edited.
@@ -327,7 +327,7 @@ shown", selection raises the bulk bar, record fields + sidebar render. Type-chec
 and `npm run build` both clean.
 
 **⚠️ The fork to settle before Stage 4 — drawer or page?** In ERPNext a record is
-a PAGE with its own URL. In COS a task record is a DRAWER: `/task/[code]`
+a PAGE with its own URL. In Oracle a task record is a DRAWER: `/task/[code]`
 currently redirects to `/?tab=tasks&task=CODE`, a deliberate earlier decision
 ("the pop-up is now the single, full-parity task view"). Stage 2 respected that —
 which is exactly why the body was split into `RecordBody`. If the owner wants
@@ -571,7 +571,7 @@ so a fresh session cannot faithfully rebuild something in liquid glass.
    Admin defaults to Compact; the portal stays Comfortable.
 3. ~~Is the record page layout right?~~ **Yes, and he went further** — a record
    is a PAGE with its own URL, as in ERPNext, not a drawer.
-4. ~~Inter or the system font?~~ Settled: COS already self-hosts Inter.
+4. ~~Inter or the system font?~~ Settled: Oracle already self-hosts Inter.
 5. ~~The persistent left sidebar?~~ **Wanted, and built** — deliberately last, so
    the stages settled the shape first.
 6. ~~Confirm the out-of-scope list?~~ The portal keeps its own shapes but took the

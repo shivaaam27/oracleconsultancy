@@ -1,6 +1,6 @@
 ---
 name: mcp-stage3-sign-in
-description: MCP stage 3 — a real sign-in so COS works from claude.ai and the phone, not just the laptop
+description: MCP stage 3 — a real sign-in so Oracle works from claude.ai and the phone, not just the laptop
 metadata:
   type: project
 ---
@@ -9,7 +9,7 @@ metadata:
 
 Read [[mcp_plan]] first.
 
-**Goal:** use COS from Claude on the phone and on claude.ai — not only from
+**Goal:** use Oracle from Claude on the phone and on claude.ai — not only from
 Claude Code on the laptop.
 
 ## Why this stage has to exist
@@ -20,7 +20,7 @@ custom connector — that surface expects a proper sign-in.
 
 ## What "OAuth" means here, plainly
 
-Instead of pasting a secret, you press **"Connect"** in Claude, get sent to a COS
+Instead of pasting a secret, you press **"Connect"** in Claude, get sent to a Oracle
 sign-in page, log in as you already do, and approve. Claude receives a token of
 its own. Nobody types a key, and you can revoke Claude's access without changing
 your password.
@@ -108,8 +108,8 @@ tokens — without that, every connection attempt would leave a row forever.
 
 ## How you'll know it works
 
-1. claude.ai → Settings → Connectors → **Add custom connector** → the COS URL.
-2. Press Connect; the COS sign-in appears; sign in; approve.
+1. claude.ai → Settings → Connectors → **Add custom connector** → the Oracle URL.
+2. Press Connect; the Oracle sign-in appears; sign in; approve.
 3. From your **phone**, ask "what's overdue this week?" and get the real answer.
 4. **Revoke it in Settings → Claude access → Connected assistants, and confirm the
    phone immediately loses access.**

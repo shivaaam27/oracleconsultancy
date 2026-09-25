@@ -1,4 +1,4 @@
-# START HERE — Moving the COS System to a New PC
+# START HERE — Moving the Oracle System to a New PC
 
 **Read this first. On the new PC, tell Claude: _"Read `START_HERE_NEW_PC.md` and get me
 set up."_ Claude will then walk through every step below and verify each one.**
@@ -28,7 +28,7 @@ local-only things.** That's what the transfer folder is for.
 Everything you need is already packed into this folder:
 
 ```
-C:\Users\User\Documents\COS-NEW-PC-TRANSFER\
+C:\Users\User\Documents\Oracle-NEW-PC-TRANSFER\
 ```
 
 Copy that **entire folder** to a USB stick or your cloud drive (Google Drive/Dropbox/OneDrive).
@@ -70,14 +70,14 @@ git clone https://github.com/shivaaam27/oracleconsultancy.git cos-system
 
 ### 3. Put back your secret keys
 Copy the two files from your transfer folder into the project root:
-- `COS-NEW-PC-TRANSFER\secrets\.env.local`  →  `C:\Users\User\Documents\cos-system\.env.local`
-- `COS-NEW-PC-TRANSFER\secrets\.env`  →  `C:\Users\User\Documents\cos-system\.env`
+- `Oracle-NEW-PC-TRANSFER\secrets\.env.local`  →  `C:\Users\User\Documents\cos-system\.env.local`
+- `Oracle-NEW-PC-TRANSFER\secrets\.env`  →  `C:\Users\User\Documents\cos-system\.env`
 
 **Without `.env.local` nothing works** — no database, no login, no AI. This is the single most
 important file to restore. (It is deliberately kept out of GitHub so your passwords never leak.)
 
 ### 4. Put back Claude's memory
-Copy everything from `COS-NEW-PC-TRANSFER\claude-memory\` into:
+Copy everything from `Oracle-NEW-PC-TRANSFER\claude-memory\` into:
 ```
 C:\Users\User\.claude\projects\C--Users-User-Documents-cos-system\memory\
 ```

@@ -22,7 +22,7 @@ than it needed to be; this is where it landed:
 > **MCP never deletes.**
 > **MCP never sends a message — EXCEPT a meeting/event invitation.**
 
-Everything else the owner can do in COS, an assistant can do here: complete and
+Everything else the owner can do in Oracle, an assistant can do here: complete and
 close tasks, archive them, change up to 25 at once. Those are all reversible from
 the UI, which is precisely why they are allowed and why a real delete is not.
 
@@ -47,7 +47,7 @@ survivable for anything undoable, and not for anything that isn't.
 `createCalendarEvent()` in `src/lib/calendar.ts` writes a row. `createEventAction()`
 in `src/app/calendar/actions.ts` writes the row **and** pushes to Google, spawns
 the meeting task and notifies attendees. Calling the raw helper would produce an
-event that exists in COS and nowhere else — exactly the bug that was fixed in
+event that exists in Oracle and nowhere else — exactly the bug that was fixed in
 [[director_calendar_aug2026]].
 
 ## Built — what actually shipped
@@ -129,7 +129,7 @@ assistant needs to check the guest list before it calls it, not after.
    login — that is the load-bearing rule of the whole feature ([[mcp_plan]]).
 3. **"Delete it" means archive it.** The instructions tell the assistant to archive
    and say so, rather than refuse and stop. Archiving keeps the row, the history and
-   the conversation; it is COS's own soft delete, and it is what people mean.
+   the conversation; it is Oracle's own soft delete, and it is what people mean.
 4. **Undo is not a delete tool.** `undo_last_change` can only consume a token whose
    `undo_tokens.created_by` equals this caller's own `mcp:<Name>` stamp, unconsumed,
    inside ten minutes, once. It cannot reach anything a person did, or another key's

@@ -19,7 +19,7 @@ export type NoteTodo = {
  * When a reminder is set for, written the way a person would say it.
  *
  * Dates render in the viewer's zone (Dar es Salaam), which is the house rule for
- * every wall-clock in COS — the value itself is stored UTC.
+ * every wall-clock in Oracle — the value itself is stored UTC.
  */
 export function whenLabel(iso: string | null): string | null {
   if (!iso) return null;

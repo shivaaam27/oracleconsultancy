@@ -126,7 +126,7 @@ lined up. 14px and up (headings, tile figures) is left alone.
 ## 3. Four real bugs, and they were all the same two shapes
 
 **A container with no type size, leaking the browser's 16px default:**
-1. **`Combobox`'s input** — every typeable dropdown in COS rendered at 16px.
+1. **`Combobox`'s input** — every typeable dropdown in Oracle rendered at 16px.
 2. **`RecordList`'s row** — any cell that did not set its own size, which was
    most cells on most lists.
 

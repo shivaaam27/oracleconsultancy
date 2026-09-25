@@ -14,7 +14,7 @@ All list/data pages are dynamic because operational data changes often.
 
 | Route | File | Purpose |
 |---|---|---|
-| `/` | `src/app/page.tsx` + `_hub/*` | Administrator with Overview, Companies, and Tasks tabs. Includes Welcome Hero, Needs Attention, company risk, task views, Quick Capture, and Ask COS. |
+| `/` | `src/app/page.tsx` + `_hub/*` | Administrator with Overview, Companies, and Tasks tabs. Includes Welcome Hero, Needs Attention, company risk, task views, Quick Capture, and Ask Oracle. |
 | `/task/new` | `src/app/task/new/page.tsx` | Create task form. |
 | `/task/[code]` | `src/app/task/[code]/page.tsx` | Task detail, edit form, assignees, latest update, source meeting card, updates, audit timeline, similar tasks, draft email. |
 | `/registry` | `src/app/registry/page.tsx` | Redirects to `/?tab=tasks&view=table`. |
@@ -45,7 +45,7 @@ Do not recreate these as standalone pages:
 
 - `/capture` - folded into hub Quick Capture. `src/app/capture/actions.ts` remains.
 - `/task` list - folded into hub Tasks tab.
-- `/digest` - folded into Ask COS weekly digest.
+- `/digest` - folded into Ask Oracle weekly digest.
 - `/escalations` - folded into Needs Attention.
 - `/audit` - standalone page removed; audit data remains and powers timelines. `src/app/audit/actions.ts` remains.
 
@@ -110,9 +110,9 @@ One bottom-floating pill: **Home · Director Brief · Task Management · Workboo
 |---|---|
 | `/api/polish` | Groq/rules action-item polish. |
 | `/api/draft-email` | Groq task follow-up email draft. |
-| `/api/digest` | Weekly digest payload for Ask COS. |
+| `/api/digest` | Weekly digest payload for Ask Oracle. |
 | `/api/digest-narrative` | Groq narrative from digest stats. |
-| `/api/ask` | Ask COS RAG over tasks, updates, people, companies, and saved meetings/minutes. |
+| `/api/ask` | Ask Oracle RAG over tasks, updates, people, companies, and saved meetings/minutes. |
 | `/api/action` | Natural-language command parser and executor. |
 | `/api/company-summary` | Per-company executive briefing. |
 | `/api/similar-tasks` | Keyword duplicate finder, no LLM. |

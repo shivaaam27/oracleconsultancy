@@ -1,27 +1,27 @@
 ---
 name: mcp-plan
-description: Master plan — give Claude a door into COS via MCP, administrator first, director portal later
+description: Master plan — give Claude a door into Oracle via MCP, administrator first, director portal later
 metadata:
   type: project
 ---
 
-# MCP for COS — master plan (Aug 2026)
+# MCP for Oracle — master plan (Aug 2026)
 
 The goal: the owner tells Claude something in plain English, and Claude does it
-in COS — reads the real data, creates the real task. Later the same for Pulin,
+in Oracle — reads the real data, creates the real task. Later the same for Pulin,
 locked to his portal.
 
 ## WHERE WE ARE
 
 | Stage | File | Status |
 |---|---|---|
-| 1 | [[mcp_stage1_read_only]] | ✅ **BUILT, DEPLOYED, IN USE** (commit 28d3e6c). Claude reads COS. |
+| 1 | [[mcp_stage1_read_only]] | ✅ **BUILT, DEPLOYED, IN USE** (commit 28d3e6c). Claude reads Oracle. |
 | 2 | [[mcp_stage2_safe_writes]] | ✅ **BUILT** (Aug 2026). 10 write tools + undo; never deletes, never sends a message. |
 | 3 | [[mcp_stage3_sign_in]] | ✅ **LIVE** (Aug 2026). Owner's claude.ai connector works. |
 | 4 | [[mcp_stage4_automatic]] | ⬜ Runs on a schedule without being asked. |
 | 5 | [[mcp_stage5_director_portal]] | ✅ **VERIFIED** (Aug 2026). Needed no new code — one portal-parity bug fixed. |
 
-Plus [[mcp_extending]] — **what MCP does as COS grows**, and the forward rule for
+Plus [[mcp_extending]] — **what MCP does as Oracle grows**, and the forward rule for
 anyone shipping a new feature. Read it before adding one.
 
 Owner's instruction (Aug 2026): **administrator first, prove it works, then
@@ -46,8 +46,8 @@ stages 3–5 inherit it unchanged.
 MCP is an open standard — a plug socket for AI. You build one socket on your
 system and any AI that speaks MCP can plug in: Claude Code, claude.ai, the phone
 app. Without it Claude only knows what you paste into the chat. With it, Claude
-can press real buttons in COS. A server offers **tools** (actions), **resources**
-(readable data) and **prompts** (saved instructions). For COS, tools are
+can press real buttons in Oracle. A server offers **tools** (actions), **resources**
+(readable data) and **prompts** (saved instructions). For Oracle, tools are
 effectively the whole thing.
 
 ## The two decisions that shape everything
@@ -66,7 +66,7 @@ different answers.
 
 ### 2. Do NOT build a permission system — reuse the one that exists
 
-**This is the load-bearing decision of the whole project.** COS already answers
+**This is the load-bearing decision of the whole project.** Oracle already answers
 "what may this person see and do?" on every portal page load. MCP asks the same
 question of the same code.
 
@@ -125,7 +125,7 @@ existing password becomes their Claude credential.
 
 ## Audit — everything Claude does is stamped
 
-COS already labels who did what: `web-ui`, `ai-command`, `portal:<Name>`. Anything
+Oracle already labels who did what: `web-ui`, `ai-command`, `portal:<Name>`. Anything
 arriving through MCP is stamped **`mcp:<Name>`**. A task the owner's Claude creates
 reads `mcp:Shivam` in the timeline; Pulin's reads `mcp:Pulin Manek`. If it ever
 goes wrong you can see it, and see whose Claude did it.
@@ -153,7 +153,7 @@ path.
 
 ## Risks the owner should hold in mind
 
-- **A new door into the whole business.** COS holds staff records, documents and
+- **A new door into the whole business.** Oracle holds staff records, documents and
   governance data. This adds a second entrance beside the owner password. The key
   handling above is the mitigation, and it is not optional.
 - **Claude does what it is told, including by pasted text.** If someone pastes an

@@ -12,7 +12,7 @@ import { isAdminSession } from "@/lib/admin-auth";
  * disappears from the device too.
  *
  * ⚠️ OWNER-ONLY, AND CHECKED HERE AS WELL AS AT THE EDGE. This route hands over
- * every note in COS in one response — it is the single most sensitive thing in
+ * every note in Oracle in one response — it is the single most sensitive thing in
  * the module. `api/notes` is not in the proxy's exclusion list, so the admin gate
  * already covers it; the check below is the second lock, because one day
  * somebody will edit that list.

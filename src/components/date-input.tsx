@@ -3,7 +3,7 @@
 /**
  * A date FIELD for a server-action form: the calendar pop-over (DatePopover)
  * plus the hidden input the form submits. Replaces `<input type="date">`,
- * whose browser-drawn box and calendar match nothing else in COS.
+ * whose browser-drawn box and calendar match nothing else in Oracle.
  * Value in and out is "yyyy-mm-dd" (empty = no date), exactly what the native
  * input posted, so the action reading it does not change.
  */

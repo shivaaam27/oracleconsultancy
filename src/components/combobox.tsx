@@ -124,7 +124,7 @@ export function Combobox({
            keeps the last width class it sees. */
         /* ⚠️ THE BUG THIS FIXES: there was NO type size and NO height here, so
            the input fell back to the browser's 16px default — every typeable
-           dropdown in COS rendered a head larger than the field beside it, and
+           dropdown in Oracle rendered a head larger than the field beside it, and
            it showed up the moment two sat side by side on the recipe form.
            It is the same box as `Select` and `FluidSelect`, by construction. */
         className={cn("w-full min-w-0 h-8 rounded-md px-2.5 text-sm", className, "pr-7")}

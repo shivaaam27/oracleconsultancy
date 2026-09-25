@@ -15,14 +15,14 @@ metadata:
 - Saves meeting records with title, company, date, attendees, raw notes, and minutes.
 - Lets the operator type, paste, or dictate raw notes.
 - Polishes dictated notes after recording, with a "Use raw" escape hatch.
-- Lets the operator teach COS names/phrases into the voice dictionary.
+- Lets the operator teach Oracle names/phrases into the voice dictionary.
 - Cleans notes with AI, with a basic rule fallback when AI is off.
 - Generates editable meeting minutes.
 - Extracts action items into editable task review cards.
 - Bulk-creates selected tasks into the main task registry.
 - Links created tasks back to the saved meeting through `meeting_tasks`.
 - Shows tasks created from the selected meeting.
-- Lets Ask COS answer questions using saved meeting minutes and raw notes.
+- Lets Ask Oracle answer questions using saved meeting minutes and raw notes.
 
 ## Tables
 
@@ -43,7 +43,7 @@ Composite primary key: `(meeting_id, task_id)`. Cascades when either side is del
 - `src/components/meeting-extractor.tsx` - client workspace UI.
 - `src/app/voice/actions.ts` - shared dictation polish and dictionary teaching.
 - `drizzle/0008_meeting_workspace.sql` - schema migration.
-- `src/app/api/ask/route.ts` - Ask COS now loads relevant meetings into RAG context.
+- `src/app/api/ask/route.ts` - Ask Oracle now loads relevant meetings into RAG context.
 
 ## AI Actions
 
@@ -66,7 +66,7 @@ All use `getGroqKey()`, so the Settings AI master switch gates them.
 - `Tasks from this meeting` links to task detail pages.
 - Task detail pages and the task drawer show a `Source meeting` card when a task was created from a meeting.
 - Mobile layout is deliberately tighter: the step explainer is hidden, metadata is compact, note/minutes editors start shorter, and history is capped so notes/actions are reached faster.
-- Dictation uses the Settings voice language and the COS voice dictionary.
+- Dictation uses the Settings voice language and the Oracle voice dictionary.
 
 ## Known Next Steps
 

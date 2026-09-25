@@ -323,7 +323,7 @@ function ActionsSlide({ s }: { s: Extract<HomeSlide, { kind: "actions" }> }) {
         <span className="min-w-0 flex-1"><span className="block text-[13px] font-medium">Run automations now</span><span className="block truncate text-[11px] text-[var(--st-muted)]">Recurring tasks, reminders, renewals</span></span>
         <span className="text-xs font-medium">Run</span>
       </button>
-      {/* Sending reaches people outside COS — so it asks once more. */}
+      {/* Sending reaches people outside Oracle — so it asks once more. */}
       <button type="button" onClick={() => (armed ? fire("brief", sendBriefNowAction) : setArmed(true))} disabled={busy !== null} className={cn(row, armed && "border-[var(--st-ink)]")}>
         <span className={icon}>{busy === "brief" ? <Loader2 size={14} className="animate-spin" /> : <FileText size={14} />}</span>
         <span className="min-w-0 flex-1"><span className="block text-[13px] font-medium">Send the Director Brief</span><span className="block truncate text-[11px] text-[var(--st-muted)]">{armed ? "Tap again to send it now" : "WhatsApp · email · PDF"}</span></span>
@@ -334,7 +334,7 @@ function ActionsSlide({ s }: { s: Extract<HomeSlide, { kind: "actions" }> }) {
   );
 }
 
-/** The old Home's "Controls held" panel: the switches that decide what COS
+/** The old Home's "Controls held" panel: the switches that decide what Oracle
  *  does on its own. Same actions, optimistic, rolled back if the save fails. */
 function ControlsSlide({ s }: { s: Extract<HomeSlide, { kind: "controls" }> }) {
   const router = useRouter();

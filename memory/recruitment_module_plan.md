@@ -1,4 +1,4 @@
-# The Recruitment desk — bringing Oracle's agency into COS
+# The Recruitment desk — bringing Oracle's agency into Oracle
 
 Written **19 August 2026**, after reading everything in
 `C:\Users\Shivam Parmar\Documents\HR Recruitment`.
@@ -10,7 +10,7 @@ site to be one stop for project planning, content, end to end candidate and clie
 **Nothing from the old app's code, CSS or components is carried over.** What IS carried over is
 its thinking: the domain model, the match algorithm, the compliance engine, the fee rules and
 the needs-attention rules. All of it is rebuilt on Desk, `RecordList`/`RecordPage`,
-`ENTITY_VIEWS`, `postVoucher()` and the rest of the COS conventions.
+`ENTITY_VIEWS`, `postVoucher()` and the rest of the Oracle conventions.
 
 ---
 
@@ -123,8 +123,8 @@ balance column here."*
 ## 4. What is deliberately NOT carried over
 
 - **The design.** No charcoal/ember palette, no 60px icon rail + 244px nav + 380px context panel,
-  no `Oracle-Agency-mockup.html`. COS uses **Desk** (`DESIGN_SYSTEM.md`) everywhere.
-- **The stack.** No second Next app, no separate Supabase project, no RLS policies. COS is one
+  no `Oracle-Agency-mockup.html`. Oracle uses **Desk** (`DESIGN_SYSTEM.md`) everywhere.
+- **The stack.** No second Next app, no separate Supabase project, no RLS policies. Oracle is one
   owner behind `src/proxy.ts` plus per-person portal logins.
 - **The seed data.** 11 clients / 168 candidates / 14 orders / 32 placements is demo furniture.
   Decision needed (§9 Q7) — but the default is to start empty and type in what is real.
@@ -133,7 +133,7 @@ balance column here."*
 
 ---
 
-## 5. The shape in COS
+## 5. The shape in Oracle
 
 ### Where it lives
 
@@ -314,7 +314,7 @@ guarantee runs out this week" — is worth having.
 - **Q7 — start EMPTY.** The 106-row mock year is not imported. Nothing fictional goes in the live
   data at any point.
 - **Q8 — the workbook stays.** `Oracle_Accounts_and_Forecast.xlsx` remains the plan and the
-  forecast; COS records what actually happens. Neither one drives the other, and COS must not
+  forecast; Oracle records what actually happens. Neither one drives the other, and Oracle must not
   claim to replace it.
 
 **Q6 is still open** (which company's books, and whether the desk needs its own profit and loss).
@@ -340,12 +340,12 @@ The rest, unchanged:
 7. **Start empty, or load the 106-row mock year** for a demo? Recommendation: empty, with the
    mock kept out of the live data entirely.
 8. **Does this replace the Excel workbook?** Recommendation: **no, not at first.** The workbook
-   stays the plan; COS records what actually happens. Once a year of real placements is in COS,
+   stays the plan; Oracle records what actually happens. Once a year of real placements is in Oracle,
    the workbook's Actuals sheet has nothing left to do.
 9. ⚠️ **Data protection — the one that could genuinely bite.** The launch checklist says the
    **PDPC registration must be done BEFORE any candidate data is collected**, and a **cross-border
    data transfer permit is needed before the first Indian CV is handled**. Putting Indian
-   candidates' CVs and passports into COS *is* that act. Both are on the checklist and neither is
+   candidates' CVs and passports into Oracle *is* that act. Both are on the checklist and neither is
    done. **Confirm the position before Phase 1 goes live with real people in it.** Building and
    testing with made-up data is unaffected.
 
@@ -521,11 +521,11 @@ The owner asked for a run from the start looking for bugs, said he could see
 "dead space", and asked for everything to be editable so he can stop using the
 spreadsheet. Everything below was found by walking the module control by control.
 
-### The dead space — it was every list in COS, not just this module
+### The dead space — it was every list in Oracle, not just this module
 
 A three-row list left **636px of bare grey** on a 1000px window, and `/projects`
 with one row left 722px. A card is only as tall as its contents, so every list in
-COS did it; the note sheet had already been given a one-off fix for the same
+Oracle did it; the note sheet had already been given a one-off fix for the same
 thing in a different shape.
 
 **`src/lib/use-fill-viewport.ts`** is now the one place that decides how tall a
@@ -544,7 +544,7 @@ gets right, each of which cost a bug on the way:
 `RecordList` grew a `fillViewport` prop (on by default, off for `bare` lists
 inside somebody else's housing), and the card became a flex column so the
 "N of M shown" strip is pinned to the FOOT of the panel rather than floating in a
-field of white. Every converted list in COS now ends 14px above the bottom of the
+field of white. Every converted list in Oracle now ends 14px above the bottom of the
 window. Checked: Tasks, Projects, Assets, Commitments, and all six recruitment
 screens, plus a phone at 375px where the sheet correctly stops above the pill.
 

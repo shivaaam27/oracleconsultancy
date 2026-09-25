@@ -7,7 +7,7 @@ import { Button } from "@/components/ui";
 /* ------------------------------------------------------------------ *
  * "Install this as an app."
  *
- * COS is already a full progressive web app — manifest, service worker, offline
+ * Oracle is already a full progressive web app — manifest, service worker, offline
  * page, icons, push. Windows, Android and iOS will all install it into the Start
  * menu / home screen, giving a real window with our icon and no browser bar.
  * What was missing was anyone TELLING people, so almost nobody had done it.

@@ -31,7 +31,7 @@ config({ path: ".env", quiet: true });
 import postgres from "postgres";
 
 /** Tables the anon key is deliberately allowed to reach. Empty, and it should
- *  stay empty: COS reads and writes only through the service-role key. */
+ *  stay empty: Oracle reads and writes only through the service-role key. */
 const ALLOWED_ANON_TABLES: string[] = [];
 
 async function main() {

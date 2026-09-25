@@ -6,11 +6,11 @@ metadata:
   type: project
 ---
 
-# COS System - V3 Plan
+# Oracle System - V3 Plan
 
 > **Status (June 2026):** much of V3 is shipped. For what's actually built in the latest sprint (organogram flowchart, people reporting, departments/sites/roles admin, attendance, login redesign, passkeys, settings redesign) see **`memory/v3_build_log_jun2026.md`** (the audit index). This file remains the original direction/spec.
 
-V3 starts from the shipped V2 system and moves COS from a dashboard into a
+V3 starts from the shipped V2 system and moves Oracle from a dashboard into a
 daily operating desk. The product direction is:
 
 > Home is not a dashboard. Home is the daily command desk.
@@ -49,7 +49,7 @@ Files:
 
 Design rules:
 
-- Use existing COS Liquid Glass design tokens and primitives.
+- Use existing Oracle Liquid Glass design tokens and primitives.
 - Keep Home quieter and more opinionated than V2.
 - Avoid recreating the old widget grid.
 - Home should answer: **what should I do next?**
@@ -67,7 +67,7 @@ Examples:
   with open work.
 - Workbook exposes meeting actions, recent follow-ups and unprocessed notes.
 - Outbox exposes drafts waiting and failed sends later.
-- Ask COS should use the same Home Intelligence data for "Plan my day".
+- Ask Oracle should use the same Home Intelligence data for "Plan my day".
 
 ## Suggested V3 Phases
 
@@ -91,7 +91,7 @@ Examples:
    `/api/person-pack`. It now shows a simpler 1-2-3 flow: Reason, Include,
    Preview and draft. Visible reasons are Documents, Work reminder and Custom
    (the richer HR presets — visa/permit, expat onboarding, work-permit renewal,
-   recruitment, contract signing — stay reachable via Custom and the Home/Ask COS
+   recruitment, contract signing — stay reachable via Custom and the Home/Ask Oracle
    `?purpose=` deep-links rather than as cold-start buttons); include options are grouped into
    Request, Saved documents, Work follow-up, Profile and a collapsed Sensitive
    internal area. Preview counts reflect only selected sections, so hidden work
@@ -134,10 +134,10 @@ Examples:
    command cards, focus queue and pulse strip. **HR templates added:** the
    builder now includes Expat Onboarding, Work Permit Renewal, Recruitment File
    and Contract Signing as minimalist purpose presets using the same toggle/PDF/
-   Outbox flow. **Ask COS pack intent added:** commands such as "prepare visa
+   Outbox flow. **Ask Oracle pack intent added:** commands such as "prepare visa
    pack for Shivam" resolve locally to the person-pack Prepare pack route,
-   without creating a draft or sending anything. **Home/Ask COS routing cleanup:**
-   Home person-pack signals and Ask COS person-pack commands now open
+   without creating a draft or sending anything. **Home/Ask Oracle routing cleanup:**
+   Home person-pack signals and Ask Oracle person-pack commands now open
    `/people?person=ID&pack=1[&purpose=...]`, landing in the cleaned Prepare pack
    modal with the intended purpose selected.
    **Phase 7 cleanup:** person-pack purpose validation now uses the shared
@@ -172,7 +172,7 @@ Examples:
    sending anything. Recommended director actions are now derived from live task
    risk and compliance issues, visible on the brief, included in share/email
    text, and printed through the existing PDF report-table layout.
-6. **Ask COS Agentic Upgrade** - page-specific "what should I do here?", meeting
+6. **Ask Oracle Agentic Upgrade** - page-specific "what should I do here?", meeting
    preparation, suggested actions after answers.
 7. **Voice Intelligence Expansion** - punctuation/lists, snippets, tone shaping,
    voice in Outbox.
@@ -317,7 +317,7 @@ Locked decisions: header contact = **compact icon buttons**; **Prepare pack fold
 
 **Phase 6 shipped (File upgrade — per-company custom compliance + staff files):**
 - **DB-backed per-company checklist** replacing the old fixed derived one. New `company_requirements` table (migration `0033`, mirrors `person_requirements`: `source_key` null=custom / set=seeded default, status/document_id/auto_link/verify/waive). `src/lib/company-requirements.ts`: `ensureCompanyRequirements` seeds only the 3 core items (Registration, Tax/TIN, Business licence — **no insurance/lease**, owner adds those), `getCompanyChecklist` (ensure + auto-link company docs by category + score), `buildCompanyRequirementScores` (bulk read-only; **synthesizes the 3 defaults for unseeded companies** so they aren't falsely 100%), plus full mutations (request/link/unlink/verify/unverify/waive/unwaive/add/edit/remove).
-- **Compliance is now DB-backed everywhere** (owner choice): `buildCompanyComplianceScores` + the derived `COMPANY_CHECKLIST`/`COMPANY_REQUIREMENTS` removed from `compliance.ts` (now only shared types + `worstComplianceScores`). Consumers switched to `buildCompanyRequirementScores`: company Overview tile, `/documents`, Home (`cos-home`), Director Brief, Ask COS.
+- **Compliance is now DB-backed everywhere** (owner choice): `buildCompanyComplianceScores` + the derived `COMPANY_CHECKLIST`/`COMPANY_REQUIREMENTS` removed from `compliance.ts` (now only shared types + `worstComplianceScores`). Consumers switched to `buildCompanyRequirementScores`: company Overview tile, `/documents`, Home (`cos-home`), Director Brief, Ask Oracle.
 - **Interactive checklist UI** on the File tab: `company-requirements-checklist.tsx` (mirrors the person one — score ring, add/edit/remove custom items, verify/link/waive, in-place "Add"/"Renew" opens the prefilled DocumentForm modal). API `GET /api/company-requirements?id=`; actions `src/app/companies/[id]/requirement-actions.ts` (`creq*`).
 - **Staff files** section on the File tab: documents owned by people of this company, grouped per person with role + counts + status + "Open" to the person. Person→company link = primary `people.company_id` **or** a `person_companies` association (the `company_id`-only case was the gap that made it look empty). Team tile uses the same union.
 - Verified in preview: checklist auto-links Business licence + Tax/TIN (Received→verify to score), Company registration Missing; custom "VRN" add + remove round-trip clean (test item removed); staff files show on CO01/04/05/06 grouped by person. tsc + migration applied clean.

@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { DESKTOP_VERSION, DESKTOP_STORAGE_PATH, DESKTOP_SHA256 } from "./desktop-release";
 
-/* The version COS publishes and the version stamped into the app are written in
+/* The version Oracle publishes and the version stamped into the app are written in
  * two different files, in two different languages. If they drift, the failure is
  * SILENT AND COMPANY-WIDE: every installed app shows an "out of date" bar
  * pointing at a version that was never built. So the two are checked here. */

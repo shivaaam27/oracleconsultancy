@@ -226,7 +226,7 @@ export async function suggestLinks(
   const body = clip(text);
   if (!body) return { ok: false, reason: "empty", message: "There is nothing written yet." };
   if (candidates.length === 0) {
-    return { ok: false, reason: "empty", message: "There is nothing in COS to link to yet." };
+    return { ok: false, reason: "empty", message: "There is nothing in Oracle to link to yet." };
   }
 
   const list = candidates
@@ -274,7 +274,7 @@ export async function suggestLinks(
     .slice(0, 8);
 
   if (links.length === 0) {
-    return { ok: false, reason: "empty", message: "Nothing in this note points at a record in COS." };
+    return { ok: false, reason: "empty", message: "Nothing in this note points at a record in Oracle." };
   }
   return { ok: true, data: { links } };
 }
@@ -324,7 +324,7 @@ export type NoteAnswer = { answer: string; usedNoteIds: number[] };
  * The passages come from the caller (the search index built in Phase 6), so this
  * function stays a pure "read these, answer that" step. It is told to say when the
  * notes do not answer the question, which matters more here than anywhere else in
- * COS: these are the owner's own words, and a confident invention would be read as
+ * Oracle: these are the owner's own words, and a confident invention would be read as
  * something he wrote.
  */
 export async function askNotes(

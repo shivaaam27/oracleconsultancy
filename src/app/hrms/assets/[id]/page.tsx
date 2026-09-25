@@ -16,7 +16,7 @@ const loadAsset = cache(getAsset);
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const asset = await loadAsset(Number(id)).catch(() => null);
-  return { title: asset ? `${asset.name} · Assets` : "Asset · COS" };
+  return { title: asset ? `${asset.name} · Assets` : "Asset · Oracle" };
 }
 
 export default async function AssetPage({ params }: { params: Promise<{ id: string }> }) {

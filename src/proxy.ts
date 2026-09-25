@@ -155,7 +155,7 @@ async function refreshPortalSession(req: NextRequest): Promise<NextResponse> {
 }
 
 /* ── Directors on the shared screens (portal unification, Sept 2026) ─────────
- * COS is one system: a director uses the SAME pages as the owner, limited to
+ * Oracle is one system: a director uses the SAME pages as the owner, limited to
  * their companies. So a request with no owner session but a GENUINE portal
  * session (signature and expiry verified here, like the owner's) may reach
  * these paths — and ONLY these. Each page and API on the list checks for itself

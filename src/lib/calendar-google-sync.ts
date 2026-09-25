@@ -2,7 +2,7 @@
 //
 // Pushing to Google at creation is best-effort by design — a network blip, an
 // expired token or a slow cold start must never stop the event being saved. But
-// the failure was then permanent and invisible: the event sat in COS, absent
+// the failure was then permanent and invisible: the event sat in Oracle, absent
 // from everyone's phone, with nothing to say so. (Seen in testing: a create-time
 // push failed, the identical push seconds later succeeded.)
 //

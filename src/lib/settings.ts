@@ -41,9 +41,9 @@ export type AppSettings = {
    *   "all"  — file anything that resolved an owner, however weakly. Not advised;
    *            a fuzzy name match is right often enough to suggest, not to act on. */
   documentAutoFile: "high" | "off" | "all";
-  /** Phase 3b: use in-region pgvector semantic search in Ask COS. Off until the
+  /** Phase 3b: use in-region pgvector semantic search in Ask Oracle. Off until the
    *  owner has deployed the `embed` Edge Function + run the backfill. When off,
-   *  Ask COS uses the keyword + synonym ranker. */
+   *  Ask Oracle uses the keyword + synonym ranker. */
   semanticSearch: boolean;
   voiceLanguage: string;
   voiceDictionary: string;
@@ -204,7 +204,7 @@ export type AppSettings = {
   /** After a meeting ends, if its task is still open, post a "capture the outcome /
    *  minutes" prompt into the task so nothing is forgotten. */
   meetingFollowupPrompt: boolean;
-  /** The person whose diary COS keeps (the director). When set, EVERY event
+  /** The person whose diary Oracle keeps (the director). When set, EVERY event
    *  created here quietly adds them as a guest, so it lands on their Google
    *  calendar too — not just the ones with a Meet link. 0 = nobody (off). */
   managedCalendarPersonId: number;

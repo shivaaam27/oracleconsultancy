@@ -3,7 +3,7 @@
 - **[V2 Handover](../HANDOVER.md)** - what V2 shipped, architecture, run, DB, known limits (repo root).
 - **[V2 Plan - START HERE](v2_plan.md)** - current direction, phase status, and how to work here.
 - **[V3 Plan](v3_plan.md)** - Home Intelligence, system-wide automations, and the V3 operating-layer direction.
-- [Project Overview](project_overview.md) - what COS System is, who uses it, and the main workflows.
+- [Project Overview](project_overview.md) - what Oracle System is, who uses it, and the main workflows.
 - [HRMS](hrms.md) - HRMS hub, OECR (stock control) and OCR (cleaning checklist).
 - [Tech Stack](tech_stack.md) - Next.js 16, React 19, Drizzle ORM, Supabase Postgres pooler, Tailwind v4, Groq.
 - [Repo Layout](repo_layout.md) - current directory map and key files.
@@ -12,7 +12,7 @@
 - **[Session 26 Jul 2026](session_26jul2026.md)** - slim-down to task management, Next.js 16.2.11 security patch, and the document-intake confidence work: the `AUTO_FILE = false` handbrake, the agent's ungated second filing door, and the accuracy metric that counted the owner's own work as automation.
 - [Routes and Pages](routes_and_pages.md) - current page routes, removed routes, server actions, and API routes.
 - [Meeting Workspace](meeting_workspace.md) - saved notes, AI minutes, linked tasks, compact mobile layout, voice polish, and meeting intelligence.
-- [AI Integration](ai_integration.md) - Groq routes, Ask COS RAG, meeting intelligence, voice intelligence, fallbacks, and AI master switch.
+- [AI Integration](ai_integration.md) - Groq routes, Ask Oracle RAG, meeting intelligence, voice intelligence, fallbacks, and AI master switch.
 - [To-dos](todos.md) - the personal to-do list: grouping, star, NL/voice capture, assign-person, promote-to-task, Overview surfacing, Plan my day.
 - [Outbox and Reminders](outbox_and_reminders.md) - live task reminders, persisted drafts, to-do reminders, and channel deep-links.
 - [Liquid Lens](liquid_lens.md) - the draggable liquid-glass lens on the nav pill (drag-to-select + refraction optics).

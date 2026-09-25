@@ -41,7 +41,7 @@ Named by the owner ("intelligenceupgrade") on 2026-06-15. Two parts:
 - **Part B — Remaining intelligence-layer phases** (4/5/6 + deferred audit items).
 
 Context already shipped (see `intelligence_layer_audit.md` + `intelligence_layer_plan.md`):
-Phase 1 reliability, Phase 2 model quality + prose-verify, Phase 3a Ask COS ranker,
+Phase 1 reliability, Phase 2 model quality + prose-verify, Phase 3a Ask Oracle ranker,
 **Phase 3b semantic search LIVE** (Supabase Edge `embed` = gte-small 384-dim, pgvector,
 HNSW, `match_embeddings`/`upsert_embedding` RPCs, migration 0076; indexes tasks+meetings;
 toggle `v2.semanticSearch` ON; backfilled 45 tasks + 2 meetings; verified working).
@@ -78,7 +78,7 @@ Script computes Recall@k (target ~0.8 @ k≈10-20) + MRR, run as a Vitest alongs
 Add **documents** (title + notes + extracted text), **people/contacts** (name + role +
 profile), and optionally **facts/company profile**. One `embeddings` row per item
 (parent_type/parent_id). Extends the existing pipeline + backfill. The owner explicitly
-wants full coverage. Wire document/person hits into Ask COS context. Low-medium effort.
+wants full coverage. Wire document/person hits into Ask Oracle context. Low-medium effort.
 
 **S2 — Hybrid search (full-text + vector via RRF). HIGHEST ROI, no infra.**
 Add a Postgres `tsvector` (use the **`simple`** config — no stemming — so Swahili/Hindi/
@@ -148,7 +148,7 @@ separate "key missing" from "AI switched off" (both surface as `no-key` today, c
 
 **Deferred audit items (any time):**
 - **Observability:** wire `recordEvent` (system_events) into the other 8 AI surfaces —
-  only document extraction logs today, so the AI-health panel is blind to "Ask COS erroring
+  only document extraction logs today, so the AI-health panel is blind to "Ask Oracle erroring
   for 2 days". (This is the original Phase-0 observability gap.)
 - **Central `src/lib/prompts.ts`** — the "Chief of Staff" persona + anti-invent clause are
   duplicated/drifting across ≥6 prompts; domain enums duplicated as prompt text AND JS arrays.
@@ -172,7 +172,7 @@ separate "key missing" from "AI switched off" (both surface as `no-key` today, c
   0.90 on a 5-case seed — OWNER should expand the golden set). S1 coverage: now indexes
   tasks+meetings+**documents+people** (backfilled 45/2/325/31); document/person create hooks
   added. S2 hybrid search: `hybrid_search` RPC (Postgres FTS `simple` config + vector, RRF);
-  Ask COS uses it. S3 chunking: `chunkText` (~1800 chars, 250 overlap) + `replace_embeddings`
+  Ask Oracle uses it. S3 chunking: `chunkText` (~1800 chars, 250 overlap) + `replace_embeddings`
   RPC, one row per chunk, rolled up to parent. S4 multilingual interim: `maybeTranslate`
   (Groq translate→English for Devanagari/Gujarati + Swahili-heuristic) before embedding;
   original text kept for FTS. `embeddings.ts` rewritten; `indexEmbedding` now chunk-aware;

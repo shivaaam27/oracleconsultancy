@@ -158,7 +158,7 @@ owner's correction always outranks the read. Nothing is saved until Save.
 
 ## Not built (deliberate)
 - **Live flight status** — delays, gate changes, "is it on time". Needs a paid
-  flight-data API (AviationStack / FlightAware / AeroDataBox) and a key. COS puts
+  flight-data API (AviationStack / FlightAware / AeroDataBox) and a key. Oracle puts
   the flight in the diary with the right times and the ticket attached; it does
   not track the aircraft. Say so rather than implying otherwise.
 - **Multi-leg**: a return or a connection is read as the FIRST departing leg,

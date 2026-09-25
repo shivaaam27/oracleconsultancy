@@ -52,7 +52,7 @@ cap is reported as "no limit agreed", never as zero.
 
 Checked 25 Aug 2026. This is the single most important decision in the plan.
 
-| Platform | To read results | To post from COS | How long |
+| Platform | To read results | To post from Oracle | How long |
 |---|---|---|---|
 | Instagram + Facebook | Business/Creator account **linked to a Facebook Page** | separate publishing permission | **2–4 weeks** per review round |
 | TikTok | app approval | approval **and an audit** — until it passes, posts stay private | **2–6 weeks** |
@@ -99,7 +99,7 @@ Screen: `/results`
 
 - **Phase 4 — reading the numbers automatically.** Instagram/Facebook first.
   Adds rows with `source: "platform"` and changes nothing else.
-- **Phase 5 — posting from COS.** Deliberately last: saves minutes a day, needs
+- **Phase 5 — posting from Oracle.** Deliberately last: saves minutes a day, needs
   the strictest approval, and is the one thing that can fail publicly at 3am.
 - **Phase 6 — letting other people in.** Dropped for now (he posts alone, no
   client logins). When he hires someone: staff-portal access, and approval
@@ -197,7 +197,7 @@ Screen: `/results`
   `w-full` resolves against a shrink-wrapped parent — every dropdown came out
   the width of its longest option. **`src/components/select-field.tsx` is the
   reusable fix** and is how you get a FluidSelect into a server-action form
-  (COS uses no native `<select>`, and a FluidSelect alone submits nothing).
+  (Oracle uses no native `<select>`, and a FluidSelect alone submits nothing).
 - ⚠️ **THE LIST CARD IS 590px AT `lg`.** The desk sidebar appears AND every
   `hideBelow` column un-hides at the same breakpoint. **Add up your fixed
   widths.** The Posts title resolved to its 120px floor and truncated every row,

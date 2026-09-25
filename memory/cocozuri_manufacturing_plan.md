@@ -116,7 +116,7 @@ and against food-industry practice.
 The single most important thing in that table is not a feature — it is a
 **shape**. ERPNext has exactly one place where stock truth lives (the **Stock
 Ledger Entry**), and a dozen documents that write to it. That is the same shape
-as `gl_entries` and `postVoucher()`, which COS already follows for money.
+as `gl_entries` and `postVoucher()`, which Oracle already follows for money.
 
 ERPNext's stock movement reasons, verbatim from the source, are worth copying
 because they are the complete list of ways stock can move:
@@ -308,7 +308,7 @@ been missed.
 | 19 | Packaging material — total cost | 3 | 2 + 3 | bought in 2, costed into a bar in 3 |
 | 20 | In store ① | 3 | 2 | packaging as stock |
 | 21 | Transit cost ② | 3 | 2 | landed cost |
-| 22 | Supplier | 3 | 2 | reuses COS's `vendors` |
+| 22 | Supplier | 3 | 2 | reuses Oracle's `vendors` |
 | 23 | Client order (12 box / 4 box) | 3 | 4 | order drives the plan |
 | 24 | Requisition: batch required → which packaging | 3 | 4 | |
 | 25 | All batches created → closed after | 3 | 4 | batch status |
@@ -391,7 +391,7 @@ supplier.
 
 So: supplier **nullable**, a free-text "bought from" for the market stall, and
 "who paid" recorded — because self-bought means somebody is owed the money back.
-COS already has a `vendors` table; use it where there IS a supplier, and never
+Oracle already has a `vendors` table; use it where there IS a supplier, and never
 require it.
 
 ---
@@ -608,7 +608,7 @@ was then approved — and the same recipe, untouched, came back costed. Cocoa at
 movement. Batch 59,000; 546.30 a bar.
 
 That is only possible because the cost is read from `cz_stock_moves.unit_cost`
-on `receipt` movements — the LANDED figure. Nothing else in COS knows what a bag
+on `receipt` movements — the LANDED figure. Nothing else in Oracle knows what a bag
 of almonds actually cost.
 
 ### The rules, and why each one is there
@@ -1487,7 +1487,7 @@ priced at 50 different rates between them**:
 | Pistachio paste | 19 | 3 | **30 vs 80.84** (2.7x) — the 30 is on a 700 g line |
 | Glucose syrup | 7 | 2 | **16x** · Orange zest **83x** · Ginger **5.5x** · Pilipili **5x** |
 
-**This is the thing COS fixes for nothing.** `cz_recipes` has **no cost column**;
+**This is the thing Oracle fixes for nothing.** `cz_recipes` has **no cost column**;
 a recipe costs itself on read from `cz_stock_moves.unit_cost` — the **landed**
 price Stage 2 wrote, weighted-averaged over the receipts. One price per material,
 from what was actually paid, and every recipe moves when it moves.
@@ -1506,7 +1506,7 @@ rest disagree:
 - *revised items* holds ONE recipe, **SAFFRON DATE TRUFFLE BON BON at 48 pieces /
   559 each**, against TRIALS R683's 10 pieces / 3,598 — a revision, not a copy.
 
-## ⚠️ IT DOES NOT LINE UP WITH COS, AND THAT IS THE WORK
+## ⚠️ IT DOES NOT LINE UP WITH Oracle, AND THAT IS THE WORK
 
 - **144 distinct product names. Six match a `cz_products` row exactly**, nine more
   after stripping the yield off the name. **~129 have no counterpart.**
@@ -1532,7 +1532,7 @@ one to the other is small and self-contained.
 
 ⚠️ **AND THE CUPBOARD IS BARE:** `cz_recipes` holds **1** row, `cz_recipe_lines`
 **2**, `cz_batches` **1**, and only **2** stock movements carry a unit cost. Until
-the recipes are loaded and materials have been bought through COS, the costing
+the recipes are loaded and materials have been bought through Oracle, the costing
 has nothing to read.
 
 ## §7a. Both halves built — 26 Aug 2026

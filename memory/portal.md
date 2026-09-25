@@ -60,7 +60,7 @@ A standalone, locked-down view for staff members — see only your own tasks, po
 
 ## Design parity — keep the portal in step (standing rule)
 
-The portal is a first-class surface, not an afterthought. It drops anything that exposes admin data (⌘K command surface, Ask COS, drawers, capture wizard) but shares everything else: design kit, global styles, motion, micro-interactions, accessibility. Anything built on shared foundations (`surface-kit`, `globals.css`, `reveal`) stays current for free; **copied "twin" components drift silently** unless updated together. See the parity rule in `CLAUDE.md`.
+The portal is a first-class surface, not an afterthought. It drops anything that exposes admin data (⌘K command surface, Ask Oracle, drawers, capture wizard) but shares everything else: design kit, global styles, motion, micro-interactions, accessibility. Anything built on shared foundations (`surface-kit`, `globals.css`, `reveal`) stays current for free; **copied "twin" components drift silently** unless updated together. See the parity rule in `CLAUDE.md`.
 
 **Twin map (admin ↔ portal) — restyle both together:**
 
@@ -564,7 +564,7 @@ read alike on the page. Checked before touching either:
 
 | | Remind | Message a teammate |
 |---|---|---|
-| Where it goes | **Out of COS** — opens WhatsApp or email with a link back to the task | **Inside COS** — a direct chat in the portal |
+| Where it goes | **Out of Oracle** — opens WhatsApp or email with a link back to the task | **Inside Oracle** — a direct chat in the portal |
 | Who it reaches | only the person **responsible** (owner, else accountable) | **anyone** on the task |
 | Who may use it | management (`messageOnTasks`) | everyone — chat is everyone↔everyone |
 | What it leaves | no Outbox draft; an activity event only | a real chat thread |
@@ -618,7 +618,7 @@ colour and **28px tall**; the icon buttons are all 28×28.
 - The member's name is `text-sm` — it was the biggest thing in the panel, larger
   than the headings above it.
 - ⚠️ **THE LEAD TOGGLE STAYS GREEN and was NOT changed.** It is the kit `Switch`,
-  which is `bg-success` everywhere in COS. The rule is about buttons that
+  which is `bg-success` everywhere in Oracle. The rule is about buttons that
   invented their own colour, not about the kit's own controls.
 - ⚠️ **"Escalate" stays 36px** while the panel's other buttons are 28px, and that
   is right: it sits in the Classify row beside two 36px dropdowns and belongs to

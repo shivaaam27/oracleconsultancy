@@ -1,4 +1,4 @@
-# What's next — the desktop app and COS
+# What's next — the desktop app and Oracle
 
 Written 20 Aug 2026, after the security pass and the Windows app.
 Companion to `memory/desktop_app_and_security_plan.md`.
@@ -33,7 +33,7 @@ copy for ever until they are handed a new installer by hand.
 
 ### 2. Notifications do not appear in the app
 
-COS sends reminders as notifications. Inside the desktop app they are **silently
+Oracle sends reminders as notifications. Inside the desktop app they are **silently
 dropped** — WebView2 hands them to the app to display, and the app currently
 ignores them. Nothing errors; they just never appear.
 
@@ -64,12 +64,12 @@ Without it, the app is *worse* than the browser for anyone relying on reminders.
 
 ## B. Updates for the app — one day
 
-**How it would work:** on start-up the app quietly asks COS "what is the newest
+**How it would work:** on start-up the app quietly asks Oracle "what is the newest
 version?". If there is one, a small bar appears: *"A new version is ready —
 Update"*. One click downloads the new installer and runs it. If the answer never
 comes, nothing happens and nobody is interrupted.
 
-**Why this way:** it uses what already exists — the app already talks to COS.
+**Why this way:** it uses what already exists — the app already talks to Oracle.
 No public repository, no extra service, no certificate.
 
 **Honest alternative: do nothing yet.** The window changes maybe twice a year.
@@ -91,7 +91,7 @@ There are two very different jobs here and they should not be confused:
 **Read-only is worth doing.** Connections here drop, and "I can at least see what
 I'm supposed to be doing" is most of the value.
 
-**Working offline I would not do yet**, and I want to be plain about why. COS is
+**Working offline I would not do yet**, and I want to be plain about why. Oracle is
 the system of record: the audit trail, task codes and the ledger all assume one
 writer. Two people editing the same task offline, then both coming back, is a
 whole class of problem — and the wrong answer silently corrupts history rather
@@ -153,7 +153,7 @@ Saying this plainly so it does not get built by accident:
 
 **Demo accounts — which of these do you actually want?**
 
-1. **Show COS to an outsider** (a client, a partner, a new director) without
+1. **Show Oracle to an outsider** (a client, a partner, a new director) without
    showing real company data. → A separate demo company with invented records,
    and a login that can only see it. ~3 days.
 2. **Let a new member of staff practise** without breaking anything real.

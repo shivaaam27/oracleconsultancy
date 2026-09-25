@@ -5,7 +5,7 @@
 //
 // The problem it solves, in the owner's words: "there is dead space, i wonder
 // why". A list of three rows left two-thirds of a 1000px window as bare grey,
-// and every list in COS did it, because a card is only as tall as its contents.
+// and every list in Oracle did it, because a card is only as tall as its contents.
 // ERPNext's list fills its working area; ours now does too.
 //
 // The temptation is a constant — `calc(100dvh - 11rem)` — and it is always
@@ -23,7 +23,7 @@
 //     below the list pushes that content off the bottom of the window.
 //     ⚠️ Measured by WALKING THE FOLLOWING SIBLINGS, not by comparing the
 //     element's bottom with <main>'s. The obvious version is wrong on every
-//     list in COS: the filter rail sits BESIDE the card and is usually taller,
+//     list in Oracle: the filter rail sits BESIDE the card and is usually taller,
 //     so main's bottom is set by the rail and "after" came out as 103px of
 //     nothing. A sibling to the left is not content below.
 //

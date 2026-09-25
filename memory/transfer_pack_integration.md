@@ -1,8 +1,8 @@
-# Transfer-pack integration (compliance blueprint → live COS site)
+# Transfer-pack integration (compliance blueprint → live Oracle site)
 
 Source spec: `C:\Users\User\Documents\Companies\transfer-pack\` (00–07 + 05-MEMORY-SNAPSHOT + reference-app).
 It is the blueprint for a multi-company TZ compliance-tracking system (8 companies, ~35 people,
-licenses/permits/leases/immigration/statutory filings). The live COS site is the production target.
+licenses/permits/leases/immigration/statutory filings). The live Oracle site is the production target.
 Principle: ~90% is deterministic code; AI (Groq) does ONE job — read a freshly-dropped document and
 extract structured facts. Keep that boundary.
 

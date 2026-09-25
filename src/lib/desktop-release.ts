@@ -1,7 +1,7 @@
 /* ------------------------------------------------------------------ *
  * What the Windows app should be running.
  *
- * The desktop app asks COS "what is the newest window?" when it starts, and
+ * The desktop app asks Oracle "what is the newest window?" when it starts, and
  * shows a bar if the copy on that machine is older. This is the answer.
  *
  * ⚠️ WHY A CONSTANT AND NOT A SETTING: bumping this and rebuilding the app are

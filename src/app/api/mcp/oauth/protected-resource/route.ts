@@ -29,7 +29,7 @@ export async function GET(req: Request): Promise<Response> {
     resourceUrl: canonicalResource(req),
     additionalMetadata: {
       scopes_supported: [...SUPPORTED_SCOPES],
-      resource_name: "Oracle Consultancy COS",
+      resource_name: "Oracle Consultancy",
     },
   });
   return NextResponse.json(metadata, { headers: CORS });

@@ -1,14 +1,14 @@
 ---
 name: email-automation-plan
-description: "Plan to make COS email better + automatic — scheduled, per-category rules with a hybrid (auto-send low-risk / prepare the rest) model and a full per-category scheduler. Owner decisions locked 2026-06-11."
+description: "Plan to make Oracle email better + automatic — scheduled, per-category rules with a hybrid (auto-send low-risk / prepare the rest) model and a full per-category scheduler. Owner decisions locked 2026-06-11."
 metadata:
   node_type: memory
   type: project
 ---
 
-# COS — Email Automation Plan
+# Oracle — Email Automation Plan
 
-Goal: COS prepares and (for safe categories) **sends** email on a schedule the
+Goal: Oracle prepares and (for safe categories) **sends** email on a schedule the
 owner controls, instead of every message being a hand-driven Outbox draft. Builds
 on what already exists — do not rebuild.
 

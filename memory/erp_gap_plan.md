@@ -1,8 +1,8 @@
-# What COS is missing to be a real ERP — the plan (Aug 2026)
+# What Oracle is missing to be a real ERP — the plan (Aug 2026)
 
 Written after reading ERPNext's own source at
 `Documents/OCERP/reference/erpnext` — not from memory of what ERPNext does.
-Every claim below was checked in that code or in COS's own schema.
+Every claim below was checked in that code or in Oracle's own schema.
 
 ## What was actually read
 
@@ -12,7 +12,7 @@ Every claim below was checked in that code or in COS's own schema.
   is a far better guide than the raw doctype count (Accounts alone has 192).
 - `accounts/doctype/gl_entry/gl_entry.json` and every doctype that calls
   `make_gl_entries`.
-- COS's `src/db/schema.ts`, table by table.
+- Oracle's `src/db/schema.ts`, table by table.
 
 ## ⚠️ The single most important finding
 
@@ -25,17 +25,17 @@ subcontracting receipt, repost, process period closing.
 A `GL Entry` row is: account, party, debit, credit, cost centre, project,
 currency, posting date, and which voucher made it.
 
-**COS has no ledger, no chart of accounts and no journal.** It has documents,
-and it works every figure out by scanning them. That is why COS can answer
+**Oracle has no ledger, no chart of accounts and no journal.** It has documents,
+and it works every figure out by scanning them. That is why Oracle can answer
 "what is still to bill on PO 24322" but cannot answer "what did PES earn last
 quarter", and could not hand anything to an accountant.
 
 That is not a criticism of what was built — a scan-the-documents design is
-exactly right for an operations tracker, and it is why nothing in COS can go
+exactly right for an operations tracker, and it is why nothing in Oracle can go
 stale. But it is the line between an operations system and an ERP, and it is
 worth naming plainly.
 
-## What COS has today, checked in the schema
+## What Oracle has today, checked in the schema
 
 | | |
 |---|---|
@@ -86,7 +86,7 @@ treated differently. Getting VAT wrong is not a display bug.
 ## 3. Customers and suppliers as records, not names  ·  medium
 
 They are currently rows on a list with a name and nothing else. A Tanzanian
-invoice needs the customer's **TIN and VRN**; COS cannot print one.
+invoice needs the customer's **TIN and VRN**; Oracle cannot print one.
 
 Build: promote them to real records — address, contact, TIN/VRN, payment terms,
 credit limit — reusing the `vendors` register rather than making a third thing.
@@ -124,7 +124,7 @@ warehouses and a stock ledger can follow if they are wanted.
 ## 6. The selling documents  ·  medium
 
 ERPNext: Customer > Quotation > Sales Order > Delivery Note > Sales Invoice.
-COS: the quotation is a *field* on the enquiry, and the invoice is a small
+Oracle: the quotation is a *field* on the enquiry, and the invoice is a small
 record. There is no quotation document you could send a client, with line items,
 terms and a total.
 
@@ -139,7 +139,7 @@ proforma number. There is no purchase order you could send a supplier, and no
 goods-received record separate from the shipment.
 
 Build: a purchase order and a receipt. This is also what would let a landed cost
-be spread properly (COS already has the honest version of the LC factor in
+be spread properly (Oracle already has the honest version of the LC factor in
 `shareOfCosts`; it just has nothing to attach it to).
 
 ## 8. Price lists  ·  small to medium
@@ -163,7 +163,7 @@ before step 4; close to essential after it.
 ## 11. Timesheets on projects  ·  small to medium
 
 ERPNext has Timesheet + Activity Cost, which is how labour reaches a project's
-cost. COS records who was on site (`project_site_people`) but not hours against
+cost. Oracle records who was on site (`project_site_people`) but not hours against
 a job, so labour cost is not in the project's actuals.
 
 ---
@@ -192,13 +192,13 @@ Steps 1-3 are worth doing whatever happens. Step 4 is the fork in the road.
 
 ---
 
-# ✅ ANSWERED (owner, Aug 2026): COS IS the book of record
+# ✅ ANSWERED (owner, Aug 2026): Oracle IS the book of record
 
-He was asked whether COS should hold the accounts or whether an accountant owns
+He was asked whether Oracle should hold the accounts or whether an accountant owns
 them elsewhere. His answer: **"build the ledger since we want to transition to
 using erp now and nothing else."**
 
-So COS becomes the accounting system. Not an operations tracker with exports —
+So Oracle becomes the accounting system. Not an operations tracker with exports —
 the books themselves. **Build the ledger.** The phases are below.
 
 **Still unanswered, and must be ASKED not assumed:**
@@ -253,9 +253,9 @@ with no migration.
 1. **Every voucher balances.** Debits equal credits, checked before it is
    written, refused otherwise.
 2. **A posted entry is NEVER edited.** To change it you post a reversal. This is
-   the accounting rule and it happens to match COS's never-delete habit exactly.
+   the accounting rule and it happens to match Oracle's never-delete habit exactly.
 3. **Balances are DERIVED, never stored.** The entries are the stored fact; a
-   balance, a trial balance and a P&L are all worked out on read. This is COS's
+   balance, a trial balance and a P&L are all worked out on read. This is Oracle's
    founding principle holding one level up — do not add a `balance` column.
 4. **Base currency is TZS and the rate is frozen on the entry**, like every
    other rate in this system.
@@ -325,7 +325,7 @@ The second is what most businesses do and is far less risky. Ask.
 ## Phase 7 — customers and suppliers as real records
 
 Today they are names on a list. A Tanzanian invoice needs the customer's **TIN
-and VRN**, which COS does not hold — so it cannot print a compliant invoice.
+and VRN**, which Oracle does not hold — so it cannot print a compliant invoice.
 Promote them, reusing the `vendors` register rather than making a third thing.
 
 ## Then, from the earlier list

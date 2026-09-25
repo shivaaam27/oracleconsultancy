@@ -1,5 +1,5 @@
 ---
-description: "CocoZuri Operations — what the 18 workbooks actually hold, and the plan to rebuild them as a COS module. Read before touching /cocozuri."
+description: "CocoZuri Operations — what the 18 workbooks actually hold, and the plan to rebuild them as a Oracle module. Read before touching /cocozuri."
 ---
 
 # CocoZuri Operations — the workbooks, and the plan
@@ -14,7 +14,7 @@ module in the order the work happens.
 in the source workbooks on 21 Aug 2026, the arithmetic faults found in them, and
 the questions that must be answered by the owner rather than guessed.
 
-Cocozuri is **Furaha Innovation Ltd** in COS (`code_prefix` **CC**, renamed from
+Cocozuri is **Furaha Innovation Ltd** in Oracle (`code_prefix` **CC**, renamed from
 "Cocozuri Chocolat"). It makes chocolate and sells it to supermarkets, plus a shop
 of its own. ⚠️ **Do not hard-code the company** — look it up by `code_prefix = 'CC'`,
 the same way the recruitment desk finds Oracle Consultancy.
@@ -157,7 +157,7 @@ These were measured, not guessed. Each one is a reason the module is worth build
 
 ## 4. ⚠️ Questions for the owner — ASK, do not assume
 
-1. **Why 7% VAT?** Tanzania's standard rate is 18%, and the COS ledger is built on
+1. **Why 7% VAT?** Tanzania's standard rate is 18%, and the Oracle ledger is built on
    that. Is 7% a real rate for these goods, a service levy, or a mistake that has
    been repeated 129 times? **Nothing should be built until this is answered** —
    it changes every invoice, the VAT return and the ledger posting.
@@ -167,7 +167,7 @@ These were measured, not guessed. Each one is a reason the module is worth build
 3. **What is `DA/SA/TA` on the kitchen sheet?** Three things are being counted and
    only the initials survive.
 4. **Money is received "in DSC".** Cocozuri (Furaha Innovation) invoices, but the
-   cheques and transfers land in DSC Ltd. Is that deliberate — and should COS
+   cheques and transfers land in DSC Ltd. Is that deliberate — and should Oracle
    record it as an inter-company balance?
 5. **Is the airport (Lagardere) invoiced in USD or TZS?** It has a USD price list
    but every invoice in the master is TZS.
@@ -216,7 +216,7 @@ Tables `cz_invoices`, `cz_invoice_lines`.
   invoice, so changing the rate later cannot rewrite history. This is fault #1
   fixed.
 
-**Ends with:** you raise an invoice in COS and print it. No more copying a sheet.
+**Ends with:** you raise an invoice in Oracle and print it. No more copying a sheet.
 
 ### Phase 3 — money in, ageing, statements *(what the owner actually watches)* ✅ BUILT — see §10
 
@@ -262,7 +262,7 @@ Tables `cz_stock_days`, `cz_stock_moves`, `cz_stock_counts`.
 ## 6. Things this module must NOT do
 
 - **Never store a balance, a total or an age.** All derived on read — the ledger's
-  rule and the reason nothing in COS goes stale.
+  rule and the reason nothing in Oracle goes stale.
 - **Never let an invoice be edited after it is issued.** Correct it with a credit
   note, which is what the business already does.
 - **Never match a product by its name.** Fault #4 is exactly that mistake, and it
@@ -391,7 +391,7 @@ the shilling.**
 ## ⚠️ Two bugs found by running it, not by reading it
 
 1. **The first invoice numbered CZ-1.** The business is at CZ-236 and those
-   invoices are not in COS, so the sequence started again and two documents would
+   invoices are not in Oracle, so the sequence started again and two documents would
    have carried the same number. `nextInSeries` now takes a **floor**, held in
    `settings['cocozuri.seriesFloor']` — set to `{"CZ-": 236, "CZ/AP/": 49}`, so
    the next invoice raised is **CZ-237**.
@@ -792,7 +792,7 @@ WRITE tool must never exist.**
 
 # Counting the whole shelf at once — `Details.xlsx`, 26 Aug 2026
 
-The owner put **`Documents/Cocozuri/Details.xlsx`** in front of COS: two sheets,
+The owner put **`Documents/Cocozuri/Details.xlsx`** in front of Oracle: two sheets,
 one figure column each, headed **CL STOCK**.
 
 - **Finished Product In kitchen** — 88 rows: 12 category headings (BONBONS,
@@ -827,7 +827,7 @@ ever. `matchCountRows` refuses a negative and names the line.
    31 Jul (77) and 5 Aug (236); the day sheets run 1–18 Aug.
 2. **Is it a physical count, or the spreadsheet's computed balance?** The
    negatives say the latter. A computed balance fed in as a count enshrines the
-   error; a physical count is exactly what COS wants.
+   error; a physical count is exactly what Oracle wants.
 
 ## What was built — `CocozuriCountSheet`, "Count everything"
 

@@ -91,7 +91,7 @@ type Props = {
 type Phase = "idle" | "recording" | "transcribing";
 
 /**
- * COS dictation control. Records real audio and transcribes it through Groq
+ * Oracle dictation control. Records real audio and transcribes it through Groq
  * Whisper (accurate, biased toward the personal dictionary). Shows a live level
  * meter, timer, and captions while recording, and a transcribing state after.
  * Falls back to the browser speech recogniser when recording/Whisper is off.

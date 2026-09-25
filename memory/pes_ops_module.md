@@ -142,7 +142,7 @@ URL under `param`, so two lists on one page must use different params (Budget
 `bq`, Requisitions `rq`, Spending `sq`, Payments `pq`) — the collision Assets and
 Vendors already taught us.
 
-⚠️ **Paging is on by DEFAULT (100)** for every list in COS, not only these. A list
+⚠️ **Paging is on by DEFAULT (100)** for every list in Oracle, not only these. A list
 that must render everything passes `pageSize={0}`.
 
 ⚠️ **A newly added row grows the page** so an optimistic insert cannot land
@@ -185,7 +185,7 @@ counts**, and a report view with **group by + a totals row**.
 - `pageSize` prop, default **100**, footer reading "Showing 100 of 251" with
   **Show 100 more** and **Show all**.
 - In memory. The rows are already loaded; the fix is how many reach the DOM.
-- ⚠️ **Not virtualisation.** ERPNext only virtualises past 2,000 rows and no COS
+- ⚠️ **Not virtualisation.** ERPNext only virtualises past 2,000 rows and no Oracle
   list is near that. Note it as the next step if one ever is.
 - ⚠️ Must not break the "screen owns its list" rule (see the long note in
   `project-budget-sheet.tsx`): a row added optimistically has to appear even when
@@ -571,7 +571,7 @@ with 184 delivery references — and the reference, the date and the value are
 copied down every line of the group. Only the first row of a group carries the
 value, so the sheet is really a document record pretending to be a line record.
 
-Until Stage 5 COS had the same fault in a smaller way: `invoice_no` and
+Until Stage 5 Oracle had the same fault in a smaller way: `invoice_no` and
 `invoice_date` were COLUMNS ON THE ORDER LINE, so one invoice covering 24 lines
 was typed 24 times. They were dropped (empty — `ops_order_lines` had 0 rows, so
 no backup was needed) and the line now points at a document with `invoice_id`.
@@ -677,7 +677,7 @@ It replaces the four sheets that hold no data of their own and rotted anyway:
 
 ### The rules, pinned by 14 tests
 
-1. **Open means not invoiced**, the same meaning the rest of COS gives it.
+1. **Open means not invoiced**, the same meaning the rest of Oracle gives it.
 2. **A line with no due date sorts LAST, not first.** It is not the most urgent
    thing in the business; it is a line nobody gave a date to.
 3. **⚠️ "Paid" is a DATE, not an amount.** The order line records
@@ -756,7 +756,7 @@ the column chooser (all `RecordList`, since Stage 0).
 **Still inconsistent, deliberately:** the ops sheets have **no bulk actions**,
 and neither do the project sheets — the two are the same shape (inline add + an
 edit row) and should gain them together rather than one drifting ahead. And
-**export does not exist anywhere in COS yet**; it is the next item on the
+**export does not exist anywhere in Oracle yet**; it is the next item on the
 roadmap, so ops is not behind.
 
 **⚠️ When `/ops` is split into separate sections** (the owner's plan), the parts
@@ -807,7 +807,7 @@ balance · due date · overdue by · ageing**), FREIGHT CHARGES, IMPORT PAYMENTS
 (**pmt date · amount paid USD**) and OUTSTANDING PAYMENTS AND ADVANCE PAID
 (**total payable · total paid · balance payable · advance paid**).
 
-COS records **`supplier_payment_date` and nothing else** — a date, no amount. So
+Oracle records **`supplier_payment_date` and nothing else** — a date, no amount. So
 a purchase is settled or it is not. There is no part payment, no advance, no
 supplier due date and no ageing of what is owed by amount. The Report says so
 plainly rather than pretending otherwise, but it is a real hole: **this is the
@@ -816,13 +816,13 @@ accounts-payable half of the business.**
 ### 2. Freight as its own invoice, from a forwarder
 
 The same sheet bills freight from PRISMA LOGISTICS, and separately from the
-goods supplier. COS has **one `freight_amount` on the shipment** — no forwarder
+goods supplier. Oracle has **one `freight_amount` on the shipment** — no forwarder
 as a party, no freight invoice number, no separate balance.
 
 ### 3. `tenders` — not built at all
 
 80 rows, 4 columns: tender description · type of quote · deadline · client.
-Bids being chased BEFORE an RFQ exists. Nothing in COS holds it.
+Bids being chased BEFORE an RFQ exists. Nothing in Oracle holds it.
 
 ### 4. Production dates
 
@@ -875,7 +875,7 @@ sheet nobody has decided about.
 
 ## 1. Payments — one purchase, MANY payments
 
-`/ops/payments`, a new tab. This is the half of the business COS could not hold:
+`/ops/payments`, a new tab. This is the half of the business Oracle could not hold:
 the order line carried `supplier_payment_date` and nothing else, so a purchase
 was settled or it was not, while IMP PMT AND FREIGHT has been tracking amount
 paid, balance, due date, overdue-by, ageing band and advances against the same

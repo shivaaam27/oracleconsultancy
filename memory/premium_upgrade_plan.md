@@ -1,20 +1,20 @@
 ---
 name: premium-upgrade-plan
-description: "V4 master prompt + phased spec — turn COS into an intelligent operating brain, reusing existing primitives. Self-directed assistant brief."
+description: "V4 master prompt + phased spec — turn Oracle into an intelligent operating brain, reusing existing primitives. Self-directed assistant brief."
 metadata:
   node_type: memory
   type: project
 ---
 
-# COS V4 — Premium Operating-Brain Upgrade
+# Oracle V4 — Premium Operating-Brain Upgrade
 
-This is the master brief an AI coding assistant (me) follows to upgrade COS. It is
+This is the master brief an AI coding assistant (me) follows to upgrade Oracle. It is
 **tuned to this codebase** — it names the real files/primitives to reuse and the
 systems that must never be rewritten. It is NOT a from-scratch redesign.
 
-> Goal shift: V2 made COS look good; V3 made it deep; **V4 makes it *think and act*.**
+> Goal shift: V2 made Oracle look good; V3 made it deep; **V4 makes it *think and act*.**
 > Connect the organs we already built (compliance, leave, automation, packs, Home
-> Intelligence, voice, Ask COS) into one nervous system.
+> Intelligence, voice, Ask Oracle) into one nervous system.
 
 ## Non-negotiable guardrails (read first, every session)
 

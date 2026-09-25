@@ -28,7 +28,7 @@ export default function GlobalError({
             <span aria-hidden style={{ width: 76, height: 76, borderRadius: 20, background: "#3A1D2C", color: "#F07BBE", fontSize: 44, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center" }}>!</span>
             <span style={{ marginBottom: 6, height: 24, padding: "0 10px", borderRadius: 8, background: "#3A1D2C", color: "#F07BBE", fontSize: 12, display: "inline-flex", alignItems: "center" }}>Did not load</span>
           </div>
-          <h1 style={{ margin: "24px 0 0", fontSize: 28, fontWeight: 500, letterSpacing: "-0.02em" }}>COS didn’t load</h1>
+          <h1 style={{ margin: "24px 0 0", fontSize: 28, fontWeight: 500, letterSpacing: "-0.02em" }}>Oracle didn’t load</h1>
           <p style={{ margin: "10px 0 0", fontSize: 14, lineHeight: 1.6, color: "#A3A6AB", maxWidth: "46ch" }}>
             Something went wrong before the page could draw. Try again — if it keeps happening, reload.
           </p>

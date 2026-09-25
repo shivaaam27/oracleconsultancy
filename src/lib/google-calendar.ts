@@ -97,7 +97,7 @@ function buildRequestBody(
 }
 
 /**
- * Pushes a stored COS event into Google Calendar (the owner's calendar mirror +
+ * Pushes a stored Oracle event into Google Calendar (the owner's calendar mirror +
  * a freshly-minted Google Meet room when `requestMeet`). sendUpdates="none":
  * Google NEVER emails the guests — the app sends its own branded invitation +
  * .ics, so the guest experience is fully ours (not Google's plain template).
@@ -151,7 +151,7 @@ export async function createGoogleEvent(
 }
 
 /**
- * Push a COS edit to the matching Google event so guests get the reschedule/
+ * Push a Oracle edit to the matching Google event so guests get the reschedule/
  * change email and their calendars update. No-op (typed) when Google isn't
  * connected or the event was never pushed to Google. Never mints a new Meet.
  */

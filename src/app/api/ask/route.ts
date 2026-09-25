@@ -1,4 +1,4 @@
-// /api/ask — RAG over the COS database.
+// /api/ask — RAG over the Oracle database.
 // Given a free-form question, pulls relevant tasks/companies/people/updates
 // from the DB and asks Groq to answer using that context.
 

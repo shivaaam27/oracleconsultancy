@@ -78,7 +78,7 @@ export function FilePreview({ list, startId, folders, onClose, onRename, onMove,
         <div className="hidden items-center gap-1.5 md:flex">
           {!readOnly && <button type="button" className={BTN} onClick={() => onRename(f)}><PenLine size={14} />Rename</button>}
           {!readOnly && <button type="button" className={BTN} onClick={() => onMove(f)}><FolderInput size={14} />Move</button>}
-          <button type="button" className={BTN} onClick={() => { void navigator.clipboard.writeText(`${location.origin}/files?open=${f.id}`).then(() => toast("Link copied — it opens for anyone signed in to COS as the owner.", { tone: "success" })).catch(() => toast("Couldn't copy the link.", { tone: "danger" })); }}><Link2 size={14} />Copy link</button>
+          <button type="button" className={BTN} onClick={() => { void navigator.clipboard.writeText(`${location.origin}/files?open=${f.id}`).then(() => toast("Link copied — it opens for anyone signed in to Oracle as the owner.", { tone: "success" })).catch(() => toast("Couldn't copy the link.", { tone: "danger" })); }}><Link2 size={14} />Copy link</button>
           {!readOnly && <button type="button" className={cn(BTN, f.starred && "text-[#F5B94E]")} onClick={() => onStar(f)} aria-label={f.starred ? "Unstar" : "Star"}><Star size={14} fill={f.starred ? "currentColor" : "none"} /></button>}
           {!readOnly && <button type="button" className={cn(BTN, "text-[#F07BBE]")} onClick={() => onDelete(f)} aria-label="Delete"><Trash2 size={14} /></button>}
         </div>
@@ -117,7 +117,7 @@ export function FilePreview({ list, startId, folders, onClose, onRename, onMove,
 }
 
 /** A Word file as readable text. Fetched and shown through `srcDoc`, not
- *  `src`: every COS page carries X-Frame-Options: DENY, which would refuse to
+ *  `src`: every Oracle page carries X-Frame-Options: DENY, which would refuse to
  *  frame our own converted page. Sandboxed with scripts off. */
 function WordFrame({ id, title }: { id: number; title: string }) {
   const [html, setHtml] = useState<string | null>(null);

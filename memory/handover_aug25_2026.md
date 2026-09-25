@@ -57,7 +57,7 @@ of navigating. ⚠️ **Browsers and the phone keep the same-tab navigation** �
 blob route is silently ignored by iOS Safari.
 
 ⚠️ **THE OWNER'S INSTALLED COPY PREDATED THE UPDATE CHECKER ENTIRELY** (built
-20 Aug from `0ef0d6cc`; the checker landed 21 Aug). It had never asked COS
+20 Aug from `0ef0d6cc`; the checker landed 21 Aug). It had never asked Oracle
 anything and never would. **Do not diagnose an app problem without checking
 what is actually installed** — it was in `%LOCALAPPDATA%\Programs\Oracle
 Consultancy` all along.
@@ -148,7 +148,7 @@ and will bite the next module:
 
 - **Marketing Phase 4** — read Instagram/Facebook numbers automatically. Needs
   Meta business verification, **which has not been started** and is the longest
-  wait. Phase 5 (posting from COS) after that.
+  wait. Phase 5 (posting from Oracle) after that.
 - **Marketing Phase 6** — portal access, only when somebody else starts posting.
 - The **CocoZuri** and **ledger** open questions are unchanged: whether Furaha's
   books should open and from what date, why money is received "in DSC", and what

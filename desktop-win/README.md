@@ -1,6 +1,6 @@
 # Oracle Consultancy — the Windows app
 
-A C# window with Microsoft Edge inside it, pointed at the live COS site.
+A C# window with Microsoft Edge inside it, pointed at the live Oracle site.
 
 ## Build the file you hand to someone
 
@@ -31,7 +31,7 @@ file-store ceiling, so one-click updates would need hosting elsewhere.
 
 ## Why it is built this way
 
-COS is a **server** application — it renders on Vercel, reads Supabase, calls
+Oracle is a **server** application — it renders on Vercel, reads Supabase, calls
 Gemini. It cannot become a self-contained `.exe`, and it must not: that would
 mean shipping the database keys onto every laptop.
 
@@ -149,7 +149,7 @@ Unset `COS_URL` to go back to production.
 Measured on 20 Aug 2026, not assumed.
 
 **WebView2 does not display a web notification by itself.** It hands it to the
-app and expects the app to show it. Before this was handled, COS raised
+app and expects the app to show it. Before this was handled, Oracle raised
 notifications inside the app and **nothing appeared** — no error, no warning,
 just silence.
 
@@ -159,7 +159,7 @@ just silence.
 | **Persistent** | `registration.showNotification()` — **how a pushed reminder arrives** | ❌ no event in this SDK | ❌ no |
 
 ⚠️ **So do not promise that a pushed task reminder pops up as a Windows toast in
-the app.** It does still appear inside COS itself — the bell, and the
+the app.** It does still appear inside Oracle itself — the bell, and the
 Task-reminders channel — which is where people are actually looking. Push itself
 works fine in WebView2: `PushManager`, the service worker, `showNotification` and
 reading the subscription are all supported. It is only the *display* handover
@@ -199,7 +199,7 @@ The app can download and install the new version itself. To switch that on:
 A **Download** button then appears in the bar by itself — **already-installed
 apps need no change**.
 
-⚠️ A PATH, not a URL, and the bucket stays PRIVATE: COS mints a signed link that
+⚠️ A PATH, not a URL, and the bucket stays PRIVATE: Oracle mints a signed link that
 lasts an hour each time it is asked. A public bucket would be a permanent
 address anyone could pass around, and would trip `npm run db:check-security`.
 
@@ -210,14 +210,14 @@ file and RUNS it, which is the most dangerous thing it does. Three rules:
 2. **The SHA-256 must match.** A file that does not match is deleted and never
    run. This is what stops a tampered download, a corrupt transfer or a hostile
    network turning into code running on every machine in the company.
-3. **No checksum, no button.** COS refuses to advertise a download it cannot
+3. **No checksum, no button.** Oracle refuses to advertise a download it cannot
    vouch for, so the button does not appear at all.
 
 Verified both ways: a deliberately wrong checksum produced *"That download did
 not arrive intact, so it was not installed"*, the file was deleted and the app
 kept running; the correct checksum passed the check and went on to launch.
 
-Verified end to end: a 0.9.0 app against a COS publishing 1.0.0 showed the bar,
+Verified end to end: a 0.9.0 app against a Oracle publishing 1.0.0 showed the bar,
 the Download button fetched the signed link, the checksum matched, the installer
 launched and the app closed itself to get out of its way.
 
@@ -233,7 +233,7 @@ changed nothing, and `InvariantGlobalization` and friends only take effect with
 trimming, which WPF does not support. Do not spend another afternoon on it.
 
 ⚠️ Every failure in the check is silent on purpose: no internet, no answer, a
-bad answer, or a COS old enough not to have the endpoint all mean "say nothing".
+bad answer, or a Oracle old enough not to have the endpoint all mean "say nothing".
 Verified all three: older app shows the bar, current app shows nothing, and a
 server without the endpoint is ignored.
 
@@ -247,7 +247,7 @@ than an uncontrolled browser. They live in `MainWindow.xaml.cs`.
 | Origin check on **scheme + host + port** | A `StartsWith` would let `oracleconsultancy.vercel.app.evil.com` through |
 | External `http(s)` → the real browser | A stray link cannot turn this into a browser |
 | `NewWindowRequested` → the real browser | No second chrome-less window |
-| Permissions denied by default | Only mic, camera, notifications, location — and only to COS |
+| Permissions denied by default | Only mic, camera, notifications, location — and only to Oracle |
 | `OpenExternally` refuses non-http(s) | A page cannot ask Windows to open a `file:` path |
 | Web messages: only `retry` is honoured | The site is an ordinary website and must never depend on this shell |
 
@@ -258,7 +258,7 @@ than an uncontrolled browser. They live in `MainWindow.xaml.cs`.
    errors. Symptom: the app "launches" but `MainWindowTitle` is empty.
 
 2. **The navigation lock cancelled the app's own offline screen.** The first
-   version cancelled any navigation that was not the COS origin —
+   version cancelled any navigation that was not the Oracle origin —
    and `NavigateToString` loads through a `data:` URI, so the offline page was
    being "sent to the browser". The user saw Chromium's error page instead.
    Only **external http(s)** is redirected; `about:`, `data:` and `blob:` are the

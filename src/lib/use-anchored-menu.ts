@@ -12,7 +12,7 @@ import { layoutRect } from "@/lib/zoom";
  * hides its overflow — a bottom sheet, a drawer, a panel, a card. Measured on
  * the "Start a batch" sheet: the option list ran past the bottom of the card
  * and was cut off mid-row, so half the choices were unreachable. A dropdown
- * inside a dialog is the normal case in COS, not the exception.
+ * inside a dialog is the normal case in Oracle, not the exception.
  *
  * ⚠️ AND FIXING THE CLIPPING BY PORTALLING LEAVES A SECOND BUG IN ITS PLACE:
  * the menu then opens BEHIND the sheet. A portalled menu is a sibling of every
@@ -38,7 +38,7 @@ import { layoutRect } from "@/lib/zoom";
  * land. `isInside()` is here for that.
  */
 
-/** Above every overlay in COS. The highest class-based z-index anywhere is 140;
+/** Above every overlay in Oracle. The highest class-based z-index anywhere is 140;
  *  the bottom sheet is 91. `FluidSelect` has used this number since it was
  *  written, and matching it is deliberate — the dropdowns must behave alike. */
 export const MENU_Z = 1000;
@@ -140,7 +140,7 @@ export function menuStyle(pos: MenuPos, maxWidth = "min(92vw, 32rem)"): React.CS
     position: "fixed",
     zIndex: MENU_Z,
     /* ⚠️ AND A THIRD BUG BEHIND THE OTHER TWO: a Radix modal (every drawer and
-       dialog in COS) sets `pointer-events: none` on <body> while it is open, and
+       dialog in Oracle) sets `pointer-events: none` on <body> while it is open, and
        a menu portalled INTO body inherits it — so it draws perfectly, sits above
        everything, and ignores every click. Measured on the People drawer:
        computed pointer-events "none" on a fully visible menu. Re-enable it here,

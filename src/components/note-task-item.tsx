@@ -7,7 +7,7 @@ import { TaskItem } from "@tiptap/extension-list";
  *
  * Phase 4 of memory/notes_module_plan.md. A tick-box line in a note can be
  * promoted into a real `todos` row — the same row type as every other to-do in
- * COS, so it inherits the reminder cron, the push and the morning digest. The id
+ * Oracle, so it inherits the reminder cron, the push and the morning digest. The id
  * of that row is written onto the line so that:
  *
  *  • the same line cannot be promoted twice, and

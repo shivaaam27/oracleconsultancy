@@ -6,7 +6,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 /**
  * "Open your create dialog" as a URL — the plumbing behind the global New menu.
  *
- * Almost nothing in COS is created at a route. `/task/new` is a real page, but a
+ * Almost nothing in Oracle is created at a route. `/task/new` is a real page, but a
  * document, a person, an asset, an event and the rest are all DIALOGS owned by
  * the page that lists them. The New menu has to be able to raise any of them
  * from anywhere, so the menu simply navigates to that page with `?new=1` and the

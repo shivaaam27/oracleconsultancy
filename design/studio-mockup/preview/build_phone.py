@@ -38,7 +38,7 @@ html,body{background:var(--ground)}
 </style>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
-<div class="top"><div class="row"><div class="ttl">COS on a phone &amp; iPad<span>directors · 14 boards</span></div>
+<div class="top"><div class="row"><div class="ttl">Oracle on a phone &amp; iPad<span>directors · 14 boards</span></div>
 <div class="zm" role="group" aria-label="Size"><button type="button" id="fitB" aria-pressed="true">Fit</button><button type="button" id="actB" aria-pressed="false">Actual size</button></div></div>
 <nav class="nav" aria-label="Boards">''' + nav + '''</nav></div>
 <div id="helmet"></div>

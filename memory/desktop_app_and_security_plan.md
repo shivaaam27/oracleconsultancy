@@ -1,4 +1,4 @@
-# COS as a real Windows app + a security pass
+# Oracle as a real Windows app + a security pass
 
 Written 20 Aug 2026. The owner asked for two things: a downloadable app people
 can install, and the whole system made safer. Read the security half FIRST — one
@@ -10,7 +10,7 @@ finding there outranks everything else in this file.
 
 ## What I found
 
-COS ships a key called the **anon key** into every page of the website. That is
+Oracle ships a key called the **anon key** into every page of the website. That is
 normal and by design — it is meant to be public. What is NOT normal is what it
 can currently do.
 
@@ -27,7 +27,7 @@ I tested it live against the Supabase project on 20 Aug 2026:
 | **Write** — `PATCH /settings` | ✅ **HTTP 204 — allowed** |
 | **Write** — `DELETE /tasks` | ✅ **HTTP 204 — allowed** |
 
-Plain English: **anyone who opens the COS website, presses F12 and copies one
+Plain English: **anyone who opens the Oracle website, presses F12 and copies one
 line out of the page source can read every record in the system — and can also
 change or delete all of it.** That includes the ledger, the audit log, staff
 personal data and the document library. No password needed.
@@ -72,7 +72,7 @@ The hashes were public for a long time; locking the door does not un-copy them.
 ## The fix (half a day, no data migration)
 
 1. **Turn on Row Level Security on every table** in `public`, and add **no
-   policies**. The server's service-role key ignores RLS, so COS keeps working.
+   policies**. The server's service-role key ignores RLS, so Oracle keeps working.
 2. **Revoke the grants** as well, belt and braces:
    `REVOKE ALL ON ALL TABLES IN SCHEMA public FROM anon, authenticated;` plus the
    same for sequences and functions, and `ALTER DEFAULT PRIVILEGES` so new tables
@@ -177,7 +177,7 @@ break-in attempt or a crash is visible.
 
 ## The one decision that shapes everything
 
-COS is a **server** application. It renders pages on Vercel, talks to Supabase,
+Oracle is a **server** application. It renders pages on Vercel, talks to Supabase,
 calls Gemini. It cannot be turned into a self-contained .exe, and you would not
 want it to be — that would mean shipping the database keys onto every staff
 laptop. **That is the trap to avoid, and it is the same shape as the mistake
@@ -224,10 +224,10 @@ insurance above.
 ## How it will work
 
 **Shell (`cos-desktop`, a small separate repo):**
-- Loads `https://<the COS domain>` in a locked-down window.
+- Loads `https://<the Oracle domain>` in a locked-down window.
 - Security settings, non-negotiable: `nodeIntegration: false`,
   `contextIsolation: true`, `sandbox: true`, `webSecurity: true`.
-- **Blocks navigation to anywhere that is not the COS domain** — a stray link
+- **Blocks navigation to anywhere that is not the Oracle domain** — a stray link
   opens in the real browser instead.
 - Denies every permission request by default; allows only notifications.
 - Contains **no keys of any kind**. It is a window and nothing more.
@@ -275,7 +275,7 @@ build changes when it is added later — it is one step in the CI file.
 
 ## What it will not do
 
-- **No offline working.** No internet, no COS — same as the website today. If
+- **No offline working.** No internet, no Oracle — same as the website today. If
   offline task capture is ever wanted, the answer is to improve the service worker
   in the web app, which helps the browser *and* the app. The shell choice does not
   block it.

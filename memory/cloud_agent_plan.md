@@ -1,6 +1,6 @@
 # Cloud-Agent-as-Engine Plan (no API key — runs on the Max plan)
 
-**Goal:** power the live COS system's AI (document reading/extraction, Ask-ORI Q&A,
+**Goal:** power the live Oracle system's AI (document reading/extraction, Ask-ORI Q&A,
 and agentic actions like adding meetings/reminders/tasks) using a **Claude Code
 cloud agent** billed to the owner's **Max plan**, instead of a paid Anthropic API key.
 
@@ -156,7 +156,7 @@ Phase 5 (proactive scheduled enqueues), Phase 6 (retire Groq paths). Transient
 ### Phase 4 (Ask ORI UI) — SHIPPED 2026-07-01 (verified live in browser)
 - **`src/app/ask/actions.ts`** — `askOri(question)` enqueues a fast-lane `ask` job (+best-effort `wake()` to /api/agent/trigger); `pollAsk(jobId)` returns {status, answer, error}.
 - **`src/components/ask-ori.tsx`** — Aurora Ask box: submit → "ORI is thinking…" → polls pollAsk every 2s → shows the grounded answer (or error/timeout after ~3min).
-- **`src/app/ask/page.tsx`** — REPLACED the old redirect; `/ask` now renders AskOri (the legacy ⌘K "Ask COS" still uses the synchronous /api/ask — left as-is; async queue doesn't fit sync fetch until the event-trigger lands).
+- **`src/app/ask/page.tsx`** — REPLACED the old redirect; `/ask` now renders AskOri (the legacy ⌘K "Ask Oracle" still uses the synchronous /api/ask — left as-is; async queue doesn't fit sync fetch until the event-trigger lands).
 - **`env`:** wake() needs AGENT_TRIGGER_SECRET + NEXT_PUBLIC_APP_URL (both optional; falls back to the worker's poll).
 - VERIFIED live: /ask renders (admin), typed a question → thinking → worker processed job #5 → answer "13 active companies … 29 active staff" appeared via poll. Screenshot captured.
 

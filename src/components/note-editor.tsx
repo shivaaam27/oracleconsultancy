@@ -541,7 +541,7 @@ export function NoteEditor({
      wrapped.
 
      The measuring now lives in `lib/use-fill-viewport.ts`, shared with every list
-     in COS, which had exactly the same dead space under it. `exact` because the
+     in Oracle, which had exactly the same dead space under it. `exact` because the
      sheet is a PANE: it is this tall and the paper scrolls inside it. Off while
      full screen, where `fixed inset-0` already owns the height.
 
@@ -804,7 +804,7 @@ export function NoteEditor({
           </>
         ) : (
           /* The mockup's "All notes" pill, first in the toolbar. It REPLACES
-             the history entry, like every back link in COS, so the browser's
+             the history entry, like every back link in Oracle, so the browser's
              own Back does not walk forward into this note again. */
           <>
             <Link href={backHref} replace

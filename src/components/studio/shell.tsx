@@ -6,14 +6,14 @@
  *
  * ⚠️ THE PAGE STILL SCROLLS THE DOCUMENT. The mockup draws the page inside a
  * rounded panel with its own scroll; doing that for real would make `main` a
- * scroll box, and every "go back to where you were" mechanism in COS reads
+ * scroll box, and every "go back to where you were" mechanism in Oracle reads
  * `window.scrollY` (see CLAUDE.md, "Going back from a record"). So the panel is
  * an ILLUSION: a fixed, click-through ring whose huge dark box-shadow paints
  * everything OUTSIDE a rounded rectangle. Content scrolls under it and is
  * clipped at the rounded corners exactly as in the mockup.
  *
  * Page order comes from `studioStops()`, which is derived from nav.ts — the
- * footer can never list a page the rest of COS does not know about.
+ * footer can never list a page the rest of Oracle does not know about.
  */
 import { ReportSheet } from "@/components/studio/report-sheet";
 import { SignOutForm } from "@/components/sign-out-form";

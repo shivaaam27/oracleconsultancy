@@ -571,7 +571,7 @@ export function CommandPaletteProvider({
     else runAsk(t);
   }
 
-  /* ⚠️ ⌘K OPENS A RECORD, SO IT MUST SAY WHERE FROM. Every other opener in COS
+  /* ⚠️ ⌘K OPENS A RECORD, SO IT MUST SAY WHERE FROM. Every other opener in Oracle
    * carries the address it was clicked from (`lib/return-to.ts`); the palette
    * did not, so a task opened from here had a back button pointing at a bare,
    * unfiltered task list — and whatever had been typed to find it was gone,
@@ -1391,7 +1391,7 @@ export function CommandPaletteProvider({
                       <RouteGroup heading="Pages" routes={otherRoutes} pins={pins} onGo={go} onToggle={toggle} />
                     )}
 
-                    {/* ⚠️ NO MODULE SECTION HERE. COS was six modules behind a
+                    {/* ⚠️ NO MODULE SECTION HERE. Oracle was six modules behind a
                         launcher from Aug 2026 until 21 Sept 2026, when the other
                         five were removed at the owner's word. A section listing
                         one destination, and an "All modules" entry opening a

@@ -14,7 +14,7 @@ import { useListPlace } from "@/lib/use-list-place";
 /**
  * RecordList — the ONE list screen (Stage 2 of the ERPNext redesign).
  *
- * Every list in COS should be this component: a left filter rail with live
+ * Every list in Oracle should be this component: a left filter rail with live
  * counts, a toolbar, sortable columns, tickable rows that raise a bulk action
  * bar, and a footer that says how many of how many you are looking at.
  *
@@ -493,7 +493,7 @@ function isTypingTarget(el: EventTarget | null): boolean {
   return t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName);
 }
 
-/** Reduced motion, both ways COS expresses it: the OS setting and the portal's
+/** Reduced motion, both ways Oracle expresses it: the OS setting and the portal's
  *  own toggle (`data-motion="reduced"` on <html>). */
 function prefersCalm(): boolean {
   if (typeof window === "undefined") return true;

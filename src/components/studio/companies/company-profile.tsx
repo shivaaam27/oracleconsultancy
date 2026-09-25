@@ -114,7 +114,7 @@ export function StudioCompanyProfile({ companyId, companyName, accent, logoUrl, 
                       className="inline-flex h-8 items-center gap-1.5 rounded-[9px] px-2 text-xs text-[var(--st-muted)] hover:text-[var(--st-late-text)]"><Trash2 size={13} />Remove</button>
                   )}
                 </div>
-                <span className="text-[11px] text-[var(--st-muted)]">Square PNG or JPG. Shows across COS and on letters.</span>
+                <span className="text-[11px] text-[var(--st-muted)]">Square PNG or JPG. Shows across Oracle and on letters.</span>
               </div>}
             </div>
             <div className="mt-4 grid grid-cols-1 gap-x-3 gap-y-3 sm:grid-cols-2">

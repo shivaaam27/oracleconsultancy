@@ -135,7 +135,7 @@ export function AttendeePicker({
               onFocus={() => setOpen(true)}
               onBlur={() => setTimeout(() => setOpen(false), 120)}
               onKeyDown={onKeyDown}
-              placeholder={studio ? "Add someone from COS…" : value.length === 0 ? "Search people to invite…" : ""}
+              placeholder={studio ? "Add someone from Oracle…" : value.length === 0 ? "Search people to invite…" : ""}
               style={studio ? { background: "transparent", border: 0, boxShadow: "none", color: "var(--st-ink)" } : undefined}
               className="flex-1 min-w-[80px] bg-transparent outline-none border-none p-0 h-6 text-sm placeholder:text-fg-subtle focus:ring-0"
             />

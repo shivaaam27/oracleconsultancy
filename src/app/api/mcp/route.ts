@@ -1,4 +1,4 @@
-// /api/mcp — the door an AI assistant walks through to reach COS.
+// /api/mcp — the door an AI assistant walks through to reach Oracle.
 //
 // Speaks the Model Context Protocol over Streamable HTTP (the current transport;
 // SSE is legacy). Authentication is an `Authorization: Bearer <key>` header
@@ -48,7 +48,7 @@ function identity(origin: string): { name: string; version: string } {
   return {
     name: "cos-system",
     version: "2.0.0",
-    title: "Oracle Consultancy COS",
+    title: "Oracle Consultancy",
     icons: [
       { src: `${origin}/icon-192.png`, mimeType: "image/png", sizes: ["192x192"] },
       { src: `${origin}/icon-512.png`, mimeType: "image/png", sizes: ["512x512"] },
@@ -115,7 +115,7 @@ function serverFor(caller: McpCaller, companies: string[], origin: string) {
     {
       serverInfo: identity(origin),
       instructions:
-        "Oracle Consultancy's Chief-of-Staff system (COS). " +
+        "Oracle Consultancy's Chief-of-Staff system. " +
         (companies.length
           ? `Companies you can see: ${companies.join(", ")}. `
           : "") +
@@ -136,7 +136,7 @@ function serverFor(caller: McpCaller, companies: string[], origin: string) {
         "read later. " +
         "\n\nTWO THINGS YOU CANNOT DO. **You cannot delete anything.** When someone asks you to get " +
         "rid of a task or a document, archive it — that keeps the record and its history while taking " +
-        "it out of the way — and tell them that's what you did. Deleting for real is done in COS by " +
+        "it out of the way — and tell them that's what you did. Deleting for real is done in Oracle by " +
         "hand. **You cannot send a message.** draft_message SAVES A DRAFT in the Outbox for a person " +
         "to send; say so every time, so nobody believes a message went out when it didn't. " +
         "\n\nTHE ONE EXCEPTION: creating a meeting or event DOES email an invitation to attendees who " +

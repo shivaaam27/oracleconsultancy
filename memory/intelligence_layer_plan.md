@@ -11,7 +11,7 @@ pull scattered prompts into `src/lib/prompts.ts`. *Folded lightly into Phase 1 (
 
 ## Phase 1 — Reliability quick wins  ✅ (this sprint)
 Add retry + timeout to EVERY Groq call (10 lack retry, all 14 lack timeout). Reuse
-`callGroqJson`; add `callGroqText` sibling. Fix the Ask COS mid-stream silent truncation
+`callGroqJson`; add `callGroqText` sibling. Fix the Ask Oracle mid-stream silent truncation
 (#1 worst gap). Keep every existing fallback. No schema/DB changes.
 
 ## Phase 2 — Model quality  ✅ (this sprint)
@@ -19,9 +19,9 @@ Move document extraction + meeting minutes to `GROQ_SMART` (model already wired)
 `src/lib/ai-verify.ts` name/figure post-check on the prose tools (surface a banner, never
 block). Optional `v2.aiQuality` toggle.
 
-## Phase 3 — Ask COS real retrieval
+## Phase 3 — Ask Oracle real retrieval
 - **3a (this sprint, no new deps):** export `concept`, synonym-expand tokens, lift the
-  overlap ranker into Ask COS, rank tasks+meetings before slicing, surface honest counts.
+  overlap ranker into Ask Oracle, rank tasks+meetings before slicing, surface honest counts.
 - **3b (PAUSE — owner decision):** semantic search / embeddings. Groq has NO embeddings API,
   so this needs a NEW vendor (data egress + cost decision). Stop here and present options.
 
@@ -43,11 +43,11 @@ Proactive morning briefing; tighter meeting→task→follow-up; optional multi-s
 ## Build status
 - Audit: DONE (wf_334c50a7-b97), saved to `intelligence_layer_audit.md`.
 - Phase 1: DONE + pushed (commit 816879b) — retry + timeout on every Groq call;
-  Ask COS mid-stream truncation fixed.
+  Ask Oracle mid-stream truncation fixed.
 - Phase 2: DONE + pushed (commit 5bd4992) — `aiHighQuality` setting + Settings
   toggle; doc text-extraction + meeting minutes on GROQ_SMART; `ai-verify.ts`
   name/figure check wired into the meeting prose tools.
-- Phase 3a: DONE + pushed — `concept` exported; Ask COS now synonym-expands its
+- Phase 3a: DONE + pushed — `concept` exported; Ask Oracle now synonym-expands its
   search tokens, ranks tasks + meetings by relevance before slicing, sends compact
   JSON, and shows an honest "based on N tasks · M meetings" count.
 - **Phase 3b (semantic search / embeddings): BUILT (in-region pgvector) + pushed.
@@ -64,7 +64,7 @@ Proactive morning briefing; tighter meeting→task→follow-up; optional multi-s
   Drizzle, to dodge the drizzle-kit HNSW operator-class bug); `src/lib/embeddings.ts`
   (best-effort, gated by `v2.semanticSearch` setting, default OFF); `supabase/
   functions/embed/index.ts` (Deno Edge Function, excluded from tsc); Settings toggle;
-  Ask COS integration (semantic hits augment + boost the keyword/synonym ranker,
+  Ask Oracle integration (semantic hits augment + boost the keyword/synonym ranker,
   fall back to keyword when off/empty); fire-and-forget index hooks on task-create
   (`db-helpers.insertTaskWithUniqueCodeSb`) + meeting-save; `scripts/backfill-
   embeddings.ts` (`npm run db:embed-backfill`); `SEMANTIC_SEARCH.md` owner guide.

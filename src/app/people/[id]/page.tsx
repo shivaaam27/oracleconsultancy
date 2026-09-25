@@ -40,9 +40,9 @@ const loadPersonDetail = cache(getPersonDetail);
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  if (!(await personForViewer(Number(id)))) return { title: "Person · COS" };
+  if (!(await personForViewer(Number(id)))) return { title: "Person · Oracle" };
   const detail = await loadPersonDetail(Number(id)).catch(() => null);
-  return { title: detail ? `${detail.person.name} · People` : "Person · COS" };
+  return { title: detail ? `${detail.person.name} · People` : "Person · Oracle" };
 }
 
 export default async function PersonPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ back?: string }> }) {

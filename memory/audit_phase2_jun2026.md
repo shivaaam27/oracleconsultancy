@@ -6,7 +6,7 @@ metadata:
   type: project
 ---
 
-# COS System — Second Full Audit (DEEP pass), June 2026
+# Oracle System — Second Full Audit (DEEP pass), June 2026
 
 **What this is:** a deeper successor to `audit_phase1_jun2026.md`. The first audit was a code/dimension sweep (safety, tokens, centring, correctness, perf). This one goes **page-by-page + traces cross-module data round-trips**: portal upload → person → compliance → onboarding → Brief; classification changes; organogram; dead links; daily journeys; mobile; the Task-page bloat; the to-do centring. Produced by **16 read-only specialist auditors** on 2026-06-14 (workflow `wf_1aad7b1f-5ac`), 90 findings. All findings are **static-code-verified** (no live DB/browser run) — file:line evidence is exact; runtime repro recommended for the ⚠ live-behaviour ones.
 

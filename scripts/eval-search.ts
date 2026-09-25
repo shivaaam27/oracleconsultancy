@@ -1,7 +1,7 @@
 // S0 — semantic-search evaluation harness.
 //
 // Runs each query in eval/search-golden.json through the SAME hybrid search Ask
-// COS uses, and reports Recall@k + MRR so we can prove each upgrade phase helps
+// Oracle uses, and reports Recall@k + MRR so we can prove each upgrade phase helps
 // (and doesn't regress — especially on the non-English queries). Run:
 //   npm run eval:search
 // Requires semantic search to be ON and backfilled.

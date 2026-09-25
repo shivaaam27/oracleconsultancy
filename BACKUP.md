@@ -12,7 +12,7 @@ anything — but you **must verify it's switched on and know how far back it goe
 
 ### One-time check (do this now, ~3 minutes)
 
-1. Go to **https://supabase.com** → sign in → open the COS project.
+1. Go to **https://supabase.com** → sign in → open the Oracle project.
 2. Left sidebar → **Database** → **Backups**.
 3. Confirm:
    - **Daily backups** are listed (you should see recent dates).
