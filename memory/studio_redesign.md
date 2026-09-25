@@ -846,3 +846,51 @@ Rules that now hold everywhere (read before touching a Studio page's phone view)
   `openReport({companyIds|personIds})` from Home hero / company band / person ⋯ menu.
   Email ATTACHES the PDF (owner's choice); all PDF sections kept; nav label "Report".
   In dev the numbers take a few seconds (getBrief is heavy) — watch it in production.
+
+## Staff on Studio — Home, Tasks, a task, Profile (26 Sept 2026, boards S_*)
+
+Mockup: `design/studio-mockup/gen/p_staff.py` → boards S_Rules/S_Home/S_Tasks/
+S_Task/S_Profile (artifact RR4oG6XXTcFUEGYeTPaH4G). Built in four commits.
+
+- **Staff are NOT a Viewer** (lib/viewer.ts) — a new kind would fail open in
+  every `kind === "director"` check. Their pages stay under `/portal/*`, read
+  through portal-auth (`visibleTaskIds`, `personCanSeeTask`) and write through
+  the existing portal actions. Only `portalRole === "staff"`; HR and the
+  receptionist keep the old pages.
+- **Which pages wear Studio: `isStaffStudioPath()`** (lib/director-routes.ts,
+  tested) — `/portal`, `/portal/tasks`, `/portal/task/<code>` (not `new`),
+  `/portal/profile`. Add a path there as each page is rebuilt; `SPLASH_GATE`
+  (app-splash.tsx) carries the same list as a string.
+- ⚠️ **THE FRAME IS PICKED ON THE CLIENT** (`components/portal-frame.tsx`). A
+  layout does not re-render between the pages under it, so deciding from the
+  request header froze the first page's frame. The portal layout renders both
+  chromes; `PortalFrame` picks by `usePathname()`.
+- Footer: `StudioShell` with `director.staff` (`staffStops()` in studio-nav.ts;
+  "+" = New to-do → `/portal?todo=1`); served by `StaffShellServer`.
+- **Home** = `StudioHome` with slots (`aside` check-in top-right, Due card moves
+  to the bottom row, `after` = to-do card, `phone` folds, `links`, `heroAction`
+  "How I did in <month>" → Profile #kpi, `announcementAction` Acknowledge/Got it).
+  Same grid, so the card sizes ARE the owner's. Check-in pop-up retired.
+  To-do list = `ListShell` from subtasks.tsx (exported; `placeholder`, `meta`,
+  `addAccessory`, `scroll`, `empty`).
+- **Tasks** (`tasks/staff-tasks.tsx`): their tasks, owner's columns read-only,
+  filters in the address (flag/done/quiet/unread/q/co/status; old `?filter=` mapped),
+  InsightsCard (skips empty views) + UpdateCard (`hrefs` map — a function cannot
+  cross from the server). Rows open the task page (no side panel for staff).
+- **A task** (`studio/tasks/staff-task-record.tsx`): band with Send for review
+  (update + Under Review), I'm blocked (`StudioBlocker portal`), Complete only
+  if they raised it (the secure gate); conversation `variant="studio"` with staff
+  `starters`; messages passed with `management:false` so only THEIR posts sit
+  right; People with Message (portalOpenDm); subtasks — `subtask-actions.ts`
+  now lets a portal person on the task use them (checks `personCanSeeTask`).
+  Edit title/description only when `caps.manageAnyTask` (the server's own rule).
+- **Profile** (`studio/profile/staff-profile.tsx`): band + tabs in `?tab=`;
+  every saving part is the old component (contact, documents, passkeys,
+  password, DevicePushToggle, StudioInstall, accessibility).
+- `/api/faces`: staff get calm faces (no moods — a mood is about someone's work).
+- Portal `loading.tsx` deleted (pages stay put, as on the owner's side).
+- `navTasks` default is ON for staff now; Settings copy says staff have the same
+  screens for their own work.
+- **Not yet for staff:** Calendar (meetings), People (directory), Announcements,
+  Chat — still the old pages in the old frame. Managers: moved to the shared
+  screens (commit f63d8331) but NOT visually verified — needs a manager sign-in.

@@ -8,7 +8,10 @@ rebuilt page (Tasks, task record, Home, Recurring, Calendar, People, Companies,
 Files, Settings, the footer) is Studio only, its old version deleted, and
 `src/lib/studio.ts` / `ui.studioPages` no longer exist. Pages not yet rebuilt
 keep their old look until their turn. **Directors use the same Home and Tasks as
-the owner, over their companies — always, no switch.** Read
+the owner, over their companies — always, no switch.** **Staff (26 Sept 2026)
+have Studio Home, Tasks, a task page and Profile under `/portal/*` — NOT via
+`getViewer` (read the "Staff on Studio" section of `memory/studio_redesign.md`;
+the frame is picked client-side by `PortalFrame` + `isStaffStudioPath`).** Read
 `memory/portal_unification_plan.md` and `src/lib/viewer.ts` before touching a
 server action: every one is guarded (`guardOwner` / `guardViewer`).
 
