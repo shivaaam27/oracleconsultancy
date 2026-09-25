@@ -2188,3 +2188,13 @@ html.dark .st-splash__mark { box-shadow: 0 14px 32px -14px rgb(0 0 0 / 0.6); }
   .st-splash__mark, .st-splash__bars i { animation: none; }
   .st-splash__bars i:nth-child(odd) { height: 10px; }
 }
+
+/* Sign-in fields (studio-sign-in.tsx): a real border and a white well. They
+   were `bare-field`, which clears the border, and read as flat text on grey
+   (owner, 25 Sept 2026). Unlayered + !important because the global input
+   rule beats utilities. */
+.studio .st-signin-field { background: #FFFFFF !important; border: 1px solid #CFCFCA !important; box-shadow: 0 1px 2px rgb(17 18 20 / 0.05) !important; }
+.studio .st-signin-field:hover { border-color: #A9AAA6 !important; }
+.studio .st-signin-field:focus { border-color: #111214 !important; box-shadow: 0 0 0 3px rgb(17 18 20 / 0.08) !important; }
+.dark .studio .st-signin-field { background: #17181B !important; border-color: #3A3D42 !important; box-shadow: none !important; }
+.dark .studio .st-signin-field:focus { border-color: #F2F2F0 !important; box-shadow: 0 0 0 3px rgb(242 242 240 / 0.12) !important; }

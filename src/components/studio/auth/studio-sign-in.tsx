@@ -31,7 +31,7 @@ type As = "staff" | "admin";
 const AS_KEY = "cos.signin.as";
 const NAME_KEY = "portal.rememberedName";
 
-const FIELD = "bare-field h-11 sm:h-12 w-full rounded-[12px] border border-[var(--st-line)] bg-[var(--st-surface)] px-3.5 text-[15px] text-[var(--st-ink)] outline-none transition-colors placeholder:text-[var(--st-muted)] focus:border-[var(--st-ink)]";
+const FIELD = "st-signin-field h-11 sm:h-12 w-full rounded-[12px] border border-[var(--st-line)] bg-[var(--st-surface)] px-3.5 text-[15px] text-[var(--st-ink)] outline-none transition-colors placeholder:text-[var(--st-muted)] focus:border-[var(--st-ink)]";
 const PRIMARY = "inline-flex h-11 sm:h-12 w-full items-center justify-center gap-2 rounded-[12px] bg-[var(--st-ink)] text-[15px] font-semibold text-[var(--st-page)] transition-opacity hover:opacity-90 disabled:opacity-60";
 
 export function StudioSignIn({ firstRun, defaultAs = "staff" }: { firstRun: boolean; defaultAs?: As }) {
@@ -63,7 +63,7 @@ export function StudioSignIn({ firstRun, defaultAs = "staff" }: { firstRun: bool
             <div className="flex flex-col gap-3.5 rounded-[22px] bg-[var(--st-surface)] p-4 sm:gap-6 sm:p-6 lg:bg-transparent lg:p-0">
             <div>
               <h1 className="m-0 text-[28px] font-medium leading-none tracking-[-0.035em] sm:text-[40px]">{firstRun && as === "admin" ? "Set up" : "Sign in"}</h1>
-              <p className="m-0 mt-2.5 hidden text-[14px] text-[var(--st-sub)] sm:block">
+              <p className="m-0 mt-2.5 hidden text-[14px] text-[var(--st-ink)] sm:block">
                 {firstRun && as === "admin" ? "Choose the administrator password to begin." : "Welcome back. Who are you signing in as?"}
               </p>
             </div>
@@ -74,7 +74,7 @@ export function StudioSignIn({ firstRun, defaultAs = "staff" }: { firstRun: bool
                 style={{ transform: as === "admin" ? "translateX(100%)" : "translateX(0)" }} />
               {([["staff", "Team member", UserRound], ["admin", "Administrator", ShieldCheck]] as const).map(([v, label, Icon]) => (
                 <button key={v} type="button" role="radio" aria-checked={as === v} onClick={() => choose(v)}
-                  className={cn("relative z-10 flex h-10 items-center justify-center gap-2 rounded-[11px] text-[14px] transition-colors sm:h-11", as === v ? "font-semibold text-[var(--st-ink)]" : "text-[var(--st-sub)] hover:text-[var(--st-ink)]")}>
+                  className={cn("relative z-10 flex h-10 items-center justify-center gap-2 rounded-[11px] text-[14px] transition-colors sm:h-11", as === v ? "font-semibold text-[var(--st-ink)]" : "text-[var(--st-ink)] hover:text-[var(--st-ink)]")}>
                   <Icon size={16} />{label}
                 </button>
               ))}
@@ -84,7 +84,7 @@ export function StudioSignIn({ firstRun, defaultAs = "staff" }: { firstRun: bool
               {as === "staff" ? <StaffForm /> : <AdminForm firstRun={firstRun} />}
               {!(firstRun && as === "admin") && (
                 <>
-                  <div className="flex items-center gap-3 text-xs text-[var(--st-muted)]" aria-hidden>
+                  <div className="flex items-center gap-3 text-xs text-[var(--st-ink)]" aria-hidden>
                     <span className="h-px flex-1 bg-[var(--st-line)]" />or<span className="h-px flex-1 bg-[var(--st-line)]" />
                   </div>
                   <PasskeyLoginButton studio />
@@ -92,7 +92,7 @@ export function StudioSignIn({ firstRun, defaultAs = "staff" }: { firstRun: bool
               )}
             </div>
 
-            <p className="m-0 hidden text-center text-xs leading-relaxed text-[var(--st-muted)] sm:block">
+            <p className="m-0 hidden text-center text-xs leading-relaxed text-[var(--st-ink)] sm:block">
               {as === "staff"
                 ? "No access yet? Ask your administrator to switch the portal on for you."
                 : firstRun ? "You can add Face ID or a fingerprint from Settings afterwards." : "Forgot it? Reset it from Settings on a device that is already signed in."}
@@ -123,11 +123,11 @@ function StaffForm() {
           try { if (remember && v) window.localStorage.setItem(NAME_KEY, v); else window.localStorage.removeItem(NAME_KEY); } catch { /* ignore */ }
         }}>
         <label className="flex flex-col gap-1.5">
-          <span className="text-[13px] font-medium text-[var(--st-sub)]">Email</span>
+          <span className="text-[13px] font-medium text-[var(--st-ink)]">Email</span>
           <input ref={name} id="signin-staff-identifier" name="identifier" autoComplete="username webauthn" required className={FIELD} placeholder="you@company.com" />
         </label>
         <Password id="signin-staff-password" name="password" label="Password" autoComplete="current-password" />
-        <label className="flex cursor-pointer select-none items-center gap-2.5 text-[13px] text-[var(--st-sub)] max-sm:-my-0.5">
+        <label className="flex cursor-pointer select-none items-center gap-2.5 text-[13px] text-[var(--st-ink)] max-sm:-my-0.5">
           <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} className="h-4 w-4 accent-[#111214]" />
           Remember me on this device
         </label>
@@ -148,7 +148,7 @@ function AdminForm({ firstRun }: { firstRun: boolean }) {
         {!firstRun && (
           <label className="flex flex-col gap-1.5">
             {/* The owner-identity second factor. It must never hint a REAL address. */}
-            <span className="text-[13px] font-medium text-[var(--st-sub)]">Email</span>
+            <span className="text-[13px] font-medium text-[var(--st-ink)]">Email</span>
             <input id="signin-admin-identifier" name="identifier" autoComplete="username webauthn" className={FIELD} placeholder="you@company.com" />
           </label>
         )}
@@ -168,7 +168,7 @@ function Password({ id, name, label, autoComplete, minLength }: { id: string; na
   const [caps, setCaps] = useState(false);
   return (
     <label className="flex flex-col gap-1.5">
-      <span className="text-[13px] font-medium text-[var(--st-sub)]">{label}</span>
+      <span className="text-[13px] font-medium text-[var(--st-ink)]">{label}</span>
       <span className="relative">
         <input id={id} name={name} type={show ? "text" : "password"} autoComplete={autoComplete} required minLength={minLength}
           className={cn(FIELD, "pr-12")} placeholder="••••••••"
@@ -199,7 +199,7 @@ function LogoTile({ size }: { size: number }) {
    motif — a row of bars, one per open task on Home — drawn from a fixed pattern
    (nothing here is data: this screen is before anyone signs in). */
 // The owner's words (25 Sept 2026).
-const TAGLINE = "In-house, and the first in Tanzania — an advanced task management system for a group of companies.";
+const TAGLINE = "Built in-house, and the first in Tanzania — an advanced task management system for a group of companies.";
 
 /** Phone and tablet: the same dark panel, sized to sit above the form. */
 function BrandCompact() {
@@ -207,11 +207,12 @@ function BrandCompact() {
     <div className="st-tex-rings relative overflow-hidden rounded-[22px] bg-[#141517] p-4 text-[#F2F2F0] sm:p-5 lg:hidden">
       <div className="flex items-center gap-2.5">
         <LogoTile size={36} />
-        <div className="text-[13px] font-semibold leading-tight">Oracle Consultancy Limited<span className="block text-[11px] font-normal text-[#D4D6DA]">Chief of Staff</span></div>
+        <div className="text-[15px] font-semibold leading-tight text-white">Oracle Consultancy Limited</div>
         <ThemeButton inline />
       </div>
       <div className="mt-3.5 text-[26px] font-medium leading-none tracking-[-0.03em] sm:mt-5 sm:text-[32px]">Task Management</div>
-      <p className="m-0 mt-2 text-[12px] leading-snug text-[#D4D6DA] sm:mt-3 sm:text-[13px] sm:leading-relaxed">{TAGLINE}</p>
+      {/* No tagline on a phone (owner, 25 Sept 2026) — tablet up keeps it. */}
+      <p className="m-0 mt-3 hidden text-[13px] leading-relaxed text-white sm:block">{TAGLINE}</p>
       <div className="mt-3 flex h-[24px] items-end gap-[3px] sm:mt-4 sm:h-[34px]" aria-hidden>
         {BARS.map((h, i) => (
           <span key={i} className="st-rise block min-w-0 flex-1 rounded-[2px]" style={{ height: `${Math.round((h / 66) * 100)}%`, maxWidth: 7, background: BAR_C(i), animationDelay: `${i * 18}ms` }} />
@@ -229,11 +230,11 @@ function BrandPanel() {
     <aside className="st-tex-rings relative hidden min-h-[560px] flex-col justify-between overflow-hidden rounded-[28px] bg-[#141517] p-10 text-[#F2F2F0] lg:flex">
       <div className="flex items-center gap-3">
         <LogoTile size={48} />
-        <div className="text-[15px] font-semibold leading-tight">Oracle Consultancy Limited<span className="block text-xs font-normal text-[#D4D6DA]">Chief of Staff</span></div>
+        <div className="text-[20px] font-semibold leading-none tracking-[-0.01em] text-white">Oracle Consultancy Limited</div>
       </div>
       <div>
         <div className="text-[64px] font-medium leading-[0.95] tracking-[-0.04em]">Task<br />Management</div>
-        <p className="m-0 mt-5 max-w-[40ch] text-[15px] leading-relaxed text-[#D4D6DA]">{TAGLINE}</p>
+        <p className="m-0 mt-5 max-w-[40ch] text-[15px] leading-relaxed text-white">{TAGLINE}</p>
       </div>
       <div>
         <div className="flex h-[70px] items-end gap-[3px]" aria-hidden>
@@ -241,7 +242,7 @@ function BrandPanel() {
             <span key={i} className="st-rise block w-[7px] rounded-[3px]" style={{ height: h, background: BAR_C(i), animationDelay: `${i * 18}ms` }} />
           ))}
         </div>
-        <div className="mt-4 flex items-center justify-between text-xs text-[#B4B7BC]">
+        <div className="mt-4 flex items-center justify-between text-xs text-white">
           <span>Secure sign-in</span><span>© {new Date().getFullYear()} Oracle Consultancy</span>
         </div>
       </div>
@@ -258,7 +259,7 @@ function ThemeButton({ inline = false }: { inline?: boolean }) {
     <button type="button" onClick={() => setTheme(dark ? "light" : "dark")} aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
       className={inline
         ? "ml-auto flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] border border-[#2E3035] text-[#C9CBCF] hover:text-white"
-        : "fixed right-8 top-8 z-10 flex h-10 w-10 items-center justify-center rounded-[12px] border border-[var(--st-line)] bg-[var(--st-surface)] text-[var(--st-sub)] hover:text-[var(--st-ink)]"}>
+        : "fixed right-8 top-8 z-10 flex h-10 w-10 items-center justify-center rounded-[12px] border border-[var(--st-line)] bg-[var(--st-surface)] text-[var(--st-ink)] hover:text-[var(--st-ink)]"}>
       {dark ? <Sun size={16} /> : <Moon size={16} />}
     </button>
   );
