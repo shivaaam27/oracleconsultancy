@@ -201,4 +201,9 @@ export const stFloatBar = {
   // retired pill's height, and left a 24px gap on a tablet).
   sticky: "pointer-events-none sticky bottom-[calc(var(--foot-h)+12px+env(safe-area-inset-bottom))] z-30 flex justify-center lg:bottom-3",
   fixedLg: "lg:fixed lg:inset-x-10 lg:bottom-[calc(var(--foot-h)+env(safe-area-inset-bottom)+12px)] lg:mt-0",
+  /** A bar on a page where the WHOLE WINDOW scrolls (Notes, Assets, Supplies):
+   *  12px above the footer at every width. `sticky`'s `lg:bottom-3` is for a
+   *  bar inside a panel that ends at the footer (Tasks); on a window-scrolling
+   *  page it put the bar 52px UNDER the footer (26 Sept 2026). */
+  page: "pointer-events-none sticky bottom-[calc(var(--foot-h)+12px+env(safe-area-inset-bottom))] z-30 flex justify-center",
 } as const;

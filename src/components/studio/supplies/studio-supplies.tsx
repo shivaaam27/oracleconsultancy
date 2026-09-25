@@ -196,7 +196,7 @@ export function StudioSupplies({ items, purchases, issues, companies, people, la
         )}
       </div>
 
-      <div className={cn(stFloatBar.sticky, "-mt-20")}>
+      <div className={cn(stFloatBar.page, "-mt-20")}>
         <div className="pointer-events-auto flex w-full max-w-[620px] items-center gap-2.5 rounded-2xl border border-[var(--st-line)] bg-[var(--st-surface)] p-2 pl-4 shadow-[0_10px_28px_rgba(17,18,20,0.12)] sm:h-14 sm:py-0">
           <label className="flex min-w-0 flex-1 items-center gap-2 text-[var(--st-muted)]">
             <Search size={15} /><span className="sr-only">Search</span>
