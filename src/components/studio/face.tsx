@@ -22,7 +22,7 @@
  *    so a list of fifty rows is not fifty running animations.
  *  - Reduced motion (the OS setting or the portal's own toggle) = still faces.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Blobatar } from "@blobatar/react";
 import { useGaze } from "@blobatar/react/gaze";
 import "blobatar/motion.css";
@@ -89,6 +89,24 @@ function GazingBlob(props: Omit<BlobProps, "animate">) {
   );
 }
 
+/* ONE observer for every face on the page: a face out of view gets
+   data-face-off, which pauses its animations (globals.css). */
+let seen: IntersectionObserver | null = null;
+const onFirstSight = new WeakMap<Element, () => void>();
+function watchFace(el: HTMLElement, firstSight?: () => void): () => void {
+  if (typeof IntersectionObserver === "undefined") { firstSight?.(); return () => {}; }
+  seen ??= new IntersectionObserver((entries) => {
+    for (const e of entries) {
+      (e.target as HTMLElement).toggleAttribute("data-face-off", !e.isIntersecting);
+      if (e.isIntersecting) { onFirstSight.get(e.target)?.(); onFirstSight.delete(e.target); }
+    }
+  }, { rootMargin: "120px" });
+  el.setAttribute("data-face-off", "");
+  if (firstSight) onFirstSight.set(el, firstSight);
+  seen.observe(el);
+  return () => { seen?.unobserve(el); onFirstSight.delete(el); };
+}
+
 /** Face 1s, initials 3s (the keyframes in globals.css are written to this). */
 const PEEK_CYCLE_MS = 4000;
 
@@ -121,9 +139,17 @@ export function PersonFace({ name, size = 32, peek = false, ring = false, classN
     setMotion(size >= GAZE_MIN && finePointer() ? "gaze" : "alive");
   }, [size]);
 
+  // A row face (peek) is DRAWN only once it has come into view: 128 detailed
+  // drawings on Tasks, most of them off screen, were 3/4 of the page's cost.
+  // Until then the initials circle shows — what a row shows most of the time.
+  const [drawn, setDrawn] = useState(!peek);
+  const box = useRef<HTMLSpanElement>(null);
+  useEffect(() => (box.current ? watchFace(box.current, peek ? () => setDrawn(true) : undefined) : undefined), [peek]);
+
   const title = `${name}${face ? ` — ${MOOD_WORDS[mood]}` : ""}`;
   return (
     <span
+      ref={box}
       title={title}
       aria-label={title}
       role="img"
@@ -135,7 +161,7 @@ export function PersonFace({ name, size = 32, peek = false, ring = false, classN
       <span aria-hidden data-face-peek={peek ? "" : undefined}
         className={cn("absolute inset-0", peek && "opacity-0 transition-opacity duration-300 group-hover/face:opacity-100")}
         style={peek && phase !== null && motion !== "none" ? { animationDelay: `-${phase}ms` } : undefined}>
-        {motion === "gaze" && !peek
+        {!drawn ? null : motion === "gaze" && !peek
           ? <GazingBlob name={name} size={size} role={role} mood={mood} />
           : <Blob name={name} size={size} role={role} mood={mood} animate={motion === "none" ? false : peek ? "hover" : "always"} />}
       </span>

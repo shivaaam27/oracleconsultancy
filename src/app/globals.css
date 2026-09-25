@@ -2154,6 +2154,14 @@ body:has(main .studio) > * [data-field-label] {
    shows the initials only (the face on hover). */
 @keyframes st-face-peek { 0% { opacity: 0 } 5%, 28% { opacity: 1 } 33%, 100% { opacity: 0 } }
 [data-face-peek][style*="animation-delay"] { animation: st-face-peek 4s linear infinite; }
+/* FACES COST NOTHING WHILE STILL (26 Sept 2026). blobatar keeps a face's nine
+   animations RUNNING at zero amplitude on a desk even in "hover" mode, and they
+   animate registered custom properties — main-thread work every frame. 128
+   faces on Tasks kept the browser 95% busy doing nothing visible. So: a face
+   that is not "always" alive is paused until hovered, and any face scrolled
+   off screen ([data-face-off], set by PersonFace) is paused outright. */
+.mo-root:not(.mo-always):not(:hover), .mo-root:not(.mo-always):not(:hover) * { animation-play-state: paused !important; }
+[data-face-off], [data-face-off] * { animation-play-state: paused !important; }
 .group\/face:hover [data-face-peek] { animation: none; opacity: 1; }
 @media (prefers-reduced-motion: reduce) { [data-face-peek] { animation: none !important; } }
 html[data-motion="reduced"] [data-face-peek] { animation: none !important; }
