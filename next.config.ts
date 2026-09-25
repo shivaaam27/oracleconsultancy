@@ -132,6 +132,12 @@ const nextConfig: NextConfig = {
     // Document uploads go through server actions; the default 1 MB body limit
     // is too small for the 20 MB documents bucket.
     serverActions: { bodySizeLimit: "25mb" },
+    // INSTANT PAGES (26 Sept 2026, owner: "page loading should be instant").
+    // A page you have seen in the last 30 s, or one fully preloaded (the
+    // footer switcher preloads the pages either side of you), opens from the
+    // browser's memory with no server wait. Any save that calls revalidatePath
+    // or router.refresh clears it, so your own changes always show.
+    staleTimes: { dynamic: 30, static: 120 },
   },
   // OAuth discovery for the MCP server (stage 3). These documents MUST live at
   // the root of the domain under /.well-known/, and a route folder whose name

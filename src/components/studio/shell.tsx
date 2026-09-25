@@ -118,7 +118,13 @@ export function StudioShell({ needs, director = null }: { needs: NonNullable<Stu
   const wheel = useRef({ acc: 0, timer: 0 as number | ReturnType<typeof setTimeout>, at: i });
   wheel.current.at = pending ?? i;
   useEffect(() => { setPending(null); }, [pathname, tab]);
-  useEffect(() => { router.prefetch(prev.href); router.prefetch(next.href); }, [router, prev.href, next.href]);
+  // FULL preload of the pages either side (and Home): the whole page, data and
+  // all, so a step on the switcher lands at once (next.config staleTimes keeps
+  // it for 2 minutes). "auto" only fetched the frame, and every step waited.
+  useEffect(() => {
+    const full = { kind: "full" } as unknown as Parameters<typeof router.prefetch>[1];
+    for (const h of new Set([prev.href, next.href, stops[0]?.href].filter(Boolean) as string[])) router.prefetch(h, full);
+  }, [router, prev.href, next.href, stops]);
   useEffect(() => {
     const el = pill.current;
     if (!el || stops.length < 2) return;
@@ -128,7 +134,7 @@ export function StudioShell({ needs, director = null }: { needs: NonNullable<Stu
       wheel.current.at = to;
       setDir(d);
       setPending(to);
-      router.prefetch(stops[to].href);
+      router.prefetch(stops[to].href, { kind: "full" } as unknown as Parameters<typeof router.prefetch>[1]);
       return to;
     };
     const onWheel = (e: WheelEvent) => {
