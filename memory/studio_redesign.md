@@ -894,3 +894,30 @@ S_Task/S_Profile (artifact RR4oG6XXTcFUEGYeTPaH4G). Built in four commits.
 - **Not yet for staff:** Calendar (meetings), People (directory), Announcements,
   Chat — still the old pages in the old frame. Managers: moved to the shared
   screens (commit f63d8331) but NOT visually verified — needs a manager sign-in.
+
+## Staff on the shared screens — People, Companies, Calendar, Announcements (26 Sept 2026)
+
+Owner: "the system is a unification" — staff use the SAME screens as the owner
+and directors, limited to "own work only" (his choice, asked and answered).
+- **`components/studio/studio-paths.tsx`**: `StudioPathsProvider staff` +
+  `useStudioPaths()` — every link inside StudioPeople / StudioPerson /
+  StudioCompanies / StudioCompany asks it (owner paths by default, `/portal/*`
+  for staff), and `paths.staff` switches the staff limits on inside them.
+- Data is cut on the server first: `lib/staff-colleagues.ts` (`staffColleagueIds`
+  = people sharing one of their companies + the Administrator; `forStaff`
+  blanks workload, private/HR fields, portal level). Pages:
+  `/portal/people`, `/portal/people/[id]` (`staff-person.tsx`: tasks you SHARE
+  only), `/portal/companies`, `/portal/companies/[id]` (`staff-company.tsx`:
+  details, people, open/late numbers, their own tasks; Profile = details only —
+  `StudioCompanyProfile` takes `relationships/documents = null`).
+  `/portal/directory` sends staff to People/Companies.
+- Calendar (`/portal/meetings`, `staff-calendar.tsx`): the owner's board,
+  `readOnly`, meetings they are invited to + holidays. Announcements: Studio
+  cards + the existing feed (ack, reactions, comments unchanged).
+- Faces: staff see moods for people in their own companies (owner: "do the faces").
+- **People Grid / Columns** (`lay` in the address): Columns is the default for
+  every read-only viewer (director, manager, staff), Grid for the owner. A viewer
+  over their own companies gets a column per company of THEIRS (a colleague
+  under each one they work for). `PeopleColumns` slides with ‹ ›; each column
+  scrolls inside itself.
+- Chat is still the old portal page (owner: "dont do chat").
