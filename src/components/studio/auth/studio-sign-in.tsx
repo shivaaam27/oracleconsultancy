@@ -205,7 +205,7 @@ export function AuthFrame({ children }: { children: React.ReactNode }) {
         <div className="relative z-[1] -mt-7 flex flex-1 flex-col rounded-t-[28px] bg-[var(--st-surface)] px-5 pb-[max(16px,env(safe-area-inset-bottom))] pt-7 shadow-[0_-12px_32px_rgba(0,0,0,0.18)] sm:px-8 sm:pt-9 lg:mt-0 lg:items-center lg:justify-center lg:rounded-none lg:bg-transparent lg:px-2 lg:py-14 lg:shadow-none">
           <div className="mx-auto flex w-full max-w-[440px] flex-1 flex-col gap-4 sm:gap-6 lg:max-w-[400px] lg:flex-none">
             {children}
-            <footer className="mt-auto flex flex-wrap items-center justify-center gap-x-2 gap-y-1 pt-6 text-[11px] text-[var(--st-muted)] lg:hidden">
+            <footer className="mt-auto flex flex-wrap items-center justify-center gap-x-2 gap-y-1 pt-4 text-[11px] text-[var(--st-muted)] lg:hidden">
               <span>© {new Date().getFullYear()} Oracle Consultancy Limited</span>
               <span aria-hidden>·</span>
               <span className="inline-flex items-center gap-1"><ShieldCheck size={11} />Secure sign-in</span>
@@ -227,8 +227,8 @@ export function BrandCompact() {
         <ThemeButton inline />
       </div>
       <div className="mt-6 text-[30px] font-medium leading-none tracking-[-0.03em] sm:mt-7 sm:text-[36px]">Task Management</div>
-      {/* No tagline on a phone (owner, 25 Sept 2026) — tablet up keeps it. */}
-      <p className="m-0 mt-3 hidden text-[13px] leading-relaxed text-white sm:block">{TAGLINE}</p>
+      {/* The tagline shows on a phone again (owner, 26 Sept 2026). */}
+      <p className="m-0 mt-3 max-w-[46ch] text-[13px] leading-relaxed text-white/90">{TAGLINE}</p>
       <div className="mt-5 flex h-[34px] items-end gap-[3px] sm:mt-6 sm:h-[40px]" aria-hidden>
         {BARS.map((h, i) => (
           <span key={i} className="st-rise block min-w-0 flex-1 rounded-[2px]" style={{ height: `${Math.round((h / 66) * 100)}%`, maxWidth: 7, background: BAR_C(i), animationDelay: `${i * 18}ms` }} />
