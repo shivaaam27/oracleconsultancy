@@ -950,3 +950,64 @@ Left: /portal/cleaning (a manager's cleaning overview) is still the old page.
   progress, Commitments). Directors/managers see "being rebuilt" for
   Announcements and Chat. HR and receptionist portal logins are still on the
   old portal. Nothing on master yet.
+
+## THE FINISHING PLAN (owner, 26 Sept 2026) — phases, in order
+Owner: remove Chat, the Activity log, Applications (pipeline) and Commitments
+— screens, code AND automations — but KEEP their tables (asked: "Keep the
+tables"; 1,682 chat messages / 79 threads, 34 pipeline rows, 11 commitments
+stay in the database, unreachable). Then rebuild the rest in Studio against the
+mockup boards, check each against the live site, then retire the old design.
+- P0 ✅ one light/dark toggle in the Go-to panel (two showed at 640–1024px).
+- P1 Removals: Chat (incl. the Task-reminders / Announcements system channels
+  and every cron/push/notification that posts there), /activity (+ portal
+  activity; lib/activity stays — Home's Latest activity uses it), /hrms/pipeline,
+  /hrms/commitments (+ MCP tools, entity registry, calendar overlay, renewal
+  automations). Old URLs redirect home. Nothing may break: tsc, tests, build.
+- P2 Automations audit: what runs, what is no longer needed, what needs fixing
+  (answer the owner in plain words).
+- P3 Announcements (boards Announcements, M_Announcements) — owner + directors/
+  managers (they see "being rebuilt" today); staff already on Studio.
+- P4 Notes (boards Notes, Note).
+- P5 Insights (board Insights) — modern, like Home: numbers, cards.
+- P6 Assets, tools & vendors (board Assets) — a real management system.
+- P7 Attendance, Supplies, Cleaning (boards Attendance, Supplies, Cleaning).
+- P8 Backend/automatic review.
+- P9 Retire the old design for good (remaining old pages: Approvals, ORI
+  automations, Tax & Legal; old portal for HR/receptionist; dead Desk
+  components) + speed: pages open fast, no lag.
+
+## THE FINISHING PLAN — DONE (26 Sept 2026), commits on `studiotask`, not pushed
+- P1 removals ✅ `64e70eda` (tables kept). P3 Announcements ✅ `fb9eb402`.
+- P4 Notes ✅ shelf `df18a0ab`, one note `6e90bfc2`. P5 Insights ✅ `df18a0ab`.
+- P6 Assets ✅ `df18a0ab` — a management system: hand-over desk, workshop,
+  warranty (assets.warranty_until), stock-take (assets.checked_at), service log
+  (asset_services) — migration **0171**; one asset `/hrms/assets/[id]` and one
+  supplier `/hrms/vendors/[id]` in Studio; the Excel importer moved to
+  `lib/asset-import.ts`. `.st-form` (globals.css) gives Desk dropdowns/date
+  pickers inside a Studio form the `.st-field` box — wrap a DateInput in
+  `<span className="st-date block">`.
+- P7 ✅ `b556d0c2` Attendance (`components/studio/attendance`), Supplies
+  (`studio/supplies`), Cleaning for the owner (`studio/cleaning/studio-cleaning-today.tsx`,
+  also the receptionist's screen via `portal` prop). Cleaning "today" is the EAT
+  day on both sides.
+- P2/P8 automations ✅ `76ff5b88`: scheduled announcements deliver at go-live
+  (announcements.delivered_at, migration **0172**, `deliverDueAnnouncements` in
+  tick + morning run); scheduled Outbox drafts surface when due + one owner push
+  (`nudgeDueScheduledDrafts`); ORI "Test now" runs one rule; recurring tasks are
+  claimed before creation (no double from tick + cron); watchdog false alarms
+  fixed and repair uses `lib/cron-jobs.ts`; ori-digest cron + GitHub snapshot
+  workflow removed; purges bounded. The tick runs every 15 min (672 in 7 days).
+- P9 ✅ Approvals + Tax & Legal + /graph `46a52207`, ORI Automation `d91e80e5`,
+  receptionist on Studio `fa716c92` (`isStaffLikeRole` — UI only), 22 dead
+  files `5c9d0857`, NavProgress + faster Settings/People `1b8ed2a8`.
+- SECURITY found on the way: ~50 admin server actions had no sign-in check
+  (approvals, ask, supplies, cleaning, Tax & Legal, notes AI + attachments, ORI
+  automations, attendance, site tools, vendors). All start with guardOwner()
+  now. A server action is callable from ANY page, so the proxy gate is not
+  enough — every new action needs its guard.
+- Retired kinds: pipeline-* and compliance-verify proposals no longer count as
+  waiting (lib/cockpit.ts RETIRED_KINDS) — 7 such rows sit in automation_events.
+- LEFT: `ai_jobs` holds 54 unanswered ORI questions + 641 old reading jobs from
+  the dead cloud worker (owner not yet asked about clearing them); Tax & Legal is
+  paused live so its full view was only type-checked; HR portal role has no
+  users and still gets the old portal home.
