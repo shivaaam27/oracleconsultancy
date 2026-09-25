@@ -5,12 +5,10 @@
 // table-free-friendly; we keep it simple so Gmail/Outlook/Apple all render it.
 
 import { type CalendarEvent } from "@/lib/calendar";
-import { renderEmail, type EmailOffice } from "@/lib/email/layout";
+import { renderEmail, emailButton, EMAIL_C, EMAIL_FONT, type EmailBlock, type EmailFact, type EmailOffice } from "@/lib/email/layout";
 import { getGivenName } from "@/lib/names";
 
 const EAT_TZ = "Africa/Dar_es_Salaam";
-const ACCENT = "#1f7aeb";
-const FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
 
 export type EventEmailKind = "invite" | "reminder" | "followup" | "update" | "cancel";
 
@@ -137,78 +135,13 @@ export function whenLine(ev: CalendarEvent): string {
   return `${start}${end ? `–${end}` : ""} (EAT)`;
 }
 
-/**
- * A full-width action button.
- *
- * Full width on EVERY screen, not just narrow ones. The buttons used to sit in a
- * fixed 240px column beside the details, collapsing to one column via a media
- * query — and that query never runs in Gmail, because this email is sent as an
- * HTML fragment with no <head> for a stylesheet to live in. Gmail therefore kept
- * both columns on a phone and squeezed the actual information into roughly a
- * third of the screen, so "Mon, 7 September 2026 at 10:45–12:15" broke over
- * three lines. Apple Mail is lenient and looked fine, which is why it went
- * unnoticed.
- *
- * A single column needs no stylesheet to be correct, so it renders identically
- * everywhere. Buttons are also easier to hit at full width.
- */
-function blockButton(href: string, label: string, filled: boolean): string {
-  const base =
-    "display:block;text-align:center;padding:13px 18px;border-radius:10px;font-size:15px;font-weight:600;text-decoration:none;";
-  const style = filled
-    ? `${base}background:${ACCENT};color:#ffffff;`
-    : `${base}background:#f4f6fa;color:#1b2a4a;border:1px solid #dde3ee;`;
-  return `<tr><td style="padding:0 0 9px"><a href="${esc(href)}" style="${style}">${esc(label)}</a></td></tr>`;
-}
-
-/**
- * A detail as label ABOVE value, not beside it.
- *
- * Two columns meant the label column claimed a fixed slice and the value lived
- * in whatever was left — the thing that made these emails feel cramped. Stacked,
- * the value always has the full width of the message, so it wraps only when the
- * text genuinely needs it.
- */
-function detailRow(label: string, valueHtml: string): string {
-  return `<tr><td style="padding:0 0 14px">
-    <div style="font-size:12px;font-weight:600;letter-spacing:0.4px;text-transform:uppercase;color:#9aa3b2;font-family:${FONT};padding-bottom:3px">${esc(label)}</div>
-    <div style="font-size:15px;line-height:1.5;color:#1b2333;font-family:${FONT}">${valueHtml}</div>
-  </td></tr>`;
-}
-
-/**
- * The headline answer: when it happens, big enough to read at a glance.
- * On a travel entry this is the one line that matters most, so it is given the
- * weight the old flat list never gave it.
- */
-function heroWhen(ev: CalendarEvent): string {
-  const dayPart = new Date(ev.startAt).toLocaleDateString("en-GB", {
+/** The headline answer — the day, then the time, big enough to read at a glance. */
+function whenParts(ev: CalendarEvent): { day: string; time: string } {
+  const day = new Date(ev.startAt).toLocaleDateString("en-GB", {
     timeZone: EAT_TZ, weekday: "long", day: "numeric", month: "long", year: "numeric",
   });
-  const timePart = ev.allDay
-    ? "All day"
-    : `${timeOnly(ev.startAt)}${ev.endAt ? ` – ${timeOnly(ev.endAt)}` : ""} (EAT)`;
-  return `<tr><td style="padding:0 0 18px">
-    <div style="font-size:12px;font-weight:600;letter-spacing:0.4px;text-transform:uppercase;color:#9aa3b2;font-family:${FONT};padding-bottom:5px">When</div>
-    <div style="font-size:19px;font-weight:600;line-height:1.35;color:#1b2333;font-family:${FONT}">${esc(dayPart)}</div>
-    <div style="font-size:17px;line-height:1.4;color:${ACCENT};font-weight:600;font-family:${FONT};padding-top:2px">${esc(timePart)}</div>
-  </td></tr>`;
-}
-
-/**
- * The details block (the flight summary, an agenda) in a quiet panel.
- *
- * `white-space:pre-wrap` so the line breaks written into the description survive
- * — without it the whole block collapses into one paragraph, which is how the
- * flight details ended up as an unreadable run of text.
- */
-function detailsPanel(text: string): string {
-  return `<tr><td style="padding:2px 0 16px">
-    <div style="border-left:3px solid #e3e8f0;padding:2px 0 2px 14px">
-      <div style="font-size:12px;font-weight:600;letter-spacing:0.4px;text-transform:uppercase;color:#9aa3b2;font-family:${FONT};padding-bottom:6px">Details</div>
-      <div style="font-size:15px;line-height:1.65;color:#3d4657;font-family:${FONT};white-space:pre-wrap">${esc(text)}</div>
-    </div>
-  </td></tr>`;
+  const time = ev.allDay ? "All day" : `${timeOnly(ev.startAt)}${ev.endAt ? ` – ${timeOnly(ev.endAt)}` : ""} (EAT)`;
+  return { day, time };
 }
 
 /** Build the full branded email for an event. Returns subject + HTML + plain text. */
@@ -260,120 +193,69 @@ export function buildEventEmail(ev: CalendarEvent, opts: EventEmailOptions = {})
   // version gave every one of these identical weight in a flat two-column list,
   // so the departure time of a flight looked no more important than its baggage
   // allowance.
-  const rows: string[] = [];
+  // Everything below is the SHARED template's blocks (lib/email/layout.ts), so
+  // an invitation looks like every other email the system sends (owner, 25 Sept
+  // 2026: "unify all of them"). Order is what someone needs first: what changed
+  // (on an update), WHEN, where, the detail, the papers, then housekeeping.
+  const blocks: EmailBlock[] = [{ kind: "lead", text: intro }];
 
-  // What changed goes FIRST on an update — it is the only reason the message
-  // exists, and burying it under the full details is how the old one read.
   const changed = opts.changeLines ?? [];
-  if (kind === "update" && changed.length) {
-    rows.push(`<tr><td style="padding:0 0 16px">
-      <div style="border-left:3px solid ${ACCENT};background:${ACCENT}0d;border-radius:0 10px 10px 0;padding:10px 14px">
-        <div style="font-size:12px;font-weight:600;letter-spacing:0.4px;text-transform:uppercase;color:${ACCENT};font-family:${FONT};padding-bottom:5px">What changed</div>
-        ${changed.map((l) => `<div style="font-size:15px;line-height:1.55;color:#1b2333;font-family:${FONT}">${esc(l)}</div>`).join("")}
-      </div>
-    </td></tr>`);
-  }
+  if (kind === "update" && changed.length) blocks.push({ kind: "callout", label: "What changed", lines: changed, tone: "accent" });
 
-  rows.push(heroWhen(ev));
+  const w = whenParts(ev);
+  blocks.push({ kind: "hero", label: "When", big: w.day, small: w.time });
 
-  if (ev.location) rows.push(detailRow("Where", esc(ev.location)));
-  if (ev.meetLink) {
-    rows.push(
-      detailRow(
-        "Join",
-        `<a href="${esc(ev.meetLink)}" style="color:${ACCENT};font-weight:600;word-break:break-all">${esc(ev.meetLink)}</a>`
-      )
-    );
-  }
-  if (ev.description) rows.push(detailsPanel(ev.description));
+  const facts: EmailFact[] = [];
+  if (ev.location) facts.push({ label: "Where", text: ev.location });
+  if (ev.meetLink) facts.push({ label: "Join", html: `<a class="em-link" href="${esc(ev.meetLink)}" style="color:${EMAIL_C.link};font-weight:600;word-break:break-all">${esc(ev.meetLink)}</a>` });
+  if (facts.length) blocks.push({ kind: "facts", rows: facts });
+  if (ev.description) blocks.push({ kind: "callout", label: "Details", lines: [ev.description], tone: "muted" });
 
-  // Attached papers. Named and linked even when the file rode along, because a
-  // phone mail client often hides attachments below the fold — and a ticket you
-  // can't find is a ticket you don't have.
+  // Attached papers — named and linked even when the file rode along, because a
+  // phone mail client often hides attachments below the fold.
   const attachments = opts.attachments ?? [];
   if (attachments.length && kind !== "cancel") {
-    const list = attachments
-      .map((a) => {
-        const label = a.fileName || a.title;
-        const note = a.tooLarge ? `<div style="color:#8a93a6;font-size:12.5px;padding-top:1px">Too large to attach — open the link</div>` : "";
-        return `<div style="padding:0 0 6px"><a href="${esc(a.url)}" style="color:${ACCENT};font-weight:600;text-decoration:none;word-break:break-word">${esc(label)}</a>${note}</div>`;
-      })
-      .join("");
-    rows.push(detailRow(attachments.length === 1 ? "Attached" : "Attached files", list));
+    blocks.push({
+      kind: "links",
+      label: attachments.length === 1 ? "Attached" : "Attached files",
+      links: attachments.map((a) => ({ label: a.fileName || a.title, url: a.url, note: a.tooLarge ? "Too large to attach — open the link" : undefined })),
+    });
   }
 
   const guests = ev.attendees.filter((a) => a.name || a.email).map((a) => a.name || a.email!).join(", ");
-  if (guests) rows.push(detailRow("Guests", esc(guests)));
-  if (opts.categoryName) rows.push(detailRow("Type", esc(opts.categoryName)));
-  if (repeats) rows.push(detailRow("Repeats", esc(repeats)));
-  if (reminders && kind !== "followup") rows.push(detailRow("Reminders", esc(reminders)));
+  const more: EmailFact[] = [];
+  if (guests) more.push({ label: "Guests", text: guests });
+  if (opts.categoryName) more.push({ label: "Type", text: opts.categoryName });
+  if (repeats) more.push({ label: "Repeats", text: repeats });
+  if (reminders && kind !== "followup") more.push({ label: "Reminders", text: reminders });
+  if (more.length) blocks.push({ kind: "facts", rows: more });
 
-  // --- Actions ---
-  //
-  // Only ONE button survives: joining a meeting. Everything else that used to be
-  // here was removed once the automatic path was verified end to end:
-  //
-  //  • "Add to Google" / "Add to Outlook" — the invite, update and cancellation
-  //    emails all carry a real inline text/calendar entry, so the recipient's
-  //    calendar files it for them. Worse, these two built a TEMPLATE url with no
-  //    UID (see googleCalendarUrl): pressing one creates a SECOND, unlinked copy
-  //    of an event they already have. That is how you get the same flight three
-  //    times on one phone.
-  //  • "View ticket" / "Open attachment" — the file is already linked in the
-  //    Attached row above, so the button was the same link twice.
-  //
-  // The escape hatch is the quiet "View details" link under the buttons: the
-  // public event page carries Add-to-Google and an .ics, for the rare guest whose
-  // calendar does not file invitations automatically.
+  // ONE button: joining a meeting. "Add to Google/Outlook" were removed on
+  // purpose — the message carries a real calendar entry, and those template
+  // links made an unlinked SECOND copy. The quiet "View this…" link is the
+  // fallback: its page carries Add-to-Google and an .ics.
   const showButtons = kind !== "followup" && kind !== "cancel";
-  const buttons: string[] = [];
-  if (ev.meetLink && showButtons) buttons.push(blockButton(ev.meetLink, "Join the meeting", true));
+  // The button sits right after the facts, before the small print.
+  if (ev.meetLink && showButtons) blocks.push({ kind: "html", html: emailButton(ev.meetLink, "Join the meeting") });
+  if (opts.publicUrl && kind !== "cancel") {
+    blocks.push({ kind: "html", html: `<div style="padding:12px 0 0;font-size:14px;font-family:${EMAIL_FONT}"><a class="em-link" href="${esc(opts.publicUrl)}" style="color:${EMAIL_C.link};text-decoration:none">View this ${isMeeting ? "meeting" : "event"} &rsaquo;</a></div>` });
+  }
+  blocks.push({ kind: "fine", text: "Times shown in Dar es Salaam (EAT, UTC+3) unless stated otherwise." });
 
-  const greeting = opts.recipientName ? `<p style="margin:0 0 10px;font-size:15px;color:#1b2333;font-family:${FONT}">Hi ${esc(firstName(opts.recipientName))},</p>` : "";
-
-  // ONE column. No media query, no classes, nothing that can be stripped — the
-  // layout is correct at every width because there is only ever one column.
-  const detailsTable = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse">${rows.join("\n")}</table>`;
-  const buttonTable = buttons.length
-    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;padding-top:4px">${buttons.join("")}</table>`
-    : "";
-
-  // A quiet text link, not a button — the safety net for a guest whose calendar
-  // didn't file the invitation by itself. The page it opens carries
-  // Add-to-Google and an .ics, so the fallback lives there rather than cluttering
-  // every email with buttons almost nobody needs.
-  const detailsLink =
-    opts.publicUrl && kind !== "cancel"
-      ? `<p style="margin:14px 0 0;font-size:13.5px;font-family:${FONT}"><a href="${esc(opts.publicUrl)}" style="color:${ACCENT};text-decoration:none">View this ${isMeeting ? "meeting" : "event"} &rsaquo;</a></p>`
-      : "";
-
-  // The bespoke event body lives inside the SHARED shell (masthead office identity
-  // + footer sign-off), so every email in the system shares one design language.
-  const body = `
-    ${greeting}
-    <p style="margin:0 0 20px;font-size:15px;line-height:1.5;color:#5b6577;font-family:${FONT}">${esc(intro)}</p>
-    ${detailsTable}
-    ${buttonTable}
-    ${detailsLink}
-    <p style="color:#aab2c0;font-size:11.5px;margin:18px 0 0;font-family:${FONT}">Times shown in Dar es Salaam (EAT, UTC+3) unless stated otherwise.</p>`;
-
-  // No longer "or use the buttons" — there are none to use. The sentence now says
-  // only what is true: the entry is in the message and the app files it.
   const footerNote = (kind === "invite" || kind === "update")
     ? `This message includes a calendar ${isMeeting ? "invitation" : "entry"}, so Gmail, Apple Calendar and Outlook add it to your diary automatically.`
     : undefined;
 
   const html = renderEmail({
     title: ev.title,
+    subtitle: kind === "cancel" ? "Cancelled" : kind === "update" ? "Updated" : kind === "reminder" ? "Reminder" : kind === "followup" ? "Follow-up" : company,
+    preheader: `${w.day} · ${w.time}${ev.location ? ` · ${ev.location}` : ""}`,
+    greeting: opts.recipientName ? `Hi ${firstName(opts.recipientName)},` : undefined,
     office: opts.office ?? "command",
     signoffName: opts.signoffName ?? opts.organizerName ?? undefined,
     signoffTitle: opts.signoffTitle ?? undefined,
     footerNote,
-    // The 760px card existed to fit the old side-by-side columns. A single
-    // column reads better narrow — long lines are harder to follow — so the
-    // event email uses the standard 600px card like everything else.
-    wide: false,
-    blocks: [{ kind: "html", html: body }],
+    blocks,
   });
 
   // --- Plain-text fallback ---

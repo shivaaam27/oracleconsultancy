@@ -128,7 +128,9 @@ async function externalNotify(config: RuleConfig, personIds: number[], subject: 
       if (channel === "email") {
         if (!c.email) continue;
         const { sendEmail } = await import("@/lib/email/send");
-        const res = await sendEmail({ to: c.email, subject, text: `${body}`, fromName: "ORI" });
+        const { renderPlainEmail } = await import("@/lib/email/layout");
+        // In the one email template, like every other email the system sends.
+        const res = await sendEmail({ to: c.email, subject, text: `${body}`, html: renderPlainEmail(body, { title: subject, office: "admin", signature: false }), fromName: "ORI" });
         if (res.ok) sent++;
       } else {
         // whatsapp / sms both go through the WhatsApp helper's free-form text path.

@@ -1,5 +1,6 @@
 "use server";
 import { guardOwner, guardViewer, type Viewer } from "@/lib/viewer";
+import { renderPlainEmail } from "@/lib/email/layout";
 import { needCap, viewerPeopleIds } from "@/lib/viewer-scope";
 import { revalidatePath, updateTag } from "next/cache";
 import { markSent } from "@/lib/outbox/gen";
@@ -16,15 +17,11 @@ function recipientsOf(raw: string | null | undefined): string[] {
   return list.length && list.every((a) => EMAIL_RE.test(a)) ? list : [];
 }
 
+// A draft goes out in the ONE email template (lib/email/layout.ts) like every
+// other email — as a letter: the mark in the header band, the words, and the
+// configured signature inside the card.
 function htmlBody(text: string): string {
-  const esc = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  // A simple, well-spaced container that reads cleanly in every mail client.
-  // The signature footer is appended centrally in src/lib/email.ts.
-  return (
-    `<div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;font-size:15px;` +
-    `color:#1f2937;line-height:1.6;max-width:600px;white-space:pre-wrap">` +
-    `${esc.replace(/\n/g, "<br>")}</div>`
-  );
+  return renderPlainEmail(text, { signature: true });
 }
 
 /**

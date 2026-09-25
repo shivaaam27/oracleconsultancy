@@ -63,6 +63,8 @@ function escapeHtml(s: string): string {
 
 // Marker that flags an html body we've already signed, so we never double-sign.
 const SIG_MARKER = "<!--cos-signature-->";
+// A templated email that wants the configured signature INSIDE its card (layout.ts).
+const SIG_SLOT = "<!--cos-signature-slot-->";
 const SIG_CID = "cos-signature-image";
 
 /** Download a stored signature image and return it as an inline attachment. */
@@ -95,7 +97,10 @@ async function withSignature(input: SendEmailInput, cfg: EmailConfig): Promise<S
   const sig = cfg.signature.trim();
   const imagePath = cfg.signatureImagePath.trim();
   if (!sig && !imagePath) return input;
-  if (input.html?.includes(SIG_MARKER)) return input; // already signed
+  // A templated email with a SLOT takes the signature inside its card; one with
+  // only the marker already owns its footer (no double-sign).
+  const slotted = !!input.html?.includes(SIG_SLOT);
+  if (!slotted && input.html?.includes(SIG_MARKER)) return input;
 
   const image = imagePath ? await loadSignatureImage(imagePath) : null;
 
@@ -115,12 +120,22 @@ async function withSignature(input: SendEmailInput, cfg: EmailConfig): Promise<S
       parts.push(
         `<div style="margin-top:${image ? 8 : 0}px;font-family:-apple-system,Segoe UI,Roboto,sans-serif;font-size:13px;color:#6b7280;line-height:1.5">${escapeHtml(sig).replace(/\n/g, "<br>")}</div>`
       );
-    html = `${html}<div style="margin-top:24px;padding-top:16px;border-top:1px solid #e5e7eb">${parts.join("")}</div>`;
+    if (slotted) {
+      html = html.replace(SIG_SLOT, `<div style="padding-top:18px">${parts.slice(1).join("")}</div>`);
+    } else {
+      const block = `<div style="margin-top:24px;padding-top:16px;border-top:1px solid #e5e7eb">${parts.join("")}</div>`;
+      html = /<\/body>/i.test(html) ? html.replace(/<\/body>/i, `${block}</body>`) : `${html}${block}`;
+    }
   }
 
   const attachments = image ? [...(input.attachments ?? []), image] : input.attachments;
 
   return { ...input, text, html, attachments };
+}
+
+function insertAtBodyStart(html: string, bit: string): string {
+  const m = /<body[^>]*>/i.exec(html);
+  return m ? html.slice(0, m.index + m[0].length) + bit + html.slice(m.index + m[0].length) : bit + html;
 }
 
 export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult> {
@@ -143,7 +158,9 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
       ...input,
       subject: `[TEST] ${input.subject}`,
       text: input.text ? `${note}\n\n${input.text}` : note,
-      html: input.html ? `<p style="color:#b45309;font-size:12px;margin:0 0 12px">${note}</p>${input.html}` : undefined,
+      // Inside <body> when the email is a full document (the template), never
+      // in front of its doctype.
+      html: input.html ? insertAtBodyStart(input.html, `<p style="color:#b45309;font-size:12px;margin:12px;font-family:-apple-system,Segoe UI,Roboto,sans-serif">${escapeHtml(note)}</p>`) : undefined,
     };
   }
 

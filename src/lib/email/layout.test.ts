@@ -4,7 +4,9 @@ import { renderEmail } from "./layout";
 describe("renderEmail", () => {
   it("renders title, subtitle, masthead office + org and the signature marker", () => {
     const html = renderEmail({ title: "Director brief", subtitle: "Portfolio", blocks: [] });
-    expect(html.startsWith("<!--cos-signature-->")).toBe(true); // stops double-signing
+    expect(html.startsWith("<!DOCTYPE html>")).toBe(true); // a real document: Gmail keeps a <style> only in <head>
+    expect(html).toContain("<!--cos-signature-->"); // stops double-signing
+    expect(html).toMatch(/<head>[\s\S]*@media[\s\S]*<\/head>/); // the media query lives in the head
     expect(html).toContain("Oracle Consultancy Ltd"); // masthead org name
     expect(html).toContain("Director brief");
     expect(html).toContain("Portfolio");
@@ -41,7 +43,30 @@ describe("renderEmail", () => {
     expect(html).toContain("Needs attention");
     expect(html).toContain("High");
     expect(html).toContain("https://example.com");
-    expect(html).toContain("#b91c1c"); // danger stat colour
+    expect(html).toContain("#C2267A"); // danger stat colour
+  });
+
+  it("renders the event blocks, keeping line breaks without pre-wrap", () => {
+    const html = renderEmail({
+      title: "Flight",
+      greeting: "Hi Asha,",
+      blocks: [
+        { kind: "lead", text: "You're invited" },
+        { kind: "hero", label: "When", big: "Monday, 7 September 2026", small: "10:45 – 12:15 (EAT)" },
+        { kind: "facts", rows: [{ label: "Where", text: "JNIA" }] },
+        { kind: "callout", label: "Details", lines: ["line one\nline two"], tone: "muted" },
+        { kind: "links", label: "Attached", links: [{ label: "ticket.pdf", url: "https://x/e/t/doc/1" }] },
+        { kind: "fine", text: "Times in EAT" },
+      ],
+    });
+    for (const t of ["Hi Asha,", "Monday, 7 September 2026", "10:45 – 12:15 (EAT)", "JNIA", "line one<br>line two", "ticket.pdf", "Times in EAT"]) expect(html).toContain(t);
+    expect(html).not.toContain("pre-wrap"); // Outlook ignores it
+    expect(html).not.toMatch(/#[0-9a-fA-F]{8}/); // no 8-digit hex (Outlook, older Gmail)
+  });
+
+  it("leaves a slot for the signature only when asked", () => {
+    expect(renderEmail({ title: "", blocks: [], signature: true })).toContain("<!--cos-signature-slot-->");
+    expect(renderEmail({ title: "x", blocks: [] })).not.toContain("<!--cos-signature-slot-->");
   });
 
   it("escapes HTML in user content", () => {
