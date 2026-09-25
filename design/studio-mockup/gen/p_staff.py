@@ -111,7 +111,7 @@ def hero_bars(n=7):
     # One bar per open task, as on the owner's Home — few tasks, so wider bars.
     vals = [0.9, 0.75, 0.7, 0.45, 0.45, 0.45, 0.45]
     cols = [LATE, SOON, SOON, '#C9CD3C', '#C9CD3C', '#C9CD3C', '#C9CD3C']
-    return bars(vals[:n], cols[:n], 74, 56, 8)
+    return bars(vals[:n], cols[:n], 60, 56, 8)
 
 
 # ───────────────────────────── 0 · The rules ─────────────────────────────
@@ -161,7 +161,7 @@ def rules():
 
 # ─────────────────────────────── 1 · Home ───────────────────────────────
 def home():
-    hero = ('<div class="dk contour" style="grid-column:span 2;padding:22px 26px;display:flex;flex-direction:column">'
+    hero = ('<div class="dk contour" style="grid-column:span 2;padding:20px 24px;display:flex;flex-direction:column;min-height:0">'
             '<div style="display:flex;justify-content:space-between;gap:20px"><div style="min-width:0"><div style="font-size:13px;color:#F2F2F0;white-space:nowrap">Good morning, Hriday · Saturday 26 September</div>'
             '<div style="font-size:30px;letter-spacing:-0.025em;margin-top:8px;white-space:nowrap">Your 7 open tasks, at a glance</div>'
             '<span class="dp" style="margin-top:12px">%sLive: Test Announcement — Task Creation Advice<span style="color:#fff;text-decoration:underline;margin-left:4px">Acknowledge</span></span></div>'
@@ -172,8 +172,8 @@ def home():
         hero_bars(),
         ''.join('<span style="display:flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:2px;background:%s"></span>%s</span>' % x for x in [(LATE, 'Late · 1'), (SOON, 'Due soon · 2'), ('#C9CD3C', 'No date · 4')]),
         ic('spark', 13))
-    checkin = ('<div class="wc" style="display:flex;flex-direction:column;gap:12px"><div class="wct">Today<span>Sat 26 Sept</span></div>'
-               '<div style="font-size:22px;letter-spacing:-0.02em">How are you working today?</div>'
+    checkin = ('<div class="wc" style="display:flex;flex-direction:column;gap:10px;min-height:0"><div class="wct">Today<span>Sat 26 Sept</span></div>'
+               '<div style="font-size:20px;letter-spacing:-0.02em">How are you working today?</div>'
                '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">%s</div>'
                '<div class="wk">%s</div><div style="flex:1"></div><div class="t2" style="margin:0">5 of 5 days this week · your manager can adjust a day</div></div>') % (
         ''.join('<span class="ci">%s</span>' % x for x in ['Present', 'Remote', 'Half-day', 'Sick']),
@@ -187,7 +187,8 @@ def home():
             '<div class="st"><span class="sto"></span>Call TRA office about the reference</div>'
             '<div class="st"><span class="stx">%s</span><span style="color:#8E9197;text-decoration:line-through">Send bank statements to Jitesh</span></div>'
             '<div class="sin" style="margin-top:8px;height:36px;font-size:13px">%sAdd a to-do — Enter adds it · 🔔 set a time</div></div>') % (ic('check', 11, 3), ic('plus', 13))
-    dk = ('<div class="gr3" style="grid-template-rows:auto;flex:1">%s%s</div><div class="gr3">%s%s%s</div>') % (hero, checkin, diary, late, todo)
+    dk = ('<div style="display:grid;grid-template-rows:minmax(250px,0.8fr) minmax(0,1fr);gap:16px;flex:1;min-height:0">'
+          '<div class="gr3" style="min-height:0">%s%s</div><div class="gr3" style="min-height:0">%s%s%s</div></div>') % (hero, checkin, diary, late, todo)
     ph = ('<div class="pg"><div class="dk contour"><div style="font-size:12px;color:#F2F2F0">Good morning, Hriday · Sat 26 Sept</div>'
           '<div class="dp" style="margin-top:8px;max-width:100%%;overflow:hidden">%sLive: Task Creation Advice</div>'
           '<div style="font-size:24px;letter-spacing:-0.02em;line-height:1.1;margin:10px 0 12px">Your 7 open tasks, at a glance</div>'
