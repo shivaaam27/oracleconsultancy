@@ -90,6 +90,23 @@ async function tick(req: NextRequest) {
     } catch (err) {
       await reportError(err, { route: "cron.tick/meetings" });
     }
+    // Scheduled announcements go out at their go-live, not when Publish was
+    // pressed (0172). Claimed per post, so a race with the morning run is safe.
+    let announced = 0;
+    try {
+      const { deliverDueAnnouncements } = await import("@/lib/announcements");
+      announced = await deliverDueAnnouncements();
+    } catch (err) {
+      await reportError(err, { route: "cron.tick/announcements" });
+    }
+    // Scheduled Outbox drafts whose time has come — one push to the owner.
+    try {
+      const { nudgeDueScheduledDrafts } = await import("@/lib/outbox/drafts");
+      await nudgeDueScheduledDrafts();
+    } catch (err) {
+      await reportError(err, { route: "cron.tick/outbox-scheduled" });
+    }
+
     // Routine alerts held for the digest go out once an hour (the first tick of
     // each hour), and never inside quiet hours — the flush holds itself then.
     // It used to run only at 08:30, so a quiet window over 08:30 held them for
@@ -103,7 +120,7 @@ async function tick(req: NextRequest) {
         await reportError(err, { route: "cron.tick/digest" });
       }
     }
-    await recordEvent("cron.tick", "ok", { evaluated, fired, retired, events, todos, meetings, digest });
+    await recordEvent("cron.tick", "ok", { evaluated, fired, retired, events, todos, meetings, digest, announced });
     return NextResponse.json({ ok: true, ran: evaluated, fired, retired, events, todos, meetings, digest });
   } catch (err) {
     // Fail-open: report + a soft 200 so a flaky sweep doesn't make the scheduler

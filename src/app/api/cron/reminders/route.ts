@@ -50,7 +50,10 @@ export async function GET(req: NextRequest) {
   if (!auth.ok) return NextResponse.json({ ok: false, message: auth.message }, { status: auth.status });
 
   try {
-    if (!configurePush()) return NextResponse.json({ ok: true, skipped: "push-not-configured" });
+    if (!configurePush()) {
+      await recordEvent("cron.reminders", "ok", { skipped: "push-not-configured" });
+      return NextResponse.json({ ok: true, skipped: "push-not-configured" });
+    }
     const { sent, due } = await runTodoReminders();
     await recordEvent("cron.reminders", "ok", { sent, due });
     return NextResponse.json({ ok: true, sent, due });

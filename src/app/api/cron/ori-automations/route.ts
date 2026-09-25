@@ -681,16 +681,22 @@ async function checkQuietStaff(now: Date, quietDaysFallback = 5): Promise<number
  * fires each rule at most once per day-slot (lastFiredKey/last_fired_at dedupe), so
  * calling it 100×/day is safe. Fail-open: one rule's failure never aborts the rest.
  */
-export async function runDueRules(now = new Date()): Promise<{ evaluated: number; fired: number; retired: number }> {
+export async function runDueRules(
+  now = new Date(),
+  // `onlyRuleId` = the "Test now" button: that ONE rule, and not the built-in
+  // signals. Without it a test fired every due rule in the system (26 Sept 2026).
+  opts: { onlyRuleId?: number } = {},
+): Promise<{ evaluated: number; fired: number; retired: number }> {
   const nowIso = now.toISOString();
   let fired = 0, retired = 0, evaluated = 0;
 
   {
-    const { data: rules } = await sb
+    let ruleQuery = sb
       .from("automation_rules")
       .select("id,task_id,company_id,kind,config,active,done,created_at,last_fired_at,created_by")
-      .eq("active", true).eq("done", false)
-      .limit(500);
+      .eq("active", true).eq("done", false);
+    if (opts.onlyRuleId != null) ruleQuery = ruleQuery.eq("id", opts.onlyRuleId);
+    const { data: rules } = await ruleQuery.limit(500);
 
     for (const raw of (rules ?? []) as Record<string, unknown>[]) {
       const taskId = raw.task_id as number | null;
@@ -707,6 +713,16 @@ export async function runDueRules(now = new Date()): Promise<{ evaluated: number
         evaluated++;
         const patch: Record<string, unknown> = { last_run_at: nowIso };
         if (evalRes.fire) {
+          // CLAIM the occurrence before making it. The daily cron and the tick can
+          // both reach a due rule at the same moment; stamping last_fired_at only
+          // AFTER the insert let both create the task (26 Sept 2026). The update
+          // matches only while last_fired_at is still what we read, so exactly
+          // one run wins and the other moves on.
+          const prevFired = (raw.last_fired_at as string | null) ?? null;
+          let claim = sb.from("automation_rules").update({ last_fired_at: nowIso, last_run_at: nowIso }).eq("id", raw.id as number);
+          claim = prevFired ? claim.eq("last_fired_at", prevFired) : claim.is("last_fired_at", null);
+          const { data: claimed } = await claim.select("id");
+          if (!claimed?.length) continue;
           patch.last_fired_at = nowIso;
           fired++;
           try {
@@ -1049,8 +1065,10 @@ export async function runDueRules(now = new Date()): Promise<{ evaluated: number
   // Built-in daily signal checks (own once/day dedupe; notify-only; fail-open). Each
   // is owner-toggle-able + threshold-configurable on the ORI Automation page; the
   // enabled flag is read inside the check (fail-open = on/default → today's behaviour).
-  await checkUndecided(now);
-  await checkQuietStaff(now);
+  if (opts.onlyRuleId == null) {
+    await checkUndecided(now);
+    await checkQuietStaff(now);
+  }
 
   return { evaluated, fired, retired };
 }
@@ -1092,8 +1110,8 @@ export async function fireRuleNow(ruleId: number): Promise<{ ok: boolean; fired:
     const cfg = (row.config as RuleConfig) ?? {};
     const cleaned = { ...cfg }; delete (cleaned as Record<string, unknown>).lastFiredKey;
     await sb.from("automation_rules").update({ config: cleaned, last_fired_at: null }).eq("id", ruleId);
-    const before = await runDueRules();
-    return { ok: true, fired: before.fired };
+    const res = await runDueRules(new Date(), { onlyRuleId: ruleId });
+    return { ok: true, fired: res.fired };
   } catch (e) {
     await reportError(e, { route: "cron.ori-automations", step: "fireRuleNow", ruleId });
     return { ok: false, fired: 0 };

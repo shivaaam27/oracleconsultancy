@@ -107,7 +107,9 @@ export async function folderOwners(folderId: number | null): Promise<{ companyId
  *  in app/files/actions.ts. */
 export async function purgeExpiredDeleted(): Promise<number> {
   const cutoff = new Date(Date.now() - KEEP_DELETED_DAYS * 86_400_000).toISOString();
-  const { data } = await sb.from("documents").select("id").eq("archived", true).lt("deleted_at", cutoff);
+  // At most 200 a morning: a mistake (a bulk delete, a clock gone wrong) can then
+  // only ever cost one morning's worth, and the rest waits for tomorrow.
+  const { data } = await sb.from("documents").select("id").eq("archived", true).lt("deleted_at", cutoff).order("deleted_at").limit(200);
   for (const r of data ?? []) { try { await deleteDocumentForever(r.id as number); } catch { /* next */ } }
   await sb.from("folders").delete().lt("deleted_at", cutoff);
   return data?.length ?? 0;

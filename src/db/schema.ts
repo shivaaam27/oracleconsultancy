@@ -1700,6 +1700,9 @@ export const announcements = pgTable("announcements", {
   authorPersonId: integer("author_person_id").references(() => people.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
   publishedAt: timestamp("published_at", { mode: "date", withTimezone: true }),
+  // 0172: when the push + Outbox drafts went out. A scheduled post is delivered
+  // at go-live (deliverDueAnnouncements), not when Publish is pressed.
+  deliveredAt: timestamp("delivered_at", { mode: "date", withTimezone: true }),
 });
 
 // Per-person read / acknowledge state for an announcement. Rows are created

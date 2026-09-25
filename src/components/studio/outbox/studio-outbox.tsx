@@ -97,13 +97,19 @@ export function StudioOutbox({
         rank: overdue ? -overdue : 1,
       };
     });
+    const nowMs = Date.now();
     const dr: Item[] = drafts.map((row) => {
       const auto = !!row.source?.startsWith("automation");
+      // A scheduled draft: waiting until its time, then first in the list.
+      const at = row.scheduledFor ? new Date(row.scheduledFor).getTime() : null;
+      const due = at != null && at <= nowMs;
+      const when = at != null ? new Date(at).toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Africa/Nairobi" }) : null;
+      const base = labelForSource(row.source) ?? (row.subject || chLabel(row.channel));
       return {
         kind: "draft", key: `d:${row.id}`, row, auto,
         name: row.recipientName || row.recipientContact || "Draft",
-        sub: labelForSource(row.source) ?? (row.subject || chLabel(row.channel)),
-        dot: "var(--st-violet)", companies: row.company ? [row.company] : [], rank: 2,
+        sub: when ? (due ? `Ready to send — was set for ${when} · ${base}` : `To send ${when} · ${base}`) : base,
+        dot: due ? "var(--st-soon)" : "var(--st-violet)", companies: row.company ? [row.company] : [], rank: due ? -1000 : at != null ? 3 : 2,
       };
     });
     const s: Item[] = sent.map((e) => ({

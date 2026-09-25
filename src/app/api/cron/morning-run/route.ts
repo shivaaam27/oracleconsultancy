@@ -41,6 +41,23 @@ export async function GET(req: NextRequest) {
       await recordEvent("cron.morning", "error", { step: "meeting-tasks", message: e instanceof Error ? e.message : String(e) });
     }
 
+    // 1a¾. Scheduled announcements whose go-live has passed (0172) — the tick
+    //   does this through the day; this catches them when no tick is running.
+    try {
+      const { deliverDueAnnouncements } = await import("@/lib/announcements");
+      await deliverDueAnnouncements();
+    } catch (e) {
+      await recordEvent("cron.morning", "error", { step: "announcements", message: e instanceof Error ? e.message : String(e) });
+    }
+
+    // Scheduled Outbox drafts whose time has come — one push to the owner.
+    try {
+      const { nudgeDueScheduledDrafts } = await import("@/lib/outbox/drafts");
+      await nudgeDueScheduledDrafts();
+    } catch (err) {
+      await recordEvent("cron.morning", "error", { step: "outbox-scheduled", message: err instanceof Error ? err.message : String(err) });
+    }
+
     // 1a + 1b DISABLED (Jul 2026, owner request): the system no longer works on
     //   documents overnight on its own. Gap-chasing (proposing tasks/records from
     //   spotted gaps) and document self-heal (re-reading + re-owning mis-read scans)

@@ -9,7 +9,6 @@ import { personRecipient, notifyMany } from "@/lib/notifications";
 import {
   getAnnouncement,
   resolveAudiencePersonIds,
-  createDeliveryDrafts,
   markSeen as markSeenLib,
   acknowledge as acknowledgeLib,
   toggleReaction,
@@ -117,18 +116,11 @@ async function buildPayload(fd: FormData, author: { createdBy: string; authorPer
   };
 }
 
-/** Notify the resolved audience that a published announcement is live. */
+/** Notify the audience — now if the post is live, or at its go-live (the tick
+ *  and the morning run deliver scheduled posts). Exactly once either way. */
 async function notifyAudience(id: number) {
-  const a = await getAnnouncement(id);
-  if (!a) return;
-  const ids = await resolveAudiencePersonIds(a);
-  if (ids.length === 0) return;
-  await notifyMany(
-    ids.map((pid) => personRecipient(pid)),
-    { kind: "announcement", title: `📣 ${a.title}`, body: a.body.slice(0, 160), actor: a.createdBy }
-  );
-  // Extra channels (email / WhatsApp) land as Outbox drafts for the owner to send.
-  await createDeliveryDrafts(a);
+  const { deliverAnnouncement } = await import("@/lib/announcements");
+  await deliverAnnouncement(id);
 }
 
 /* --------------------------- admin (owner) --------------------------- */

@@ -307,10 +307,20 @@ export async function purgeOldRead(days: number = NOTIF_RETENTION_DAYS): Promise
  * for one manager — and self-heals if a write ever slips through.
  */
 export async function purgeSupersededRecurring(): Promise<number> {
-  const { data } = await sb
-    .from("notifications")
-    .select("id,recipient,kind,title,actor,task_code,created_at")
-    .order("created_at", { ascending: false });
+  // PAGED: one unbounded select comes back silently capped at 1,000 rows by
+  // PostgREST, so everything older was never considered (audit 26 Sept 2026).
+  const data: Array<Record<string, unknown>> = [];
+  for (let from = 0; from < 50_000; from += 1000) {
+    const { data: page, error } = await sb
+      .from("notifications")
+      .select("id,recipient,kind,title,actor,task_code,created_at")
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
+      .range(from, from + 999);
+    if (error || !page?.length) break;
+    data.push(...page);
+    if (page.length < 1000) break;
+  }
 
   const newestSeen = new Set<string>();
   const stale: number[] = [];

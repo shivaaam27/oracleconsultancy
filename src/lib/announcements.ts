@@ -319,3 +319,41 @@ export async function unseenPersonIds(a: Announcement): Promise<number[]> {
   );
   return targetIds.filter((id) => !seen.has(id));
 }
+
+/* ------------------ delivery at go-live (0172) ------------------ */
+
+/**
+ * Send a published announcement's push and Outbox drafts — once, and not before
+ * its go-live. Pressing Publish on a post timed for next week used to send them
+ * straight away (audit 26 Sept 2026). The delivered_at claim makes it exactly
+ * once even when Publish, the tick and the morning run race each other.
+ */
+export async function deliverAnnouncement(id: number, now = new Date()): Promise<boolean> {
+  const a = await getAnnouncement(id);
+  if (!a || a.status !== "published") return false;
+  if (a.publishAt && new Date(a.publishAt).getTime() > now.getTime()) return false; // not live yet
+  if (a.expiresAt && new Date(a.expiresAt).getTime() <= now.getTime()) return false;
+  const { data: claimed } = await sb.from("announcements")
+    .update({ delivered_at: now.toISOString() })
+    .eq("id", id).is("delivered_at", null)
+    .select("id");
+  if (!claimed?.length) return false;
+  const ids = await resolveAudiencePersonIds(a);
+  if (ids.length) {
+    const { personRecipient, notifyMany } = await import("@/lib/notifications");
+    await notifyMany(ids.map((pid) => personRecipient(pid)), { kind: "announcement", title: `📣 ${a.title}`, body: a.body.slice(0, 160), actor: a.createdBy });
+  }
+  await createDeliveryDrafts(a);
+  return true;
+}
+
+/** Every scheduled post whose moment has come (the tick and the morning run). */
+export async function deliverDueAnnouncements(now = new Date()): Promise<number> {
+  const { data } = await sb.from("announcements").select("id")
+    .eq("status", "published").is("delivered_at", null)
+    .lte("publish_at", now.toISOString())
+    .limit(50);
+  let n = 0;
+  for (const r of data ?? []) if (await deliverAnnouncement(r.id as number, now)) n++;
+  return n;
+}

@@ -17,6 +17,9 @@ export async function GET(req: NextRequest) {
 
   try {
     const summary = await runDueAutomations();
+    // The watchdog judges this job by its "ok" rows; without one it called a
+    // healthy job stale every other day and re-ran it (26 Sept 2026).
+    await recordEvent("cron.email", "ok", summary as unknown as Record<string, unknown>);
     return NextResponse.json({ ok: true, ...summary });
   } catch (err) {
     await reportError(err, { route: "cron.email" });

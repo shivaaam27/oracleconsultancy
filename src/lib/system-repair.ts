@@ -50,64 +50,30 @@ const REPAIRABLE: Record<string, { label: string; run: () => Promise<string> }> 
   "cron.snapshots": {
     label: "Daily snapshot",
     run: async () => {
-      const { sb } = await import("@/db/supabase");
-      const { getAllTasks, computeCompanyKpis } = await import("@/lib/queries");
-      const tasks = await getAllTasks();
-      const kpis = computeCompanyKpis(tasks);
-      const snapshotDate = new Date();
-      snapshotDate.setHours(0, 0, 0, 0);
-      let written = 0;
-      for (const k of kpis) {
-        const { error } = await sb.from("daily_snapshots").upsert(
-          {
-            snapshot_date: snapshotDate.toISOString(),
-            company_id: k.id,
-            total: k.total, open: k.open, overdue: k.overdue, due_soon: k.dueSoon,
-            blocked: k.blocked, critical: k.critical, escalated: k.escalated,
-            completed: k.completed, closed: k.closed, risk_score: k.riskScore,
-          },
-          { onConflict: "company_id,snapshot_date" },
-        );
-        if (error) throw new Error(error.message);
-        written++;
-      }
-      await recordEvent("cron.snapshots", "ok", { written, repaired: true });
-      return `${written} company snapshots written`;
+      const { runSnapshots } = await import("@/lib/cron-jobs");
+      const r = await runSnapshots();
+      await recordEvent("cron.snapshots", "ok", { ...r, repaired: true });
+      return `${r.written} company snapshots written`;
     },
   },
   "cron.cleanup": {
     label: "Cleanup",
     run: async () => {
-      const { sb } = await import("@/db/supabase");
-      const { data: deleted, error } = await sb
-        .from("undo_tokens").delete().lt("expires_at", new Date().toISOString()).select("id");
-      if (error) throw new Error(error.message);
-      const count = (deleted ?? []).length;
-      await recordEvent("cron.cleanup", "ok", { undoTokensDeleted: count, repaired: true });
-      return `${count} expired undo tokens cleared`;
+      const { runCleanup } = await import("@/lib/cron-jobs");
+      const r = await runCleanup();
+      await recordEvent("cron.cleanup", "ok", { ...r, repaired: true });
+      return `${r.undoTokensDeleted} expired undo tokens, ${r.codesDeleted} sign-in codes, ${r.grantsDeleted} finished connections cleared`;
     },
   },
   "cron.reminders": {
     label: "Reminders",
+    // The route's own function, so a repaired run behaves exactly like a
+    // scheduled one (note deep-links included).
     run: async () => {
-      const { configurePush, sendToRecipient } = await import("@/lib/push");
-      const { dueTodoRemindersForPush, markTodosPushed } = await import("@/lib/todo-reminders");
-      if (!configurePush()) {
-        await recordEvent("cron.reminders", "ok", { sent: 0, skipped: "push-not-configured", repaired: true });
-        return "push not configured (nothing to send)";
-      }
-      const due = await dueTodoRemindersForPush();
-      let sent = 0; const ids: number[] = [];
-      for (const r of due) {
-        const staff = r.kind === "self" && r.personId != null;
-        sent += await sendToRecipient(staff ? `person:${r.personId}` : "admin", {
-          title: "Reminder", body: r.title, url: staff ? "/portal" : "/", tag: `cos-reminder-${r.id}`,
-        });
-        ids.push(r.id);
-      }
-      if (ids.length) await markTodosPushed(ids);
-      await recordEvent("cron.reminders", "ok", { sent, due: due.length, repaired: true });
-      return `${due.length} due, ${sent} pushed`;
+      const { runTodoReminders } = await import("@/app/api/cron/reminders/route");
+      const r = await runTodoReminders();
+      await recordEvent("cron.reminders", "ok", { ...r, repaired: true });
+      return `${r.due} due, ${r.sent} pushed`;
     },
   },
   "cron.email": {
@@ -126,6 +92,7 @@ const REPAIRABLE: Record<string, { label: string; run: () => Promise<string> }> 
     run: async () => {
       const { getAppSettings } = await import("@/lib/settings");
       if (!(await getAppSettings()).semanticSearch) {
+        await recordEvent("cron.reindex", "ok", { skipped: "semantic search off", repaired: true });
         return "semantic search off (nothing to index)";
       }
       const { reindexAll } = await import("@/lib/embeddings-reindex");

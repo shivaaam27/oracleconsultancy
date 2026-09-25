@@ -1212,6 +1212,13 @@
       "when": 1790331727905,
       "tag": "0171_asset_management",
       "breakpoints": true
+    },
+    {
+      "idx": 173,
+      "version": "7",
+      "when": 1790333767995,
+      "tag": "0172_announcement_delivered",
+      "breakpoints": true
     }
   ]
 }

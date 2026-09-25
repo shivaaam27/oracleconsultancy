@@ -52,6 +52,8 @@ export async function GET(req: NextRequest) {
   try {
     const { semanticSearch } = await getAppSettings();
     if (!semanticSearch) {
+      // Ran, correctly did nothing — say so, or the watchdog "repairs" it daily.
+      await recordEvent("cron.reindex", "ok", { skipped: "semantic search off" });
       return NextResponse.json({ ok: true, skipped: "semantic search off" });
     }
 

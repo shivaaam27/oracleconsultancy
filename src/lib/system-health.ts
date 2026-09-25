@@ -78,6 +78,10 @@ const JOBS: Array<{
     },
   },
   { kind: "cron.reindex", label: "Search re-index", everyHours: 24, graceHours: 8 },
+  // Watched from 26 Sept 2026: both run daily and both record ok/error, but a
+  // failure in either was invisible here (calendar reminders, ORI's own rules).
+  { kind: "cron.event-reminders", label: "Calendar reminders", everyHours: 24, graceHours: 8 },
+  { kind: "cron.ori-automations", label: "ORI automations", everyHours: 24, graceHours: 8 },
 ];
 
 const AI_KIND = "doc-extraction";
