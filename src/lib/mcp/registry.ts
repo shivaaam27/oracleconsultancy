@@ -484,7 +484,7 @@ export const MCP_TOOLS: McpTool[] = [
     title: "Read one task in full",
     description:
       "Everything on ONE task: every field, who it's for and who leads, whether it's blocked " +
-      "and on whom, its recent conversation (with the id of each update) and, if you ask, its " +
+      "and on whom, its subtasks (with ids), its recent conversation (with the id of each update) and, if you ask, its " +
       "change history. Use this before update_task so you can say what you're changing FROM.",
     schema: z.object({
       taskCode: z.string().describe("Task code, e.g. DS-014"),
@@ -544,7 +544,10 @@ export const MCP_TOOLS: McpTool[] = [
       "'edit_update' rewrites an update (the original wording is kept), 'pin_update' / " +
       "'unpin_update' pin one to the top, and 'remove_update' takes one off the timeline — that " +
       "is NOT a delete, the row stays and 'restore_update' puts it straight back. Update ids " +
-      "come from get_task.",
+      "come from get_task. Subtasks — the to-do list inside a task: 'add_subtask' adds " +
+      "`subtasks` (a list of lines) to taskCode, 'tick_subtask' / 'untick_subtask' mark one " +
+      "done or open, 'rename_subtask' rewrites one (new wording in `body`). Subtask ids come " +
+      "from get_task. There is no deleting a subtask here.",
     schema: z.object({
       action: z.enum(TASK_ACTIONS),
       taskCode: z.string().optional().describe("Task code — for block, unblock, part_done, part_reopened"),
@@ -552,7 +555,9 @@ export const MCP_TOOLS: McpTool[] = [
       reason: z.string().optional().describe("Why it's blocked, or why an update was changed or taken down"),
       note: z.string().optional().describe("What resolved it, for unblock"),
       updateId: z.number().int().optional().describe("The update to act on — get_task lists these"),
-      body: z.string().optional().describe("The corrected wording, for edit_update"),
+      body: z.string().optional().describe("The corrected wording, for edit_update or rename_subtask"),
+      subtaskId: z.number().int().optional().describe("The subtask to act on — get_task lists these"),
+      subtasks: z.array(z.string()).optional().describe("The lines to add, for add_subtask"),
     }),
     capability: "manageAnyTask",
     write: true,

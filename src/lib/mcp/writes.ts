@@ -558,6 +558,11 @@ export async function mcpTaskDetail(
     detail.history = audit ?? [];
   }
 
+  // Subtasks — the to-do list inside the task (migration 0170), in order.
+  const { data: subs } = await sb.from("task_subtasks").select("id,title,done_at")
+    .eq("task_id", task.id).order("sort_order").order("id");
+  detail.subtasks = (subs ?? []).map((x) => ({ id: x.id as number, title: x.title as string, done: Boolean(x.done_at) }));
+
   return { ok: true, task: detail };
 }
 
@@ -751,6 +756,8 @@ export const TASK_ACTIONS = [
   "block", "unblock",
   "part_done", "part_reopened",
   "edit_update", "pin_update", "unpin_update", "remove_update", "restore_update",
+  // Subtasks (Sept 2026). No delete — MCP never deletes; a finished one is ticked.
+  "add_subtask", "tick_subtask", "untick_subtask", "rename_subtask",
 ] as const;
 
 export async function mcpManageTask(
@@ -763,6 +770,8 @@ export async function mcpManageTask(
     note?: string;
     updateId?: number;
     body?: string;
+    subtaskId?: number;
+    subtasks?: string[];
   },
 ): Promise<WriteResult> {
   const by = callerStamp(caller);
@@ -816,6 +825,36 @@ export async function mcpManageTask(
 
   const task = await resolveTask(caller, args.taskCode ?? "");
   if ("error" in task) return { ok: false, error: task.error };
+
+  // Subtasks: always addressed through the task, so the caller's visibility of
+  // the task (resolveTask above) is what governs them.
+  if (args.action === "add_subtask") {
+    const titles = (args.subtasks ?? (args.body ? [args.body] : [])).map((x) => x.replace(/\s+/g, " ").trim().slice(0, 300)).filter(Boolean);
+    if (!titles.length) return { ok: false, error: "What are the subtasks? Send them in `subtasks`." };
+    const { data: last } = await sb.from("task_subtasks").select("sort_order").eq("task_id", task.id)
+      .order("sort_order", { ascending: false }).limit(1).maybeSingle();
+    const start = ((last?.sort_order as number | undefined) ?? 0) + 1;
+    const { data, error } = await sb.from("task_subtasks")
+      .insert(titles.map((title, i) => ({ task_id: task.id, title, sort_order: start + i, created_by: by })))
+      .select("id,title");
+    if (error) return { ok: false, error: "The subtasks couldn't be added." };
+    return { ok: true, task: task.code, added: data ?? [] };
+  }
+  if (args.action === "tick_subtask" || args.action === "untick_subtask" || args.action === "rename_subtask") {
+    const sid = Math.round(Number(args.subtaskId));
+    if (!Number.isFinite(sid)) return { ok: false, error: "Which subtask? get_task lists them with their ids." };
+    const { data: st } = await sb.from("task_subtasks").select("id,title,task_id").eq("id", sid).maybeSingle();
+    if (!st || st.task_id !== task.id) return { ok: false, error: `${task.code} has no subtask with the id ${sid}.` };
+    if (args.action === "rename_subtask") {
+      const title = (args.body ?? "").replace(/\s+/g, " ").trim().slice(0, 300);
+      if (!title) return { ok: false, error: "What should the subtask say instead?" };
+      await sb.from("task_subtasks").update({ title }).eq("id", sid);
+      return { ok: true, task: task.code, subtaskId: sid, was: st.title, now: title };
+    }
+    const done = args.action === "tick_subtask";
+    await sb.from("task_subtasks").update({ done_at: done ? new Date().toISOString() : null }).eq("id", sid);
+    return { ok: true, task: task.code, subtaskId: sid, title: st.title, done };
+  }
 
   switch (args.action) {
     case "block": {
