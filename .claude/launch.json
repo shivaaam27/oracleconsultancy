@@ -32,6 +32,17 @@
         "design/studio-mockup/preview"
       ],
       "port": 8765
+    },
+    {
+      "name": "cos-prod-test",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "next",
+        "start",
+        "-p",
+        "3100"
+      ],
+      "port": 3100
     }
   ]
 }
