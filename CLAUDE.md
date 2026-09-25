@@ -311,7 +311,7 @@ Chat: chat_threads, chat_participants, chat_messages, chat_message_mentions, cha
 
 Analytics/config/system: daily_snapshots, settings, system_events, undo_tokens
 
-Search/AI (V3 — Jun 2026): **embeddings** (+ `lifecycle` active|history col, migration 0094; lifecycle-aware `hybrid_search`/`replace_embeddings` RPCs) — the semantic index, driven by `src/lib/entity-registry.ts`. **Documents are NOT indexed** (Aug 2026): they are found by plain SQL/full-text matching on what the owner typed. **ai_memory** (migration 0095 — ORI memory: qa/preference/fact); **ai_usage** (migration 0096 — AI spend ledger). Latest migration: **0170** (`task_subtasks` — a to-do list inside a task: `src/app/task/subtask-actions.ts`, `components/studio/subtasks.tsx`; on the task page tab, the side panel and the new-task form). Before it **0169** (Files Management: `folders` + `documents.folder_id/deleted_at/starred/file_size`; see memory/file_manager_plan.md). Before it **0168** (drops `cz_events`, the one CocoZuri table 0167 missed — empty, and the only table left without RLS). Before it **0167** (five modules removed — 72 tables DROPPED; see the
+Search/AI (V3 — Jun 2026): **embeddings** (+ `lifecycle` active|history col, migration 0094; lifecycle-aware `hybrid_search`/`replace_embeddings` RPCs) — the semantic index, driven by `src/lib/entity-registry.ts`. **Documents are NOT indexed** (Aug 2026): they are found by plain SQL/full-text matching on what the owner typed. **ai_memory** (migration 0095 — ORI memory: qa/preference/fact); **ai_usage** (migration 0096 — AI spend ledger). Latest migration: **0172** (`announcements.delivered_at` — a scheduled post's push and Outbox drafts go out at go-live, via `deliverDueAnnouncements` in the tick and the morning run). Before it **0171** (assets as a management system: `assets.warranty_until`, `assets.checked_at`, the `asset_services` log). Before it **0170** (`task_subtasks` — a to-do list inside a task: `src/app/task/subtask-actions.ts`, `components/studio/subtasks.tsx`; on the task page tab, the side panel and the new-task form). Before it **0169** (Files Management: `folders` + `documents.folder_id/deleted_at/starred/file_size`; see memory/file_manager_plan.md). Before it **0168** (drops `cz_events`, the one CocoZuri table 0167 missed — empty, and the only table left without RLS). Before it **0167** (five modules removed — 72 tables DROPPED; see the
 banner at the top of this file. ⚠️ The data is gone, not archived).
 Before it, **0166** (`tasks.recurring_rule`).
 ⚠️ **The 0145–0165 range was CocoZuri, marketing and the ledger** — those
@@ -507,8 +507,11 @@ map old → new. **Rename an id, add a line there.**
 
 **⚠️ When you delete a route, delete its cron entry in `vercel.json` too.** `auto-sort`
 was removed in Aug 2026 but stayed scheduled, so Vercel fired a daily 404 at 08:00 for
-weeks. Cleared Aug 2026; all 10 remaining `crons` entries were verified to point at a
-real `route.ts`. `/api/cron/automations`, `/notify` and `/tick` are unscheduled ON
+weeks. Cleared Aug 2026; the `crons` entries were verified to point at a
+real `route.ts` (8 since 26 Sept 2026: task-reminders went with Chat, ori-digest with the
+dead ORI cloud worker). **Every server action starts with its guard (`guardOwner` /
+`guardViewer` / a portal check)** — a server action is callable from ANY page, so the
+`src/proxy.ts` gate does not protect it; ~50 were found unguarded on 26 Sept 2026. `/api/cron/automations`, `/notify` and `/tick` are unscheduled ON
 PURPOSE (morning-run does the first, digests flush the second, `tick` is for an
 external scheduler) — don't "fix" them by adding schedules.
 
