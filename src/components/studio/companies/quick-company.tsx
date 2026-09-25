@@ -10,7 +10,7 @@ import { createCompany } from "@/app/companies/reference-actions";
 import { useToast } from "@/components/toast";
 import { cn } from "@/lib/cn";
 
-const FIELD = { color: "var(--sh-fg)", background: "var(--sh-field)", border: "1px solid var(--sh-chip-line)", boxShadow: "none" } as const;
+const FIELD = { color: "var(--sh-fg)", background: "var(--sh-field)", border: "1px solid var(--sh-field-line)", boxShadow: "none" } as const;
 const SWATCHES = ["#2490EF", "#19C37D", "#F5A524", "#E0479E", "#8B5CF6", "#0EA5E9", "#64748B"];
 
 /** Two letters from the name: the first letter of the first two words. */

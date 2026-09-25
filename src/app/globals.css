@@ -1631,6 +1631,7 @@ section[data-page-header],
   --st-page: #F3F3F1;
   --st-surface: #FFFFFF;
   --st-line: #E4E4E0;
+  --st-field-line: #CFCFC9;
   --st-line-soft: #F0F0EC;
   --st-seg: #E6E6E2;
   --st-muted: #676A70;
@@ -1657,6 +1658,7 @@ section[data-page-header],
   --st-page: #0E0F10;
   --st-surface: #17181B;
   --st-line: #2A2C30;
+  --st-field-line: #4A4D53;
   --st-line-soft: #222428;
   --st-seg: #232428;
   --st-muted: #B4B7BC;
@@ -1776,7 +1778,18 @@ html[data-motion="reduced"] .st-slide-l, html[data-motion="reduced"] .st-slide-r
    desk panel grows by WIDTH from its right edge, a phone sheet by HEIGHT. */
 .st-panel-grow { max-height: calc(100dvh - 64px - env(safe-area-inset-bottom) - 20px) !important; border-radius: 28px !important; }
 @media (min-width: 1024px) { .st-panel-grow { top: 12px !important; right: 12px !important; width: calc(100vw - 24px) !important; } }
-.st-panel-grow > * { opacity: 0; transition: opacity 140ms ease-out; }
+/* Growing into the full task: the header (code, title, who) stays put while
+   the body steps back, and a soft wait sign sits in the middle until the page
+   arrives — a blank box that suddenly became a page read as a glitch. */
+.st-panel-grow > *:not(:first-child) { opacity: 0; transition: opacity 120ms ease-out; }
+.st-panel-grow::after {
+  content: ""; position: absolute; left: 50%; top: 50%; width: 18px; height: 18px; margin: -9px 0 0 -9px;
+  border-radius: 999px; border: 2px solid var(--sh-chip-line, #E4E4E0); border-top-color: var(--sh-fg, #111214);
+  animation: st-spin 700ms linear infinite; opacity: 0; animation-delay: 0ms;
+  transition: opacity 160ms ease-out 200ms;
+}
+.st-panel-grow::after { opacity: 1; }
+@keyframes st-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .st-panel-in { animation: none; } }
 html[data-motion="reduced"] .st-panel-in { animation: none; }
 
@@ -1964,7 +1977,9 @@ body:has(main .studio) > * [data-field-label] {
   --sh-sub: #55585E;
   --sh-muted: #676A70;
   --sh-field: #F3F3F1;
-  --sh-field-line: #E4E4E0;
+  /* A text box's edge must read as an edge (owner, 26 Sept 2026: "post an
+     update needs a border, it's flat") — darker than the chip line. */
+  --sh-field-line: #CFCFC9;
   --sh-card: #F7F7F5;
   --sh-hover: #F0F0EC;
   --sh-line: #ECECE8;
@@ -1988,7 +2003,7 @@ body:has(main .studio) > * [data-field-label] {
   --sh-sub: #D0D2D6;
   --sh-muted: #B4B7BC;
   --sh-field: #1F2023;
-  --sh-field-line: #3A3D42;
+  --sh-field-line: #4A4D53;
   --sh-card: #1A1B1E;
   --sh-hover: #26282C;
   --sh-line: #26282C;
@@ -2189,7 +2204,7 @@ html[data-no-splash] #aurora-splash { display: none !important; }
    rule outranks utilities, and `bare-field` clears the border entirely — the
    Announcements composer's Title and Message read as blank space. One class,
    the sheet's own tokens, so it follows light and dark. */
-.studio .st-field { background: var(--sh-field, #FFFFFF) !important; border: 1px solid var(--sh-chip-line, #E4E4E0) !important; box-shadow: none !important; }
+.studio .st-field { background: var(--sh-field, #FFFFFF) !important; border: 1px solid var(--sh-field-line, #CFCFC9) !important; box-shadow: none !important; }
 .studio .st-field:hover { border-color: var(--sh-muted, #A9AAA6) !important; }
 .studio .st-field:focus { border-color: var(--sh-fg, #111214) !important; box-shadow: 0 0 0 3px rgb(17 18 20 / 0.06) !important; }
 /* A Studio form (.st-form) holding Desk controls — FluidSelect, Combobox and the
@@ -2197,7 +2212,7 @@ html[data-no-splash] #aurora-splash { display: none !important; }
    is one height and one colour (they are h-8 white Desk controls otherwise). */
 .studio .st-form :is(button[aria-haspopup="listbox"], input[autocomplete="off"]:not(.st-field), .st-date > button) {
   height: 40px !important; border-radius: 10px !important; font-size: 13px !important;
-  background: var(--sh-field, #FFFFFF) !important; border: 1px solid var(--sh-chip-line, #E4E4E0) !important; box-shadow: none !important;
+  background: var(--sh-field, #FFFFFF) !important; border: 1px solid var(--sh-field-line, #CFCFC9) !important; box-shadow: none !important;
 }
 .studio .st-form :is(button[aria-haspopup="listbox"], input[autocomplete="off"]:not(.st-field), .st-date > button):hover { border-color: var(--sh-muted, #A9AAA6) !important; }
 
@@ -2214,3 +2229,18 @@ html[data-no-splash] #aurora-splash { display: none !important; }
 .st-note-card .divide-y > * + * { border-color: var(--st-line-soft); }
 .studio .note-canvas { font-size: 16px; line-height: 1.6; color: var(--st-ink); }
 .studio .note-sheet .border-border { border-color: var(--st-line-soft); }
+
+/* Every text box has a visible edge (owner, 26 Sept 2026: "post an update
+   needs a border, it's flat … make sure all text boxes have this"). The hairline
+   that separates cards (--st-line / --sh-chip-line) is too faint to read as the
+   edge of something you type in, so a bordered box that IS a text field, or
+   directly holds one, takes the stronger --st-field-line. One rule, so a new
+   box gets it without anyone remembering. */
+.studio :is(.border-\[var\(--st-line\)\], .border-\[var\(--sh-chip-line\)\], .border-\[var\(--st-line-soft\)\]):is(
+  input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=hidden]):not([type=file]),
+  textarea,
+  :has(> input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=hidden]):not([type=file])),
+  :has(> textarea),
+  :has(> label > input:not([type=checkbox]):not([type=radio]):not([type=hidden])),
+  :has(> label > textarea)
+) { border-color: var(--st-field-line, #CFCFC9); }

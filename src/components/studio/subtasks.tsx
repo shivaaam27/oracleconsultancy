@@ -52,7 +52,7 @@ const STRIKE_STYLE: CSSProperties = {
 type Tone = "page" | "sheet";
 const TONE = {
   page: { fg: "text-[var(--st-ink)]", muted: "text-[var(--st-muted)]", ring: "text-[#B9BBBF]", hover: "hover:bg-[var(--st-page)]", field: "border-[var(--st-line)] bg-[var(--st-surface)] text-[var(--st-ink)] placeholder:text-[var(--st-muted)]", bar: "bg-[var(--st-page)]" },
-  sheet: { fg: "text-[var(--sh-fg)]", muted: "text-[var(--sh-muted)]", ring: "text-[var(--sh-muted)]", hover: "hover:bg-[var(--sh-hover)]", field: "border-[var(--sh-chip-line)] bg-[var(--sh-field)] text-[var(--sh-fg)] placeholder:text-[var(--sh-muted)]", bar: "bg-[var(--sh-hover)]" },
+  sheet: { fg: "text-[var(--sh-fg)]", muted: "text-[var(--sh-muted)]", ring: "text-[var(--sh-muted)]", hover: "hover:bg-[var(--sh-hover)]", field: "border-[var(--sh-field-line)] bg-[var(--sh-field)] text-[var(--sh-fg)] placeholder:text-[var(--sh-muted)]", bar: "bg-[var(--sh-hover)]" },
 } as const;
 
 function useTiming() {
@@ -212,6 +212,22 @@ export function ListShell<T extends { key: string | number; title: string; done:
 }
 
 /** A task's subtasks, saved as you go. */
+/* The list, kept for the session so the Subtasks tab opens with it already
+ * there (owner, 26 Sept 2026: "clicking on subtasks tab, it loads longer than
+ * usual"). The task page asks for it the moment it opens (`preloadSubtasks`),
+ * so by the time you reach the tab it has usually arrived; the tab still asks
+ * again in the background and puts right anything that changed elsewhere. */
+const known = new Map<number, Subtask[]>();
+const inflight = new Map<number, Promise<Subtask[]>>();
+export function fetchSubtasks(taskId: number): Promise<Subtask[]> {
+  let p = inflight.get(taskId);
+  if (!p) {
+    p = listSubtasks(taskId).then((l) => { known.set(taskId, l); return l; }).finally(() => inflight.delete(taskId));
+    inflight.set(taskId, p);
+  }
+  return p;
+}
+
 export function TaskSubtasks({ taskId, tone = "page", title, onCount }: {
   taskId: number;
   tone?: Tone;
@@ -219,7 +235,7 @@ export function TaskSubtasks({ taskId, tone = "page", title, onCount }: {
   /** Told the count after every change (the task page's tab shows it). */
   onCount?: (c: { done: number; total: number }) => void;
 }) {
-  const [items, setItems] = useState<Subtask[] | null>(null);
+  const [items, setItems] = useState<Subtask[] | null>(() => known.get(taskId) ?? null);
   const [error, setError] = useState<string | null>(null);
   // The list as it is NOW, for the moment a new subtask's real id comes back:
   // anything done to it while it was still on its way (ticked, renamed,
@@ -229,11 +245,14 @@ export function TaskSubtasks({ taskId, tone = "page", title, onCount }: {
   const latest = useRef<Subtask[] | null>(null);
   latest.current = items;
   useEffect(() => {
-    if (items) onCount?.({ done: items.filter((x) => x.done).length, total: items.length });
+    if (items) {
+      known.set(taskId, items.filter((x) => x.id > 0));
+      onCount?.({ done: items.filter((x) => x.done).length, total: items.length });
+    }
   }, [items]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     let live = true;
-    listSubtasks(taskId).then((l) => { if (live) setItems(l); }).catch(() => { if (live) setItems([]); });
+    fetchSubtasks(taskId).then((l) => { if (live) setItems((cur) => (cur && cur.some((x) => x.id < 0) ? cur : l)); }).catch(() => { if (live) setItems((cur) => cur ?? []); });
     return () => { live = false; };
   }, [taskId]);
 

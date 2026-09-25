@@ -13,14 +13,14 @@
  * - Status on an update: In Progress · Under Review · Blocked only.
  * Every action is an existing portal action, which re-checks the task.
  */
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, Loader2, PauseCircle, Pencil, Send } from "lucide-react";
 import { StudioScope, stBtn } from "@/components/studio/kit";
 import { StudioSheet } from "@/components/studio/sheet";
 import { PersonFace } from "@/components/studio/face";
 import { useFitFrame } from "@/components/studio/use-fit-frame";
-import { TaskSubtasks } from "@/components/studio/subtasks";
+import { TaskSubtasks, fetchSubtasks } from "@/components/studio/subtasks";
 import { StudioBlocker } from "./blocker";
 import { STATUS_DOT } from "./task-words";
 import { BackLink } from "@/components/back-link";
@@ -75,6 +75,8 @@ export function StaffTaskRecord({ t }: { t: StaffTaskData }) {
   useFitFrame(grid, { deps: [t.code] });
   const [tab, setTab] = useState<"conversation" | "subtasks" | "details" | "history">("conversation");
   const [sub, setSub] = useState<{ done: number; total: number } | null>(null);
+  // Fetch the subtasks now, so the tab opens with them already there.
+  useEffect(() => { fetchSubtasks(t.id).then((l) => setSub({ done: l.filter((x) => x.done).length, total: l.length })).catch(() => {}); }, [t.id]);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [blockOpen, setBlockOpen] = useState(false);
   const [completeOpen, setCompleteOpen] = useState(false);

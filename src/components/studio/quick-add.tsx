@@ -31,6 +31,22 @@ const LATER: Record<string, { phase: string; what: string }> = {
   announcement: { phase: "Phase 4", what: "The composer sets who sees it and whether they must confirm." },
 };
 
+/* The companies / people / departments the forms offer, kept for the session
+ * and fetched in the background once the app has settled (`preloadQuickAdd`,
+ * from the shell) — "+" used to wait on a server round trip every time it
+ * opened (owner, 26 Sept 2026: "trying to create a new task loads longer"). */
+let knownOptions: Options | null = null;
+let optionsInflight: Promise<Options> | null = null;
+function loadOptions(): Promise<Options> {
+  if (!optionsInflight) {
+    optionsInflight = studioNewTaskOptions()
+      .then((o) => { knownOptions = o; return o; })
+      .finally(() => { window.setTimeout(() => { optionsInflight = null; }, 0); });
+  }
+  return optionsInflight;
+}
+export function preloadQuickAdd() { if (!knownOptions) loadOptions().catch(() => {}); }
+
 /** The tab that fits the page you are on. */
 function tabFor(pathname: string): string {
   if (pathname.startsWith("/people")) return "person";
@@ -48,14 +64,16 @@ export function StudioQuickAdd({ onClose, initialTab }: { onClose: () => void; i
   const router = useRouter();
   const items = creatables();
   const [tab, setTab] = useState(() => initialTab ?? tabFor(pathname));
-  const [options, setOptions] = useState<Options | null>(null);
+  const [options, setOptions] = useState<Options | null>(knownOptions);
   const submitRef = useRef<{ fn: (again: boolean) => void; busy: boolean; full: () => string } | null>(null);
   const personRef = useRef<{ fn: (again: boolean) => void; busy: boolean; full: () => string } | null>(null);
   const companyRef = useRef<{ fn: (again: boolean) => void; busy: boolean; full: () => string } | null>(null);
   const [, force] = useState(0);
   const { actions } = useRegisteredActions();
 
-  useEffect(() => { studioNewTaskOptions().then(setOptions).catch(() => setOptions({ companies: [], people: [], departments: [] })); }, []);
+  // Shown at once from what is known; refreshed quietly so a person added a
+  // minute ago is there.
+  useEffect(() => { loadOptions().then(setOptions).catch(() => setOptions((o) => o ?? { companies: [], people: [], departments: [] })); }, []);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && !e.defaultPrevented) onClose(); };
     window.addEventListener("keydown", onKey);

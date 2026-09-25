@@ -105,6 +105,17 @@ function Panel({ task, rows, onClose }: { task: TaskRow; rows: TaskRow[]; onClos
   // already here.
   useEffect(() => { router.prefetch(expandHref); }, [router, expandHref]);
 
+  // Below lg the panel is a sheet over the list: scrolling inside it must not
+  // move the page behind (owner, 26 Sept 2026). Lock the document while it is
+  // open; on a desk it is a column BESIDE the list, and the list stays live.
+  useEffect(() => {
+    if (!window.matchMedia("(max-width: 1023px)").matches) return;
+    const html = document.documentElement;
+    const was = html.style.overflow;
+    html.style.overflow = "hidden";
+    return () => { html.style.overflow = was; };
+  }, []);
+
   function expand() {
     if (expanding) return;
     markPush(expandHref);
@@ -231,12 +242,12 @@ function Panel({ task, rows, onClose }: { task: TaskRow; rows: TaskRow[]; onClos
       </div>
 
       {/* Subtasks — tick, add, rename, delete without leaving the list. */}
-      <div className="st-scroll max-h-[34vh] shrink-0 overflow-y-auto border-b border-[var(--sh-line)] px-3 py-3">
+      <div className="st-scroll max-h-[34vh] shrink-0 overflow-y-auto overscroll-contain border-b border-[var(--sh-line)] px-3 py-3">
         <TaskSubtasks key={task.id} taskId={task.id} tone="sheet" />
       </div>
 
       {/* the conversation */}
-      <div ref={scroller} className="st-scroll flex min-h-[120px] flex-1 flex-col gap-3.5 overflow-y-auto px-5 py-4">
+      <div ref={scroller} className="st-scroll flex min-h-[120px] flex-1 flex-col gap-3.5 overflow-y-auto overscroll-contain px-5 py-4">
         {msgs == null && !failed && <div className="flex flex-1 items-center justify-center"><Loader2 size={16} className="animate-spin text-[var(--sh-muted)]" /></div>}
         {failed && <div className="text-[13px] text-[var(--sh-muted)]">Couldn&apos;t load the updates — open the whole task to read them.</div>}
         {msgs && msgs.length === 0 && <div className="m-auto max-w-[260px] text-center text-[13px] text-[var(--sh-muted)]">No updates yet — the first one you post tells everyone on the task.</div>}

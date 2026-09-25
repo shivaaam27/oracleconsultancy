@@ -24,7 +24,7 @@ type Person = { id: number; name: string };
 
 const TONES = {
   sheet: {
-    field: "border-[var(--sh-chip-line)] bg-[var(--sh-field)] text-[var(--sh-fg)]",
+    field: "border-[var(--sh-field-line)] bg-[var(--sh-field)] text-[var(--sh-fg)]",
     muted: "text-[var(--sh-muted)]",
     fg: "text-[var(--sh-fg)]",
     row: "hover:bg-[var(--sh-hover)]",

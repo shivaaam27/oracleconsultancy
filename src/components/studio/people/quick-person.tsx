@@ -17,8 +17,8 @@ type Options = { companies: { id: number; name: string }[]; people: { id: number
 type Draft = { name: string; type: PersonType; companyId: number | null; managerId: number | null; role: string; phone: string; whatsappSame: boolean; whatsapp: string; email: string };
 const EMPTY: Draft = { name: "", type: "local_staff", companyId: null, managerId: null, role: "", phone: "", whatsappSame: true, whatsapp: "", email: "" };
 
-const CHIP = "mx-0 py-0 h-8 rounded-[10px] border border-[var(--sh-chip-line)] bg-[var(--sh-field)] px-2.5 text-xs text-[var(--sh-fg)] hover:bg-[var(--sh-hover)] hover:border-[var(--sh-field-line)]";
-const FIELD = { color: "var(--sh-fg)", background: "var(--sh-field)", border: "1px solid var(--sh-chip-line)", boxShadow: "none" } as const;
+const CHIP = "mx-0 py-0 h-8 rounded-[10px] border border-[var(--sh-field-line)] bg-[var(--sh-field)] px-2.5 text-xs text-[var(--sh-fg)] hover:bg-[var(--sh-hover)] hover:border-[var(--sh-field-line)]";
+const FIELD = { color: "var(--sh-fg)", background: "var(--sh-field)", border: "1px solid var(--sh-field-line)", boxShadow: "none" } as const;
 
 export function QuickPersonPane({ options, defaultCompanyId, onDone, registerSubmit }: {
   options: Options | null;

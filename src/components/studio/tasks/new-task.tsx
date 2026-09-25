@@ -235,7 +235,7 @@ export function Toggle({ on, onClick, label }: { on: boolean; onClick: () => voi
    Go-to panel, search, notifications): its colours are the `--sh-*` set on
    `.st-sheet`, which also re-points Desk's tokens, so the people picker and the
    calendar inside it follow the same light or dark. */
-const DCHIP = "mx-0 py-0 h-8 rounded-[10px] border border-[var(--sh-chip-line)] bg-[var(--sh-field)] px-2.5 text-xs text-[var(--sh-fg)] hover:bg-[var(--sh-hover)] hover:border-[var(--sh-field-line)]";
+const DCHIP = "mx-0 py-0 h-8 rounded-[10px] border border-[var(--sh-field-line)] bg-[var(--sh-field)] px-2.5 text-xs text-[var(--sh-fg)] hover:bg-[var(--sh-hover)] hover:border-[var(--sh-field-line)]";
 
 export function QuickTaskPane({ options, defaultCompanyId, onDone, registerSubmit }: {
   options: Options | null;
@@ -337,7 +337,7 @@ export function QuickTaskPane({ options, defaultCompanyId, onDone, registerSubmi
         onChange={(e) => set({ instructions: e.target.value })}
         rows={2}
         placeholder="Instructions for the team — they arrive as the first update (optional)"
-        style={{ color: "var(--sh-fg)", background: "var(--sh-field)", border: "1px solid var(--sh-chip-line)", boxShadow: "none" }}
+        style={{ color: "var(--sh-fg)", background: "var(--sh-field)", border: "1px solid var(--sh-field-line)", boxShadow: "none" }}
         className="bare-field w-full resize-none rounded-xl px-3.5 py-2.5 text-[13px] outline-none placeholder:text-[var(--sh-muted)]"
       />
     </div>

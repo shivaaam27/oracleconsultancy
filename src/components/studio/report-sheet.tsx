@@ -37,9 +37,9 @@ const PRESETS: { id: Preset; label: string }[] = [
 ];
 
 const CHIP = "inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[10px] border px-3 text-[12.5px] transition-colors";
-const CHIP_OFF = "border-[var(--sh-chip-line)] bg-[var(--sh-field)] text-[var(--sh-fg)] hover:bg-[var(--sh-hover)]";
+const CHIP_OFF = "border-[var(--sh-field-line)] bg-[var(--sh-field)] text-[var(--sh-fg)] hover:bg-[var(--sh-hover)]";
 const CHIP_ON = "border-transparent bg-[var(--sh-on-bg)] font-medium text-[var(--sh-on-fg)]";
-const BTN = "inline-flex h-10 items-center justify-center gap-2 rounded-[12px] border border-[var(--sh-chip-line)] bg-[var(--sh-field)] px-3.5 text-[13px] font-medium text-[var(--sh-fg)] transition-colors hover:bg-[var(--sh-hover)] disabled:opacity-50";
+const BTN = "inline-flex h-10 items-center justify-center gap-2 rounded-[12px] border border-[var(--sh-field-line)] bg-[var(--sh-field)] px-3.5 text-[13px] font-medium text-[var(--sh-fg)] transition-colors hover:bg-[var(--sh-hover)] disabled:opacity-50";
 const LABEL = "mb-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--sh-fg)]";
 
 export function openReport(detail: { companyIds?: number[]; personIds?: number[] } = {}) {
@@ -222,7 +222,7 @@ export function ReportSheet() {
               {panel === "company" && (
                 <>
                   {(opts?.companies.length ?? 0) > 8 && (
-                    <label className="mb-2 flex h-9 items-center gap-2 rounded-[10px] border border-[var(--sh-chip-line)] bg-[var(--sh-field)] px-3 text-[var(--sh-muted)]">
+                    <label className="mb-2 flex h-9 items-center gap-2 rounded-[10px] border border-[var(--sh-field-line)] bg-[var(--sh-field)] px-3 text-[var(--sh-muted)]">
                       <Search size={14} />
                       <input value={coQ} onChange={(e) => setCoQ(e.target.value)} placeholder="Find a company"
                         className="bare-field w-full border-0 bg-transparent text-[13px] text-[var(--sh-fg)] outline-none placeholder:text-[var(--sh-muted)]" />
@@ -263,7 +263,7 @@ function FilterBtn({ icon, label, value, short, open, set, onClick }: { icon: Re
   return (
     <button type="button" onClick={onClick} aria-expanded={open}
       className={cn("flex h-[54px] min-w-0 items-center gap-2 rounded-[12px] border px-2.5 text-left sm:px-3 transition-colors",
-        open ? "border-[var(--sh-fg)] bg-[var(--sh-card)]" : "border-[var(--sh-chip-line)] bg-[var(--sh-field)] hover:bg-[var(--sh-hover)]")}>
+        open ? "border-[var(--sh-fg)] bg-[var(--sh-card)]" : "border-[var(--sh-field-line)] bg-[var(--sh-field)] hover:bg-[var(--sh-hover)]")}>
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-1.5 text-[11px] text-[var(--sh-sub)]">{icon}{label}{set && <span aria-label="set" className="h-1.5 w-1.5 rounded-full bg-[#19C37D]" />}</span>
         <span className={cn("mt-0.5 block truncate text-[13px] text-[var(--sh-fg)]", set && "font-medium")}>
@@ -279,7 +279,7 @@ function CheckRow({ on, label, onClick }: { on: boolean; label: string; onClick:
   return (
     <button type="button" onClick={onClick} aria-pressed={on}
       className="flex h-9 min-w-0 items-center gap-2.5 rounded-[10px] px-2 text-left text-[13px] text-[var(--sh-fg)] transition-colors hover:bg-[var(--sh-hover)]">
-      <span className={cn("grid h-[18px] w-[18px] shrink-0 place-items-center rounded-[5px] border", on ? "border-transparent bg-[var(--sh-on-bg)] text-[var(--sh-on-fg)]" : "border-[var(--sh-chip-line)] bg-[var(--sh-field)]")}>
+      <span className={cn("grid h-[18px] w-[18px] shrink-0 place-items-center rounded-[5px] border", on ? "border-transparent bg-[var(--sh-on-bg)] text-[var(--sh-on-fg)]" : "border-[var(--sh-field-line)] bg-[var(--sh-field)]")}>
         {on && <Check size={12} strokeWidth={2.6} />}
       </span>
       <span className={cn("min-w-0 truncate", on && "font-medium")}>{label}</span>
@@ -312,7 +312,7 @@ function EmailBox({ input, onSent }: { input: ReportInput; onSent: (n: number) =
       <input value={typed} onChange={(e) => setTyped(e.target.value)}
         onKeyDown={(e) => { if (e.key === "Enter" || e.key === ",") { e.preventDefault(); if (typed.includes("@")) { add(typed); setTyped(""); } else if (shown[0]) { add(shown[0].email); setTyped(""); } } }}
         placeholder="A name, or type any email address"
-        style={{ background: "var(--sh-field)", border: "1px solid var(--sh-chip-line)", boxShadow: "none", color: "var(--sh-fg)" }}
+        style={{ background: "var(--sh-field)", border: "1px solid var(--sh-field-line)", boxShadow: "none", color: "var(--sh-fg)" }}
         className="bare-field h-10 w-full rounded-[11px] px-3 text-[13.5px] outline-none placeholder:text-[var(--sh-muted)]" />
       {shown.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
@@ -356,7 +356,7 @@ function Notes({ notes, companyId, onChange }: { notes: ReportSummary["notes"]; 
           <input value={text} onChange={(e) => setText(e.target.value)}
             onKeyDown={async (e) => { if (e.key === "Enter" && text.trim()) { e.preventDefault(); setBusy(true); await addReportNote(text, companyId); setBusy(false); setText(""); onChange(); } }}
             placeholder={companyId ? "A note for this company — Enter adds it" : "A note for the report — Enter adds it"}
-            style={{ background: "var(--sh-field)", border: "1px solid var(--sh-chip-line)", boxShadow: "none", color: "var(--sh-fg)" }}
+            style={{ background: "var(--sh-field)", border: "1px solid var(--sh-field-line)", boxShadow: "none", color: "var(--sh-fg)" }}
             className="bare-field h-10 min-w-0 flex-1 rounded-[11px] px-3 text-[13px] outline-none placeholder:text-[var(--sh-muted)]" />
           {busy && <Loader2 size={14} className="mt-3 animate-spin text-[var(--sh-fg)]" />}
         </div>

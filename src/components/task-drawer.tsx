@@ -34,8 +34,7 @@ import { FormSwitch } from "./form-switch";
 import { Combobox } from "./combobox";
 import { PolishedInput } from "./polished-input";
 import { PersonPicker } from "./person-picker";
-import { TaskSubtasks } from "@/components/studio/subtasks";
-import { listSubtasks } from "@/app/task/subtask-actions";
+import { TaskSubtasks, fetchSubtasks } from "@/components/studio/subtasks";
 import { PortalConversation, type ConvoMessage, type ConvoEvent } from "./portal-conversation";
 import { TaskInlineStatus, TaskInlinePriority } from "./task-inline-edit";
 import { WaitingOnChip } from "./task-meta-line";
@@ -216,7 +215,7 @@ function TaskRecord({ mode, codeProp, stamp }: { mode: "drawer" | "page"; codePr
   useEffect(() => {
     if (subTaskId == null || mode !== "page") return;
     let live = true;
-    listSubtasks(subTaskId).then((l) => { if (live) setSubCount({ done: l.filter((x) => x.done).length, total: l.length }); }).catch(() => {});
+    fetchSubtasks(subTaskId).then((l) => { if (live) setSubCount({ done: l.filter((x) => x.done).length, total: l.length }); }).catch(() => {});
     return () => { live = false; };
   }, [subTaskId, mode]);
   const [filter, setFilter] = useState<TimelineFilter>("all");

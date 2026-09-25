@@ -221,7 +221,7 @@ const TAGLINE = "Built in-house, and the first in Tanzania — an advanced task 
  */
 export function AuthFrame({ children }: { children: React.ReactNode }) {
   return (
-    <div className="studio fixed inset-0 z-[60] overflow-y-auto bg-[var(--st-page)] text-[var(--st-ink)] [font-family:var(--font-geist),var(--font-sans)] max-lg:bg-[#141517]">
+    <div className="studio fixed inset-0 z-[60] overflow-y-auto bg-[#0B0C0D] text-[var(--st-ink)] [font-family:var(--font-geist),var(--font-sans)] max-lg:bg-[#141517]">
       {/* Desk (26 Sept 2026, owner): ONE dark frame filling the window, the
           form on a card inside it on the left, the brand and the big bars on
           the right. Below lg the same tree is the phone's header + sheet. */}

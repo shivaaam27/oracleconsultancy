@@ -26,7 +26,7 @@ import { portalLogout } from "@/app/portal/actions";
 import { studioStops, stopIndexFor, directorStops, directorStopIndex, staffStops, staffStopIndex, type StudioStop } from "@/lib/studio-nav";
 import { useCommandPalette } from "@/components/command-palette";
 import { NotificationBell } from "@/components/notification-bell";
-import { StudioQuickAdd } from "./quick-add";
+import { StudioQuickAdd, preloadQuickAdd } from "./quick-add";
 import { useTheme } from "next-themes";
 import { useNavVisibility, isHiddenNavHref } from "@/components/nav-visibility";
 import { cn } from "@/lib/cn";
@@ -38,7 +38,7 @@ import { PersonFace } from "@/components/studio/face";
 export type StudioFootNote = { label: string; text: string; href?: string; tone?: "late" | "soon" | "info" } | null;
 
 const FOOT_BTN =
-  "inline-flex h-9 items-center justify-center gap-2 rounded-[10px] border border-[#2A2C30] bg-transparent text-xs text-[#D4D6DA] transition-colors hover:border-[#3A3D42] hover:text-[#F2F2F0]";
+  "inline-flex h-9 items-center justify-center gap-2 rounded-[10px] border border-[#3A3D42] bg-[#17181A] text-xs text-[#E4E6E9] transition-colors hover:border-[#55585E] hover:text-white";
 
 /** A director on the shared screens (lib/viewer.ts): their own pages in the
  *  footer, their profile instead of Settings, no everything-search, and "+ New"
@@ -91,6 +91,13 @@ export function StudioShell({ needs, director = null }: { needs: NonNullable<Stu
     [vis, isDirector, isStaff, directorOutbox, directorCleaning, staffTasks, staffCleaning],
   );
   // Your own order (the Go-to panel's Edit) — the footer's ‹ › follow it too.
+  // "+" opens with its lists ready: fetch them once the page has settled.
+  useEffect(() => {
+    if (isStaff) return;
+    const w = window as Window & { requestIdleCallback?: (cb: () => void) => number };
+    const t = w.requestIdleCallback ? w.requestIdleCallback(() => preloadQuickAdd()) : window.setTimeout(preloadQuickAdd, 1500);
+    return () => { if (!w.requestIdleCallback) window.clearTimeout(t); };
+  }, [isStaff]);
   const [navOrder, saveNavOrder] = useNavOrder(isStaff ? "staff" : isDirector ? "director" : "owner");
   const stops = useMemo(() => applyNavOrder(baseStops, navOrder), [baseStops, navOrder]);
   const tab = params.get("tab");
@@ -436,7 +443,7 @@ function GoToPanel({
           <ShellThemeButton />
         </div>
         <div className="flex flex-wrap items-center gap-2.5">
-          <label className="flex h-11 min-w-0 flex-1 basis-40 sm:basis-60 items-center gap-2.5 rounded-xl border border-[var(--sh-chip-line)] bg-[var(--sh-field)] px-3.5 text-[var(--sh-muted)] sm:h-10">
+          <label className="flex h-11 min-w-0 flex-1 basis-40 sm:basis-60 items-center gap-2.5 rounded-xl border border-[var(--sh-field-line)] bg-[var(--sh-field)] px-3.5 text-[var(--sh-muted)] sm:h-10">
             <Search size={16} />
             <span className="sr-only">Find a page</span>
             <input

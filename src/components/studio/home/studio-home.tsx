@@ -132,10 +132,13 @@ export function StudioHome({ data, links = OWNER_LINKS, heroAction, announcement
           </div>
         </section>
 
+        {/* The dark Due card sits under the greeting on a phone too (owner,
+            26 Sept 2026: "the due today card isn't there in mobile") — the
+            two dark cards lead every screen size. */}
+        {aside ?? <DueCard data={data} />}
+
         {/* ---------- phone: one shape of card, folding (owner, 25 Sept 2026) ---------- */}
         <PhoneFolds data={data} before={phone?.before} after={phone?.after} />
-
-        {aside ?? <DueCard data={data} />}
 
         {/* ---------- the turning cards ---------- */}
         {aside ? <DueCard data={data} /> : null}
@@ -150,7 +153,7 @@ function DueCard({ data }: { data: StudioHomeData }) {
   const [due, setDue] = useState<"today" | "week">(data.due.today.n > 0 ? "today" : "week");
   const d = data.due[due];
   return (
-        <section className="st-tex-rings hidden min-w-0 flex-col md:flex rounded-[18px] bg-[var(--st-card)] px-[18px] py-4 text-[var(--st-on-card)] sm:px-6 sm:py-5">
+        <section className="st-tex-rings flex min-w-0 flex-col rounded-[18px] bg-[var(--st-card)] px-[18px] py-4 text-[var(--st-on-card)] sm:px-6 sm:py-5">
           <div className="flex items-center justify-between gap-2">
             <div className="text-[15px] font-medium sm:text-[22px]">{due === "today" ? "Due today" : "Due this week"}</div>
             <div className="flex gap-0.5 rounded-[10px] bg-[#1F2023] p-[3px]">
@@ -400,26 +403,9 @@ function PhoneFolds({ data, before, after }: { data: StudioHomeData; before?: Re
     try { window.localStorage.setItem(FOLD_KEY, JSON.stringify(next)); } catch { /* ignore */ }
     return next;
   });
-  const [due, setDue] = useState<"today" | "week">(data.due.today.n > 0 ? "today" : "week");
-  const d = data.due[due];
-  const dueSlide: Extract<HomeSlide, { kind: "list" }> = {
-    kind: "list", kicker: "Diary", title: due === "today" ? "Due today" : "Due this week", sub: d.sub,
-    items: d.items, empty: due === "today" ? "Nothing due today" : "Nothing due this week",
-  };
   return (
     <div className="flex flex-col gap-2.5 md:hidden">
       {before}
-      <Fold id="due" kicker="Diary" title={dueSlide.title} sub={d.sub} count={d.n} open={isOpen("due", true)} onToggle={() => toggle("due", true)}>
-        <div className="mb-2 flex gap-0.5 self-start rounded-[10px] bg-[var(--st-page)] p-[3px]">
-          {(["today", "week"] as const).map((k) => (
-            <button key={k} type="button" aria-pressed={due === k} onClick={() => setDue(k)}
-              className={cn("h-8 rounded-[8px] px-3 text-xs", due === k ? "bg-[var(--st-surface)] font-medium shadow-[0_1px_2px_rgba(0,0,0,0.08)]" : "text-[var(--st-sub)]")}>
-              {k === "today" ? "Today" : "This week"}
-            </button>
-          ))}
-        </div>
-        <ListSlide key={due} s={dueSlide} limit={3} />
-      </Fold>
       {data.cards.map((slides, i) => (
         <PhoneTurnFold key={i} id={`card${i}`} slides={slides} open={isOpen(`card${i}`, i === 0)} onToggle={() => toggle(`card${i}`, i === 0)} />
       ))}
