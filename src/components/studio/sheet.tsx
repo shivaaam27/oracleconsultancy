@@ -13,8 +13,11 @@ import { X } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 export function StudioSheet({
-  open, onClose, title, icon, children, footer, width = 560,
+  open, onClose, title, icon, children, footer, width = 560, centred = false,
 }: {
+  /** From `sm` up, open in the middle of the screen instead of rising from
+   *  the footer. A phone keeps the sheet from below either way. */
+  centred?: boolean;
   open: boolean;
   onClose: () => void;
   title: ReactNode;
@@ -42,6 +45,7 @@ export function StudioSheet({
         className={cn(
           "studio st-sheet st-sheet-dots st-pop absolute bottom-[calc(var(--foot-h)+env(safe-area-inset-bottom)+8px)] left-1/2 flex max-h-[calc(100dvh-100px)] -translate-x-1/2 flex-col overflow-hidden rounded-3xl",
           "shadow-[0_30px_80px_rgba(0,0,0,0.35)]",
+          centred && "sm:bottom-auto sm:top-1/2 sm:max-h-[calc(100dvh-48px)] sm:-translate-y-1/2",
         )}
       >
         <div className="flex items-center gap-2.5 px-5 pb-2 pt-4">

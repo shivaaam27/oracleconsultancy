@@ -17,8 +17,8 @@
  * draft. The PDF is the Brief's own, every section kept. Owner-only extra:
  * the notes that go into the report's text and email.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, Copy, Download, FileText, Loader2, Mail, MessageCircle, Plus, Send, Trash2, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Building2, CalendarDays, Check, ChevronDown, Copy, Download, FileText, Loader2, Mail, MessageCircle, Plus, Search, Send, Trash2, UserRound, X } from "lucide-react";
 import { StudioSheet } from "@/components/studio/sheet";
 import { StudioPeoplePick } from "@/components/studio/people-pick";
 import { downloadPdf } from "@/components/brief-pdf-button";
@@ -55,7 +55,9 @@ export function ReportSheet() {
   const [months, setMonths] = useState<string[]>([]);
   const [sum, setSum] = useState<ReportSummary | null>(null);
   const [loading, setLoading] = useState(false);
-  const [who, setWho] = useState(false);
+  // One filter open at a time, under the row of three.
+  const [panel, setPanel] = useState<"period" | "company" | "person" | null>(null);
+  const [coQ, setCoQ] = useState("");
   const [emailing, setEmailing] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
@@ -66,7 +68,7 @@ export function ReportSheet() {
     const p = d.period ?? "month";
     if (p.startsWith("on:")) { setMonths(p.slice(3).split(",").filter(Boolean)); setPreset("month"); }
     else { setMonths([]); setPreset((PRESETS.some((x) => x.id === p) ? p : "month") as Preset); }
-    setWho(false); setEmailing(false); setFlash(null);
+    setPanel(null); setCoQ(""); setEmailing(false); setFlash(null);
     setOpen(true);
   }, []);
 
@@ -119,9 +121,17 @@ export function ReportSheet() {
   };
   const toggle = (list: number[], id: number) => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
   const peopleNames = (opts?.people ?? []).filter((p) => personIds.includes(p.id)).map((p) => p.name);
+  const coNames = (opts?.companies ?? []).filter((c) => companyIds.includes(c.id)).map((c) => c.name);
+  const monthLabels = (opts?.months ?? []).filter((m) => months.includes(m.value)).map((m) => m.label);
+  const periodValue = months.length ? (months.length === 1 ? monthLabels[0] ?? "1 month" : `${months.length} months`) : PRESETS.find((p) => p.id === preset)?.label ?? "This month";
+  const coValue = coNames.length === 0 ? "All companies" : coNames.length === 1 ? coNames[0] : `${coNames.length} companies`;
+  const personValue = peopleNames.length === 0 ? "Everyone" : peopleNames.length === 1 ? peopleNames[0] : `${peopleNames.length} people`;
+  const filtered = months.length > 0 || preset !== "month" || companyIds.length > 0 || personIds.length > 0;
+  const flip = (k: "period" | "company" | "person") => setPanel((p) => (p === k ? null : k));
+  const coList = (opts?.companies ?? []).filter((c) => !coQ.trim() || c.name.toLowerCase().includes(coQ.trim().toLowerCase()));
 
   return (
-    <StudioSheet open={open} onClose={() => setOpen(false)} title="Report" icon={<FileText size={15} />} width={620}
+    <StudioSheet open={open} onClose={() => setOpen(false)} title="Report" icon={<FileText size={15} />} width={600} centred
       footer={
         <div className="flex flex-col gap-2.5">
           {flash && <div role="status" className="text-[12.5px] text-[var(--sh-fg)]">{flash}</div>}
@@ -141,7 +151,7 @@ export function ReportSheet() {
               const r = await draftReport(input).catch(() => ({ ok: false as const, error: "The draft didn't save." }));
               setBusy(null);
               say(r.ok ? "Saved as a draft in the Outbox." : r.error);
-            }} className={cn(BTN, "col-span-2 sm:col-span-5")}>{busy === "draft" ? <Loader2 size={14} className="animate-spin" /> : <FileText size={14} />}Save as a draft in the Outbox</button>
+            }} className={cn(BTN, "sm:col-span-5")}>{busy === "draft" ? <Loader2 size={14} className="animate-spin" /> : <FileText size={14} />}<span className="sm:hidden">Outbox draft</span><span className="hidden sm:inline">Save as a draft in the Outbox</span></button>
           </div>
         </div>
       }>
@@ -168,56 +178,112 @@ export function ReportSheet() {
         {emailing && <EmailBox input={input} onSent={(n) => { setEmailing(false); say(`Sent to ${n} ${n === 1 ? "address" : "addresses"}, with the PDF attached.`); }} />}
 
         <section>
-          <div className={LABEL}>Period</div>
-          <div className="-mx-5 flex gap-1.5 overflow-x-auto px-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {PRESETS.map((p) => (
-              <button key={p.id} type="button" onClick={() => { setPreset(p.id); setMonths([]); }}
-                className={cn(CHIP, !months.length && preset === p.id ? CHIP_ON : CHIP_OFF)}>{p.label}</button>
-            ))}
-          </div>
-          {opts && (
-            <div className="-mx-5 mt-1.5 flex gap-1.5 overflow-x-auto px-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {opts.months.map((m) => (
-                <button key={m.value} type="button" onClick={() => setMonths((l) => (l.includes(m.value) ? l.filter((x) => x !== m.value) : [...l, m.value]))}
-                  className={cn(CHIP, "h-7 text-[12px]", months.includes(m.value) ? CHIP_ON : CHIP_OFF)}>
-                  {months.includes(m.value) && <Check size={12} />}{m.label}
-                </button>
-              ))}
-            </div>
-          )}
-        </section>
-
-        <section>
-          <div className={LABEL}>Company</div>
-          <div className="flex flex-wrap gap-1.5">
-            <button type="button" onClick={() => setCompanyIds([])} className={cn(CHIP, !companyIds.length ? CHIP_ON : CHIP_OFF)}>All companies</button>
-            {(opts?.companies ?? []).map((c) => (
-              <button key={c.id} type="button" onClick={() => setCompanyIds((l) => toggle(l, c.id))} className={cn(CHIP, companyIds.includes(c.id) ? CHIP_ON : CHIP_OFF)}>{c.name}</button>
-            ))}
-          </div>
-        </section>
-
-        <section>
           <div className="flex items-center justify-between">
-            <div className={LABEL}>Person</div>
-            {personIds.length > 0 && <button type="button" onClick={() => setPersonIds([])} className="mb-1.5 text-[12px] text-[var(--sh-fg)] underline-offset-2 hover:underline">Everyone</button>}
+            <div className={LABEL}>Filters</div>
+            {filtered && (
+              <button type="button" onClick={() => { setPreset("month"); setMonths([]); setCompanyIds([]); setPersonIds([]); setPanel(null); }}
+                className="mb-1.5 text-[12px] text-[var(--sh-sub)] underline-offset-2 hover:text-[var(--sh-fg)] hover:underline">Clear all</button>
+            )}
           </div>
-          {who ? (
-            <div className="flex flex-col gap-2 rounded-[14px] border border-[var(--sh-chip-line)] bg-[var(--sh-card)] p-2.5">
-              <StudioPeoplePick tone="sheet" autoFocus people={opts?.people ?? []} value={peopleNames}
-                onChange={(names) => setPersonIds((opts?.people ?? []).filter((p) => names.includes(p.name)).map((p) => p.id))} maxHeight={180} />
-              <div className="flex justify-end"><button type="button" onClick={() => setWho(false)} className={cn(CHIP, CHIP_OFF)}>Done</button></div>
+          <div className="grid grid-cols-3 gap-2">
+            <FilterBtn icon={<CalendarDays size={12} />} label="Period" value={periodValue} open={panel === "period"} set={months.length > 0 || preset !== "month"} onClick={() => flip("period")} />
+            <FilterBtn icon={<Building2 size={12} />} label="Company" value={coValue} short={companyIds.length ? undefined : "All"} open={panel === "company"} set={companyIds.length > 0} onClick={() => flip("company")} />
+            <FilterBtn icon={<UserRound size={12} />} label="Person" value={personValue} open={panel === "person"} set={personIds.length > 0} onClick={() => flip("person")} />
+          </div>
+
+          {panel && (
+            <div className="st-pop mt-2 rounded-[14px] border border-[var(--sh-chip-line)] bg-[var(--sh-card)] p-3">
+              {panel === "period" && (
+                <>
+                  <div className="grid grid-cols-4 gap-1 rounded-[12px] bg-[var(--sh-field)] p-1">
+                    {PRESETS.map((p) => {
+                      const on = !months.length && preset === p.id;
+                      return (
+                        <button key={p.id} type="button" onClick={() => { setPreset(p.id); setMonths([]); }} aria-pressed={on}
+                          className={cn("h-8 truncate rounded-[9px] px-1 text-[12px] transition-colors", on ? "bg-[var(--sh-on-bg)] font-medium text-[var(--sh-on-fg)]" : "text-[var(--sh-fg)] hover:bg-[var(--sh-hover)]")}>{p.label}</button>
+                      );
+                    })}
+                  </div>
+                  <div className="mb-1.5 mt-3 text-[11.5px] text-[var(--sh-sub)]">Or choose months — pick several to combine them</div>
+                  <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-4">
+                    {(opts?.months ?? []).map((m) => {
+                      const on = months.includes(m.value);
+                      return (
+                        <button key={m.value} type="button" aria-pressed={on} onClick={() => setMonths((l) => (on ? l.filter((x) => x !== m.value) : [...l, m.value]))}
+                          className={cn("inline-flex h-8 items-center justify-center gap-1 truncate rounded-[9px] border px-2 text-[12px] transition-colors", on ? CHIP_ON : CHIP_OFF)}>
+                          {on && <Check size={11} />}{m.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+
+              {panel === "company" && (
+                <>
+                  {(opts?.companies.length ?? 0) > 8 && (
+                    <label className="mb-2 flex h-9 items-center gap-2 rounded-[10px] border border-[var(--sh-chip-line)] bg-[var(--sh-field)] px-3 text-[var(--sh-muted)]">
+                      <Search size={14} />
+                      <input value={coQ} onChange={(e) => setCoQ(e.target.value)} placeholder="Find a company"
+                        className="bare-field w-full border-0 bg-transparent text-[13px] text-[var(--sh-fg)] outline-none placeholder:text-[var(--sh-muted)]" />
+                    </label>
+                  )}
+                  <div className="grid max-h-[232px] grid-cols-1 gap-0.5 overflow-y-auto sm:grid-cols-2">
+                    {!coQ.trim() && <CheckRow on={!companyIds.length} label="All companies" onClick={() => setCompanyIds([])} />}
+                    {coList.map((c) => <CheckRow key={c.id} on={companyIds.includes(c.id)} label={c.name} onClick={() => setCompanyIds((l) => toggle(l, c.id))} />)}
+                    {coList.length === 0 && <div className="px-2 py-3 text-[12.5px] text-[var(--sh-sub)]">No company matches.</div>}
+                  </div>
+                </>
+              )}
+
+              {panel === "person" && (
+                <StudioPeoplePick tone="sheet" autoFocus people={opts?.people ?? []} value={peopleNames}
+                  onChange={(names) => setPersonIds((opts?.people ?? []).filter((p) => names.includes(p.name)).map((p) => p.id))} maxHeight={200} />
+              )}
+
+              <div className="mt-2.5 flex items-center justify-end gap-2 border-t border-[var(--sh-line)] pt-2.5">
+                {((panel === "period" && (months.length > 0 || preset !== "month")) || (panel === "company" && companyIds.length > 0) || (panel === "person" && personIds.length > 0)) && (
+                  <button type="button" onClick={() => { if (panel === "period") { setPreset("month"); setMonths([]); } else if (panel === "company") setCompanyIds([]); else setPersonIds([]); }}
+                    className="mr-auto text-[12px] text-[var(--sh-sub)] hover:text-[var(--sh-fg)] hover:underline">Reset</button>
+                )}
+                <button type="button" onClick={() => setPanel(null)} className={cn(CHIP, CHIP_ON)}>Done</button>
+              </div>
             </div>
-          ) : (
-            <button type="button" onClick={() => setWho(true)} className={cn(CHIP, "h-9 w-full justify-start", CHIP_OFF)}>
-              {peopleNames.length ? <span className="truncate font-medium">{peopleNames.join(", ")}</span> : "Everyone"}
-            </button>
           )}
         </section>
 
         {opts?.canNote && sum && <Notes notes={sum.notes} companyId={companyIds.length === 1 ? companyIds[0] : null} onChange={() => setCompanyIds((l) => [...l])} />}
       </div>
     </StudioSheet>
+  );
+}
+
+/** One of the three filters: what it is, and what it is set to. */
+function FilterBtn({ icon, label, value, short, open, set, onClick }: { icon: ReactNode; label: string; value: string; short?: string; open: boolean; set: boolean; onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} aria-expanded={open}
+      className={cn("flex h-[54px] min-w-0 items-center gap-2 rounded-[12px] border px-2.5 text-left sm:px-3 transition-colors",
+        open ? "border-[var(--sh-fg)] bg-[var(--sh-card)]" : "border-[var(--sh-chip-line)] bg-[var(--sh-field)] hover:bg-[var(--sh-hover)]")}>
+      <span className="min-w-0 flex-1">
+        <span className="flex items-center gap-1.5 text-[11px] text-[var(--sh-sub)]">{icon}{label}{set && <span aria-label="set" className="h-1.5 w-1.5 rounded-full bg-[#19C37D]" />}</span>
+        <span className={cn("mt-0.5 block truncate text-[13px] text-[var(--sh-fg)]", set && "font-medium")}>
+          {short ? <><span className="sm:hidden">{short}</span><span className="hidden sm:inline">{value}</span></> : value}
+        </span>
+      </span>
+      <ChevronDown size={14} className={cn("hidden shrink-0 text-[var(--sh-sub)] transition-transform sm:block", open && "rotate-180")} />
+    </button>
+  );
+}
+
+function CheckRow({ on, label, onClick }: { on: boolean; label: string; onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} aria-pressed={on}
+      className="flex h-9 min-w-0 items-center gap-2.5 rounded-[10px] px-2 text-left text-[13px] text-[var(--sh-fg)] transition-colors hover:bg-[var(--sh-hover)]">
+      <span className={cn("grid h-[18px] w-[18px] shrink-0 place-items-center rounded-[5px] border", on ? "border-transparent bg-[var(--sh-on-bg)] text-[var(--sh-on-fg)]" : "border-[var(--sh-chip-line)] bg-[var(--sh-field)]")}>
+        {on && <Check size={12} strokeWidth={2.6} />}
+      </span>
+      <span className={cn("min-w-0 truncate", on && "font-medium")}>{label}</span>
+    </button>
   );
 }
 
