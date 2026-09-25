@@ -5,6 +5,7 @@ import { Check, CheckCheck, CornerUpLeft, MessageSquare, Paperclip, Pencil, Pin,
 import { segmentMentions, type MentionCandidate } from "@/lib/mentions";
 import { CaretTextarea, Select } from "./ui";
 import { VoiceButton } from "./voice-button";
+import { useToast } from "./toast";
 
 /* Shared conversation view for a task — used by BOTH the staff portal and the
  * admin control centre. Chat-style messages with replies, @mentions, file
@@ -14,6 +15,13 @@ import { VoiceButton } from "./voice-button";
  * limited staff view and the full-powered admin view. */
 
 type ServerAction = (formData: FormData) => void | Promise<void>;
+
+/** A redirect / not-found thrown by a server action is navigation, not a
+ *  failure — it must travel on (a signed-out portal post goes to sign-in). */
+function isNavigation(e: unknown): boolean {
+  const d = (e as { digest?: unknown } | null)?.digest;
+  return typeof d === "string" && (d.startsWith("NEXT_REDIRECT") || d.startsWith("NEXT_NOT_FOUND") || d.startsWith("NEXT_HTTP_ERROR_FALLBACK"));
+}
 
 export type ConvoMessage = {
   id: number;
@@ -107,8 +115,32 @@ export function PortalConversation(props: Props) {
   const [deletingId, setDeletingId] = useState<number | null>(null);
   // If a caller wants to know exactly when a post/pin finished (the admin task
   // drawer, to refetch), wrap the server action to fire onPosted after it resolves.
-  const runAdd: ServerAction = onPosted ? async (fd) => { await addAction(fd); onPosted(); } : addAction;
-  const runPin: ServerAction = onPosted ? async (fd) => { await pinAction(fd); onPosted(); } : pinAction;
+  /* ⚠️ A server action that throws inside a <form action> takes the whole
+   * page down to its error screen — and the box had already been emptied, so
+   * what was typed was gone too. Each is wrapped: a failure is a toast, and a
+   * post that did not go through puts its words back in the box. */
+  const { toast } = useToast();
+  const guard = (run: ServerAction, failed: string, restore = false): ServerAction => async (fd) => {
+    try {
+      await run(fd);
+    } catch (e) {
+      if (isNavigation(e)) throw e;
+      if (restore) {
+        const body = String(fd.get("body") ?? "");
+        // The box is emptied a tick after submit; put the words back after that.
+        setTimeout(() => { if (taRef.current && !taRef.current.value) taRef.current.value = body; }, 0);
+      }
+      // Never the thrown message: in production it is Next's "An error occurred
+      // in the Server Components render…", which means nothing to anyone.
+      toast(failed, { tone: "warn" });
+      return;
+    }
+    onPosted?.();
+  };
+  const runAdd = guard(addAction, "Couldn't post the update — your words are back in the box.", true);
+  const runPin = guard(pinAction, "Couldn't change the pin — try again.");
+  const runEdit = editAction ? guard(editAction, "Couldn't save the change — try again.") : undefined;
+  const runDelete = deleteAction ? guard(deleteAction, "Couldn't take the update down — try again.") : undefined;
   const [replyTo, setReplyTo] = useState<{ id: number; author: string; snippet: string } | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
@@ -247,7 +279,7 @@ export function PortalConversation(props: Props) {
           </button>
         )}
         {canPin && (
-          <form action={runPin}>
+          <form action={runPin} className="flex">
             <input type="hidden" name="updateId" value={m.id} />
             <input type="hidden" name="code" value={code} />
             <button type="submit" title={m.pinned ? "Unpin" : "Pin as the current instruction"} className="text-fg-subtle hover:text-accent transition-colors">
@@ -276,7 +308,7 @@ export function PortalConversation(props: Props) {
       )}
 
       {editingId === m.id && editAction ? (
-        <form action={editAction} onSubmit={() => setTimeout(() => setEditingId(null), 0)} className="mt-1.5 flex flex-col gap-2">
+        <form action={runEdit} onSubmit={() => setTimeout(() => setEditingId(null), 0)} className="mt-1.5 flex flex-col gap-2">
           <input type="hidden" name="updateId" value={m.id} />
           <input type="hidden" name="code" value={code} />
           <textarea name="body" defaultValue={m.body} rows={2} required className="w-full resize-y rounded-xl bg-bg-elev px-3 py-2 text-sm ring-1 ring-border focus:outline-none focus:ring-2 focus:ring-accent/40" />
@@ -298,7 +330,7 @@ export function PortalConversation(props: Props) {
       )}
 
       {deletingId === m.id && deleteAction && (
-        <form action={deleteAction} onSubmit={() => setTimeout(() => setDeletingId(null), 0)} className="mt-2 flex items-center gap-2 rounded-lg bg-danger-soft/40 px-2.5 py-1.5 text-sm ring-1 ring-danger/20">
+        <form action={runDelete} onSubmit={() => setTimeout(() => setDeletingId(null), 0)} className="mt-2 flex items-center gap-2 rounded-lg bg-danger-soft/40 px-2.5 py-1.5 text-sm ring-1 ring-danger/20">
           <input type="hidden" name="updateId" value={m.id} />
           <input type="hidden" name="code" value={code} />
           <span className="text-fg-muted">Delete this note?</span>
@@ -334,7 +366,7 @@ export function PortalConversation(props: Props) {
     const chrono = [...groups].reverse().map((g) => ({ label: g.label, items: [...g.items].reverse() }));
     const older = chrono.length > 3 ? chrono.slice(0, chrono.length - 3) : [];
     const recent = chrono.slice(older.length);
-    const link = "text-[11px] text-[var(--st-muted)] transition-colors hover:text-[var(--st-ink)]";
+    const link = "text-[11px] leading-4 text-[var(--st-muted)] transition-colors hover:text-[var(--st-ink)]";
     const StudioBubble = ({ m }: { m: ConvoMessage }) => {
       const mine = m.me || m.management;
       return (
@@ -347,7 +379,7 @@ export function PortalConversation(props: Props) {
               </div>
             )}
             {editingId === m.id && editAction ? (
-              <form action={editAction} onSubmit={() => setTimeout(() => setEditingId(null), 0)} className="flex min-w-[240px] flex-col gap-2">
+              <form action={runEdit} onSubmit={() => setTimeout(() => setEditingId(null), 0)} className="flex min-w-[240px] flex-col gap-2">
                 <input type="hidden" name="updateId" value={m.id} />
                 <input type="hidden" name="code" value={code} />
                 <textarea name="body" defaultValue={m.body} rows={2} required className="w-full resize-y rounded-lg bg-white px-2.5 py-1.5 text-[13px] text-[#111214] outline-none" />
@@ -370,7 +402,7 @@ export function PortalConversation(props: Props) {
             )}
           </div>
           {deletingId === m.id && deleteAction ? (
-            <form action={deleteAction} onSubmit={() => setTimeout(() => setDeletingId(null), 0)} className="mt-1 flex items-center gap-2 px-1 text-[11px]">
+            <form action={runDelete} onSubmit={() => setTimeout(() => setDeletingId(null), 0)} className="mt-1 flex items-center gap-2 px-1 text-[11px]">
               <input type="hidden" name="updateId" value={m.id} />
               <input type="hidden" name="code" value={code} />
               <span className="text-[var(--st-muted)]">Take this update down? It can be restored.</span>
@@ -381,7 +413,7 @@ export function PortalConversation(props: Props) {
             <div className="mt-1 flex items-center gap-2.5 px-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
               {!closed && <button type="button" onClick={() => startReply(m)} className={link}>Reply</button>}
               {canPin && (
-                <form action={runPin}>
+                <form action={runPin} className="flex">
                   <input type="hidden" name="updateId" value={m.id} />
                   <input type="hidden" name="code" value={code} />
                   <button type="submit" className={link}>{m.pinned ? "Unpin" : "Pin as instruction"}</button>
@@ -418,7 +450,7 @@ export function PortalConversation(props: Props) {
               <Pin size={12} /> Current instruction
               <span className="grow" />
               {canPin && (
-                <form action={runPin}>
+                <form action={runPin} className="flex">
                   <input type="hidden" name="updateId" value={m.id} />
                   <input type="hidden" name="code" value={code} />
                   <button type="submit" title="Unpin" className="text-[var(--st-muted)] hover:text-[var(--st-ink)]"><PinOff size={13} /></button>
@@ -536,7 +568,7 @@ export function PortalConversation(props: Props) {
                 <Pin size={12} /> Current instruction
                 <span className="grow" />
                 {canPin && (
-                  <form action={runPin}>
+                  <form action={runPin} className="flex">
                     <input type="hidden" name="updateId" value={m.id} />
                     <input type="hidden" name="code" value={code} />
                     <button type="submit" title="Unpin" className="text-accent/70 hover:text-accent">
