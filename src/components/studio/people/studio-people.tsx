@@ -14,10 +14,10 @@
  *   foot    search + the filter chips; Select for bulk changes
  */
 import { PersonFace } from "@/components/studio/face";
-import { useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Plus, Search, Maximize2, X, Mail, MessageCircle, Phone, MessagesSquare, CheckSquare, Check, Clock, SkipForward, ArrowUpRight, Loader2 } from "lucide-react";
+import { Plus, Search, Maximize2, X, Mail, MessageCircle, Phone, MessagesSquare, CheckSquare, Check, Clock, SkipForward, ArrowUpRight, Loader2, LayoutGrid, Columns3, ChevronLeft, ChevronRight } from "lucide-react";
 import { StudioScope, StudioHeader, StudioCardRow, StudioCard, CardHead, BigNumber, Ring, stBtn, stFloatBar } from "@/components/studio/kit";
 import { StudioMenu } from "@/components/studio/tasks/controls";
 import { StudioChoiceMenu } from "@/components/studio/tasks/cells";
@@ -100,7 +100,11 @@ export function StudioPeople({ people, companies, hints = {}, readOnly = false }
   // workload, no portal levels, no attention queue. The server sends none of it.
   const staff = paths.staff;
   const [busy, start] = useTransition();
-  const f = useUrlFilters({ co: "all", type: "all", loc: "all", mode: "browse", group: "company", chip: "all", q: "" }, { debounceKeys: ["q"] });
+  // Grid (the owner's default) or Columns — one column per group, side by side,
+  // for a director, manager or member of staff who deals with two or three
+  // companies and whose grid looked empty (owner, 26 Sept 2026).
+  const f = useUrlFilters({ co: "all", type: "all", loc: "all", mode: "browse", group: "company", chip: "all", q: "", lay: readOnly ? "cols" : "grid" }, { debounceKeys: ["q"] });
+  const cols = f.values.lay === "cols" && f.values.mode === "browse";
   const [q, setQ] = useState(f.values.q);
   const [sel, setSel] = useState<number | null>(null);
   const [skipped, setSkipped] = useState<Set<number>>(new Set());
@@ -178,6 +182,19 @@ export function StudioPeople({ people, companies, hints = {}, readOnly = false }
   const groups = useMemo(() => {
     const by = f.values.group;
     if (by === "none") return [{ key: "all", name: "Everyone", items: rows }];
+    // Someone viewing over their OWN companies (a director, manager or member
+    // of staff): a column per company of theirs, and a colleague sits under
+    // every one of those they work for — not under their main company, which
+    // may be one the viewer is not in (owner, 26 Sept 2026).
+    if (by === "company" && readOnly) {
+      const out = companies
+        .map((c) => ({ key: `c${c.id}`, name: c.name, items: rows.filter((p) => p.companyId === c.id || p.associations.some((a) => a.companyId === c.id)) }))
+        .filter((g) => g.items.length > 0)
+        .sort((x, y) => y.items.length - x.items.length || x.name.localeCompare(y.name));
+      const placed = new Set(out.flatMap((g) => g.items.map((p) => p.id)));
+      const rest = rows.filter((p) => !placed.has(p.id));
+      return rest.length ? [...out, { key: "none", name: "Also here to help", items: rest }] : out;
+    }
     const m = new Map<string, { key: string; name: string; sort: string; items: PersonRow[] }>();
     for (const p of rows) {
       const [key, name] =
@@ -194,9 +211,15 @@ export function StudioPeople({ people, companies, hints = {}, readOnly = false }
       const oa = a.items.reduce((n, p) => n + p.workload.overdue, 0), ob = b.items.reduce((n, p) => n + p.workload.overdue, 0);
       return a.sort === "~" ? 1 : b.sort === "~" ? -1 : ob - oa || a.name.localeCompare(b.name);
     });
-  }, [rows, f.values.group]);
+  }, [rows, f.values.group, readOnly, companies]);
 
   const selP = sel != null ? people.find((p) => p.id === sel) ?? null : null;
+  const clickPerson = (p: PersonRow) => {
+    if (selecting) { setPicked((s) => { const n = new Set(s); if (n.has(p.id)) n.delete(p.id); else n.add(p.id); return n; }); return; }
+    // On a phone the card above is out of sight — open the person instead.
+    if (!window.matchMedia("(min-width: 1024px)").matches) { openPerson(p.id); return; }
+    setSel(sel === p.id ? null : p.id);
+  };
   const active = counts.all;
   const locations = useMemo(() => [...new Set(people.flatMap((p) => [p.workSiteName, p.residenceName]).filter(Boolean) as string[])].sort(), [people]);
 
@@ -248,6 +271,15 @@ export function StudioPeople({ people, companies, hints = {}, readOnly = false }
                 </button>
               ))}
             </div>}
+            <div className="flex gap-0.5 rounded-[11px] bg-[var(--st-seg)] p-[3px] max-md:hidden" role="tablist" aria-label="Layout">
+              {([["grid", "Grid", LayoutGrid], ["cols", "Columns", Columns3]] as const).map(([k, l, Icon]) => (
+                <button key={k} type="button" role="tab" aria-selected={f.values.lay === k} title={l} onClick={() => f.set({ lay: k, mode: "browse" })}
+                  className={cn("flex h-[30px] items-center gap-1.5 rounded-lg px-2.5 text-xs transition-colors",
+                    f.values.lay === k ? "bg-[var(--st-surface)] font-medium shadow-[0_1px_2px_rgba(0,0,0,0.08)]" : "text-[var(--st-sub)] hover:text-[var(--st-ink)]")}>
+                  <Icon size={14} /><span className="hidden xl:inline">{l}</span>
+                </button>
+              ))}
+            </div>
             <StudioMenu label="Group" sub={`· ${GROUPS.find(([k]) => k === f.values.group)?.[1] ?? "Company"}`}
               options={GROUPS.map(([k, l]) => ({ key: k, label: l, href: f.hrefFor({ group: k }), active: f.values.group === k }))} />
             {!readOnly && <button type="button" onClick={openAdd} className={stBtn.dark}><Plus size={15} />Add person</button>}
@@ -347,7 +379,32 @@ export function StudioPeople({ people, companies, hints = {}, readOnly = false }
       {/* ── The people, or the queue — from lg it fills the frame and scrolls in
            itself, with the search bar floating over its foot (the board). */}
       <div ref={area} className="relative min-h-0">
-      <div className="st-scroll lg:absolute lg:inset-0 lg:overflow-y-auto lg:pr-1">
+      {cols && groups.length > 0 && (
+        <div className="hidden md:block md:h-[62vh] lg:absolute lg:inset-0 lg:h-auto">
+          <PeopleColumns groups={groups} titled={f.values.group !== "none"}>
+            {(p) => {
+              const l = load(p);
+              const on = selecting ? picked.has(p.id) : sel === p.id;
+              return (
+                <button key={p.id} type="button" onClick={() => clickPerson(p)} onDoubleClick={() => !selecting && openPerson(p.id)}
+                  title={selecting ? undefined : "Click to see them above · double-click to open"}
+                  className={cn("flex w-full min-w-0 shrink-0 items-center gap-2.5 rounded-xl border-[1.5px] px-2.5 py-2 text-left transition-colors",
+                    on ? "border-[var(--st-ink)] bg-[var(--st-page)]" : "border-transparent hover:bg-[var(--st-page)]", !p.active && "opacity-60")}>
+                  <Avatar name={p.name} size={34} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[13.5px] font-medium">{shortName(p.name)}</span>
+                    <span className="block truncate text-xs text-[var(--st-muted)]">{p.role ?? "No job title"}</span>
+                  </span>
+                  {selecting
+                    ? <span className={cn("flex h-4 w-4 shrink-0 items-center justify-center rounded-[5px] border-[1.5px]", on ? "border-[var(--st-ink)] bg-[var(--st-ink)] text-[var(--st-surface)]" : "border-[var(--st-dash)]")}>{on && <Check size={11} strokeWidth={3} />}</span>
+                    : !staff && <span className="shrink-0 whitespace-nowrap text-xs font-medium" style={{ color: l.c }}>{l.text}</span>}
+                </button>
+              );
+            }}
+          </PeopleColumns>
+        </div>
+      )}
+      <div className={cn("st-scroll lg:absolute lg:inset-0 lg:overflow-y-auto lg:pr-1", cols && groups.length > 0 && "md:hidden")}>
       {f.values.mode === "attention" ? (
         <div className="flex flex-col gap-2.5 pb-24">
           {attention.length === 0 ? (
@@ -396,12 +453,7 @@ export function StudioPeople({ people, companies, hints = {}, readOnly = false }
                     const on = selecting ? picked.has(p.id) : sel === p.id;
                     return (
                       <button key={p.id} type="button"
-                        onClick={() => {
-                          if (selecting) { setPicked((s) => { const n = new Set(s); if (n.has(p.id)) n.delete(p.id); else n.add(p.id); return n; }); return; }
-                          // On a phone the card above is out of sight — open the person instead.
-                          if (!window.matchMedia("(min-width: 1024px)").matches) { openPerson(p.id); return; }
-                          setSel(sel === p.id ? null : p.id);
-                        }}
+                        onClick={() => clickPerson(p)}
                         onDoubleClick={() => !selecting && openPerson(p.id)}
                         title={selecting ? undefined : "Click to see them above · double-click to open"}
                         className={cn("relative flex min-w-0 flex-col gap-2.5 bg-[var(--st-surface)] text-left transition-colors",
@@ -497,6 +549,52 @@ export function StudioPeople({ people, companies, hints = {}, readOnly = false }
       </div>
       </div>
     </StudioScope>
+  );
+}
+
+/** Columns: one per group, side by side, sharing the width when there are two
+ *  or three and sliding sideways (‹ ›) when there are more. The page never
+ *  scrolls — each column scrolls inside itself, as the Home cards do. */
+function PeopleColumns({ groups, titled, children }: { groups: { key: string; name: string; items: PersonRow[] }[]; titled: boolean; children: (p: PersonRow) => React.ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [edge, setEdge] = useState({ left: false, right: false });
+  const measure = () => {
+    const el = ref.current;
+    if (!el) return;
+    setEdge({ left: el.scrollLeft > 4, right: el.scrollLeft + el.clientWidth < el.scrollWidth - 4 });
+  };
+  useEffect(() => {
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [groups.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  const slide = (dir: number) => {
+    const el = ref.current;
+    if (!el) return;
+    const col = el.firstElementChild as HTMLElement | null;
+    el.scrollBy({ left: dir * ((col?.offsetWidth ?? 300) + 12), behavior: "smooth" });
+  };
+  const ARROW = "absolute top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-[var(--st-line)] bg-[var(--st-surface)] shadow-[0_6px_18px_rgba(17,18,20,0.14)] transition-opacity hover:bg-[var(--st-page)]";
+  return (
+    <div className="relative h-full">
+      <div ref={ref} onScroll={measure} className="flex h-full snap-x snap-mandatory gap-3 overflow-x-auto pb-20 [scrollbar-width:none]">
+        {groups.map((g) => (
+          <section key={g.key} className="flex min-h-0 min-w-[260px] shrink-0 grow basis-[calc((100%-24px)/3)] snap-start flex-col rounded-[18px] bg-[var(--st-surface)] xl:basis-[calc((100%-36px)/4)]">
+            {titled && (
+              <div className="flex shrink-0 items-baseline gap-2 border-b border-[var(--st-line-soft)] px-4 pb-2.5 pt-3.5">
+                <span className="min-w-0 truncate text-[15px] font-semibold">{g.name}</span>
+                <span className="shrink-0 text-xs text-[var(--st-muted)]">{g.items.length}</span>
+              </div>
+            )}
+            <div className="st-scroll flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto p-1.5">
+              {g.items.map((p) => children(p))}
+            </div>
+          </section>
+        ))}
+      </div>
+      {edge.left && <button type="button" aria-label="Earlier columns" onClick={() => slide(-1)} className={cn(ARROW, "-left-3")}><ChevronLeft size={17} /></button>}
+      {edge.right && <button type="button" aria-label="More columns" onClick={() => slide(1)} className={cn(ARROW, "-right-3")}><ChevronRight size={17} /></button>}
+    </div>
   );
 }
 
