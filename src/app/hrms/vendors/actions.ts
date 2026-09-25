@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { guardOwner } from "@/lib/viewer";
 import { createVendor, updateVendor, archiveVendor, type VendorInput } from "@/lib/vendors";
 
 type Result = { ok: true; id?: number } | { ok: false; error: string };
@@ -37,6 +38,7 @@ function vendorFromForm(fd: FormData): VendorInput | { error: string } {
 }
 
 export async function createVendorAction(fd: FormData): Promise<Result> {
+  await guardOwner();
   const parsed = vendorFromForm(fd);
   if ("error" in parsed) return { ok: false, error: parsed.error };
   try {
@@ -49,6 +51,7 @@ export async function createVendorAction(fd: FormData): Promise<Result> {
 }
 
 export async function updateVendorAction(id: number, fd: FormData): Promise<Result> {
+  await guardOwner();
   const parsed = vendorFromForm(fd);
   if ("error" in parsed) return { ok: false, error: parsed.error };
   try {
@@ -61,6 +64,7 @@ export async function updateVendorAction(id: number, fd: FormData): Promise<Resu
 }
 
 export async function archiveVendorAction(id: number): Promise<Result> {
+  await guardOwner();
   try {
     await archiveVendor(id);
     invalidate();

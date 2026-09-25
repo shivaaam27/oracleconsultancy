@@ -59,6 +59,8 @@ export type AssetRow = {
   assignedAt: string | null;
   purchaseDate: string | null;
   purchaseCost: number | null;
+  warrantyUntil: string | null;
+  checkedAt: string | null;
   notes: string | null;
 };
 
@@ -70,3 +72,36 @@ export type AssetHistoryRow = {
   returnedAt: string | null;
   notes: string | null;
 };
+
+/* The service log (migration 0171). */
+export type AssetServiceKind = "service" | "repair" | "check" | "other";
+export const ASSET_SERVICE_LABELS: Record<AssetServiceKind, string> = {
+  service: "Service",
+  repair: "Repair",
+  check: "Inspection",
+  other: "Other",
+};
+export type AssetServiceRow = {
+  id: number;
+  assetId: number;
+  kind: AssetServiceKind;
+  happenedOn: string;
+  vendorId: number | null;
+  vendorName: string | null;
+  cost: number | null;
+  notes: string | null;
+};
+
+/** A stock-take counts an asset as seen if it was checked within this many days. */
+export const CHECK_FRESH_DAYS = 180;
+/** Warranty is "ending soon" inside this many days. */
+export const WARRANTY_SOON_DAYS = 60;
+
+export function warrantyState(iso: string | null, now = Date.now()): "none" | "ok" | "soon" | "ended" {
+  if (!iso) return "none";
+  const d = (new Date(iso).getTime() - now) / 86_400_000;
+  return d < 0 ? "ended" : d <= WARRANTY_SOON_DAYS ? "soon" : "ok";
+}
+export function checkedRecently(iso: string | null, now = Date.now()): boolean {
+  return !!iso && (now - new Date(iso).getTime()) / 86_400_000 <= CHECK_FRESH_DAYS;
+}

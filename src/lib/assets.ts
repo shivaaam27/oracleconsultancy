@@ -1,5 +1,5 @@
 import { sb } from "@/db/supabase";
-import type { AssetRow, AssetHistoryRow, AssetStatus } from "@/lib/assets-shared";
+import type { AssetRow, AssetHistoryRow, AssetStatus, AssetServiceKind, AssetServiceRow } from "@/lib/assets-shared";
 import { type Tx } from "@/lib/tx";
 import { assets, assetAssignments } from "@/db/schema";
 import { and, eq, inArray, isNull } from "drizzle-orm";
@@ -33,6 +33,8 @@ type Row = {
   purchase_date: string | null;
   // Money — numeric(14,2); postgres.js returns it as a decimal STRING.
   purchase_cost: string | number | null;
+  warranty_until: string | null;
+  checked_at: string | null;
   notes: string | null;
   company?: Embed;
   assignedCompany?: Embed;
@@ -55,7 +57,7 @@ function money(v: number | null | undefined): string | null {
 // Assets have two FKs to companies (owning + assigned) and two to people
 // (holder + custodian), so every embed is disambiguated by its FK constraint.
 const SELECT =
-  "id,tag,name,category,brand,model,department,serial_no,company_id,vendor_id,location,status,assigned_to_person_id,assigned_to_company_id,custodian_person_id,assigned_at,purchase_date,purchase_cost,notes," +
+  "id,tag,name,category,brand,model,department,serial_no,company_id,vendor_id,location,status,assigned_to_person_id,assigned_to_company_id,custodian_person_id,assigned_at,purchase_date,purchase_cost,warranty_until,checked_at,notes," +
   " company:companies!assets_company_id_companies_id_fk(name)," +
   " assignedCompany:companies!assets_assigned_to_company_id_companies_id_fk(name)," +
   " holder:people!assets_assigned_to_person_id_people_id_fk(name)," +
@@ -88,6 +90,8 @@ function map(r: Row): AssetRow {
     purchaseDate: r.purchase_date,
     // numeric(14,2) arrives as a string; parse once at the edge (null stays null).
     purchaseCost: r.purchase_cost == null ? null : Number(r.purchase_cost) || 0,
+    warrantyUntil: r.warranty_until,
+    checkedAt: r.checked_at,
     notes: r.notes,
   };
 }
@@ -214,6 +218,7 @@ export type AssetInput = {
   purchaseCost: number | null;
   notes: string | null;
   handoverDate?: string | null; // ISO or null — manual override of assigned_at
+  warrantyUntil?: string | null; // ISO or null; undefined = leave it alone
 };
 
 export async function createAsset(input: AssetInput): Promise<number> {
@@ -235,6 +240,7 @@ export async function createAsset(input: AssetInput): Promise<number> {
       purchase_cost: money(input.purchaseCost),
       notes: input.notes,
       assigned_at: input.handoverDate ?? null,
+      warranty_until: input.warrantyUntil ?? null,
       status: "in_store",
       created_at: now,
       updated_at: now,
@@ -297,6 +303,7 @@ export async function updateAsset(id: number, input: AssetInput): Promise<void> 
       purchase_cost: money(input.purchaseCost),
       notes: input.notes,
       ...(input.handoverDate !== undefined ? { assigned_at: input.handoverDate } : {}),
+      ...(input.warrantyUntil !== undefined ? { warranty_until: input.warrantyUntil } : {}),
       updated_at: new Date().toISOString(),
     })
     .eq("id", id);
@@ -525,4 +532,86 @@ export async function archiveAsset(assetId: number, archived: boolean): Promise<
   // searchable rather than removing the index (registry lifecycleFor reads
   // `archived`). Only a true hard-delete would call removeEntityIndex.
   void reindexEntity("asset", assetId); // best-effort
+}
+
+/* ------------------------------------------------------------------ */
+/* Stock-take and the service log (migration 0171).                    */
+/* ------------------------------------------------------------------ */
+
+/** "Seen it" — stamps the asset as checked in a stock-take, now. */
+export async function markAssetChecked(assetId: number): Promise<void> {
+  const { error } = await sb.from("assets").update({ checked_at: new Date().toISOString() }).eq("id", assetId);
+  if (error) throw new Error(error.message);
+}
+
+export type AssetServiceInput = {
+  assetId: number;
+  kind: AssetServiceKind;
+  happenedOn: string; // ISO
+  vendorId: number | null;
+  cost: number | null;
+  notes: string | null;
+  createdBy?: string;
+};
+
+export async function addAssetService(input: AssetServiceInput): Promise<number> {
+  const { data, error } = await sb
+    .from("asset_services")
+    .insert({
+      asset_id: input.assetId,
+      kind: input.kind,
+      happened_on: input.happenedOn,
+      vendor_id: input.vendorId,
+      cost: money(input.cost),
+      notes: input.notes,
+      created_by: input.createdBy ?? "web-ui",
+    })
+    .select("id")
+    .single();
+  if (error) throw new Error(error.message);
+  return data.id as number;
+}
+
+export async function removeAssetService(id: number): Promise<void> {
+  const { error } = await sb.from("asset_services").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
+type ServiceRaw = {
+  id: number; asset_id: number; kind: string; happened_on: string; vendor_id: number | null;
+  cost: string | number | null; notes: string | null; vendor?: Embed;
+};
+function mapService(r: ServiceRaw): AssetServiceRow {
+  return {
+    id: r.id,
+    assetId: r.asset_id,
+    kind: (r.kind as AssetServiceKind) ?? "service",
+    happenedOn: r.happened_on,
+    vendorId: r.vendor_id,
+    vendorName: one(r.vendor)?.name ?? null,
+    cost: r.cost == null ? null : Number(r.cost) || 0,
+    notes: r.notes,
+  };
+}
+const SERVICE_SELECT = "id,asset_id,kind,happened_on,vendor_id,cost,notes, vendor:vendors!asset_services_vendor_id_fkey(name)";
+
+/** One asset's service log, newest first. */
+export async function listAssetServices(assetId: number): Promise<AssetServiceRow[]> {
+  const { data, error } = await sb.from("asset_services").select(SERVICE_SELECT).eq("asset_id", assetId).order("happened_on", { ascending: false });
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as unknown as ServiceRaw[]).map(mapService);
+}
+
+/** Every service logged since `sinceIso` (for the register's cards). */
+export async function listServicesSince(sinceIso: string): Promise<AssetServiceRow[]> {
+  const { data, error } = await sb.from("asset_services").select(SERVICE_SELECT).gte("happened_on", sinceIso).order("happened_on", { ascending: false });
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as unknown as ServiceRaw[]).map(mapService);
+}
+
+/** One vendor's work across every asset, newest first. */
+export async function listServicesForVendor(vendorId: number): Promise<AssetServiceRow[]> {
+  const { data, error } = await sb.from("asset_services").select(SERVICE_SELECT).eq("vendor_id", vendorId).order("happened_on", { ascending: false }).limit(100);
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as unknown as ServiceRaw[]).map(mapService);
 }

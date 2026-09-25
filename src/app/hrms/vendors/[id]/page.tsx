@@ -1,16 +1,12 @@
-import { BackLink } from "@/components/back-link";
 import { notFound } from "next/navigation";
 import { listVendors, vendorDocuments } from "@/lib/vendors";
-import { assetCountByVendor } from "@/lib/assets";
-import { VendorRecord } from "./vendor-record";
+import { listAssets, listServicesForVendor } from "@/lib/assets";
+import { sb } from "@/db/supabase";
+import { StudioVendor } from "@/components/studio/assets/studio-vendor";
 
 /**
- * A vendor at its own URL — /hrms/vendors/<id>.
- *
- * Same shape as every other record. There is no `getVendor(id)` loader, so this
- * picks the one it needs out of `listVendors()` — that keeps the rollup counts
- * (contracts, expired, expiring) exactly as the register computes them rather
- * than recomputing them a second, slightly different way.
+ * A supplier at its own URL — /hrms/vendors/<id>, Studio (26 Sept 2026).
+ * Picked out of `listVendors()` so the paper counts match the register exactly.
  */
 
 export const dynamic = "force-dynamic";
@@ -18,7 +14,7 @@ export const dynamic = "force-dynamic";
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const vendor = (await listVendors().catch(() => [])).find((v) => v.id === Number(id));
-  return { title: vendor ? `${vendor.name} · Vendors` : "Vendor · COS" };
+  return { title: vendor ? `${vendor.name} · Suppliers` : "Supplier · COS" };
 }
 
 export default async function VendorPage({ params }: { params: Promise<{ id: string }> }) {
@@ -26,23 +22,23 @@ export default async function VendorPage({ params }: { params: Promise<{ id: str
   const vendorId = Number(id);
   if (!Number.isFinite(vendorId)) notFound();
 
-  const [vendors, documents, assetCounts] = await Promise.all([
+  const [vendors, documents, assets, services, { data: companies }] = await Promise.all([
     listVendors(),
     vendorDocuments(vendorId).catch(() => []),
-    assetCountByVendor().catch(() => ({} as Record<number, number>)),
+    listAssets(),
+    listServicesForVendor(vendorId).catch(() => []),
+    sb.from("companies").select("id,name").eq("active", true).order("name"),
   ]);
-  const assetCount = assetCounts[vendorId] ?? 0;
   const vendor = vendors.find((v) => v.id === vendorId);
   if (!vendor) notFound();
 
   return (
-    <div className="space-y-3">
-      <BackLink
-          fallbackHref="/hrms/assets?view=vendors"
-          fallbackLabel="Vendors"
-          className="inline-flex items-center gap-1.5 text-sm text-fg-muted transition-colors hover:text-accent"
-        />
-      <VendorRecord vendor={vendor} documents={documents} assetCount={assetCount} />
-    </div>
+    <StudioVendor
+      v={vendor}
+      documents={documents}
+      assets={assets.filter((a) => a.vendorId === vendorId)}
+      services={services}
+      companies={(companies ?? []).map((c) => ({ id: c.id as number, name: c.name as string }))}
+    />
   );
 }

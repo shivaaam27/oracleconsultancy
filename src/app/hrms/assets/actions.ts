@@ -13,9 +13,12 @@ import {
   archiveAsset,
   listArchivedAssets,
   listAssetHistory,
+  markAssetChecked,
+  addAssetService,
+  removeAssetService,
   type AssetInput,
 } from "@/lib/assets";
-import type { AssetStatus, AssetRow, AssetHistoryRow } from "@/lib/assets-shared";
+import type { AssetStatus, AssetRow, AssetHistoryRow, AssetServiceKind } from "@/lib/assets-shared";
 
 type Result = { ok: true; id?: number } | { ok: false; error: string };
 
@@ -67,6 +70,8 @@ function assetFromForm(fd: FormData): AssetInput | { error: string } {
     purchaseCost: numOrNull(fd, "purchaseCost"),
     notes: str(fd, "notes"),
     handoverDate: dateIso(fd, "handoverDate"),
+    // Only a form that carries the field may change it (the importer does not).
+    ...(fd.has("warrantyUntil") ? { warrantyUntil: dateIso(fd, "warrantyUntil") } : {}),
   };
 }
 
@@ -241,5 +246,56 @@ export async function archiveAssetAction(assetId: number, archived: boolean): Pr
     return { ok: true, id: assetId };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Could not archive the asset." };
+  }
+}
+
+/** Stock-take: "I have seen this one", stamped now. */
+export async function checkAssetAction(assetId: number): Promise<Result> {
+  await guardOwner();
+  try {
+    await markAssetChecked(assetId);
+    invalidate();
+    return { ok: true, id: assetId };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Could not mark it checked." };
+  }
+}
+
+const SERVICE_KINDS: AssetServiceKind[] = ["service", "repair", "check", "other"];
+
+/** Log a service, repair or inspection against an asset. Optionally sends it
+ *  to the workshop ("maintenance") or back into use in the same step. */
+export async function addAssetServiceAction(fd: FormData): Promise<Result> {
+  await guardOwner();
+  const assetId = numOrNull(fd, "assetId");
+  if (!assetId) return { ok: false, error: "Which asset?" };
+  const kindRaw = (fd.get("kind") ?? "").toString();
+  const kind = (SERVICE_KINDS as string[]).includes(kindRaw) ? (kindRaw as AssetServiceKind) : "service";
+  const happenedOn = dateIso(fd, "happenedOn") ?? new Date().toISOString();
+  try {
+    const id = await addAssetService({
+      assetId, kind, happenedOn,
+      vendorId: numOrNull(fd, "vendorId"),
+      cost: numOrNull(fd, "cost"),
+      notes: str(fd, "notes"),
+    });
+    const after = (fd.get("after") ?? "").toString();
+    if (after === "maintenance" || after === "in_store") await setAssetStatus(assetId, after);
+    if (kind === "check") await markAssetChecked(assetId);
+    invalidate();
+    return { ok: true, id };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Could not log it." };
+  }
+}
+
+export async function removeAssetServiceAction(id: number): Promise<Result> {
+  await guardOwner();
+  try {
+    await removeAssetService(id);
+    invalidate();
+    return { ok: true, id };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Could not remove it." };
   }
 }

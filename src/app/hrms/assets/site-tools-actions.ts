@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { guardOwner } from "@/lib/viewer";
 import {
   createSiteTool,
   createSiteToolsBulk,
@@ -66,6 +67,7 @@ function fromForm(fd: FormData): SiteToolInput | { error: string } {
 }
 
 export async function createSiteToolAction(fd: FormData): Promise<Result> {
+  await guardOwner();
   const parsed = fromForm(fd);
   if ("error" in parsed) return { ok: false, error: parsed.error };
   try {
@@ -78,6 +80,7 @@ export async function createSiteToolAction(fd: FormData): Promise<Result> {
 }
 
 export async function updateSiteToolAction(id: number, fd: FormData): Promise<Result> {
+  await guardOwner();
   const parsed = fromForm(fd);
   if ("error" in parsed) return { ok: false, error: parsed.error };
   try {
@@ -90,6 +93,7 @@ export async function updateSiteToolAction(id: number, fd: FormData): Promise<Re
 }
 
 export async function setSiteToolQuantityAction(id: number, quantity: number): Promise<Result> {
+  await guardOwner();
   try {
     await setSiteToolQuantity(id, quantity);
     invalidate();
@@ -100,6 +104,7 @@ export async function setSiteToolQuantityAction(id: number, quantity: number): P
 }
 
 export async function setSiteToolConditionAction(id: number, condition: ToolCondition): Promise<Result> {
+  await guardOwner();
   try {
     await setSiteToolCondition(id, condition);
     invalidate();
@@ -110,6 +115,7 @@ export async function setSiteToolConditionAction(id: number, condition: ToolCond
 }
 
 export async function transferSiteToolAction(id: number, qty: number, toLocation: string): Promise<Result> {
+  await guardOwner();
   const loc = toLocation.trim();
   if (!loc) return { ok: false, error: "Choose a destination site." };
   if (!(qty > 0)) return { ok: false, error: "Quantity must be at least 1." };
@@ -123,6 +129,7 @@ export async function transferSiteToolAction(id: number, qty: number, toLocation
 }
 
 export async function writeOffSiteToolAction(id: number, qty: number, reason: string | null): Promise<Result> {
+  await guardOwner();
   if (!(qty > 0)) return { ok: false, error: "Quantity must be at least 1." };
   try {
     await writeOffSiteTool(id, qty, reason?.trim() || null);
@@ -136,6 +143,7 @@ export async function writeOffSiteToolAction(id: number, qty: number, reason: st
 export async function listSiteToolMovementsAction(toolId?: number): Promise<
   { ok: true; rows: SiteToolMovementRow[] } | { ok: false; error: string }
 > {
+  await guardOwner();
   try {
     const rows = await listSiteToolMovements(toolId);
     return { ok: true, rows };
@@ -145,6 +153,7 @@ export async function listSiteToolMovementsAction(toolId?: number): Promise<
 }
 
 export async function archiveSiteToolAction(id: number, archived: boolean): Promise<Result> {
+  await guardOwner();
   try {
     await archiveSiteTool(id, archived);
     invalidate();
@@ -169,6 +178,7 @@ export async function importSiteToolsAction(
   rows: SiteToolImportRow[],
   companyId: number | null
 ): Promise<Result> {
+  await guardOwner();
   const clean = rows
     .map((r) => ({ ...r, name: (r.name ?? "").trim() }))
     .filter((r) => r.name.length > 0);

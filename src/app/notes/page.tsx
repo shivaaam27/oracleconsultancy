@@ -1,6 +1,7 @@
-import { PageHeader } from "@/components/ui";
+import { sb } from "@/db/supabase";
+import { snippetOf } from "@/lib/notes-shared";
 import { OfflineNotesBanner } from "@/components/offline-notes-banner";
-import { NotesShelf } from "@/components/notes-shelf";
+import { StudioNotesShelf } from "@/components/studio/notes/studio-notes-shelf";
 import { listNotes, listFolders, noteCounts, listTags, noteIdsForTag } from "@/lib/notes";
 import { getSavedViewsFor } from "@/lib/saved-views";
 
@@ -43,6 +44,10 @@ export default async function NotesPage({
        list uses (`note.savedViews` in `settings`) — no new table. */
     getSavedViewsFor("note"),
   ]);
+  // Today's daily page (EAT), for the "Today's page" card.
+  const day = new Date(Date.now() + 3 * 3_600_000).toISOString().slice(0, 10);
+  const { data: todayRow } = await sb.from("notes").select("id,title,body_text").eq("kind", "daily").eq("daily_date", day).maybeSingle();
+  const today = todayRow ? { id: todayRow.id as number, title: (todayRow.title as string) || "Today", snippet: snippetOf((todayRow.body_text as string) ?? "", (todayRow.title as string) ?? "") } : null;
 
   // "Pinned" and "Unfiled" are cuts of the same query rather than separate reads —
   // the shelf is small enough that filtering in memory beats a second round trip.
@@ -54,29 +59,11 @@ export default async function NotesPage({
   ).filter((r) => (tag ? tagged.has(r.id) : true));
 
   return (
-    <div className="space-y-4">
-      <PageHeader
-        title="Notes"
-        sub={`${counts.all} note${counts.all === 1 ? "" : "s"}${counts.pinned ? ` · ${counts.pinned} pinned` : ""}${counts.archived ? ` · ${counts.archived} archived` : ""}`}
-      />
+    <div className="flex flex-col gap-3">
       {/* Also the flush point: opening the shelf with a connection sends anything
           written offline, so a note cannot sit on a device unnoticed. */}
       <OfflineNotesBanner />
-      <NotesShelf
-        rows={shown}
-        total={rows.length}
-        folders={folders}
-        counts={counts}
-        filter={filter}
-        folderId={Number.isFinite(folderId) ? folderId : null}
-        tags={tags}
-        activeTag={tag ?? null}
-        q={sp.q ?? ""}
-        /* The global New menu points here with ?new=1; the shelf creates a note and
-           goes straight to it, so "New note" is one click from anywhere. */
-        autoCreate={sp.new === "1"}
-        savedViews={savedViews}
-      />
+      <StudioNotesShelf rows={shown} folders={folders} counts={counts} tags={tags} savedViews={savedViews} today={today} autoCreate={sp.new === "1"} />
     </div>
   );
 }

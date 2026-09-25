@@ -1,78 +1,64 @@
-import { TONE, type Tone } from "@/components/surface-kit";
-import { PageHeader } from "@/components/ui";
-import { HrmsCrumbs } from "@/components/hrms/hrms-crumbs";
-import { AssetsTable } from "@/components/assets-table";
-import { SiteToolsTable } from "@/components/site-tools-table";
-import { VendorsTable } from "@/components/vendors-table";
-import { RegisterTabs } from "@/components/register-tabs";
-import { listAssets, assetMetrics, assetCountByVendor } from "@/lib/assets";
-import { listSiteTools, siteToolMetrics } from "@/lib/site-tools";
-import { listVendors, listVendorsLite } from "@/lib/vendors";
-import { getSavedViewsFor } from "@/lib/saved-views";
+import { listAssets, listArchivedAssets, assetCountByVendor, listServicesSince } from "@/lib/assets";
+import { listSiteTools } from "@/lib/site-tools";
+import { listVendors } from "@/lib/vendors";
 import { sb } from "@/db/supabase";
+import { StudioAssets, type StudioAssetsData, type View } from "@/components/studio/assets/studio-assets";
 
 export const dynamic = "force-dynamic";
 
-export default async function AssetVendorPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ from?: string; view?: string }>;
-}) {
-  const { from, view } = await searchParams;
-  const [assets, tools, vendors, vendorsLite, vendorAssetCounts, { data: companiesRaw }, { data: peopleRaw }, assetViews, vendorViews] = await Promise.all([
-    listAssets(),
+/**
+ * Assets, Tools & Vendors — Studio (26 Sept 2026, board Assets). One page, three
+ * registers (`?view=assets|tools|vendors`), run as a management system: the
+ * hand-over desk, the workshop, warranties, a stock-take and what upkeep costs.
+ * `?st=archived` swaps the asset list for the archived ones (restore lives there).
+ */
+export default async function AssetsPage({ searchParams }: { searchParams: Promise<{ view?: string; st?: string }> }) {
+  const { view: rawView, st } = await searchParams;
+  const view: View = rawView === "tools" || rawView === "vendors" ? rawView : "assets";
+  const archived = st === "archived";
+
+  const [assets, liveAssets, tools, vendors, vendorAssets, services, { data: companies }, { data: people }] = await Promise.all([
+    archived ? listArchivedAssets() : listAssets(),
+    archived ? listAssets() : Promise.resolve(null),
     listSiteTools(),
     listVendors(),
-    listVendorsLite(),
     assetCountByVendor(),
+    listServicesSince("1970-01-01T00:00:00Z").catch(() => []),
     sb.from("companies").select("id,name").eq("active", true).order("name"),
     sb.from("people").select("id,name").eq("active", true).order("name"),
-    getSavedViewsFor("asset"),
-    getSavedViewsFor("vendor"),
   ]);
 
-  const companies = (companiesRaw ?? []).map((c) => ({ id: c.id as number, name: c.name as string }));
-  const people = (peopleRaw ?? []).map((p) => ({ id: p.id as number, name: p.name as string }));
-  const m = assetMetrics(assets);
-  const tm = siteToolMetrics(tools);
+  const all = liveAssets ?? assets;
+  const yearAgo = Date.now() - 365 * 86_400_000;
+  const vendorSpend: Record<number, number> = {};
+  for (const a of all) if (a.vendorId && a.purchaseCost) vendorSpend[a.vendorId] = (vendorSpend[a.vendorId] ?? 0) + a.purchaseCost;
+  const lastService: Record<number, string> = {};
+  let upkeepYear = 0, servicesYear = 0;
+  for (const s of services) {
+    if (s.vendorId && s.cost) vendorSpend[s.vendorId] = (vendorSpend[s.vendorId] ?? 0) + s.cost;
+    if (!lastService[s.assetId]) lastService[s.assetId] = s.happenedOn;
+    if (new Date(s.happenedOn).getTime() >= yearAgo) { servicesYear++; upkeepYear += s.cost ?? 0; }
+  }
+  const locations = [...new Set([...all.map((a) => a.location), ...tools.map((t) => t.location)].filter(Boolean) as string[])].sort();
 
-  const initial = view === "vendors" ? "vendors" : view === "tools" ? "tools" : "assets";
-
-  const metrics: { label: string; value: number | string; tone: Tone }[] = [
-    { label: "Assets", value: m.total, tone: "accent" },
-    { label: "Assigned", value: m.assigned, tone: "info" },
-    { label: "In store", value: m.inStore, tone: "muted" },
-    { label: "Tool units", value: tm.units, tone: "accent" },
-    { label: "Low stock", value: tm.lowStock, tone: tm.lowStock ? "warn" : "muted" },
-    { label: "Vendors", value: vendors.length, tone: "muted" },
-    { label: "Total value", value: `TZS ${new Intl.NumberFormat("en-GB").format(m.totalValue)}`, tone: "muted" },
-  ];
-
-  return (
-    <div className="space-y-5">
-      <HrmsCrumbs from={from} />
-      <PageHeader
-        title="Assets, Tools & Vendors"
-        sub="Durable equipment, site tools and the suppliers behind them"
-      >
-        <div className="flex flex-wrap gap-x-6 gap-y-3">
-          {metrics.map((mt) => (
-            <div key={mt.label} className="flex items-baseline gap-1.5">
-              <span className={`text-xl font-semibold tabular ${TONE[mt.tone].text}`}>{mt.value}</span>
-              <span className="text-xs text-fg-muted">{mt.label}</span>
-            </div>
-          ))}
-        </div>
-      </PageHeader>
-      <RegisterTabs
-        initial={initial}
-        assetCount={assets.length}
-        toolCount={tools.length}
-        vendorCount={vendors.length}
-        assetsSlot={<AssetsTable assets={assets} companies={companies} people={people} vendors={vendorsLite} savedViews={assetViews} />}
-        toolsSlot={<SiteToolsTable tools={tools} companies={companies} />}
-        vendorsSlot={<VendorsTable vendors={vendors} companies={companies} assetCounts={vendorAssetCounts} savedViews={vendorViews} />}
-      />
-    </div>
-  );
+  const d: StudioAssetsData = {
+    view,
+    archived,
+    assets,
+    tools,
+    vendors,
+    lists: {
+      companies: (companies ?? []).map((c) => ({ id: c.id as number, name: c.name as string })),
+      people: (people ?? []).map((p) => ({ id: p.id as number, name: p.name as string })),
+      vendors: vendors.map((v) => ({ id: v.id, name: v.name })),
+      locations,
+      categories: [...new Set(all.map((a) => a.category).filter(Boolean) as string[])],
+    },
+    vendorAssets,
+    vendorSpend,
+    upkeepYear,
+    servicesYear,
+    lastService,
+  };
+  return <StudioAssets d={d} />;
 }

@@ -2178,3 +2178,11 @@ html[data-no-splash] #aurora-splash { display: none !important; }
 .studio .st-field { background: var(--sh-field, #FFFFFF) !important; border: 1px solid var(--sh-chip-line, #E4E4E0) !important; box-shadow: none !important; }
 .studio .st-field:hover { border-color: var(--sh-muted, #A9AAA6) !important; }
 .studio .st-field:focus { border-color: var(--sh-fg, #111214) !important; box-shadow: 0 0 0 3px rgb(17 18 20 / 0.06) !important; }
+/* A Studio form (.st-form) holding Desk controls — FluidSelect, Combobox and the
+   date picker — gives them the SAME box as its .st-field text boxes, so one form
+   is one height and one colour (they are h-8 white Desk controls otherwise). */
+.studio .st-form :is(button[aria-haspopup="listbox"], input[autocomplete="off"]:not(.st-field), .st-date > button) {
+  height: 40px !important; border-radius: 10px !important; font-size: 13px !important;
+  background: var(--sh-field, #FFFFFF) !important; border: 1px solid var(--sh-chip-line, #E4E4E0) !important; box-shadow: none !important;
+}
+.studio .st-form :is(button[aria-haspopup="listbox"], input[autocomplete="off"]:not(.st-field), .st-date > button):hover { border-color: var(--sh-muted, #A9AAA6) !important; }

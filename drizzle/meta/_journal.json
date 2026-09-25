@@ -1205,6 +1205,13 @@
       "when": 1790299938473,
       "tag": "0170_task_subtasks",
       "breakpoints": true
+    },
+    {
+      "idx": 172,
+      "version": "7",
+      "when": 1790331727905,
+      "tag": "0171_asset_management",
+      "breakpoints": true
     }
   ]
 }

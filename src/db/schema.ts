@@ -1379,6 +1379,10 @@ export const assets = pgTable("assets", {
   purchaseDate: timestamp("purchase_date", { mode: "date", withTimezone: true }),
   // Money — exact decimal (postgres NUMERIC, returned as a STRING by postgres.js).
   purchaseCost: numeric("purchase_cost", { precision: 14, scale: 2 }),
+  // 0171: the warranty's end (reminded like a document expiry) and the last
+  // time somebody saw it in a stock-take.
+  warrantyUntil: timestamp("warranty_until", { mode: "date", withTimezone: true }),
+  checkedAt: timestamp("checked_at", { mode: "date", withTimezone: true }),
   notes: text("notes"),
   archived: boolean("archived").notNull().default(false),
   createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull(),
@@ -1403,6 +1407,21 @@ export const assetAssignments = pgTable("asset_assignments", {
   index("asset_assignments_asset_idx").on(t.assetId),
   index("asset_assignments_person_idx").on(t.personId),
 ]);
+
+// An asset's service log (0171): every repair, service or inspection, who did
+// it and what it cost. Never edited into the asset itself.
+export const assetServices = pgTable("asset_services", {
+  id: serial("id").primaryKey(),
+  assetId: integer("asset_id").notNull().references(() => assets.id, { onDelete: "cascade" }),
+  // service | repair | check | other
+  kind: text("kind").notNull().default("service"),
+  happenedOn: timestamp("happened_on", { mode: "date", withTimezone: true }).notNull(),
+  vendorId: integer("vendor_id").references(() => vendors.id, { onDelete: "set null" }),
+  cost: numeric("cost", { precision: 14, scale: 2 }),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
+  createdBy: text("created_by").notNull().default("web-ui"),
+}, (t) => [index("asset_services_asset_idx").on(t.assetId, t.happenedOn)]);
 
 // HRMS — Site tools & equipment. Quantity-tracked, site-owned durable tools
 // (spanners, buckets, saws) — distinct from individually-serialised assets and
