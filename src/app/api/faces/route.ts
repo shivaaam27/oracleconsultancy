@@ -16,18 +16,43 @@ export const dynamic = "force-dynamic";
  * Signed-in only (owner or director). A company-scoped director gets the faces
  * of their companies' people only — a mood says something about someone's work.
  */
+type Entry = { id: number; key: string; face: [FaceRole, FaceMood] };
+
+/**
+ * Worked out at most once every five minutes per server, for everyone, and
+ * filtered per viewer after. A mood does not need to be fresher than that, and
+ * it keeps this route off the database's bill (egress): without it every page
+ * load in every browser re-read the whole task list to draw the faces.
+ */
+const TTL_MS = 5 * 60_000;
+let memo: { at: number; p: Promise<Entry[]> } | null = null;
+function allFaces(): Promise<Entry[]> {
+  if (memo && Date.now() - memo.at < TTL_MS) return memo.p;
+  const p = computeFaces();
+  memo = { at: Date.now(), p };
+  p.catch(() => { if (memo?.p === p) memo = null; });
+  return p;
+}
+
 export async function GET() {
   const v = await getViewer();
   if (!v) return NextResponse.json({ error: "Sign in first." }, { status: 401 });
+  const [entries, allowed] = await Promise.all([allFaces(), viewerPeopleIds(v)]);
+  const faces: Record<string, [FaceRole, FaceMood]> = {};
+  for (const e of entries) if (!allowed || allowed.has(e.id)) faces[e.key] = e.face;
+  // The owner, as updates name them.
+  faces[faceKey("Administrator")] = ["owner", "idle"];
+  return NextResponse.json({ faces }, { headers: { "Cache-Control": "private, max-age=300" } });
+}
 
+async function computeFaces(): Promise<Entry[]> {
   const now = Date.now();
-  const [{ data: people }, rows, { data: events }, allowed] = await Promise.all([
+  const [{ data: people }, rows, { data: events }] = await Promise.all([
     sb.from("people").select("id,name,portal_role,portal_enabled_at,active").eq("active", true),
     getAllTasks(),
     sb.from("calendar_events").select("start_at,end_at,all_day,attendees,status")
       .gte("start_at", new Date(now - 12 * 3_600_000).toISOString())
       .lte("start_at", new Date(now).toISOString()),
-    viewerPeopleIds(v),
   ]);
 
   // Who is in a meeting right now (a timed event under way that names them).
@@ -65,18 +90,14 @@ export async function GET() {
     }
   }
 
-  const faces: Record<string, [FaceRole, FaceMood]> = {};
+  const out: Entry[] = [];
   for (const p of people ?? []) {
-    if (allowed && !allowed.has(p.id as number)) continue;
     const role: FaceRole = p.portal_enabled_at
       ? (["director", "manager", "hr"].includes(p.portal_role as string) ? (p.portal_role as FaceRole) : "staff")
       : "none";
     const s = stats.get(faceKey(p.name as string)) ?? { open: 0, overdue: 0, dueSoon: 0, inProgress: 0, doneThisMonth: 0, inMeeting: false };
     s.inMeeting = inMeeting.has(p.id as number);
-    faces[faceKey(p.name as string)] = [role, moodFor(s)];
+    out.push({ id: p.id as number, key: faceKey(p.name as string), face: [role, moodFor(s)] });
   }
-  // The owner, as updates name them.
-  faces[faceKey("Administrator")] = ["owner", "idle"];
-
-  return NextResponse.json({ faces }, { headers: { "Cache-Control": "private, max-age=60" } });
+  return out;
 }

@@ -749,6 +749,18 @@ Rules that now hold everywhere (read before touching a Studio page's phone view)
   people), fetched once in the background and re-read every 5 min. `peek` = task-row
   circles: the face shows ~2.4s then fades to the initials; hover brings it back.
   ⚠️ Blobatar's `expression` takes an OBJECT from `blobatar/expression`, not a string.
+  **ALIVE** (25 Sept): a showing face breathes/bobs/blinks (`animate="always"`, needs
+  `blobatar/motion.css`), a new mood morphs in, and faces ≥36px watch the pointer
+  (`useGaze`, needs `blobatar/gaze.css`; fine pointers only). A peek face animates
+  ONLY while shown. Reduced motion (OS or `data-motion`) = still. EVERY person circle
+  in Studio is `PersonFace` now — no `avatarTint(` circle is left outside face.tsx.
+  ⚠️ **Key the peek effect on PRIMITIVES** (`known`, `mood`): `useFace` returns a fresh
+  object per render, and depending on it restarted the timer every render — 241 faces
+  animating at once on the task list, and a "Maximum update depth" loop.
+  **Egress**: `/api/faces` memoises its whole computation 5 min per server (filtered
+  per viewer after) + `private, max-age=300`; the faces themselves are drawn in the
+  browser and cost no network. Measured 25 Sept: a full task read is ~180 KB
+  (184 tasks, 301 assignees, 285 updates); stored files 197 / 174 MB.
 - **Readable text**: `--st-muted` is now a DARK grey (#676A70) for white surfaces; every
   dark surface (class contains `bg-[var(--st-card)]` / `bg-[#141517]` / `bg-[#1C1D20]`)
   redefines it light in globals.css. Hard-coded greys on dark cards were lifted to near

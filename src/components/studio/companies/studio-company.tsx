@@ -14,6 +14,7 @@
  * Every number is a door: the tiles and chips open the filtered task list,
  * the documents, the team.
  */
+import { PersonFace } from "@/components/studio/face";
 import { useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -241,7 +242,7 @@ function Overview({ data, o, tasksHref }: { data: StudioCompanyData; o: NonNulla
               {o.staff.length === 0 && <div className="py-3 text-[13px] text-[var(--st-muted)]">Nobody has {shortName(data.name)} as their main company yet.</div>}
               {o.staff.map((p, i) => (
                 <Link key={p.id} href={withReturn(`/people/${p.id}`, here)} className={cn("flex shrink-0 items-center gap-2.5 rounded-lg py-1 hover:bg-[var(--st-cal-busy)]", i >= 4 && (allStaff ? "sm:max-xl:hidden" : "hidden xl:flex"), i >= 3 && i < 4 && !allStaff && "max-sm:hidden")}>
-                  <span className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full text-[10px] font-semibold text-[#111214]" style={{ background: avatarTint(p.name) }}>{initials(shortName(p.name))}</span>
+                  <PersonFace name={p.name} size={30} />
                   <span className="min-w-0 flex-1 text-[13px]">
                     <span className="block truncate">{p.name}</span>
                     <span className="block truncate text-[11px] text-[var(--st-muted)]">{[p.role, p.staffId].filter(Boolean).join(" · ") || "—"}</span>

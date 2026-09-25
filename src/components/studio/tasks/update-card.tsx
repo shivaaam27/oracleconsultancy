@@ -10,6 +10,7 @@
  * top of the page, so a row picked further down had its updates off-screen.
  * The side panel stays in view wherever you have scrolled.
  */
+import { PersonFace } from "@/components/studio/face";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -80,7 +81,7 @@ function Idle({ fresh, unreadCount, postedToday, picked, onPick }: { fresh: Task
                 aria-pressed={picked === r.code}
                 className={cn("grid min-w-0 grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-2.5 rounded-xl border bg-[rgba(20,21,23,0.85)] px-2.5 py-2 text-left transition-colors hover:border-[#3A3D42]", picked === r.code ? "border-[#5A5D63]" : "border-[var(--st-card-line)]")}
               >
-                <span className="flex h-6 w-6 items-center justify-center rounded-full text-[9px] font-semibold text-[#111214]" style={{ background: a.author === "You" ? "#F2F2F0" : avatarTint(a.author) }}>{a.author === "You" ? "You" : initials(a.author)}</span>
+                {a.author === "You" ? <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#F2F2F0] text-[9px] font-semibold text-[#111214]">You</span> : <PersonFace name={a.author} size={24} peek />}
                 <span className="min-w-0">
                   <span className="block truncate text-xs text-[var(--st-on-card-muted)]">{r.actionItem}</span>
                   <span className="block truncate text-[13px]">{a.body}</span>

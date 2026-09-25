@@ -1,5 +1,6 @@
 "use client";
 
+import { PersonFace } from "@/components/studio/face";
 import { useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { menuStyle, useAnchoredMenu } from "@/lib/use-anchored-menu";
@@ -95,7 +96,7 @@ export function AttendeePicker({
           {studio && value.map((a) => (
             <span key={a.personId ?? a.name} title={a.email || "No email on file — won't get an automatic invite"}
               className="inline-flex h-7 items-center gap-1.5 rounded-full bg-[var(--st-page)] pl-1 pr-1.5 text-xs">
-              <span className="flex h-[22px] w-[22px] items-center justify-center rounded-full text-[9px] font-semibold text-[#111214]" style={{ background: avatarTint(a.name) }}>{initials(a.name)}</span>
+              <PersonFace name={a.name} size={22} peek />
               {a.name}
               <span className={cn("h-1.5 w-1.5 rounded-full", a.email ? "bg-[var(--st-ok)]" : "bg-[var(--st-soon)]")} />
               <button type="button" aria-label={`Remove ${a.name}`} onClick={(e) => { e.stopPropagation(); remove(a.personId); }}

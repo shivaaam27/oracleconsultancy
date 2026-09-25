@@ -9,6 +9,7 @@
  *    unsaved draft, so adding and editing are one screen.
  * Both send the same `Draft` to `createTaskStudio` (→ createTaskCore).
  */
+import { PersonFace } from "@/components/studio/face";
 import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { Check, ChevronLeft, Loader2, Paperclip, Repeat, UserPlus, X } from "lucide-react";
@@ -493,7 +494,7 @@ export function StudioNewTaskPage({ options, initial, back }: { options: Options
               <div className="mb-3 space-y-2">
                 {d.people.map((n, i) => (
                   <div key={n} className="flex items-center gap-2.5">
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold text-[#111214]" style={{ background: avatarTint(n) }}>{initials(n)}</span>
+                    <PersonFace name={n} size={32} />
                     <span className="min-w-0 flex-1"><span className="block truncate text-[13px] font-medium">{n}</span><span className="block text-[11px] text-[var(--st-muted)]">{i === 0 ? (d.lead ? "The lead" : "Accountable") : "Also on it"}</span></span>
                     <button type="button" aria-label={`Take ${n} off`} onClick={() => { set({ people: d.people.filter((x) => x !== n) }); setPickerKey((k) => k + 1); }} className="text-[var(--st-muted)] hover:text-[var(--st-ink)]"><X size={13} /></button>
                   </div>

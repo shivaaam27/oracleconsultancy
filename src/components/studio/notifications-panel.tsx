@@ -14,6 +14,7 @@
  * notifications") — posted through `replyToTaskByCode` → addTaskUpdateCore,
  * the task's own writer, so it lands on the task's conversation.
  */
+import { PersonFace } from "@/components/studio/face";
 import { useMemo, useState, useTransition } from "react";
 import { replyToTaskByCode } from "@/app/task/actions";
 import { useToast } from "@/components/toast";
@@ -168,7 +169,7 @@ export function StudioNotificationsPanel({
               {bucket !== prev && <div className="px-3 pb-1 pt-2 text-[11px] text-[var(--sh-muted)]">{bucket}</div>}
               <div className={cn("group flex gap-2.5 rounded-[14px] px-3 py-2.5 transition-colors", isOpen ? "bg-[var(--sh-field)]" : "hover:bg-[var(--sh-card)]")}>
                 <span className={cn("mt-[11px] h-[7px] w-[7px] shrink-0 rounded-full", g.unread ? "bg-[#2490EF]" : "bg-transparent")} />
-                <span className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full text-[10px] font-semibold text-[var(--sh-on-fg)]" style={{ background: avatarTint(actor) }}>{initials(actor)}</span>
+                <PersonFace name={actor} size={30} />
                 <div className="min-w-0 flex-1">
                   <button type="button" onClick={() => setOpenKey(isOpen ? null : g.key)} className="block w-full text-left">
                     <span className="block text-[13px] leading-snug">
