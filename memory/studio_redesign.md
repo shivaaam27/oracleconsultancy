@@ -825,3 +825,19 @@ Rules that now hold everywhere (read before touching a Studio page's phone view)
   PersonPicker on the + sheet, the new-task page and the task's people.
 - Settings: Navigation card removed; General = About/Appearance/Risk/Notifications;
   "Install Oracle" as three icon tiles.
+
+## 25–26 Sept 2026 — push finished, offline page, launch screen gone
+
+- Launch screen REMOVED (owner: pages are fast). `SplashGateScript` still hides
+  the old Aurora splash on Studio pages; staff portal keeps it.
+- `public/offline.html` in the Studio look (sw v16), auto-reloads on `online`.
+- Push: alert buttons live (`done` = mark read, `snooze` = "In an hour",
+  re-sent by `resendSnoozedNotifications()` on the 15-minute tick);
+  `flushRoutineDigests` has a 10-minute `push.digestFlushAt` guard;
+  `components/sign-out-form.tsx` unsubscribes the device before any sign-out;
+  `DeviceAlertsRow` (notification-settings.tsx) sits at the foot of the Studio
+  bell panel for owner AND directors. External cron DOES call /api/cron/tick.
+- MCP: `get_task` returns `subtasks`; `manage_task` add/tick/untick/rename_subtask.
+- Owner decisions: managers + staff go to Studio too ("new direction") — needs a
+  plan/mockup first. Director Brief → to become a REPORT (sheet with filters →
+  PDF / email / WhatsApp / copy / draft), not a page duplicating Home.
