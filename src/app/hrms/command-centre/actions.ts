@@ -1,5 +1,7 @@
 "use server";
 
+import { guardOwner } from "@/lib/viewer";
+
 import { revalidatePath, updateTag } from "next/cache";
 import { sb } from "@/db/supabase";
 import { insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
@@ -26,6 +28,7 @@ async function upsertOc(obligationId: number, companyId: number, fields: Record<
 
 /** Tick a daily/weekly routine done — operator-level (not per company). */
 export async function tickHabitAction(id: number): Promise<Result> {
+  await guardOwner();
   try {
     const now = new Date();
     const { error } = await sb
@@ -46,6 +49,7 @@ export async function toggleObligationCompanyAction(
   companyId: number,
   done: boolean,
 ): Promise<Result> {
+  await guardOwner();
   try {
     await upsertOc(obligationId, companyId, { last_done: done ? new Date().toISOString() : null });
     revalidate();
@@ -61,6 +65,7 @@ export async function setObligationApplicableAction(
   companyId: number,
   applicable: boolean,
 ): Promise<Result> {
+  await guardOwner();
   try {
     await upsertOc(obligationId, companyId, { applicable });
     revalidate();
@@ -76,6 +81,7 @@ export async function setObligationApplicableAction(
  * period. Does NOT touch other companies — the per-company tick grid is primary.
  */
 export async function createTaskFromObligationAction(obligationId: number, companyId: number): Promise<Result> {
+  await guardOwner();
   try {
     const { data: ob, error } = await sb.from("recurring_obligations").select("*").eq("id", obligationId).maybeSingle();
     if (error) throw new Error(error.message);

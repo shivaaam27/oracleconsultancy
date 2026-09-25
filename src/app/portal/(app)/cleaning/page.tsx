@@ -17,7 +17,7 @@ export default async function PortalCleaningPage() {
   if (!canLog && !canView) redirect("/portal");
 
   await ensureDefaultAreas();
-  const todayIso = new Date().toISOString().slice(0, 10);
+  const todayIso = new Date(Date.now() + 3 * 3_600_000).toISOString().slice(0, 10); // EAT, same day as the administrator's log
   const [day, areas] = await Promise.all([ensureDay(todayIso), listAreas()]);
   const checks = await listChecks(day.id);
 

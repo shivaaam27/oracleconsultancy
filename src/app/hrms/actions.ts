@@ -1,5 +1,7 @@
 "use server";
 
+import { guardOwner } from "@/lib/viewer";
+
 import { revalidatePath } from "next/cache";
 import {
   createStockItem,
@@ -55,6 +57,7 @@ function itemFromForm(fd: FormData): StockItemInput | { error: string } {
 }
 
 export async function createStockItemAction(fd: FormData): Promise<Result> {
+  await guardOwner();
   const parsed = itemFromForm(fd);
   if ("error" in parsed) return { ok: false, error: parsed.error };
   try {
@@ -72,6 +75,7 @@ export async function createStockItemAction(fd: FormData): Promise<Result> {
 }
 
 export async function updateStockItemAction(id: number, fd: FormData): Promise<Result> {
+  await guardOwner();
   const parsed = itemFromForm(fd);
   if ("error" in parsed) return { ok: false, error: parsed.error };
   try {
@@ -84,6 +88,7 @@ export async function updateStockItemAction(id: number, fd: FormData): Promise<R
 }
 
 export async function archiveStockItemAction(id: number, archived: boolean): Promise<Result> {
+  await guardOwner();
   try {
     await setStockItemArchived(id, archived);
     revalidateHrms();
@@ -94,6 +99,7 @@ export async function archiveStockItemAction(id: number, archived: boolean): Pro
 }
 
 export async function deleteStockItemAction(id: number): Promise<Result> {
+  await guardOwner();
   try {
     await deleteStockItem(id);
     revalidateHrms();
@@ -128,6 +134,7 @@ function purchaseFromForm(fd: FormData): PurchaseInput | { error: string } {
 }
 
 export async function recordPurchaseAction(fd: FormData): Promise<Result> {
+  await guardOwner();
   const parsed = purchaseFromForm(fd);
   if ("error" in parsed) return { ok: false, error: parsed.error };
   try {
@@ -140,6 +147,7 @@ export async function recordPurchaseAction(fd: FormData): Promise<Result> {
 }
 
 export async function updatePurchaseAction(id: number, fd: FormData): Promise<Result> {
+  await guardOwner();
   const parsed = purchaseFromForm(fd);
   if ("error" in parsed) return { ok: false, error: parsed.error };
   try {
@@ -152,6 +160,7 @@ export async function updatePurchaseAction(id: number, fd: FormData): Promise<Re
 }
 
 export async function deletePurchaseAction(id: number): Promise<Result> {
+  await guardOwner();
   try {
     await deletePurchase(id);
     revalidateHrms();
@@ -178,6 +187,7 @@ function issueFromForm(fd: FormData): IssueInput | { error: string } {
 }
 
 export async function recordIssueAction(fd: FormData): Promise<Result> {
+  await guardOwner();
   const parsed = issueFromForm(fd);
   if ("error" in parsed) return { ok: false, error: parsed.error };
   const allowNegative = fd.get("allowNegative") === "1";
@@ -196,6 +206,7 @@ export async function recordIssueAction(fd: FormData): Promise<Result> {
 }
 
 export async function updateIssueAction(id: number, fd: FormData): Promise<Result> {
+  await guardOwner();
   const parsed = issueFromForm(fd);
   if ("error" in parsed) return { ok: false, error: parsed.error };
   try {
@@ -208,6 +219,7 @@ export async function updateIssueAction(id: number, fd: FormData): Promise<Resul
 }
 
 export async function deleteIssueAction(id: number): Promise<Result> {
+  await guardOwner();
   try {
     await deleteIssue(id);
     revalidateHrms();

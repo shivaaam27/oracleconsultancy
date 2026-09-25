@@ -1,5 +1,7 @@
 "use server";
 
+import { guardOwner } from "@/lib/viewer";
+
 import { enqueueJob, getJob } from "@/lib/ai-jobs";
 
 /**
@@ -13,6 +15,7 @@ export async function askOri(
   question: string,
   opts?: { history?: { role: "user" | "assistant"; content: string }[]; pageContext?: Record<string, unknown>; threadId?: number },
 ): Promise<{ jobId: number }> {
+  await guardOwner();
   const q = (question ?? "").trim();
   if (!q) throw new Error("Type a question first.");
   const job = await enqueueJob({
@@ -27,6 +30,7 @@ export async function askOri(
 }
 
 export async function pollAsk(jobId: number): Promise<{ status: string; answer: string | null; error: string | null }> {
+  await guardOwner();
   const job = await getJob(jobId);
   if (!job) return { status: "error", answer: null, error: "Job not found." };
   return {

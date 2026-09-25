@@ -1,5 +1,7 @@
 "use server";
 
+import { guardOwner } from "@/lib/viewer";
+
 /**
  * The AI actions a note offers. Phase 5 of memory/notes_module_plan.md.
  *
@@ -27,18 +29,22 @@ import { createNoteTodo } from "@/lib/note-todos";
 import { unifiedSearch } from "@/lib/search";
 
 export async function polishNoteAction(text: string): Promise<AiResult<{ text: string }>> {
+  await guardOwner();
   return polishNote(text);
 }
 
 export async function summariseNoteAction(text: string): Promise<AiResult<NoteSummary>> {
+  await guardOwner();
   return summariseNote(text);
 }
 
 export async function extractTasksAction(text: string): Promise<AiResult<{ tasks: ExtractedTask[] }>> {
+  await guardOwner();
   return extractTasks(text);
 }
 
 export async function suggestTitleAction(text: string): Promise<AiResult<{ title: string }>> {
+  await guardOwner();
   return suggestTitle(text);
 }
 
@@ -50,6 +56,7 @@ export async function suggestTitleAction(text: string): Promise<AiResult<{ title
  * a rewrite a safe thing to do rather than a leap.
  */
 export async function snapshotBeforeAi(noteId: number): Promise<{ ok: boolean }> {
+  await guardOwner();
   const ok = await snapshotNote(noteId, "ai");
   revalidatePath(`/notes/${noteId}`);
   return { ok };
@@ -66,6 +73,7 @@ export async function createTasksFromNote(
   noteId: number,
   titles: string[],
 ): Promise<{ ok: true; created: number } | { ok: false; error: string }> {
+  await guardOwner();
   const wanted = titles.map((t) => t.trim()).filter(Boolean).slice(0, 10);
   if (wanted.length === 0) return { ok: false, error: "Nothing was ticked." };
 
@@ -107,6 +115,7 @@ export type SuggestedLink = LinkCandidate & { why?: string };
  * mechanism, one source of truth — the link stays DERIVED from the writing.
  */
 export async function suggestLinksAction(text: string): Promise<AiResult<{ links: SuggestedLink[] }>> {
+  await guardOwner();
   const candidates = await linkCandidates();
   if (candidates.length === 0) {
     return { ok: false, reason: "empty", message: "There is nothing in COS to link to yet." };
@@ -162,6 +171,7 @@ export type AskResult =
  * read as something the owner had written himself.
  */
 export async function askNotesAction(question: string): Promise<AskResult> {
+  await guardOwner();
   const q = question.trim();
   if (!q) return { ok: false, message: "Ask a question first." };
 

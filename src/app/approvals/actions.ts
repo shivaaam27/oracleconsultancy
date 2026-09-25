@@ -1,5 +1,7 @@
 "use server";
 
+import { guardOwner } from "@/lib/viewer";
+
 import { revalidatePath } from "next/cache";
 import { applyAutomationSuggestion, dismissAutomationSuggestion, undoAutomationEvent } from "@/app/automations/actions";
 
@@ -15,6 +17,7 @@ function parse(key: string): { engine: "ps" | "ae"; id: number } | null {
 
 /** Approve a pending item — routes to the right engine's apply. */
 export async function approveCockpitItem(key: string): Promise<Res> {
+  await guardOwner();
   const p = parse(key);
   if (!p) return { ok: false, error: "Bad item." };
   const res = await applyAutomationSuggestion(p.id);
@@ -23,6 +26,7 @@ export async function approveCockpitItem(key: string): Promise<Res> {
 }
 
 export async function dismissCockpitItem(key: string): Promise<Res> {
+  await guardOwner();
   const p = parse(key);
   if (!p) return { ok: false, error: "Bad item." };
   const res = await dismissAutomationSuggestion(p.id);
@@ -31,6 +35,7 @@ export async function dismissCockpitItem(key: string): Promise<Res> {
 }
 
 export async function undoCockpitItem(key: string): Promise<Res> {
+  await guardOwner();
   const p = parse(key);
   if (!p) return { ok: false, error: "Bad item." };
   const res = await undoAutomationEvent(p.id);

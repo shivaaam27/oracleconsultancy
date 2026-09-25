@@ -1,5 +1,7 @@
 "use server";
 
+import { guardOwner } from "@/lib/viewer";
+
 import { revalidatePath } from "next/cache";
 import { setCheck, updateDay, signDay } from "@/lib/cleaning";
 
@@ -11,6 +13,7 @@ function revalidateOcr() {
 }
 
 export async function toggleCheckAction(dayId: number, areaId: number, done: boolean): Promise<Result> {
+  await guardOwner();
   try {
     await setCheck(dayId, areaId, { done });
     revalidateOcr();
@@ -21,6 +24,7 @@ export async function toggleCheckAction(dayId: number, areaId: number, done: boo
 }
 
 export async function setCheckCommentAction(dayId: number, areaId: number, comment: string): Promise<Result> {
+  await guardOwner();
   try {
     await setCheck(dayId, areaId, { comment: comment.trim() || null });
     revalidateOcr();
@@ -31,6 +35,7 @@ export async function setCheckCommentAction(dayId: number, areaId: number, comme
 }
 
 export async function setAttendanceAction(dayId: number, personId: number | null): Promise<Result> {
+  await guardOwner();
   try {
     await updateDay(dayId, { attendancePersonId: personId });
     revalidateOcr();
@@ -41,6 +46,7 @@ export async function setAttendanceAction(dayId: number, personId: number | null
 }
 
 export async function setNoteAction(dayId: number, note: string): Promise<Result> {
+  await guardOwner();
   try {
     await updateDay(dayId, { note: note.trim() || null });
     revalidateOcr();
@@ -56,6 +62,7 @@ export async function signDayAction(
   name: string | null,
   personId: number | null
 ): Promise<Result> {
+  await guardOwner();
   try {
     if (signed && !(name && name.trim())) return { ok: false, error: "Choose who is signing off." };
     await signDay(dayId, signed, name?.trim() ?? null, personId);

@@ -1,5 +1,7 @@
 "use server";
 
+import { guardOwner } from "@/lib/viewer";
+
 // Server actions for the ORI Automation management screen: pause/cancel an
 // existing standing rule, plus the RULE BUILDER's create action. The builder is
 // the owner's self-serve WHEN/IF/WHO/DO form — everything is re-validated here
@@ -131,6 +133,7 @@ function buildRepeat(r: NonNullable<BuilderPayload["repeat"]>): { cfg: Partial<R
  *  client: every id is resolved against the DB, every enum checked, and the
  *  recipe must carry an audience or an (opt-in) auto-action to be saved. */
 export async function createAutomationAction(p: BuilderPayload): Promise<Res> {
+  await guardOwner();
   try {
     // ── RECURRING TASK path ───────────────────────────────────────────────
     // A distinct recipe: create a brand-new task on a cadence, complete with its
@@ -390,6 +393,7 @@ function clampDays(v: unknown, fallback: number): number {
 }
 
 export async function saveSignalSettingsAction(p: SignalSettingsInput): Promise<Res> {
+  await guardOwner();
   try {
     await saveAppSettings({
       signalQuietStaffEnabled: p.quietStaffEnabled === true,
@@ -409,6 +413,7 @@ export async function saveSignalSettingsAction(p: SignalSettingsInput): Promise<
  *  details mention this ruleId. Only fetched on demand (row expander), so a light
  *  scan of the last ~50 automation-cron events is cheap. Never throws. */
 export async function ruleFiringsAction(id: number): Promise<{ at: string; note: string }[]> {
+  await guardOwner();
   if (!Number.isInteger(id) || id <= 0) return [];
   try {
     const { data } = await sb
@@ -437,6 +442,7 @@ export async function ruleFiringsAction(id: number): Promise<{ at: string; note:
  *  A resumed one-shot rule that had already fired (done=true) is left alone; only
  *  `active` is flipped, mirroring how the cron/watcher paths treat these rows. */
 export async function toggleAutomationActive(id: number, active: boolean): Promise<Res> {
+  await guardOwner();
   if (!Number.isInteger(id) || id <= 0) return { ok: false, error: "Invalid rule." };
   try {
     const { error } = await sb
@@ -456,6 +462,7 @@ export async function toggleAutomationActive(id: number, active: boolean): Promi
  *  guardrails, same per-day/per-step dedupe. Notify-only rules just re-notify;
  *  auto-act rules do whatever their (opt-in) actions say, as they would live. */
 export async function testAutomationAction(id: number): Promise<{ ok: boolean; fired: number; error?: string }> {
+  await guardOwner();
   if (!Number.isInteger(id) || id <= 0) return { ok: false, fired: 0, error: "Invalid rule." };
   try {
     const { fireRuleNow } = await import("@/app/api/cron/ori-automations/route");
@@ -471,6 +478,7 @@ export async function testAutomationAction(id: number): Promise<{ ok: boolean; f
  *  we set active=false rather than hard-deleting, so an accidental cancel is
  *  recoverable and history is preserved. */
 export async function cancelAutomation(id: number): Promise<Res> {
+  await guardOwner();
   if (!Number.isInteger(id) || id <= 0) return { ok: false, error: "Invalid rule." };
   try {
     const { error } = await sb

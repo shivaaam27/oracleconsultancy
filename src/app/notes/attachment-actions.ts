@@ -1,5 +1,7 @@
 "use server";
 
+import { guardOwner } from "@/lib/viewer";
+
 /**
  * Attaching a file to a note. Phase 2 leftover, built alongside Phase 4.
  *
@@ -39,6 +41,7 @@ export async function attachFileToNote(input: {
   stagedPath: string;
   fileName: string;
 }): Promise<AttachResult> {
+  await guardOwner();
   try {
     if (!input.stagedPath.startsWith("uploads/")) {
       // Only ever adopt something this flow just staged. Without this the argument

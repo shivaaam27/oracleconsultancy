@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { guardOwner } from "@/lib/viewer";
 import { sb } from "@/db/supabase";
 
 type Result = { ok: true; id?: number } | { ok: false; error: string };
@@ -29,6 +30,7 @@ function invalidate() {
 }
 
 export async function addHolidayAction(fd: FormData): Promise<Result> {
+  await guardOwner();
   const date = dateIso(fd, "date");
   const name = str(fd, "name");
   if (!date) return { ok: false, error: "Pick a date." };
@@ -42,6 +44,7 @@ export async function addHolidayAction(fd: FormData): Promise<Result> {
 }
 
 export async function deleteHolidayAction(id: number): Promise<Result> {
+  await guardOwner();
   const { error } = await sb.from("public_holidays").delete().eq("id", id);
   if (error) return { ok: false, error: error.message };
   invalidate();
@@ -81,6 +84,7 @@ async function writeAttendanceRow(personId: number, iso: string, status: string)
 
 /** Record (or clear, when status is null) one person's status for one day. */
 export async function recordAttendanceAction(personId: number, dateStr: string, status: string | null): Promise<Result> {
+  await guardOwner();
   if (!personId) return { ok: false, error: "No person." };
   const iso = dayMidnightISO(dateStr);
   if (!iso) return { ok: false, error: "Bad date." };
@@ -97,6 +101,7 @@ export async function recordAttendanceAction(personId: number, dateStr: string, 
 
 /** Set the same status for several people on one day (e.g. "mark team Present today"). */
 export async function bulkRecordAttendanceAction(personIds: number[], dateStr: string, status: string): Promise<Result> {
+  await guardOwner();
   const ids = [...new Set(personIds)].filter((n) => Number.isFinite(n));
   if (!ids.length) return { ok: false, error: "No people." };
   const iso = dayMidnightISO(dateStr);
