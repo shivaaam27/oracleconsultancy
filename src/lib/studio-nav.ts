@@ -76,6 +76,9 @@ export function directorStops(o: { outbox: boolean; cleaning?: boolean }): Studi
     // A manager's cleaning overview (caps.cleaningOverview) — still the portal
     // page until Cleaning is rebuilt.
     ...(o.cleaning ? [{ id: "cleaning", label: "Cleaning", href: "/portal/cleaning", group: "Records", icon: Sparkles }] : []),
+    // Their profile is a Studio page too now (26 Sept 2026) — a stop, so the
+    // footer names it instead of saying "Home" while it is open.
+    { id: "profile", label: "Profile", href: "/portal/profile", group: "Records", icon: UserRound },
   ];
 }
 

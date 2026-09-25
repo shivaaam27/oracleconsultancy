@@ -72,7 +72,10 @@ export async function StudioHomeServer({ rows: allRows, viewer }: { rows: TaskRo
   const docRows = [...(soonDocs.data ?? []), ...(expiredDocs.data ?? [])];
   // A director's activity is their companies' activity.
   const codesInView = new Set(rows.map((r) => r.code));
-  const activity = director ? activityAll.filter((a) => codesInView.has(a.code)).slice(0, 10) : activityAll;
+  // …and "You" there means the owner, so for them it says Administrator.
+  const activity = director
+    ? activityAll.filter((a) => codesInView.has(a.code)).slice(0, 10).map((a) => (a.author === "You" ? { ...a, author: "Administrator" } : a))
+    : activityAll;
   // What staff are seeing right now — carried in the hero, not a banner above
   // it (the old Home's "Live announcements" strip).
   let live: { title: string }[] = [];

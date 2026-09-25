@@ -63,6 +63,8 @@ import { cn } from "@/lib/cn";
 type DrawerUpdate = { id: number; body: string; created_at: string; created_by: string | null; edited_at: string | null; original_body: string | null; pinned_at: string | null; parent_update_id?: number | null; attachment_document_id?: number | null };
 type DrawerAudit = { id: number; field: string | null; old_value: string | null; new_value: string | null; change_reason: string | null; entry_type: string | null; created_at: string; created_by: string | null };
 type DrawerData = {
+  /** The owner is reading (Notes are theirs alone). */
+  ownerView?: boolean;
   task: TaskRow;
   updates: DrawerUpdate[];
   audit: DrawerAudit[];
@@ -1099,7 +1101,7 @@ function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: st
       { id: "subtasks", label: "Subtasks", n: subCount?.total || undefined },
       { id: "details", label: "Details", phone: true },
       { id: "history", label: "History", n: counts.all || undefined },
-      { id: "notes", label: "Notes" },
+      ...(data.ownerView ? [{ id: "notes", label: "Notes" }] : []),
     ];
     const panel = "rounded-[18px] bg-[var(--st-surface)] p-5";
     const edit = () => setActiveTab("edit");

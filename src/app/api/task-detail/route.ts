@@ -16,8 +16,11 @@ export const dynamic = "force-dynamic";
  *  director's own words are "You". */
 function authorFor(viewer: Viewer, by: string | null): { name: string; management: boolean; me: boolean } {
   if (viewer.kind === "director") {
-    if (by === "web-ui") return { name: "Administrator", management: true, me: false };
+    // Only their OWN words sit on their side of the thread (the Studio thread
+    // puts `management` on the reader's side, which is the owner's view).
+    if (by === "web-ui") return { name: "Administrator", management: false, me: false };
     if (by === viewer.actor) return { name: "You", management: true, me: true };
+    return { ...adminAuthorOf(by), management: false, me: false };
   }
   return adminAuthorOf(by);
 }
@@ -180,6 +183,8 @@ export async function GET(req: NextRequest) {
 
   const inScopePeople = await viewerPeopleIds(viewer);
   return NextResponse.json({
+    // The owner's alone: Notes (the record hides its Notes tab for anyone else).
+    ownerView: viewer.kind === "owner",
     task,
     updates,
     audit: audits,

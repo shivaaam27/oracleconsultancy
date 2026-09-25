@@ -5,6 +5,7 @@ import { usesStudio } from "@/lib/viewer";
 import { studioPathForDirector } from "@/lib/director-routes";
 import { PortalFrame } from "@/components/portal-frame";
 import { StaffShellServer } from "@/components/studio/staff-shell-server";
+import { StudioShellServer } from "@/components/studio/shell-server";
 import { portalHeaderLabel } from "@/lib/portal-labels";
 import { PortalPill } from "@/components/portal-pill";
 import { PortalSidebar, RAIL_COOKIE } from "@/components/portal-sidebar";
@@ -44,7 +45,8 @@ export default async function PortalLayout({ children }: { children: React.React
   // them on HERE, before the old sidebar and skeleton can paint.
   const at = (await headers()).get("x-cos-path");
   const [atPath, atSearch = ""] = (at ?? "").split("?");
-  if (await usesStudio(me)) {
+  const studioRole = await usesStudio(me);
+  if (studioRole) {
     const to = at ? studioPathForDirector(atPath, atSearch) : null;
     if (to) redirect(to);
   }
@@ -123,9 +125,10 @@ export default async function PortalLayout({ children }: { children: React.React
   return (
     <PortalFrame
       staff={staff}
+      studioRole={studioRole}
       // A member of staff on a page rebuilt in Studio wears the Studio footer
       // instead of everything below (26 Sept 2026) — PortalFrame picks by address.
-      studioChrome={staff ? <StaffShellServer me={me} /> : null}
+      studioChrome={staff ? <StaffShellServer me={me} /> : studioRole ? <StudioShellServer /> : null}
       style={{ "--portal-sidebar": railCollapsed ? "56px" : "208px" } as React.CSSProperties}
       className={`flex flex-col gap-3 pb-28 md:pb-32 mx-auto ${wide ? "max-w-5xl lg:max-w-none" : "max-w-3xl lg:max-w-none"}`}
       common={common}

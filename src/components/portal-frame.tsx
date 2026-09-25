@@ -16,8 +16,10 @@ import { usePathname } from "next/navigation";
 import { PageTransition } from "@/components/page-transition";
 import { isStaffStudioPath } from "@/lib/director-routes";
 
-export function PortalFrame({ staff, studioChrome, classicTop, classicBottom, common, style, className, children }: {
+export function PortalFrame({ staff, studioRole = false, studioChrome, classicTop, classicBottom, common, style, className, children }: {
   staff: boolean;
+  /** A director or manager: their one portal page (Profile) is Studio too. */
+  studioRole?: boolean;
   studioChrome: React.ReactNode;
   classicTop: React.ReactNode;
   classicBottom: React.ReactNode;
@@ -27,7 +29,8 @@ export function PortalFrame({ staff, studioChrome, classicTop, classicBottom, co
   children: React.ReactNode;
 }) {
   const pathname = usePathname() || "/portal";
-  if (staff && isStaffStudioPath(pathname)) {
+  const p = pathname.replace(/\/+$/, "");
+  if ((staff && isStaffStudioPath(pathname)) || (studioRole && p === "/portal/profile")) {
     return (
       <div className="flex flex-col">
         {common}

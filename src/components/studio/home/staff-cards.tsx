@@ -110,6 +110,12 @@ export function WeekStrip({ week }: { week: StaffWeekDay[] }) {
   );
 }
 
+/** The check-in itself, for a card someone else draws (Profile's Attendance —
+ *  where a manager, whose Home has no check-in card, marks their day). */
+export function CheckinPanel({ c }: { c: StaffCheckin }) {
+  return <div className="flex flex-col gap-3"><CheckinBody c={c} /></div>;
+}
+
 /** Top-right on a desk: Today. */
 export function StaffCheckinCard({ c }: { c: StaffCheckin }) {
   return (

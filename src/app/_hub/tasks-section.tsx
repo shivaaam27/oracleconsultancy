@@ -157,7 +157,11 @@ export async function TasksSection({ sp }: { sp: Sp }) {
     sb.from("companies").select("id,name,accent_color").order("name"),
     viewer ? viewerPeopleIds(viewer) : Promise.resolve(null),
   ]);
-  const all = scope ? allRaw.filter((r) => scope.includes(r.companyId)) : allRaw;
+  // "You" on an update means the OWNER wrote it. A director or manager reading
+  // the list is not the owner, so every column says who it really was (the
+  // Updates card already did; the table said "You" — seen as a manager).
+  const all = (scope ? allRaw.filter((r) => scope.includes(r.companyId)) : allRaw).map((r) =>
+    director && r.latestActivity?.author === "You" ? { ...r, latestActivity: { ...r.latestActivity, author: "Administrator" } } : r);
   const allCompanyRows = (companiesRes.data ?? [])
     .filter((c) => !scope || scope.includes(c.id as number))
     .map((c) => ({ id: c.id as number, name: c.name as string, accent: (c.accent_color as string | null) ?? null }));

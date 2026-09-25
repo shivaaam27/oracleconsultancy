@@ -36,7 +36,7 @@ import { getAllTasks } from "@/lib/queries";
 import { computePersonKpi } from "@/lib/kpi";
 import { PortalKpiCard } from "@/components/portal-kpi-card";
 import { StaffProfile, PCard, KpiCard } from "@/components/studio/profile/staff-profile";
-import { WeekStrip } from "@/components/studio/home/staff-cards";
+import { WeekStrip, CheckinPanel } from "@/components/studio/home/staff-cards";
 import { StudioInstall } from "@/components/studio/studio-install";
 import { visibleTaskIds } from "@/lib/portal-auth";
 
@@ -144,10 +144,14 @@ export default async function PortalProfile() {
 
   // Staff are on Studio (26 Sept 2026, mockup S_Profile): the same parts, in
   // the Studio layout. Every part that saves is the component it always was.
-  if (me.portalRole === "staff") {
-    const [allT, ids] = await Promise.all([getAllTasks(), visibleTaskIds(me)]);
-    const mineIds = new Set(ids);
-    const openMine = allT.filter((r) => mineIds.has(r.id) && r.status !== "Completed" && r.status !== "Closed");
+  // Managers and directors too (26 Sept 2026) — it was the one page of theirs
+  // still in the old portal. A director keeps what their old page showed: no
+  // KPI, attendance, files, equipment or contact form.
+  if (me.portalRole === "staff" || me.portalRole === "manager" || isDirector) {
+    const allT = await getAllTasks();
+    // "Open now" and "late" are THEIR tasks (on it, or accountable) — not every
+    // task a manager can see.
+    const openMine = allT.filter((r) => (r.ownerId === me.id || r.assigneeIds.includes(me.id)) && r.status !== "Completed" && r.status !== "Closed");
     const lateNow = openMine.filter((r) => r.flag === "overdue" || r.flag === "escalate-now").length;
     const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     const week = attendance.days.map((d) => ({ date: d.date, label: DOW[d.dow], status: d.status, isToday: d.isToday }));
@@ -161,17 +165,33 @@ export default async function PortalProfile() {
         sub={[me.role, companyName].filter(Boolean).join(" · ") || "Your profile"}
         pills={[...(staffId ? [{ label: staffId }] : []), { label: accessLabel, dot: "#19C37D" }]}
         sections={{
-          kpi: kpiMonths.length > 0 ? <KpiCard months={kpiMonths.map((k) => ({ monthLabel: k.monthLabel, completed: k.completed }))} openNow={openMine.length} lateNow={lateNow} /> : null,
-          attendance: (
+          kpi: !isDirector && kpiMonths.length > 0 ? <KpiCard months={kpiMonths.map((k) => ({ monthLabel: k.monthLabel, completed: k.completed }))} openNow={openMine.length} lateNow={lateNow} /> : null,
+          attendance: isDirector ? null : (
             <PCard title="Attendance" right="this week">
-              <WeekStrip week={week} />
-              <p className={tick + " mt-3"}>Check in on Home each day. Your manager can adjust a day if needed.</p>
+              {me.portalRole === "staff" ? (
+                <div>
+                  <WeekStrip week={week} />
+                  <p className={tick + " mt-3"}>Check in on Home each day. Your manager can adjust a day if needed.</p>
+                </div>
+              ) : (
+                // A manager's Home is the shared one, with no check-in card — so
+                // their day is marked here, as it was on their old profile.
+                <CheckinPanel c={{
+                  status: attendance.days.find((d) => d.isToday)?.status ?? null,
+                  editable: attendance.todayEditable,
+                  lockReason: attendance.lockReason,
+                  dateLabel: "",
+                  week,
+                }} />
+              )}
             </PCard>
           ),
+          // A wrapper, not a fragment: a fragment handed to a client component
+          // arrives as a list, and React asks for keys.
           guides: (
-            <>
+            <div className="contents">
               {journey && journey.total > 0 && (
-                <PCard title="Your onboarding" right={journey.completed + " of " + journey.total + " done"}>
+                <PCard key="journey" title="Your onboarding" right={journey.completed + " of " + journey.total + " done"}>
                   <div className="mb-3 h-1.5 overflow-hidden rounded-full bg-[var(--st-page)]"><div className="h-full rounded-full bg-[var(--st-ok,#19C37D)]" style={{ width: journey.percent + "%" }} /></div>
                   <ul className="m-0 flex list-none flex-col gap-1.5 p-0">
                     {journey.steps.slice(0, 12).map((st) => (
@@ -185,11 +205,11 @@ export default async function PortalProfile() {
                 </PCard>
               )}
               {showGuides && (
-                <PCard title="Guides & tips">
+                <PCard key="guides" title="Guides & tips">
                   <TourReplay welcome={welcome} spotlights={spotlightsLite} restart={portalRestartTour} />
                 </PCard>
               )}
-            </>
+            </div>
           ),
           details: (
             <PCard title="My details" right="from HR — ask to change">
@@ -198,20 +218,20 @@ export default async function PortalProfile() {
                   <div key={d.label} className="contents"><dt className="text-[var(--st-muted)]">{d.label}</dt><dd className="m-0 min-w-0 break-words">{d.value}</dd></div>
                 ))}
               </dl>
-              <div className="mt-5 border-t border-[var(--st-line-soft)] pt-4">
+              {!isDirector && <div className="mt-5 border-t border-[var(--st-line-soft)] pt-4">
                 <div className="mb-3 text-[13px] font-semibold">Contact — you can edit these</div>
                 <PortalContactDetails initial={contact} />
                 <p className={tick + " mt-2"}>Only you can edit them.</p>
-              </div>
+              </div>}
             </PCard>
           ),
-          files: (
+          files: isDirector ? null : (
             <PCard title="My files" right={String(docItems.length)}>
               <PortalDocuments items={docItems} />
               <p className={tick + " mt-2"}>Send anything we ask for. Your administrator files and checks each one.</p>
             </PCard>
           ),
-          equipment: (
+          equipment: isDirector ? null : (
             <PCard title="Equipment" right={String(equipment.length)}>
               {equipment.length === 0 ? <p className={tick}>Nothing is signed out to you.</p> : (
                 <div className="flex flex-col">

@@ -38,7 +38,10 @@ export function StaffProfile({ name, sub, pills, sections }: {
   const pathname = usePathname();
   const params = useSearchParams();
   const raw = params.get("tab") as ProfileTab | null;
-  const tab: ProfileTab = TABS.some((t) => t.id === raw) ? raw! : "overview";
+  // A section a person does not have (a director has no files or attendance
+  // here) takes its tab with it.
+  const shown = TABS.filter((t) => t.id === "overview" || sections[t.id as Exclude<ProfileTab, "overview">] != null);
+  const tab: ProfileTab = shown.some((t) => t.id === raw) ? raw! : "overview";
   const go = (t: ProfileTab) => {
     const p = new URLSearchParams(params.toString());
     if (t === "overview") p.delete("tab"); else p.set("tab", t);
@@ -72,7 +75,7 @@ export function StaffProfile({ name, sub, pills, sections }: {
           </div>
         </div>
         <div className="-mx-1 mt-3 flex gap-5 overflow-x-auto px-1 [scrollbar-width:none] sm:mt-4" role="tablist" aria-label="Profile">
-          {TABS.map((t) => (
+          {shown.map((t) => (
             <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} onClick={() => go(t.id)}
               className={cn("-mb-px h-10 shrink-0 border-b-2 text-[13px] transition-colors", tab === t.id ? "border-white text-white" : "border-transparent text-[#C9CBCF] hover:text-white")}>
               {t.short ? <><span className="sm:hidden">{t.short}</span><span className="hidden sm:inline">{t.label}</span></> : t.label}
