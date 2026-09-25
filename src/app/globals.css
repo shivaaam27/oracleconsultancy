@@ -2042,7 +2042,9 @@ body:has(main .studio) > * [data-field-label] {
    changed (settings-save-dock.tsx). The Desk controls inside are restyled
    here rather than rewritten, so every form still posts exactly as before. */
 .st-settings [data-group] { column-gap: 16px; columns: 1; }
-@media (min-width: 768px) { .st-settings [data-group] { columns: 2; } }
+/* Tablet keeps ONE column: at 768 two columns made 350px cards whose
+   three-across fields wrapped their labels over four lines. */
+@media (min-width: 1024px) { .st-settings [data-group] { columns: 2; } }
 @media (min-width: 1280px) { .st-settings [data-group] { columns: 3; } }
 .st-settings [data-group] > form { display: contents; }
 .st-settings [data-group] [data-savebar] { display: none !important; }

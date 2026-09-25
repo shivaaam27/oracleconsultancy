@@ -122,12 +122,14 @@ export function SettingsSections({
           {studio.note}
         </div>
         {studio.top}
-        <div className="flex flex-wrap items-center gap-1.5">
+        {/* Phone: ONE line that scrolls sideways — wrapped, the seven sections
+            took three rows. From sm they wrap as before. */}
+        <div className="-mx-4 flex items-center gap-1.5 overflow-x-auto px-4 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 [&::-webkit-scrollbar]:hidden">
           {groups.map((g) => {
             const on = !searching && active === g.id;
             return (
               <button key={g.id} type="button" aria-pressed={on} onClick={() => pick(g.id)}
-                className={cn("flex h-[34px] items-center gap-2 rounded-[10px] border px-3.5 text-[13px] transition-colors",
+                className={cn("flex h-[34px] shrink-0 items-center gap-2 whitespace-nowrap rounded-[10px] border px-3.5 text-[13px] transition-colors",
                   on ? "border-[var(--st-ink)] bg-[var(--st-ink)] text-[var(--st-surface)]" : "border-[var(--st-line)] bg-[var(--st-surface)] hover:bg-[var(--st-page)]")}>
                 {g.label}<span className="text-[11px] opacity-60">{count(g)}</span>
               </button>

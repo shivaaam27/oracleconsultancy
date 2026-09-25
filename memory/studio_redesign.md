@@ -769,3 +769,30 @@ Rules that now hold everywhere (read before touching a Studio page's phone view)
 - **Sign-in**: ONE screen at /login and /portal/login (`studio/auth/studio-sign-in.tsx`),
   "Task Management" + the owner's tagline; fits a 700px-tall phone without scrolling.
 - 404/error: `studio/oops.tsx` everywhere. Company logos back (list + page).
+
+## 25 Sept 2026 (late) — directors never see the old system; admin phone/tablet pass
+
+- **Directors are sent on in the PORTAL LAYOUT** (`lib/director-routes.ts`, tested),
+  before the old frame or its skeleton paints. The proxy passes the address in
+  `x-cos-path` (a layout is not told its path). `/portal/profile` is the ONE
+  director page still on the old portal — not rebuilt yet. Per-page director
+  redirects in the portal pages were deleted (the layout does it once).
+- Sign-in (password, passkey, "already signed in") lands a director on `/`, never
+  `/portal/board`.
+- ⚠️ **The old Aurora launch splash was playing for 1.7s on EVERY reload of a
+  Studio page** — that was "the old system showing up". `SplashGateScript` in
+  `<head>` sets `data-no-splash` on everything but the staff portal (and both
+  sign-ins), so it never paints. Managers/staff keep it until their turn.
+- `task/loading.tsx` returns null (it drew the Desk board skeleton on /task/new);
+  `registry/loading.tsx` deleted.
+- Task-row faces: face 1s, initials 3s, in a loop, all rows in step — pure CSS
+  (`st-face-peek`, negative delay from the clock). Peek faces animate on hover only.
+- **Admin phone/tablet** (checked signed in as the owner, 393×852 and 768×1024):
+  Files selection bar icons-only + edge to edge on a phone; Settings top cards
+  swipe on a phone, section chips one scrolling line, ONE column of cards until
+  1024 (was two 350px columns at 768), security tiles two-across only from xl;
+  person-page action cards (Tracked facts / Journey / Danger zone) stack text
+  over buttons on a phone; Companies "Most at risk" rows use the phone layout
+  until lg; the owner's footer create button is + only until lg (it has three
+  more buttons than a director's and the word was cut off).
+- The Next.js dev badge ("N" circle, top right) is dev-only — ignore it.

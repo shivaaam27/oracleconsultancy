@@ -356,7 +356,7 @@ export function StudioPerson({ data, backHref, readOnly = false }: { data: Studi
 
         {!readOnly && (
         <section className="st-tex-paper-rings flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 rounded-[20px] bg-[var(--st-surface)] px-[22px] py-4">
-          <div className="min-w-0 flex-1">
+          <div className="w-full min-w-0 sm:w-auto sm:flex-1">
             <h2 className="m-0 text-[15px] font-semibold">Tracked facts</h2>
             <div className="mt-0.5 text-xs text-[var(--st-muted)]">Contract, passport, bank — dated, sourced, never overwritten.</div>
           </div>
@@ -461,7 +461,7 @@ export function StudioPerson({ data, backHref, readOnly = false }: { data: Studi
 
         {!readOnly && (
         <section className={cn("st-tex-paper-dots flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 rounded-[20px] bg-[var(--st-surface)] px-[22px] py-4", data.reports.length === 0 && "xl:flex-1 xl:items-start")}>
-          <div className="min-w-0 flex-1">
+          <div className="w-full min-w-0 sm:w-auto sm:flex-1">
             <h2 className="m-0 text-[15px] font-semibold">Journey & equipment</h2>
             <div className="mt-0.5 text-xs text-[var(--st-muted)]">{p.active ? "Checklists, and what is signed out to them." : "Their leaving checklist, and what is still to come back."}</div>
           </div>
@@ -472,7 +472,7 @@ export function StudioPerson({ data, backHref, readOnly = false }: { data: Studi
 
         {!readOnly && (
         <section className="flex shrink-0 flex-wrap items-center gap-x-2.5 gap-y-2 rounded-[20px] bg-[var(--st-surface)] px-[22px] py-3.5">
-          <div className="min-w-0 flex-1">
+          <div className="w-full min-w-0 sm:w-auto sm:flex-1">
             <div className="text-[14px] font-semibold">Danger zone</div>
             <div className="mt-0.5 text-xs text-[var(--st-muted)]">Deactivate, or delete for good.</div>
           </div>

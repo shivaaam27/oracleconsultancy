@@ -656,14 +656,16 @@ export function FilesApp({ library, companies, initialOpen, initialCompany, init
         </div>
       </div>
 
-      {/* selection bar */}
-      <div className={cn("fixed bottom-[calc(64px+env(safe-area-inset-bottom)+18px)] left-1/2 z-50 flex items-center gap-1.5 whitespace-nowrap rounded-2xl bg-[#141517] py-1.5 pl-4 pr-1.5 text-[#F2F2F0] shadow-[0_18px_40px_rgba(0,0,0,0.3)] transition-all duration-200",
-        sel.size && nav.view !== "deleted" ? "pointer-events-auto -translate-x-1/2 opacity-100" : "pointer-events-none -translate-x-1/2 translate-y-4 opacity-0")}>
+      {/* selection bar — on a phone it runs edge to edge and the buttons are
+          icons only (their names are still read out): with words it was 490px
+          wide on a 393px screen. */}
+      <div className={cn("fixed bottom-[calc(var(--foot-h)+env(safe-area-inset-bottom)+14px)] left-1/2 z-50 flex items-center gap-1.5 whitespace-nowrap max-sm:inset-x-3 max-sm:justify-between max-sm:gap-0.5 max-sm:pl-3.5 rounded-2xl bg-[#141517] py-1.5 pl-4 pr-1.5 text-[#F2F2F0] shadow-[0_18px_40px_rgba(0,0,0,0.3)] transition-all duration-200",
+        sel.size && nav.view !== "deleted" ? "pointer-events-auto -translate-x-1/2 opacity-100 max-sm:translate-x-0" : "pointer-events-none -translate-x-1/2 translate-y-4 opacity-0 max-sm:translate-x-0")}>
         <span className="mr-1.5 text-[13px] font-medium">{sel.size} selected</span>
-        <SelBtn onClick={() => void download([...sel])}><Download size={14} />Download</SelBtn>
-        {!readOnly && <SelBtn onClick={() => moveDialog([...sel])}><FolderInput size={14} />Move</SelBtn>}
-        {!readOnly && <SelBtn onClick={() => { const on = ![...sel].every((id) => files.find((f) => f.id === id)?.starred); starFiles([...sel], on); }}><Star size={14} />Star</SelBtn>}
-        {!readOnly && <SelBtn bad onClick={() => deleteFiles([...sel])}><Trash2 size={14} />Delete</SelBtn>}
+        <SelBtn onClick={() => void download([...sel])} label="Download"><Download size={14} /><span className="max-sm:hidden">Download</span></SelBtn>
+        {!readOnly && <SelBtn onClick={() => moveDialog([...sel])} label="Move"><FolderInput size={14} /><span className="max-sm:hidden">Move</span></SelBtn>}
+        {!readOnly && <SelBtn onClick={() => { const on = ![...sel].every((id) => files.find((f) => f.id === id)?.starred); starFiles([...sel], on); }} label="Star"><Star size={14} /><span className="max-sm:hidden">Star</span></SelBtn>}
+        {!readOnly && <SelBtn bad onClick={() => deleteFiles([...sel])} label="Delete"><Trash2 size={14} /><span className="max-sm:hidden">Delete</span></SelBtn>}
         <SelBtn onClick={() => setSel(new Set())} label="Clear selection"><X size={14} /></SelBtn>
       </div>
 
@@ -679,7 +681,7 @@ export function FilesApp({ library, companies, initialOpen, initialCompany, init
 
       {/* uploads tray */}
       {uploads.length > 0 && (
-        <div className="st-pop fixed bottom-[calc(64px+env(safe-area-inset-bottom)+18px)] right-4 z-[55] w-[min(340px,calc(100vw-32px))] rounded-[18px] border border-[var(--st-line-soft)] bg-[var(--st-surface)] p-3 shadow-[0_16px_40px_rgba(17,18,20,0.14)]">
+        <div className="st-pop fixed bottom-[calc(var(--foot-h)+env(safe-area-inset-bottom)+14px)] right-4 z-[55] w-[min(340px,calc(100vw-32px))] rounded-[18px] border border-[var(--st-line-soft)] bg-[var(--st-surface)] p-3 shadow-[0_16px_40px_rgba(17,18,20,0.14)]">
           <div className="mb-2 flex items-center justify-between text-[13px] font-semibold">
             {uploads.some((u) => u.state === "up") ? `Uploading ${uploads.filter((u) => u.state === "up").length} of ${uploads.length}` : `${uploads.filter((u) => u.state === "done").length} uploaded`}
             <button type="button" onClick={() => setUploads([])} className={IB} aria-label="Close"><X size={14} /></button>
@@ -892,7 +894,7 @@ function DeletedRow({ icon, name, sub, deletedAt, onRestore, onPurge }: { icon: 
 }
 
 function SelBtn({ children, onClick, bad, label }: { children: ReactNode; onClick: () => void; bad?: boolean; label?: string }) {
-  return <button type="button" onClick={onClick} aria-label={label} className={cn("inline-flex h-[34px] items-center gap-1.5 rounded-[10px] px-3 text-[13px] hover:bg-[#26282C]", bad ? "text-[#F07BBE]" : "text-[#E6E6E3]")}>{children}</button>;
+  return <button type="button" onClick={onClick} aria-label={label} className={cn("inline-flex h-[34px] items-center justify-center gap-1.5 rounded-[10px] px-3 text-[13px] hover:bg-[#26282C] max-sm:h-10 max-sm:min-w-10 max-sm:px-2.5", bad ? "text-[#F07BBE]" : "text-[#E6E6E3]")}>{children}</button>;
 }
 
 /* ── dialogs ────────────────────────────────────────────────────────────── */

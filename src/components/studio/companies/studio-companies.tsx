@@ -143,10 +143,11 @@ export function StudioCompanies({ data }: { data: StudioCompaniesData }) {
                   const pct = Math.round((c.late / c.open) * 100);
                   return (
                     <Link key={c.id} href={withReturn(`/companies/${c.id}`, "/companies")}
-                      className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3.5 gap-y-1.5 text-[13px] hover:opacity-90 sm:grid-cols-[170px_minmax(0,1fr)_150px]">
+                      className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3.5 gap-y-1.5 text-[13px] hover:opacity-90 lg:grid-cols-[170px_minmax(0,1fr)_150px]">
                       <span className="truncate">{c.name}</span>
-                      {/* On a phone the bar takes its own line under the name. */}
-                      <span className="order-last col-span-2 h-2 overflow-hidden rounded bg-[var(--st-card-3)] sm:order-none sm:col-span-1">
+                      {/* On a phone AND a tablet (the card is half the screen there) the
+                          bar takes its own line under the name. */}
+                      <span className="order-last col-span-2 h-2 overflow-hidden rounded bg-[var(--st-card-3)] lg:order-none lg:col-span-1">
                         <span className="block h-full rounded" style={{ width: `${Math.max(4, pct)}%`, background: pct > 50 ? "var(--st-late)" : "var(--st-soon)" }} />
                       </span>
                       <span className="text-right text-xs text-[var(--st-on-card-muted)]">{c.late === c.open ? `all ${c.open} open tasks are late` : `${c.late} of ${c.open} late`}</span>

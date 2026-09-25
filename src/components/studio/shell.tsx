@@ -295,9 +295,12 @@ export function StudioShell({ needs, director = null }: { needs: NonNullable<Stu
               aria-haspopup="dialog"
               aria-expanded={quick}
               aria-label="Create something new"
-              className="inline-flex h-11 min-w-11 items-center justify-center gap-1.5 rounded-[12px] bg-[#F2F2F0] px-2.5 text-[13px] font-semibold text-[#111214] transition-opacity hover:opacity-90 sm:h-9 sm:rounded-[10px] sm:px-3.5"
+              className="inline-flex h-11 min-w-11 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-[12px] bg-[#F2F2F0] px-2.5 text-[13px] font-semibold text-[#111214] transition-opacity hover:opacity-90 sm:h-9 sm:rounded-[10px] sm:px-3.5"
             >
-              <Plus size={14} strokeWidth={2.4} /><span className="hidden sm:inline">{director ? "New task" : onFiles ? "Upload" : `New ${newWord}`}</span>
+              {/* The owner's footer carries three more buttons than a
+                  director's, so on a tablet the word did not fit ("New task"
+                  on two lines, "Upload" cut off): the + alone until lg. */}
+              <Plus size={14} strokeWidth={2.4} /><span className={cn("hidden", director ? "sm:inline" : "lg:inline")}>{director ? "New task" : onFiles ? "Upload" : `New ${newWord}`}</span>
             </button>
             )}
           </div>

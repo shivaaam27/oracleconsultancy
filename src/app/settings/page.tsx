@@ -33,7 +33,7 @@ import { PasskeyManager } from "@/components/passkey-manager";
 import { DirectorReachSelect } from "@/components/director-reach-select";
 import { PortalAccessList } from "@/components/portal-access-list";
 import { FormSwitch } from "@/components/form-switch";
-import { StudioScope, StudioCard, CardHead } from "@/components/studio/kit";
+import { StudioScope, StudioCard, StudioCardRow, CardHead } from "@/components/studio/kit";
 import { AiUsageDashboard } from "@/components/ai-usage-dashboard";
 import Link from "next/link";
 import { Save, SlidersHorizontal, Sparkles, MessageCircle, Check, LayoutGrid, Mic2, Bell, KeyRound, CalendarCheck, ScanFace, Mail, Users, Wrench, Scale, MonitorSmartphone, ClipboardList, ShieldCheck, Gauge, Bot } from "lucide-react";
@@ -127,10 +127,14 @@ export default async function SettingsPage({
     title: "Settings",
     note: <span className="flex items-center gap-1.5 text-xs text-[var(--st-ok-text)]"><Check size={13} strokeWidth={2.4} />Each section saves on its own</span>,
     top: (
-      <div className="grid grid-cols-1 gap-5 lg:min-h-[196px] lg:grid-cols-2">
+      // Phone: one card you swipe, like every Studio page (swipe-row.tsx) —
+      // stacked, the two filled the first screen and hid the section picker.
+      <StudioCardRow className="lg:min-h-[196px]">
         <StudioCard className="min-h-[180px]">
-          <CardHead label="Security check" right={<span className="text-xs text-[var(--st-muted)]">reads the live state · changes nothing</span>} />
-          <div className="mt-auto grid grid-cols-1 content-end gap-2 pt-3 sm:grid-cols-2">
+          <CardHead label="Security check" right={<span className="hidden text-xs text-[var(--st-muted)] xl:inline">reads the live state · changes nothing</span>} />
+          {/* Two across only where the card is wide enough (xl); on a tablet
+              the card is half the screen and two across cut every word off. */}
+          <div className="mt-auto grid grid-cols-1 content-end gap-2 pt-3 xl:grid-cols-2">
             {securityChecks.map((c) => {
               const col = c.state === "ok" ? "#19C37D" : c.state === "warn" ? "#F5A524" : "#8E9197";
               return (
@@ -156,7 +160,7 @@ export default async function SettingsPage({
             <div className="st-on-dark min-w-0 basis-full text-xs text-[var(--st-on-card-muted)] [&_a]:text-[var(--st-on-card)] [&_b]:text-[var(--st-on-card)]"><InstallApp /></div>
           </div>
         </StudioCard>
-      </div>
+      </StudioCardRow>
     ),
   };
 
