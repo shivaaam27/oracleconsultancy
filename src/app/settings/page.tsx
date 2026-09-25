@@ -426,7 +426,7 @@ export default async function SettingsPage({
         {/* ───────────────────────── Portals ───────────────────────── */}
         <section data-group="portals" className="space-y-4">
           {/* Staff portal access */}
-          <SettingsCard id="portal" icon={<Users size={15} />} title="Portal access" desc="Give someone a sign-in. Directors and managers use the main screens over their companies; staff their own portal. Revoke any time." keywords="portal staff access password role manager director revoke outreach">
+          <SettingsCard id="portal" icon={<Users size={15} />} title="Portal access" desc="Give someone a sign-in. Directors and managers use the main screens over their companies; staff the same screens for their own work (Home, Tasks, a task, Profile). Revoke any time." keywords="portal staff access password role manager director revoke outreach">
             {sp.portal === "saved" && (
               <p className="flex items-center gap-2 text-sm text-success"><Check size={14} /> Portal access saved.</p>
             )}

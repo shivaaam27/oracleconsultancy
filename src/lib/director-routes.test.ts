@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { studioPathForDirector as to } from "./director-routes";
+import { studioPathForDirector as to, isStaffStudioPath } from "./director-routes";
 
 describe("studioPathForDirector", () => {
   it("sends the old home, board and tasks to the shared screens", () => {
@@ -26,5 +26,14 @@ describe("studioPathForDirector", () => {
   });
   it("leaves the one page not rebuilt yet", () => {
     expect(to("/portal/profile")).toBeNull();
+  });
+});
+
+describe("isStaffStudioPath", () => {
+  it("puts the rebuilt staff pages in the Studio frame", () => {
+    for (const p of ["/portal", "/portal/", "/portal/tasks", "/portal/task/TG-002", "/portal/profile"]) expect(isStaffStudioPath(p)).toBe(true);
+  });
+  it("leaves the pages not rebuilt yet in the old frame", () => {
+    for (const p of ["/portal/chat", "/portal/chat/4", "/portal/meetings", "/portal/directory", "/portal/announcements", "/portal/task/new", "/portal/cleaning"]) expect(isStaffStudioPath(p)).toBe(false);
   });
 });

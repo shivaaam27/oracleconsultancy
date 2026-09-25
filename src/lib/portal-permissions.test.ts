@@ -77,7 +77,7 @@ describe("the default capabilities — what each level may DO", () => {
     messageOnTasks: ["manager", "hr", "director"],
     bulkOutreach: ["manager", "director"],
     createEvents: ["manager", "hr", "director"],
-    navTasks: ["manager", "hr", "director"],
+    navTasks: ["staff", "manager", "hr", "director"],
     navOutbox: ["manager", "hr", "director"],
     navInsights: ["manager", "hr", "director"],
     oriAsk: ["staff", "manager", "hr", "director"],
@@ -104,9 +104,9 @@ describe("the default capabilities — what each level may DO", () => {
     for (const cap of taskish) expect(DEFAULT_CAPS[cap].receptionist, cap).toBe(false);
   });
 
-  it("never gives plain staff anything beyond asking ORI", () => {
+  it("never gives plain staff anything beyond asking ORI and their own Tasks page", () => {
     for (const cap of ALL_CAPS) {
-      expect(DEFAULT_CAPS[cap].staff, cap).toBe(cap === "oriAsk");
+      expect(DEFAULT_CAPS[cap].staff, cap).toBe(cap === "oriAsk" || cap === "navTasks");
     }
   });
 });

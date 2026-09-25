@@ -93,7 +93,7 @@ export const CAPABILITY_GROUPS: { id: string; label: string; caps: CapabilityMet
     id: "nav",
     label: "Navigation & surfaces",
     caps: [
-      { key: "navTasks", label: "Tasks", desc: "The Tasks list, with its filters." },
+      { key: "navTasks", label: "Tasks", desc: "The Tasks list, with its filters. Staff always have one — their own tasks only." },
       { key: "navOutbox", label: "Outbox", desc: "Drafted messages / reminders surface." },
       { key: "navInsights", label: "Insights", desc: "Glanceable portfolio / team insights." },
       { key: "directorBrief", label: "Report", desc: "The Report panel: company / person / period, then the PDF, email with the PDF attached, WhatsApp or copy. Always limited to the companies they may see." },
@@ -146,7 +146,8 @@ export const DEFAULT_CAPS: Record<CapabilityKey, Record<PortalRoleKey, boolean>>
   messageOnTasks: { staff: false, manager: true, hr: true, director: true, receptionist: false },
   bulkOutreach: { staff: false, manager: true, hr: false, director: true, receptionist: false },
   createEvents: { staff: false, manager: true, hr: true, director: true, receptionist: false },
-  navTasks: { staff: false, manager: true, hr: true, director: true, receptionist: false },
+  // Staff: on since the Studio screens (26 Sept 2026) — their tasks are a page of their own now.
+  navTasks: { staff: true, manager: true, hr: true, director: true, receptionist: false },
   navOutbox: { staff: false, manager: true, hr: true, director: true, receptionist: false },
   navInsights: { staff: false, manager: true, hr: true, director: true, receptionist: false },
   oriAsk: { staff: true, manager: true, hr: true, director: true, receptionist: false },
