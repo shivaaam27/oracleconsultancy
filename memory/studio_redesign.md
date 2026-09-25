@@ -916,7 +916,7 @@ and directors, limited to "own work only" (his choice, asked and answered).
   cards + the existing feed (ack, reactions, comments unchanged).
 - Faces: staff see moods for people in their own companies (owner: "do the faces").
 - **People Grid / Columns** (`lay` in the address): Columns is the default for
-  every read-only viewer (director, manager, staff), Grid for the owner. A viewer
+  EVERYONE (owner too, 26 Sept 2026: "so everyone gets same view"). A viewer
   over their own companies gets a column per company of THEIRS (a colleague
   under each one they work for). `PeopleColumns` slides with ‹ ›; each column
   scrolls inside itself.
