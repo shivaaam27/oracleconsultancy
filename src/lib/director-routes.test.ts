@@ -31,9 +31,9 @@ describe("studioPathForDirector", () => {
 
 describe("isStaffStudioPath", () => {
   it("puts the rebuilt staff pages in the Studio frame", () => {
-    for (const p of ["/portal", "/portal/", "/portal/tasks", "/portal/task/TG-002", "/portal/profile"]) expect(isStaffStudioPath(p)).toBe(true);
+    for (const p of ["/portal", "/portal/", "/portal/tasks", "/portal/task/TG-002", "/portal/profile", "/portal/people", "/portal/people/19", "/portal/companies", "/portal/companies/3", "/portal/meetings", "/portal/announcements"]) expect(isStaffStudioPath(p)).toBe(true);
   });
   it("leaves the pages not rebuilt yet in the old frame", () => {
-    for (const p of ["/portal/chat", "/portal/chat/4", "/portal/meetings", "/portal/directory", "/portal/announcements", "/portal/task/new", "/portal/cleaning"]) expect(isStaffStudioPath(p)).toBe(false);
+    for (const p of ["/portal/chat", "/portal/chat/4", "/portal/directory", "/portal/task/new", "/portal/cleaning", "/portal/people/x"]) expect(isStaffStudioPath(p)).toBe(false);
   });
 });
