@@ -1,74 +1,86 @@
-# Semantic search (Ask Oracle) — one-time setup
+# Semantic search — setup and reference
 
-Semantic search lets **Ask Oracle find things by meaning, not just matching words**
-("who's behind on paperwork?" finds tasks that say "documentation outstanding").
-It runs **entirely in your own Supabase region** — no text is sent to any outside
-AI company. It's **off by default** and the whole system works without it (Ask Oracle
-uses keyword + synonym search until you switch it on), so there's no rush and
-nothing breaks if you never do this.
+Semantic search lets ORI **find things by meaning, not just matching words**
+("who's behind on paperwork?" finds a task that says "documentation
+outstanding"). It runs **entirely inside your own Supabase region** — no text
+goes to an outside AI company for this. It is **off by default**, and everything
+works without it: ORI and ⌘K use keyword + synonym search until you switch it on.
 
-When you're ready, it's four one-time steps. Steps 1–3 are technical; if you'd
-rather, hand this file to whoever manages the Supabase project.
+The database side (the `embeddings` table, pgvector, the search functions) is
+already in place. What is left is three one-time steps, about ten minutes.
 
-## 1. Take a backup, then apply the database change
-The migration adds an `embeddings` table + the `vector` (pgvector) extension.
+Your Supabase project ref is `eskboulvmsoqsyuxppaa` (it is also in
+`NEXT_PUBLIC_SUPABASE_URL`).
+
+## 1. Deploy the embedding function
+
+A small Supabase Edge Function (`supabase/functions/embed`) turns text into
+vectors with Supabase's built-in `gte-small` model — no API key, no outside
+vendor. In a terminal in the project folder, one command at a time:
+
 ```
-npm run db:backup        # safety snapshot first
-npm run db:migrate       # applies migration 0076 (also runs automatically on your next deploy)
-```
-
-## 2. Deploy the embedding function (the in-region model)
-This deploys a tiny Supabase function that turns text into vectors using
-Supabase's built-in `gte-small` model — no API key, no external vendor.
-```
-npm i -g supabase                         # install the Supabase CLI (one time)
-supabase login                            # opens your browser to authorise
-supabase link --project-ref <your-ref>    # the ref from your Supabase dashboard URL
-supabase functions deploy embed           # deploys supabase/functions/embed
+npx supabase login
+npx supabase link --project-ref eskboulvmsoqsyuxppaa
+npx supabase functions deploy embed
 ```
 
-## 3. Index your existing data
+- `login` opens the browser to approve; come back when it says you are logged in.
+- `link` asks for the **database password** (the one set when the Supabase
+  project was created, not the Oracle sign-in). Nothing shows while you paste
+  it — that is normal. Forgotten it? Reset it in the Supabase dashboard →
+  Project settings → Database.
+- `deploy` should end with "Deployed Function embed".
+
+## 2. Switch it on
+
+Settings → **AI & Voice** → *AI assistance* → **"Semantic search (ORI)"** → on,
+then Save.
+
+## 3. Fill the index
+
 ```
 npm run db:embed-backfill
 ```
-Embeds every existing task and meeting (a couple of minutes). Re-run it any time —
-unchanged items are skipped. New tasks/meetings index themselves automatically once
-step 4 is on.
 
-## 4. Turn it on
-**Settings → AI assistance → "Semantic search (Ask Oracle)"**. From now on Ask Oracle
-blends meaning-based results with its keyword search.
+A few minutes. Safe to re-run at any time — unchanged items are skipped.
+
+Any red error text at any step: stop, and hand it to Claude. Nothing here can
+damage data, and leaving it half done just means Oracle keeps using keyword
+search.
 
 ---
 
-### Good to know
-- **Safe to switch off** any time — Ask Oracle instantly falls back to keyword + synonym
-  search. Switching off doesn't delete anything; the embeddings just stop being used.
-- **English-strong.** The built-in model reads English best; Swahili/Hindi/Gujarati text
-  is embedded weakly, but keyword search still covers those by literal match. A fully
-  multilingual in-region model is too heavy for the current hosting, so this is the
-  trade-off of staying in-region and free.
-- **What's indexed:** **all 12 record types** — tasks, meetings, documents, people,
-  companies, letters, vendors, assets, governance (shareholders/owners/signatories/key
-  persons), risks, applications-in-progress (pipeline) and commitments. The original
-  release covered only the first four; coverage has since grown to everything the system
-  holds.
-- **Always fresh.** Indexing is now **continuous as well as nightly**. Every create,
-  edit and archive fires a per-write index hook (`src/lib/index-hooks.ts`
-  `reindexEntity` / `removeEntityIndex`, driven by the entity registry in
-  `src/lib/entity-registry.ts`), so a record is searchable within moments of being
-  changed. The nightly `/api/cron/reindex` job (05:00) is still there as a catch-all —
-  it re-indexes changed rows, heals any missed hook and sweeps truly-deleted vectors.
-- **History is kept, not deleted.** When a record is archived, closed or made inactive
-  it is **re-stamped as history** (the `embeddings.lifecycle` column, `active` vs
-  `history`; migration 0094) rather than dropped. By default Ask Oracle searches only
-  current records; the deep search palette has an "Include history" toggle, and the
-  underlying `hybrid_search` RPC takes a `filter_lifecycle` argument
-  (`active` / `history` / all). Only genuinely hard-deleted rows have their vectors
-  removed.
-- **Coverage self-audit.** A background check (`src/lib/coverage-audit.ts`) compares
-  what exists against what's indexed and flags any under-indexed record type on the
-  **System status** card. It stays inert until the toggle below is on.
-- **Cost:** none beyond your existing Supabase usage — the model runs on your own project.
-- **Privacy:** text is embedded inside your Supabase region only; nothing goes to Groq or
-  any other outside processor for this feature.
+## How it works
+
+- **What is indexed** — every type in `src/lib/entity-registry.ts`: tasks,
+  notes, people, companies, vendors, assets, governance records
+  (shareholders, owners, signatories, key persons) and risks. Files contribute
+  only what you typed about them (title, type, issuer, reference, notes); the
+  file itself is never read for search, and ⌘K finds files by plain text match.
+- **Always fresh** — every create, edit and archive fires a per-write hook
+  (`src/lib/index-hooks.ts` → `reindexEntity` / `removeEntityIndex`), except
+  files. The nightly `/api/cron/reindex` (05:00 UTC) is the catch-all: it
+  re-indexes changed rows, heals missed hooks and sweeps vectors of deleted rows.
+  It does nothing while the switch is off.
+- **History is kept** — an archived, closed or inactive record is re-stamped
+  `history` (`embeddings.lifecycle`) rather than dropped. ORI searches current
+  records by default; ⌘K has an "Include history" toggle; the `hybrid_search`
+  function takes `filter_lifecycle` (`active` / `history` / all). Only
+  hard-deleted rows lose their vectors.
+- **Coverage self-audit** — `src/lib/coverage-audit.ts` compares what exists
+  with what is indexed and flags gaps on the System status card (inert while
+  the switch is off).
+- **Adding a new record type** — add one `EntityDef` to the registry; indexing,
+  the backfill, ⌘K and trace all follow from it.
+
+## Good to know
+
+- **Safe to switch off** at any time — search falls straight back to keyword +
+  synonyms, and nothing is deleted.
+- **English-strong.** `gte-small` reads English best. Swahili text is
+  translated to English by the AI before embedding when AI is on
+  (`src/lib/embeddings.ts`); keyword search still covers every language by
+  literal match.
+- **Cost:** nothing beyond your existing Supabase usage.
+- **Privacy:** embedding happens inside your Supabase region. (The optional
+  Swahili translation step does go through Gemini, like the rest of Oracle's AI.)

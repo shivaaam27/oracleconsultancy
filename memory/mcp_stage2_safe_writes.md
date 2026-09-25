@@ -48,7 +48,7 @@ survivable for anything undoable, and not for anything that isn't.
 in `src/app/calendar/actions.ts` writes the row **and** pushes to Google, spawns
 the meeting task and notifies attendees. Calling the raw helper would produce an
 event that exists in Oracle and nowhere else — exactly the bug that was fixed in
-[[director_calendar_aug2026]].
+[[calendar]].
 
 ## Built — what actually shipped
 

@@ -1,83 +1,56 @@
-# Oracle System
+# Oracle
 
-A **Chief-of-Staff administrator** for Oracle Consultancy's 7 portfolio companies (the parent brand was renamed from "Oracle Group" in V2; note "Oracle Consultancy" is also one of the 7 companies):
+The Chief-of-Staff system for Oracle Consultancy's portfolio companies. It
+replaced an Excel workbook, and today it is a **task-management system**: tasks
+and their conversations, recurring work, a calendar, people and companies, files,
+notes, announcements, a Director Brief, and a staff portal where staff, managers
+and directors see their own slice of the same data.
 
-- CO01 Dar Spices
-- CO02 Cocozuri Chocolat
-- CO03 Terra Green
-- CO04 Oracle Consultancy
-- CO05 PES Ltd
-- CO06 MES Ltd
-- CO07 Pamoja Plus
+The company list lives in the `companies` table — never hard-code it.
 
-Single operator, no auth. It replaces the old Excel workflow with a database-backed Next.js app for tasks, timelines, risk, meetings, reminders, and AI-assisted operating memory.
+## Where to start
 
-Built with **Next.js 16**, **React 19**, **TypeScript**, **Drizzle ORM**, **Supabase Postgres**, **Tailwind v4**, and optional **Groq** AI.
+| Read | For |
+|---|---|
+| `CLAUDE.md` | The project rules, the traps, and how every part fits. **Read first.** |
+| `memory/README.md` | The index of the topic notes in `memory/`. |
+| `memory/studio_redesign.md` | The Studio design — how every page is built now. |
+| `DESIGN_SYSTEM.md` | The visual rules (Studio, and the older Desk pieces it still uses). |
+| `DEPLOYMENT.md` / `BACKUP.md` | Shipping to Vercel, and getting data back. |
+| `START_HERE_NEW_PC.md` | Setting the project up on a new computer. |
+| `desktop-win/README.md` | The Windows app (a window around the live site). |
 
-## Current Highlights (V2)
+## Stack
 
-- Administrator dashboard with Overview, Companies, and Tasks tabs; task cards/popups/pages now surface the **Description** (the standing context) alongside the Latest update.
-- Task registry with per-task timeline and audit history.
-- **HRMS** hub (`/hrms`): **OECR** office-equipment **stock control** (items + purchases/issues, current stock derived, TZS, negative-stock guard) and **OCR** daily **cleaning checklist** (tap-to-tick areas, comments, attendance, sign-off). Companies/People/Documents live under HRMS.
-- **Director Brief** (`/brief`): glanceable portfolio report incl. completed/closed this month, with **WhatsApp/Email/Copy** share and a multi-page **print-to-PDF** detailed report.
-- **Documents & Compliance** (`/documents`): track licences/contracts/visas with expiry reminders; **AI reads uploads** — text PDFs, photos, and **scanned/handwritten PDFs** (rasterised → vision model) — and folds extra detail into Notes.
-- Mobile-tight Meeting Workspace with saved notes, AI minutes, decisions/risks/follow-up intelligence, history search, and linked tasks.
-- Ask Oracle assistant over tasks, updates, companies, people, and saved meeting minutes.
-- Oracle-native voice intelligence (English, Swahili, Hindi, Gujarati) + a Oracle vocabulary dictionary.
-- People directory (internal/external/expat) with bulk deactivate; notes surfaced on cards.
-- Outbox reminder drafts (priority + description + latest update; no code/status) and sent-record history.
-- Single centred **HRMS "Go to" launcher** for all secondary destinations; settings for risk thresholds, weather, AI master switch, reminders.
+Next.js 16 (App Router) · React 19 · TypeScript · Drizzle ORM + postgres.js ·
+Supabase Postgres (pooler, port 6543) · Tailwind v4 · Gemini for AI (Groq for
+voice only) · Sentry · Vercel.
 
-## Where To Start
-
-1. `HANDOVER.md` - **V2 handover** (what shipped, architecture, run, limits).
-2. `memory/v2_plan.md` - roadmap and mental model.
-3. `CLAUDE.md` / `AGENTS.md` - project instructions for coding agents.
-4. `memory/hrms.md` - HRMS hub, OECR (stock) and OCR (cleaning).
-5. `memory/outbox_and_reminders.md` - reminder drafts + Director Brief.
-6. `memory/ai_integration.md` - Groq, Ask Oracle, meeting/document AI, voice.
-7. `memory/database_schema.md` - current schema.
-8. `memory/routes_and_pages.md` - current pages and API routes.
-
-## Getting Started
+## Run it
 
 ```bash
 npm install
 npm run dev
 ```
 
-Open `http://localhost:3000`.
+Open `http://localhost:3000`. Required in `.env.local`: `DATABASE_URL` (Supabase
+pooler, port 6543), `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`.
+AI keys are optional — Oracle runs by hand without them.
 
-Required env (`.env.local`):
+## Everyday commands
 
-- `DATABASE_URL` - Supabase pooler URL on port `6543`.
-- `NEXT_PUBLIC_SUPABASE_URL` - Supabase project URL (used by the server JS client).
-- `SUPABASE_SERVICE_ROLE_KEY` - service-role key for server write paths.
-
-Optional env:
-
-- `GROQ_API_KEY` (or the Settings AI switch) - enables AI features. The app still runs manually when missing or when AI is disabled in Settings.
-- `XLSX_PATH` - optional import override.
-
-Native dependency: `@napi-rs/canvas` (prebuilt) renders scanned PDFs to images for the document vision reader; it's listed in `serverExternalPackages` (`next.config.ts`).
-
-## Key Scripts
-
-| Script | Purpose |
+| Command | What it does |
 |---|---|
-| `npm run dev` | Local Next dev server |
-| `npm run build` | Production build |
-| `npm run start` | Production server |
-| `npm run db:generate` | Generate Drizzle migration |
-| `npm run db:migrate` | Apply pending migrations |
-| `npm run db:push` | Direct schema sync; avoid in production |
-| `npm run db:studio` | Drizzle Studio |
-| `npx tsx scripts/import.ts` | Import the Excel workbook |
-| `npm exec tsc -- --noEmit` | Type-check |
+| `npm run dev` | Local dev server |
+| `npm run build` | Production build (needs the big heap it already asks for) |
+| `npm test` | Unit tests (Vitest) |
+| `NODE_OPTIONS=--max-old-space-size=4096 npm exec tsc -- --noEmit` | Type-check |
+| `npm run db:generate` / `npm run db:migrate` | Make / apply a migration |
+| `npm run db:check-security` | Re-test the database lock after schema work |
+| `npm run db:backup` / `npm run db:restore -- <folder>` | Local JSON snapshot / restore |
+| `npm run mcp:key` | Mint the key Claude Code uses to reach Oracle |
 
-## Critical Notes
+## Git
 
-- `src/db/index.ts` uses `prepare: false` and `max: 1`; this is required for Supabase PgBouncer transaction mode.
-- Use the Supabase pooler URL on port `6543`, not direct `5432`.
-- British English throughout UI copy and AI prompts.
-- Removed standalone routes should not be recreated: `/capture`, `/task`, `/digest`, `/escalations`, `/audit`.
+There is **one branch: `master`**. Work on it, commit to it, push to it. Vercel
+deploys `master` and nothing else.

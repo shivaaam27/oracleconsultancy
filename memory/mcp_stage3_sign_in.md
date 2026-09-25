@@ -5,7 +5,7 @@ metadata:
   type: project
 ---
 
-# MCP stage 3 — sign-in (OAuth 2.1) (BUILT, Aug 2026 — needs live testing)
+# MCP stage 3 — sign-in (OAuth 2.1) (LIVE — built Aug 2026, in daily use from claude.ai and the phone)
 
 Read [[mcp_plan]] first.
 
@@ -128,7 +128,8 @@ by inspection. 12/12:
   and redirects nowhere**
 - a wrong PKCE verifier → `invalid_grant`; a correct one → access + refresh token
 - **replaying a used code is refused** (single-use holds)
-- an OAuth token drives `tools/list` and returns all 19 tools
+- an OAuth token drives `tools/list` and returns every tool (19 then; 28 as of
+  Sept 2026 — count them in `src/lib/mcp/registry.ts`)
 - refresh rotates the pair; **the old refresh token is dead afterwards**
 - **a revoked token 401s on the very next request**
 
@@ -153,10 +154,10 @@ The 401 challenge is right too:
    `revalidateTag`. **Any admin helper newly called from `/api/mcp` must use
    `bustTag`, not `updateTag`.**
 
-Still unproven: **the human half.** Nobody has pressed Approve on the real consent
-screen (it needs the owner password), and no real claude.ai/phone client has run
-the flow. Most likely remaining unknown is whether claude.ai wants CIMD rather
-than DCR.
+**The human half is proven too.** The owner connected Oracle as a claude.ai
+custom connector through the real consent screen, and it is in use from claude.ai
+and the phone. CIMD is still only a "when it becomes the norm" item — add it
+beside DCR if a client ever insists on it.
 
 ## A note on the public directory
 

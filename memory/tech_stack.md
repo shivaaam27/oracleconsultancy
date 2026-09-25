@@ -1,77 +1,104 @@
 ---
 name: tech-stack
-description: "Frameworks, libraries, infra, and non-obvious choices"
+description: "Frameworks, libraries, infra, env vars and the non-obvious choices"
 metadata:
   node_type: memory
   type: project
 ---
 
-# Tech Stack
+# Tech stack
 
 ## Runtime
 
-- Next.js 16.2.6, App Router.
-- React 19.2.4.
-- TypeScript 5.
-- Windows development environment with PowerShell.
+- Next.js 16 App Router (`package.json` `^16.3.5`; `src/proxy.ts` is the Next-16
+  edge gate), React 19.2, TypeScript 5.
+- Hosted on Vercel (region `dub1`); only `master` deploys.
+- Developed on Windows (PowerShell / Git Bash).
 
 ## Database
 
-- Supabase Postgres.
-- Drizzle ORM with postgres.js for schema/migrations and older query paths.
-- Server-side Supabase client in `src/db/supabase.ts` for newer action/API write paths.
-- Supabase pooler on port `6543`, transaction mode.
+- Supabase Postgres, pooler on port `6543` in transaction mode.
+- Drizzle ORM 0.45 + postgres.js for schema, migrations and older query paths.
+  `src/db/index.ts` must keep `prepare: false` and `max: 1`.
+- Supabase JS client (`sb`, `src/db/supabase.ts`, service role) for newer
+  write paths; helpers in `src/lib/db-helpers.ts`.
+- RLS ON everywhere with no policies; the app bypasses it via the service role
+  (see `security.md`).
+- Migrations in `drizzle/`; latest **0172**. `0000_flaky_amphibian.sql` was
+  applied by hand and `scripts/baseline-migrations.ts` marks it applied.
+- Semantic search: pgvector + the in-region `gte-small` model in the Supabase
+  Edge Function `supabase/functions/embed` (see `SEMANTIC_SEARCH.md`).
+- All wall-clock columns are `timestamptz`; write UTC, render in EAT (UTC+3).
 
-Critical pooler settings in `src/db/index.ts`:
+## UI
 
-- `prepare: false`
-- `max: 1`
+- Tailwind v4 (`@tailwindcss/postcss`), tokens in `src/app/globals.css`.
+- Design: **Studio** (`memory/studio_redesign.md`) on rebuilt pages, Desk
+  (`DESIGN_SYSTEM.md`) on the rest.
+- `next-themes`, `framer-motion`, `lucide-react`, Radix primitives, `cmdk` (⌘K).
+- Notes editor: Tiptap 3 (pinned at 3.30.1 on purpose).
 
-Do not remove these unless switching away from PgBouncer transaction mode.
+## Files, documents and PDF
 
-## Migrations
-
-- Generated SQL lives in `drizzle/`.
-- `0000_flaky_amphibian.sql` was applied manually before Drizzle migration tracking.
-- `scripts/baseline-migrations.ts` marks baseline as applied.
-- Latest feature migrations: `0017_yummy_mad_thinker` (HRMS stock — hand-trimmed), `0018_glamorous_lady_vermin` (OCR cleaning). `0017_documents_compliance`/`0018_document_files` were applied manually outside the journal — see `database_schema.md`.
-
-## Styling
-
-- Tailwind v4 via `@tailwindcss/postcss`.
-- Design tokens in `src/app/globals.css`.
-- Dark mode via `next-themes`.
-- Animation via `framer-motion`.
-- Icons via `lucide-react`.
-- Radix primitives for dialog/dropdown/tooltip.
-- `cmdk` for command palette.
-
-## Documents / PDF
-
-- `unpdf` — serverless pdf.js: text extraction **and** page rasterising (`renderPageAsImage`).
-- `@napi-rs/canvas` — prebuilt native canvas backing unpdf's renderer (scanned-PDF → image for the vision reader). Both in `serverExternalPackages` (`next.config.ts`).
-- `serverActions.bodySizeLimit: "25mb"` for document uploads.
-- Director Brief PDF = browser print of `/brief` via `@media print` in `globals.css` (no PDF library).
+- `unpdf` (PDF text + page rasterising) with `@napi-rs/canvas`; `mammoth` (Word),
+  `heic-convert`, `jszip`, `xlsx` (SheetJS tarball, for the one-off import).
+- `@react-pdf/renderer` for the Director Brief PDF (`src/lib/brief-pdf.tsx`).
+- `unpdf`, `@napi-rs/canvas`, `@react-pdf/renderer` are in
+  `serverExternalPackages`; `serverActions.bodySizeLimit` is `25mb`.
 
 ## AI
 
-- Groq Cloud OpenAI-compatible chat completions endpoint.
-- Models: `openai/gpt-oss-20b` (fast) / `openai/gpt-oss-120b` (smart), env-overridable ladders in `src/lib/ai-models.ts`. Migrated 2026-06 from `llama-3.1-8b-instant` + `llama-3.3-70b-versatile` (Groq deprecated both; shutdown 2026-08-16). Vision still `meta-llama/llama-4-scout-17b-16e-instruct` (shutdown 2026-07-17, replacement TBC).
-- `GROQ_API_KEY` unlocks AI features.
-- `getGroqKey()` applies the Settings AI master switch.
-- AI surfaces include polish, draft email, digest narrative, Ask Oracle, AI commands, company summaries, Meeting Workspace intelligence, and shared voice dictation polish.
-- Voice dictation uses the browser Web Speech API through `src/components/voice-button.tsx`; clean-up runs through `src/app/voice/actions.ts`.
+- **Gemini only** for text and vision: `gemini-3.1-flash-lite` →
+  `gemini-3.5-flash-lite`, ladders in `src/lib/ai-models.ts`,
+  `getActiveProvider()` hard-coded `"gemini"`, harness `src/lib/ai-json.ts`.
+- **Groq only for voice**: Whisper `whisper-large-v3-turbo` at `/api/transcribe`.
+- Gate: `getAiKey()` (master switch + key + optional spend cap). Full reference
+  in `ai_integration.md`.
 
-## Spreadsheet Ingest
+## Integrations
 
-- `xlsx` from SheetJS tarball.
-- Import script: `npx tsx scripts/import.ts`.
+- Auth: signed cookies + scrypt; passkeys via `@simplewebauthn/server` +
+  `/browser` v13.
+- MCP: `mcp-handler` + `@modelcontextprotocol/server` at `/api/mcp`.
+- Google Calendar/Meet: `googleapis` (OAuth).
+- Email: `nodemailer` over Gmail SMTP, or Resend.
+- WhatsApp: Twilio REST (`src/lib/whatsapp.ts`).
+- Push: `web-push` (VAPID).
+- Errors: `@sentry/nextjs` (errors only, inert without a DSN).
+- Tests: Vitest.
 
-## Env Vars
+## Environment variables
 
-- `DATABASE_URL` - required, Supabase pooler URL on port `6543`.
-- `GROQ_API_KEY` - optional.
-- `XLSX_PATH` - optional import path override.
-- `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` - required for server Supabase client paths.
+Verified against `process.env` reads in `src/`, `scripts/` and `next.config.ts`.
 
-Env is loaded from `.env.local` then `.env` in migration/import scripts.
+| Name | Needed for |
+|---|---|
+| `DATABASE_URL` | **Required.** Pooler URL, port 6543. |
+| `NEXT_PUBLIC_SUPABASE_URL` | **Required.** Supabase project URL. |
+| `SUPABASE_SERVICE_ROLE_KEY` | **Required.** Server database access. Secret. |
+| `PORTAL_SESSION_SECRET` | Signs owner and staff cookies. Must be set in production. |
+| `DIRECT_DATABASE_URL` | Migrate / backup / security check (session pooler or 5432). Falls back to `DATABASE_URL`. |
+| `CRON_SECRET` | Bearer secret for `/api/cron/*`. |
+| `GEMINI_API_KEY` | All AI (or set in Settings). |
+| `GROQ_API_KEY` | Voice transcription only (or set in Settings). |
+| `AI_MODEL_QUOTAS`, `GEMINI_FAST_MODELS`, `GEMINI_SMART_MODELS`, `GEMINI_VISION_MODELS` | Optional model overrides. |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Google Calendar/Meet sync. |
+| `GMAIL_USER`, `GMAIL_APP_PASSWORD` (+ optional `SMTP_HOST`, `SMTP_PORT`) | Sending email. |
+| `RESEND_API_KEY` | Alternative email sender. |
+| `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM` (+ optional `TWILIO_DEFAULT_CONTENT_SID`, `TWILIO_DEFAULT_LANG`) | WhatsApp sending. |
+| `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | Push notifications. |
+| `SENTRY_DSN`, `NEXT_PUBLIC_SENTRY_DSN` | Error alerts. |
+| `CSP_ENFORCE` | `1` = enforce the CSP (read at build time; redeploy). |
+| `NEXT_PUBLIC_APP_URL` | Public base URL for links (falls back to Vercel's URL). |
+| `EVENT_ATTACH_MAX_BYTES` | Optional cap on event-invitation attachments (default 15 MB). |
+| `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET` | The dormant Telegram → ORI bridge. |
+| `COS_MCP_KEY` | Local only: the MCP key `.mcp.json` sends. |
+| `MIGRATE_STRICT` | `1` = a failed migration fails the Vercel build. |
+
+Not read by the app: `APP_PASSPHRASE` (the owner password is a hash in
+`settings`, set on first sign-in), `INBOX_SECRET` (the inbox route is gone),
+`NEXT_PUBLIC_SUPABASE_ANON_KEY` (no page subscribes to Realtime any more),
+`OCRSPACE_API_KEY` (a settings fallback nothing calls). `AGENT_TRIGGER_SECRET`
+only guards the dormant `/api/agent/trigger`.
+
+Scripts load `.env.local`, then `.env`.

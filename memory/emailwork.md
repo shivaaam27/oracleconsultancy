@@ -1,101 +1,83 @@
-# Email "send as the director/manager, not admin" — plan + status
+# Email "send as the director/manager, not admin" — status (Sept 2026)
 
 **Owner-named pick-up point: "emailwork" (2026-06-17).**
 
 ## The problem
-Portal director/manager emails go out as `OC Director's Office <admin@oracle.co.tz>`
-with Reply-To = the sender's own email. The owner wants the mail to genuinely come
-**from the director's/manager's own `@oracle.co.tz` address**, not admin.
+Portal director/manager reminder emails go out as e.g. `OC Director's Office
+<admin@oracle.co.tz>` with Reply-To = the sender's own email. The owner wants the
+mail to genuinely come **from the director's/manager's own `@oracle.co.tz`
+address**, not admin.
 
 ## Why it's not just a code edit
-Sending runs through **Gmail SMTP** (the single `admin@oracle.co.tz` Google Workspace
-mailbox — `GMAIL_USER` + `GMAIL_APP_PASSWORD` in env; `getEmailConfig` prefers SMTP
-whenever those exist). Gmail will **rewrite/reject** a From that isn't the
-authenticated mailbox, so you cannot send "as jane@oracle.co.tz" through admin's login.
-Confirmed: directors/managers DO have real `@oracle.co.tz` mailboxes.
+Sending runs through **Gmail SMTP** (the single `admin@oracle.co.tz` Google
+Workspace mailbox — `GMAIL_USER` + `GMAIL_APP_PASSWORD` in env; `getEmailConfig()`
+in `src/lib/settings.ts` prefers SMTP whenever those exist). Gmail will
+**rewrite/reject** a From that isn't the authenticated mailbox, so you cannot send
+"as jane@oracle.co.tz" through admin's login. Directors/managers DO have real
+`@oracle.co.tz` mailboxes.
 
-## Chosen path: A — switch sending to Resend
-Resend can send-as any address on a **DNS-verified domain**. Verify `oracle.co.tz`
-once, then From = the director's own address works for everyone, no per-person setup.
-
-## Code change — DONE (local, NOT committed yet, tsc clean)
-Plumbed an optional `fromAddress` override end-to-end, **honoured only on the Resend
-provider** (ignored on Gmail SMTP, so nothing breaks before the switch):
+## What is on master: the `fromAddress` override (inert on Gmail)
+An optional per-send `fromAddress` is plumbed end to end and **honoured only on
+the Resend provider** (ignored on Gmail SMTP, so nothing changes today):
 - `src/lib/email/send.ts` — `SendEmailInput.fromAddress`; `sendViaResend` uses
-  `input.fromAddress || cfg.fromAddress`. `sendViaSmtp` untouched (keeps admin addr).
+  `input.fromAddress?.trim() || cfg.fromAddress`. The SMTP path keeps the admin
+  address.
 - `src/lib/reminders.ts` — `ReminderSender.fromAddress` passed into `sendEmail`.
-- `src/app/portal/actions.ts` (`portalSendReminderEmail` ~line 361) — passes
-  `fromAddress: me.email`.
-- Display name stays the office label (e.g. "OC Director's Office") — only the
-  ADDRESS becomes the sender's, which is the ask. Reply-To unchanged.
+- `src/app/portal/actions.ts` — `portalSendReminderEmail` passes
+  `sender: { replyTo: me.email, fromAddress: me.email, … }`.
+- Display name stays the office label (e.g. "OC Director's Office"); only the
+  ADDRESS would become the sender's. Reply-To unchanged.
 
-## Owner's one-time setup to activate
+### To make it live via Resend (owner's one-time setup, NOT done)
 1. Resend account → API key (`re_…`).
-2. Resend → Domains → add `oracle.co.tz` → add the ~3 DNS records (sending TXT/MX +
-   DKIM + DMARC) at the registrar/DNS host → Verify (goes green in minutes).
+2. Resend → Domains → add `oracle.co.tz` → add the DNS records (sending TXT/MX +
+   DKIM + DMARC) → Verify.
 3. Vercel env: **add** `RESEND_API_KEY`; **remove** `GMAIL_USER` +
    `GMAIL_APP_PASSWORD` (code prefers Gmail while they exist). Redeploy.
 4. Test via Settings → Email send-test or a director portal reminder.
-- NOTE: this moves ALL outgoing Oracle mail (brief, renewals, reminders) to Resend.
+- This moves ALL outgoing Oracle mail (report, renewals, reminders) to Resend.
 
-## Open idea (2026-06-17): per-director "send as myself" toggle
-Owner asked for a setting in the director portal to choose send-as-self vs
-send-as-admin-office. Design: a stored per-person preference (or per-send choice);
-when off, fall back to office/admin From. Only meaningful once Resend is live.
+**The owner then decided to STAY on Gmail (2026-06-17)**, so the override stays
+inert. It is harmless; keep it or remove it later.
 
 ---
 
-# PLAN A (chosen 2026-06-17): per-director own-mailbox send, NO Resend
+## Unbuilt idea: per-director "send as myself" (own mailbox, no Resend)
 
-Owner decided to STAY on Gmail (no Resend). Hard limit: a single Gmail login
-(`admin@`) cannot put another person's address in From — Google rewrites/rejects.
-So to send genuinely AS the director we log into HIS OWN `@oracle.co.tz` mailbox
-using HIS OWN Google **app password**. Per-director SMTP credentials.
+**Status: PLANNED ONLY — nothing below exists in the code** (no `people.mail_*`
+columns, no `src/lib/secrets.ts`). It needs the owner's go-ahead: a migration, a
+crypto helper and storing a real credential.
 
-## Storage (migration needed — back up DB first)
-New cols on `people`:
-- `mail_app_password_enc` text — his Gmail **app password**, encrypted (AES-256-GCM,
-  key derived from `PORTAL_SESSION_SECRET`; reuse/extend a small `src/lib/secrets.ts`
-  crypto helper — NONE exists yet, must add). Never stored plaintext, never logged.
+A single Gmail login cannot put another person's address in From, so to send
+genuinely AS the director Oracle would log into HIS OWN mailbox with HIS OWN
+Google **app password** — per-director SMTP credentials.
+
+**Storage** (new `people` columns):
+- `mail_app_password_enc` — his app password, encrypted (AES-256-GCM, key derived
+  from `PORTAL_SESSION_SECRET`, via a new `src/lib/secrets.ts`). Never plaintext,
+  never logged.
 - `mail_send_as_self` boolean default true — his personal on/off.
-- `mail_connected_at` timestamptz — when he linked it (UI "connected" state).
-- From/login address = `people.email` (no separate column; see lifecycle Q3).
+- `mail_connected_at` timestamptz. From/login address = `people.email`.
 
-## Send path
-`getEmailConfig(forPersonId?)`: when a personal mailbox is connected AND
-`mail_send_as_self` AND the **command-centre master switch** is ON, build an SMTP
-config from {user: person.email, pass: decrypt(enc)} instead of the global admin
-creds → mail is truly From him. Else fall back to admin (current behaviour).
-- `portalSendReminderEmail` passes `me.id` through to the send path.
-- On SMTP **auth failure** with personal creds (rotated/expired app password):
-  fall back to admin send so mail still goes out, and flag him to reconnect
-  (don't silently drop). Surface a "reconnect your mailbox" notice in his portal.
+**Send path**: `getEmailConfig(forPersonId?)` — when a mailbox is connected AND
+`mail_send_as_self` AND an administrator master switch is on, build SMTP from
+{user: person.email, pass: decrypt(enc)}; else fall back to admin. On SMTP auth
+failure (rotated/expired app password) fall back to admin so mail still goes, and
+show him a "reconnect your mailbox" notice.
 
-## UI
-1. Director/manager **portal profile**: "Send email from my own address" section —
-   enter Google app password (with a short how-to), Connected/Not-connected state,
-   personal on/off Switch, Disconnect button.
-2. **Administrator (Settings)** master switch "Allow staff to send from their own
-   mailbox" (governance kill switch, like `director.outreachPaused`) + a small list
-   of who's connected with an admin Disconnect. "For safe keeping" = owner can kill
-   the whole feature instantly regardless of personal toggles.
+**UI**: a "Send email from my own address" section on the director/manager
+portal Profile (app password + how-to, Connected state, on/off, Disconnect); a
+Settings master switch "Allow staff to send from their own mailbox" (a governance
+kill switch, like `outreachPaused`) with a list of who is connected.
 
-## Lifecycle rules (owner's questions, 2026-06-17)
-- **Revoke portal access** (`revokePortalAccess`): ALSO clear
-  `mail_app_password_enc` + reset `mail_send_as_self` → credential not kept for
-  someone who can't sign in; future mail falls back to admin. (Extend the action.)
-- **Delete then re-add**: revoke wiped the credential, so on re-grant he must
-  RECONNECT his mailbox (re-enter app password). Deleting the whole person row
-  removes everything incl. the encrypted credential. Secure by design.
-- **Edit Oracle portal password** (`setPortalAccess` reset): SEPARATE from the Gmail
-  app password — resetting login does NOT touch mail sending. Label clearly.
-- **Edit his email** (`people.email`): the app password is bound to the old mailbox,
-  so on email change AUTO-CLEAR `mail_app_password_enc` + require reconnect (else
-  sends would auth-fail). Wire into the person-edit save path.
-- **He rotates the app password in Google**: Oracle keeps the old one → auth fails →
-  graceful fall back to admin + "reconnect" prompt.
-
-## Status: PLANNED ONLY — not built. Awaiting owner go-ahead (migration + crypto
-## helper + storing a real credential = confirm before building).
-## The earlier Resend `fromAddress` plumbing (send.ts/reminders.ts/actions.ts) stays
-## — it's inert on Gmail and harmless; can keep or revert later.
+**Lifecycle rules** (owner's questions):
+- **Revoke portal access** (`revokePortalAccess` in `src/lib/portal-access.ts`):
+  also clear the credential and reset `mail_send_as_self`.
+- **Delete then re-add**: revoke wiped the credential, so he must reconnect.
+  Deleting the person row removes everything.
+- **Portal password reset** is separate from the Gmail app password — it does not
+  touch mail sending. Label it clearly.
+- **Email change** (`people.email`): auto-clear the credential and require a
+  reconnect (it is bound to the old mailbox).
+- **He rotates the app password in Google**: auth fails → fall back to admin +
+  "reconnect" prompt.

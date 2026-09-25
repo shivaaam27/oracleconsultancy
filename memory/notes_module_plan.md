@@ -1,52 +1,49 @@
 ---
 name: notes-module-plan
-description: "The Oracle Notes module: plan + build log. Phases 0-3 DONE (editor, shelf, slash menu, tables, tags, daily notes, @/[[ links + backlinks). Phase 4 (to-dos/reminders) is next."
+description: "The Oracle Notes module: design, decisions and every trap. All eight phases built (editor, shelf, slash menu, tables, tags, daily notes, links + backlinks, to-dos, attachments, AI, search, versions, templates, MCP, the phone). Shelf and note page are Studio since 26 Sept 2026."
 metadata:
   node_type: memory
   type: project
 ---
 
-# Notes — plan and build log
+# Notes — design reference and trap log
 
-The owner wants a **dedicated Notes module**, not a notes page: rough ideas go in
+The owner wanted a **dedicated Notes module**, not a notes page: rough ideas go in
 fast and get polished later by him or by AI; Apple-Notes-grade formatting; slash
-commands; links, reminders and to-dos; interconnected with the rest of the command
-centre; reachable from MCP later.
+commands; links, reminders and to-dos; interconnected with the rest of Oracle;
+reachable from MCP.
 
-## ▶ START HERE — handing over to a fresh chat (17 Aug 2026)
+## ▶ START HERE
 
-**ALL EIGHT PHASES ARE BUILT AND VERIFIED LIVE.** The module is complete as planned:
-editor, shelf, slash menu, tables, tags, daily notes, links + backlinks, to-dos and
-reminders, attachments, callouts, drag-to-reorder, unlinked mentions, AI, search,
-versions, templates, MCP, and the phone.
+**ALL EIGHT PHASES ARE BUILT, LIVE AND ON `master`** — editor, shelf, slash menu,
+tables, tags, daily notes, links + backlinks, to-dos and reminders, attachments,
+callouts, drag-to-reorder, unlinked mentions, AI, search, versions, templates,
+MCP, and the phone (the full-screen sheet, Phase 8, 28 Aug 2026). Offline notes
+are their own file: [[notes_offline_plan]].
 
-**There is no Phase 9 in this plan.** What comes next is a fresh decision — see
-§13 for the candidates that came out of building it.
-
-State of the machine, so nothing is rediscovered:
-
-| | |
-|---|---|
-| Branch | `claude/notes-phase-3-preview-0cc4c6`, in the worktree `.claude/worktrees/notes-phase-3-preview-0cc4c6` |
-| Git | local commits only — deliberately **NOT pushed** (the owner asks for local commits) |
-| Migrations | **0118** (`notes`, `note_folders`), **0119** (`note_tags`), **0120** (`note_links`), **0121** (`todos.note_id`) and **0122** (`note_revisions`) applied to the live database. A backup was taken before each |
-| Live data | the owner's **4 imported notes**, a daily page, and one untitled note he made himself while this was being built = 6 rows. Every test note, link, to-do and uploaded file was cleaned up |
-| ⚠️ Shared use | the owner works in the app WHILE you build. A note that appears mid-session is probably his. **Read a row before deleting it** — one of his was destroyed this way |
-| A fresh worktree | has NEITHER `node_modules` NOR `.env.local`. Copy `.env.local` from the main checkout and `npm install` FIRST — otherwise `npm exec tsc` exits 0 having checked nothing, and every page 500s |
-| Dev server | `preview_start` / `cos-dev` on :3000, signed in as the owner |
+**Studio (26 Sept 2026).** The shelf is `src/components/studio/notes/studio-notes-shelf.tsx`
+(rendered by `src/app/notes/page.tsx`) — it replaced `notes-shelf.tsx` and
+`ask-notes.tsx`, which are deleted; folders, `#tags`, smart folders (a
+`StudioMenu`), pin, Today, tidy-empty and "Ask your notes" all live there. The
+note page `src/app/notes/[id]/page.tsx` is the controls row, then the paper beside
+a 320px rail (`.st-note-rail`) holding ORI's card (portalled by the editor into
+`#note-ori-slot`), To-dos, Links and Versions. Same panels and actions as before —
+only their clothes changed. The offline shelf (`offline-note-shelf.tsx`) is the
+same Studio shelf fed from IndexedDB. See [[studio_redesign]]. Where this file says
+"`RecordList` shelf" below, read it as history.
 
 **Read before writing code:** §2 (editor + storage), §3 (schema), §8 (owner-only is
-structural), §11 (traps), and the Phase 1/1.5/2/3 entries in §10 — they are a build
-log of what actually broke, not a wish list.
+structural), §11 (traps), and the ⚠️ entries in §10 — they are what actually broke.
 
-**The three traps most likely to cost you a day**, all found by measurement and all
-in §10/§11: a Tiptap document must be **JSON-cloned before it crosses a server
-action** (null-prototype `attrs` are dropped silently); **every `Suggestion()` needs
-its own `pluginKey`**; and **only one thing may ever write to a `notes` row**, because
-the whole safety model is a single `updated_at` precondition.
+**The three traps most likely to cost you a day**: a Tiptap document must be
+**JSON-cloned before it crosses a server action** (null-prototype `attrs` are
+dropped silently); **every `Suggestion()` needs its own `pluginKey`**; and **only
+one thing may ever write to a `notes` row**, because the whole safety model is a
+single `updated_at` precondition.
 
-**Everything below is grounded in what the codebase actually has** (verified — see
-"What I checked") — the leverage is almost entirely in reusing systems that exist.
+⚠️ **Shared use:** the owner works in the app while you build. A note that appears
+mid-session is probably his. **Read a row before deleting it** — one of his was
+destroyed this way.
 
 ---
 
@@ -54,19 +51,16 @@ the whole safety model is a single `updated_at` precondition.
 
 | Need | Already there | Verdict |
 |---|---|---|
-| To-dos, reminders, push, digest | `todos` (**373 rows live**, `due_at` / `remind_at` / `pushed`, links to company·person·task) + the reminder cron | **Reuse.** A note's checklist item that matters becomes a `todos` row. Do NOT build a second reminder engine. |
+| To-dos, reminders, push, digest | `todos` (`due_at` / `remind_at` / `pushed`, links to company·person·task) + the reminder cron | **Reuse.** A note's checklist item that matters becomes a `todos` row. Do NOT build a second reminder engine. |
 | Search / semantic / trace / palette | `embeddings` + `hybrid_search` RPC, driven by an `EntityDef` in `entity-registry.ts` | **Reuse** — but see the correction in §12: it is **three** small edits for a NEW type, not one, and two of them the compiler demands. No DB migration though. |
 | List + record screens | `RecordList` / `RecordPage` + `ENTITY_VIEWS` in `entity-view.ts` | **Reuse.** One `ENTITY_VIEWS` entry buys the list, filter rail, sorting, column chooser, bulk edit. |
 | Saved views ("smart folders") | `src/lib/saved-views.ts` + `use-url-filters.ts` + `/api/prefs/list-views` | **Reuse.** A smart folder IS a saved view over note filters. |
 | AI | Gemini ladders in `ai-models.ts`, spend ledger `ai-spend.ts`, cap + guardrails | **Reuse.** No new provider, no new key. |
-| Attachments | `documents` + `document_links` (chat/task attachments already land there) | **Reuse** the same shape for note attachments. |
-| Voice | `voice-button.tsx` + `voice/actions.ts`, "speak rough, save polished" | **Reuse** — it is *already* the product idea the owner is describing. |
+| Attachments | `documents` + `document_links` (task attachments already land there) | **Reuse** the same shape for note attachments. |
 | Audit | `audit_log`, `system_events`, undo tokens | Reuse for note create/archive; the body itself gets revisions (Phase 6). |
 
-**Legacy notes: there are 4.** `meetings.kind='note'` holds 4 rows, none foldered,
-untouched since 7 Jul 2026 (the `/workbook` Notes tab was removed then; the table was
-kept). So there is **no corpus to protect** — build a proper `notes` table and import
-those four. Do not contort the new module to fit `meetings`.
+**Legacy notes:** the 4 old `meetings.kind='note'` rows were imported
+(`scripts/import-legacy-notes.ts`); the originals are untouched.
 
 ---
 
@@ -74,13 +68,10 @@ those four. Do not contort the new module to fit `meetings`.
 
 **Choose Tiptap** (ProseMirror underneath), headless, MIT.
 
-| Option | Licence reality (checked Aug 2026) | Fit for Oracle |
-|---|---|---|
-| **Tiptap** ✅ | Core + most extensions **MIT**; only the *Cloud* products (comments, snapshots, AI Toolkit, conversion) are paid, from $49/mo — and we need none of them | Headless: we render every control with our own Desk kit. Biggest extension set. ProseMirror is the most battle-tested engine going. |
-| Plate | **MIT**, and there is an official template on **React 19 + Next 16 + Tailwind 4** | Strong runner-up. Built around shadcn components — Oracle has its own kit, so we'd restyle everything anyway, which cancels its main advantage. |
-| BlockNote | Core MPL-2.0 (fine), but **XL packages — AI integration, multi-column, exporters — are GPL-3.0 or a paid commercial licence** | **Reject.** The AI integration is exactly what we want and exactly what is GPL/paid. Also the most opinionated look, which would fight Desk hardest. |
-| Lexical | MIT | Fine engine, thinner ecosystem for tables/slash menus; its wins (bundle size, RN) don't matter here. |
-
+**Why Tiptap** (checked Aug 2026): core + extensions are MIT (only the Cloud
+products are paid, and we need none); headless, so every control is our own kit.
+Plate (MIT, shadcn-shaped) was the runner-up; BlockNote was rejected because its AI
+integration is GPL-3.0 or paid; Lexical has a thinner ecosystem for tables/menus.
 **Two traps, both confirmed:**
 - **`immediatelyRender: false` is mandatory** in the App Router or every note page
   throws a hydration mismatch. On React 19 it defaults to false with a dev warning,
@@ -131,107 +122,50 @@ Plus **one column on an existing table**: `todos.note_id` → notes (nullable, O
 DELETE SET NULL). That is the whole to-do integration — the 373 existing to-dos,
 their reminders, their push and their digest all keep working untouched.
 
-**Three columns the first draft had and this one does not** — the owner's answers on
-17 Aug removed them, and each removal is a simplification worth keeping:
-
-- **No `visibility`.** Notes are owner-only (answer: no staff notes), so a
-  visibility flag would have exactly one value forever. If staff notes are ever
-  wanted, that is a migration *and* a design conversation then — not a column
-  guessed at now.
-- **No `company_id` / `person_id`.** A note can be about anything (his words), so
-  there is no primary axis to model: **every association is a `note_links` row**,
-  including to a company or a person. One mechanism, not two, and it drops the
-  PostgREST two-FK embed trap from CLAUDE.md entirely.
-  ⚠️ The cost, stated plainly: filtering the list by company becomes a join on
-  `note_links` rather than a column read. That is a query, not a redesign — and it
-  is the right trade for keeping ONE way to link.
+**Deliberately absent:** no `visibility` (notes are owner-only, §8 — staff notes
+would be a migration AND a design conversation), and no `company_id`/`person_id`
+(a note can be about anything, so **every association is a `note_links` row**).
+⚠️ The cost: filtering by company is a join on `note_links`, not a column read —
+the right trade for keeping ONE way to link.
 
 ---
 
-## 4. The screens (Desk, no new shells)
+## 4. The screens
 
-- **`/notes`** — `RecordList` from an `ENTITY_VIEWS.note` entry. Left rail =
-  folders + smart folders (saved views) + Pinned + Archived. Columns: Title ·
-  Snippet · Folder · Linked-to · Updated. Grouped by folder or pinned-first.
-- **`/notes/[id]`** — `RecordPage`: title as the header field, editor as the body,
-  right sidebar = **Links** (outgoing) · **Backlinks** (incoming) · **To-dos** ·
-  **Reminders** · **Attachments** · **AI**. Activity strip at the foot (revisions).
-- **Quick Note** — the fastest path in, because rough capture is the point:
-  a global New-menu entry, a ⌘K action ("New note"), and the page-action `+`.
-  Opens a bare title+body sheet, saves on close, no folder required.
-- **Reverse side** — a **Notes** tab/panel on the task, person and company records,
-  listing notes linked to that record. This is what "interconnected" means in
-  practice, and it is a single query on `note_links (target_type, target_id)`.
+- **`/notes`** — the shelf: folders, smart folders (saved views, `note.savedViews`),
+  Pinned, Archived, `#tags`, Today, "Ask your notes". Studio since 26 Sept 2026
+  (see START HERE); `ENTITY_VIEWS.note` still exists for the New menu and ⌘K.
+- **`/notes/[id]`** — one note, one sheet: title inside the paper, a rail of
+  To-dos · Links/Backlinks · Versions · ORI's card.
+- **Quick Note** — "Note" in the global New menu and ⌘K.
+- **Reverse side** — a **Notes** tab on the task, person and company records
+  (`linked-notes.tsx`), one query on `note_links (target_type, target_id)`.
 
-**Desk rules that apply:** flat surfaces, hairlines, 4/6/8 radii, the 36/28/24
-control ladder, `data-page-header`, `data-list-row`. The editor's own typography may
-break the 13px body rule *inside the canvas* — a writing surface wants ~14–15px and
-a comfortable measure (~72ch). That is a deliberate, documented exception, not drift.
-
-⚠️ **The slash menu and every editor bubble MUST position via `layoutRect()`**
-(`src/lib/zoom.ts`). The staff portal renders at `zoom: 0.8`, and any popover
-positioned from a raw `getBoundingClientRect()` lands 20% out — we fixed exactly
-this class of bug in every dropdown on 17 Aug 2026. A floating editor menu is the
-next most likely victim.
+The editor's typography may break the 13px body rule *inside the canvas* — a
+writing surface wants ~15px and a ~68ch measure. A deliberate exception, not drift.
+Caret menus position through `lib/suggestion-position.ts` (§10); the old
+`layoutRect()`-for-portal-zoom rule is retired (the portal zoom is gone and
+`rootZoom()` returns 1).
 
 ---
 
-## 5. Slash commands (`/`) — the command surface inside a note
+## 5. Trigger characters
 
-One registry (`src/lib/note-commands.ts`), grouped, keyboard-first, fuzzy-matched —
-the same feel as ⌘K so the app has one way to command things:
+`/` opens the command menu (`ITEMS` in `components/note-slash-menu.tsx`), `@` a
+picker over tasks/people/companies/documents, `[[` one over notes (the Obsidian
+idiom). All three are Tiptap `Suggestion`s — see the `pluginKey` trap in §10.
 
-- **Format** — H1/H2/H3, bullet, numbered, checklist, quote, callout, code block,
-  divider, table, highlight.
-- **Insert** — today's date, a to-do (real `todos` row), a reminder, a link to a
-  task / person / company / document / another note, an attachment, a template.
-- **AI** — polish, summarise, extract tasks, suggest links, translate (Swahili),
-  continue writing. Each one is a *proposal* the owner accepts (see §6).
-- **Turn into** — task (raise a real task from the selection), announcement draft,
-  Outbox draft.
-
-Slash commands come from Tiptap's `Suggestion` utility; `@` opens the same picker
-scoped to people/tasks, and `[[` scoped to notes (the Obsidian idiom, which is the
-one linking gesture everyone already knows).
-
----
-
-## 6. AI (the whole reason for "rough now, polished later")
+## 6. AI — the rule
 
 Runs on the existing Gemini ladders, logged to `ai_usage`, gated by the spend cap
-and `aiEnabled` — no new provider.
+and `aiEnabled` — no new provider. **AI may READ and SUGGEST. It must never
+rewrite, retitle, file, tag or link a note on its own.** Every AI write is a button
+the owner presses — the lesson of the document-intelligence layer that had to be
+removed. What was built: Phase 5 and §13.
 
-| Action | What it does | Shape |
-|---|---|---|
-| **Polish** | rough dictation/typing → clean prose, British English, structure kept | Diff preview: Accept / Accept & keep original as a revision / Discard |
-| **Summarise** | long note → 3-bullet précis at the top | Inserts a callout |
-| **Extract tasks** | finds commitments → proposes `todos` **or** real tasks (with company/person/due guessed) | A tick-list the owner confirms; nothing is created silently |
-| **Auto-title** | untitled note → a title | Suggestion in the header, one tap |
-| **Suggest links** | finds entities mentioned in the text → proposes `note_links` | Chips the owner accepts |
-| **Ask your notes** | question → answer **with citations** over the note corpus | `hybrid_search` + the existing ORI Ask plumbing |
-| **Voice** | speak rough → polished note | `voice-button.tsx`, already built |
-
-**Rules, taken from the document-intelligence lesson (Aug 2026):** AI may READ and
-SUGGEST. It must never rewrite, retitle, file, tag or link a note on its own. Every
-AI write is a button the owner presses. That rule is why the document module got
-rebuilt manually — do not repeat it here.
+## 7. MCP — `notes` + `note_write`, owner-only. See Phase 7 in §10.
 
 ---
-
-## 7. MCP (Phase 7, deliberately late)
-
-**One registry entry**, grouped by subject as CLAUDE.md requires — not one tool per
-button:
-
-- `notes` (read): `action: list | get | search`
-- `note_write` (write): `action: create | append | link | archive` — **never
-  delete**, archive instead; registers an undo token like every other write.
-
-"Append to my Monday note" and "make a note of this" are the two things worth
-having. Staff keys stay inside their portal ceiling (§8).
-
----
-
 ## 8. Who can see a note — SETTLED: the owner, and nobody else
 
 The owner's answer (17 Aug 2026): **no staff notes.** Notes live entirely on the
@@ -252,101 +186,56 @@ them simplifications:
 
 ## 9. Deliberately NOT doing (this is what keeps it from bloating)
 
-- **Real-time collaborative editing / CRDTs.** One operator. Yjs + a server is weeks
-  of work for a problem Oracle does not have. (Tiptap can add it later without a
-  rewrite — that is part of why it wins.)
-- **Nested folder trees.** Flat folders + tags + saved views cover it; trees are a
-  maintenance tax and Apple Notes' own hierarchy is the thing people get lost in.
-- **A graph view.** Looks impressive, gets opened twice. Backlinks panels do the
-  real work.
-- **Handwriting, drawing, document scanning.** Phone-camera work belongs in
-  Documents, which already reads files.
-- **Note locking / per-note passwords.** The whole admin side is already behind the
-  owner gate; a second lock is theatre. (Revisit only if staff notes ship.)
-- **Offline-first sync.** The PWA shell exists; offline *editing* is its own
-  project (see `project_offline_sync`).
-- **Public publishing / share links.** Event attachments already prove how much
-  care a public token needs.
-- **Full block-reference transclusion** (`((block))`). Note-level links are 95% of
-  the value at 20% of the complexity.
+- **Real-time collaboration / CRDTs** — one operator; Tiptap can add it later.
+- **Nested folder trees** — flat folders + tags + saved views cover it.
+- **A graph view** — opened twice; the Backlinks panel does the real work.
+- **Handwriting, drawing, scanning** — phone-camera work belongs in Files.
+- **Per-note passwords** — the admin side is already behind the owner gate.
+- **Public share links** — event attachments show how much care a public token needs.
+- **Block transclusion** (`((block))`) — note-level links are 95% of the value.
+- (Offline was later built on its own terms — [[notes_offline_plan]].)
 
 ---
 
-## 10. Phases (each one ends in something usable)
+## 10. Phases — what was built, and the traps each one found
 
-**Phase 0 — ✅ DONE, 17 Aug 2026. Tiptap passes; we proceed with it.**
-Built at `/lab/notes-editor` (`src/components/lab/note-editor-spike.tsx` +
-`note-editor-mount.tsx`) — **throwaway, delete both and the `/lab` route when Phase 1
-starts.** Tiptap **3.30.1**, 49 packages.
+**Phase 0 — spike.** Tiptap **3.30.1** passed: renders and hydrates in the App
+Router with no warnings (`immediatelyRender: false` set), takes Desk styling,
+`getJSON()`/`getText()` give both columns for free, and costs **121.6 kB gzip in
+ONE lazy chunk** (6.3% of client JS, paid only when a note is open). The `/lab`
+spike route is deleted.
+- ⚠️ **Next 16 rejects `ssr: false` inside a Server Component** — the build fails
+  with *"`ssr: false` is not allowed with `next/dynamic` in Server Components"*. The
+  record page stays a Server Component, so the no-SSR lazy import lives in a
+  **one-line client wrapper** (`note-editor-mount.tsx`). Copy that shape.
+- StarterKit v3 already includes Link, Underline, lists, code, blockquote, hr and
+  undo/redo; `@tiptap/extension-list` carries TaskList/TaskItem.
+- ⚠️ `npm run build` overwrites `.next`, and a dev server started afterwards served a
+  **stale 404** for a new route. Stop the server, delete `.next`, start again.
 
-| Question | Answer (measured) |
-|---|---|
-| Renders + hydrates in the App Router? | **Yes.** Mounted, `contenteditable`, no hydration mismatch and **no Tiptap/React warning of any kind** in the console. `immediatelyRender: false` is set, as required. |
-| Takes Desk styling? | **Yes.** Canvas 14.5px / line-height 1.65 / `--fg`; h2 renders 18.1px; checkbox 14px with `accent-color`; measure capped at 72ch = 727px. All from existing tokens, all scoped to `.note-canvas`. |
-| Do `body_json` + `body_text` fall out for free? | **Yes.** Live readout from `getJSON()`/`getText()`: *json 578 chars · text 98 chars · 16 words* for a small note. The two-column plan (§2) is confirmed, not theoretical. |
-| What does it cost? | **121.6 kB gzip** (388.9 kB raw) in **one** chunk. **Not in the build manifest**, so no route loads it eagerly — exactly one other chunk references it lazily. **6.3%** of all client JS, paid only when a note is open. `npm run build` exits 0 with it in the tree. |
+**Phase 1 — tables + shelf + editor.** Migration **0118**. Files: `lib/notes.ts`
+(server reads) · **`lib/notes-shared.ts` (client-safe types + helpers)** ·
+`app/notes/actions.ts` · `components/note-editor.tsx` + `note-editor-mount.tsx` ·
+`components/note-record-bar.tsx`. Autosave persists both columns together, and the
+concurrency guard was proven by moving `updated_at` in the database mid-typing: the
+badge said *"Changed elsewhere"*, the typing stayed on screen, the row was not
+overwritten.
+1. ⚠️ **The client/server split, exactly as CLAUDE.md warns.** A client component
+   imported a helper from `lib/notes.ts`, which imports `sb` — so `@/db/supabase`
+   went into the browser bundle and every page died with *"SUPABASE_SERVICE_ROLE_KEY
+   is not set"*. FORWARD RULE: anything a client component needs from Notes goes in
+   the `-shared` file.
+2. ⚠️ **drizzle-kit re-created four existing tables** in the generated 0118 (it diffs
+   its snapshot, not the database). **Read every generated migration before applying
+   it.** The partial unique index on `daily_date` is hand-written, since drizzle
+   cannot express a `WHERE` clause.
+3. ⚠️ **A script's `config()` cannot beat a static import.** `import { sb }` is
+   hoisted above `config({ path: ".env.local" })`; the import has to be **dynamic**,
+   inside the function.
+- The save badge renders nothing when idle — "Saved" before the first keystroke
+  claimed credit it had not earned.
 
-**Two findings that change how Phase 1 is written:**
-1. ⚠️ **Next 16 rejects `ssr: false` inside a Server Component** — the build fails
-   with *"`ssr: false` is not allowed with `next/dynamic` in Server Components"*. The
-   record page must stay a Server Component (it loads the note from the database), so
-   the no-SSR lazy import lives in a **one-line client wrapper** (`note-editor-mount.tsx`).
-   Copy that shape; do not try to `dynamic()` the editor from the page itself.
-2. **StarterKit v3 already includes Link, Underline, lists, code, blockquote, hr and
-   undo/redo**, and `@tiptap/extension-list` carries TaskList/TaskItem — so the whole
-   Phase 1/2 formatting set needs **no extra packages** beyond what is installed
-   (`@tiptap/react`, `@tiptap/pm`, `@tiptap/starter-kit`, `@tiptap/extension-placeholder`,
-   `@tiptap/extension-link`).
-
-⚠️ **Process trap hit during the spike:** running `npm run build` overwrites `.next`,
-and the dev server started afterwards then served a **stale 404** for the new route.
-Stop the server, delete `.next`, start again — in that order.
-
-**Noticed in passing, not fixed:** the ADMIN sidebar's own controls measure 23 / 30 /
-31px. The 17 Aug ladder pass covered the portal and the shared chrome, not
-`desk-sidebar.tsx`'s own buttons. Worth a small follow-up.
-
-**Phase 1 — ✅ DONE, 17 Aug 2026.** Migration **0118**; `/notes` + `/notes/[id]`
-live; nav entry in Work; "Note" second in the global New menu; the 4 legacy notes
-imported (`scripts/import-legacy-notes.ts`, dry-run by default).
-
-Files: `lib/notes.ts` (server reads) · **`lib/notes-shared.ts` (client-safe types +
-helpers)** · `app/notes/actions.ts` · `components/notes-shelf.tsx` ·
-`components/note-editor.tsx` + `note-editor-mount.tsx` · `components/note-record-bar.tsx`.
-
-**Verified by measurement, not by looking:**
-- Autosave **persists both columns together** — after typing, note #4 held
-  `body_text` = "checking if it works — Phase 1 autosave test." with a 139-char
-  `body_json`, same `updated_at`.
-- **The concurrency guard actually works.** I moved `updated_at` on in the database
-  (simulating a second tab), then typed: the badge went to *"Changed elsewhere"*,
-  the warning appeared, the typing stayed on screen, and the database was **not**
-  overwritten. That is the one failure this table could have had.
-- `tsc` clean · 281 tests pass.
-
-**Three traps hit, all worth remembering:**
-1. ⚠️ **The client/server split, exactly as CLAUDE.md warns.** `notes-shelf.tsx` is a
-   client component and imported a helper from `lib/notes.ts`, which imports `sb` —
-   so `@/db/supabase` went into the browser bundle and every page died with
-   *"SUPABASE_SERVICE_ROLE_KEY is not set"*. Hence **`lib/notes-shared.ts`**. FORWARD
-   RULE: anything a client component needs from Notes goes in the `-shared` file.
-2. ⚠️ **drizzle-kit re-created four existing tables.** The generated 0118 also tried
-   to `CREATE` `event_documents` and the three `mcp_oauth_*` tables, because it diffs
-   its snapshot and not the database (0116/0117 were applied outside it). **Read every
-   generated migration before applying it** — I trimmed 0118 by hand to only the new
-   objects. The partial unique index on `daily_date` is hand-written there too, since
-   drizzle cannot express a `WHERE` clause.
-3. **A script's `config()` cannot beat a static import.** `import { sb }` is hoisted
-   above `config({ path: ".env.local" })`, so the import throws before the env
-   exists. The import has to be **dynamic**, inside the function.
-
-**Also fixed on the way:** the save badge said "Saved" when idle *and* when saved, so
-it claimed credit before the first keystroke. Idle now renders nothing.
-
-### Phase 1.5 — the design pass the owner asked for (17 Aug 2026)
-
-His verdict on the first cut was "ugly and boring… there is this blue line", and he
-was right on every count. What was actually wrong, and what fixed it:
+### Phase 1.5 — the design pass ("ugly and boring… there is this blue line")
 
 | Fault | Cause | Fix |
 |---|---|---|
@@ -363,77 +252,36 @@ was right on every count. What was actually wrong, and what fixed it:
 "every field is a box" rule will follow you into anything that should look like paper.
 Check computed styles on a new surface rather than assuming your classes won.
 
-**Two more, reported straight after (same day):**
+- ⚠️ **The sheet needs a height of its own, and `overflow-hidden` on it silently
+  breaks the sticky toolbar** (an overflow ancestor becomes the sticky container, so
+  the tools scrolled away exactly when a long note needed them). The sheet is a
+  writing pane: toolbar pinned, paper scrolling inside it; clicking the padding
+  below the text focuses the end of the note.
+- ⚠️ **The text jumped 7.6px when the scrollbar appeared.** Fixed with
+  `overflow-y: scroll` (+ `slim-scroll`) and `scrollbar-gutter: stable both-edges` —
+  **set INLINE**, because **Tailwind v4's Lightning CSS silently DROPPED both
+  properties out of `globals.css`** (the rule was absent from the served
+  stylesheet). **If a modern CSS property seems to do nothing, fetch the built
+  stylesheet and check it is actually there before debugging specificity.**
+- ⚠️ **No native `<select>` or `<datalist>` in this app** — the OS popup ignores
+  every token. Use `FluidSelect` / `Combobox`.
 
-- **"The canvas extends indefinitely."** Measured first: growth was linear, one
-  paragraph per Enter — no runaway bug. The real fault was structural. The sheet had
-  no height of its own, so a long note grew the PAGE forever, and `overflow-hidden`
-  on that sheet **silently broke the sticky toolbar** (an overflow ancestor becomes
-  the sticky container, so the tools scrolled away exactly when a long note needed
-  them). The sheet is now a **writing pane**: `h-[calc(100dvh-11rem)]`, toolbar
-  pinned, paper scrolling inside it. Verified with 30 Enters — sheet 662px and page
-  838px both unchanged while the inner scroller went 453 → 1465px. Clicking the
-  padding below the text now focuses the end of the note, as every notes app does.
-- **"The note shifts when the scrollbar appears."** Real, and measured: the text
-  jumped **7.6px left** the moment a note outgrew one screen, because the scroller's
-  content box narrowed and the `mx-auto` measure re-centred inside it. Fixed with
-  `overflow-y: scroll` (the gutter is then reserved always, and `slim-scroll` keeps
-  the bar invisible until hover, so nothing is lost by not letting it appear) plus
-  `scrollbar-gutter: stable both-edges` for symmetric centring. Verified **0px** shift
-  across short → long → short.
-  ⚠️ **And a real trap found on the way: Tailwind v4's Lightning CSS silently DROPPED
-  both properties out of `globals.css`.** The `.note-scroller` rule was absent from the
-  served stylesheet entirely (checked by fetching it), while its neighbours arrived —
-  Lightning CSS removes declarations the project's browser targets do not cover, and an
-  emptied rule then disappears. `scrollbar-gutter` is therefore set **inline on the
-  element**, which bypasses that pipeline. **If a modern CSS property seems to do
-  nothing, fetch the built stylesheet and check it is actually there before debugging
-  specificity.**
-- **"Dropdown buttons have some issues."** They were native `<select>`s. The OS popup
-  ignores every token in the design system, which is the very reason `combobox.tsx`
-  replaced all the native `<datalist>`s in June — I forgot the lesson and re-learned
-  it. Both are `FluidSelect` now (measured open: white surface, hairline border, 8px
-  radius, 6px below its trigger, 0px sideways drift). **FORWARD RULE: no native
-  `<select>` or `<datalist>` in this app. Use `FluidSelect` / `Combobox`.**
+**Phase 2 — `/` menu · tables · `#tags` · daily notes.** Migration **0119**
+(`note_tags`).
+- **The `/` menu** (`components/note-slash-menu.tsx`) — Tiptap `Suggestion` + a
+  `ReactRenderer`, grouped commands fuzzy-matched on title and keywords. **To add a
+  command, add one entry to `ITEMS`.** ⚠️ `startOfLine: true` — a `/` mid-sentence
+  stays a slash.
+- **Tables** (`@tiptap/extension-table`, MIT) with a context toolbar that appears
+  only while the caret is in a table.
+- **`#tags`** (`lib/note-tags.ts`, client-safe, tested): derived from the text on
+  every save in the SAME action as the body, never by a job. Lower-cased,
+  de-duplicated, hex colours ignored. `?tag=` filters the shelf.
+- **Daily notes** — "Today" opens or creates today's page. "Today" is the date in
+  **EAT**, not UTC, or the page would roll over at 3am local. The partial unique
+  index is the real guard; a lost race re-reads and opens the winner.
 
-**Not in Phase 1, on purpose:** the `/` menu, tables, tags, links, to-dos, AI,
-search indexing and daily notes are Phases 2–6. The toolbar carries every format for
-now, because a formatting tool you cannot find does not exist.
-
-**Phase 2 — ✅ MOSTLY DONE, 17 Aug 2026.** Migration **0119** (`note_tags`).
-Delivered and verified in the browser: **`/` menu · tables · `#tags` · daily notes**.
-
-- **The `/` menu** (`components/note-slash-menu.tsx`) — Tiptap's `Suggestion` +
-  a `ReactRenderer`, 12 commands in four groups (Style · Lists · Blocks · Insert),
-  fuzzy-matched on title AND keywords (`h1`, `todo`, `tbl`, `---`). Verified: typing
-  `/table` filtered to one item, Enter inserted a 3×3 table with a header row, the
-  `/table` text was consumed and the menu closed. **To add a command, add one entry to
-  `ITEMS`.** It positions through `layoutRect()`, so it is already portal-safe.
-  ⚠️ `startOfLine: true` — a `/` mid-sentence stays a slash.
-- **Tables** (`@tiptap/extension-table`, MIT): resizable columns, hairline borders, a
-  tinted header row, and a **context toolbar that only appears while the caret is in a
-  table** (add/delete row·column, delete table) — six permanent buttons that do nothing
-  99% of the time is what a lesser version would have shipped.
-- **`#tags`** (`lib/note-tags.ts`, client-safe, **8 unit tests**): derived from the text
-  on every save in the SAME action as the body, never by a job. Verified live —
-  `#permits #Visa #permits #2490ef` produced exactly `permits`, `visa`: lower-cased,
-  de-duplicated, and a hex colour correctly ignored. They fill a **Tags section in the
-  shelf rail** with counts, and `?tag=` filters the shelf ("1 of 6 shown · Filtered by
-  #permits"). An archived note's tags leave the rail with it.
-- **Daily notes** — a **Today** button on the shelf opens today's page or creates it,
-  titled "Monday, 17 August 2026", with a **Daily** chip in the list. "Today" is the
-  date in **EAT**, not the server's UTC date, or the page would roll over at 3am local.
-  The partial unique index is the real guard, and a lost race re-reads and opens the
-  winner instead of erroring.
-
-**Still to do from this phase — deliberately deferred, not forgotten:**
-- **Attachments into `documents`** (the heaviest piece: upload, storage path, link
-  rows, and paste-an-image). Next slice.
-- **Callouts** — needs a custom node; blockquote covers the need for now.
-- **Drag-to-reorder blocks** — `@tiptap/extension-drag-handle-react` is **MIT** and
-  available (checked), so this is a straight add whenever it is wanted.
-
-### Phase 3 — ✅ DONE, 17 Aug 2026. Interconnection. Migration **0120** (`note_links`).
+### Phase 3 — interconnection. Migration **0120** (`note_links`).
 
 Delivered and verified in the browser: **`@` mentions · `[[note]]` links · a Links +
 Backlinks rail on the note · a Notes tab on the task, person and company records.**
@@ -496,90 +344,39 @@ record tab, in a server and a client form) · `api/note-mentions` (picker search
      the same timestamp, A lands, B is correctly refused. Saves are serialised now
      (`saving` / `pendingSave` refs in `flush`).
 
-**Verified by measurement, not by looking:** the picker returns real rows for
-`@terra` / `@khadija` / `@TG-006` / `[[permit`; Enter and click both insert; the three
-link rows land in `note_links` with the task's `target_code`; `outgoingLinks` resolves
-live labels and sublabels; `backlinks(3)` finds the note pointing at it;
-`notesLinkedTo("task", 83)` drives the record tab; the rail updates **without a
-reload** (a `router.refresh()` fired only when the set of mentions changes, never on an
-ordinary keystroke); and `/notes`, `/api/notes/linked` and `/api/note-mentions` all
-redirect when the admin cookie is withheld — the owner-only model in §8 holds.
 
-**⚠️ A FOURTH BUG, reported by the owner and fixed the same day: on a long note the
-`/` menu ran off the bottom of the screen.** Typing `/` on the last line of a note
-that had grown past one screen put the menu at y=723, height 304, in an 838px
-viewport — **189px of it below the fold**, so the lower half of the list could not be
-reached (measured). Each menu had its own copy of the same fragile placement maths:
+⚠️ **A FOURTH BUG: on a long note the `/` menu ran off the bottom of the screen**
+(189px below the fold, measured). Each menu had its own copy of fragile placement
+maths: it measured a height that was not there yet (falling back to a hard-coded
+guess), nothing clamped the result, and it decided once. Fixed in
+**`lib/suggestion-position.ts`**, shared by all three menus (`/`, `@`, `[[`): the
+menu is **capped to the room on the side it opens into**, re-places on update,
+scroll (capture phase) and resize, and places again on the next animation frame.
+**FORWARD RULE: any new caret-anchored popover uses `createMenuPositioner()` — do
+not hand-roll the maths again.**
 
-1. **It measured a height that was not there yet** — `place()` ran the instant the
-   element was appended and fell back to a hard-coded `260` when `offsetHeight` came
-   back 0. A guess about the size decided whether to flip above the caret.
-2. **Nothing clamped the result.** Flip-or-not was the only lever, so a wrong guess
-   put the menu off-screen with no second line of defence.
-3. **It decided once** — the list shortens as you type and the note scrolls under
-   you, and the position from the moment of opening went stale.
+⚠️ **A FIFTH: "the cursor disappears".** What was hard to see was the **caret** —
+Phase 1.5 removed the focus ring from the writing surface, leaving a 1px hairline as
+the only "you are here". CSS can recolour a caret but **cannot thicken one**, and
+drawing our own breaks IME. So: the caret is the **accent blue**, and a soft band
+sits behind the block the caret is in (`components/note-active-line.tsx`, a
+ProseMirror decoration), only while focused, never on a selection, and skipping
+tables, code blocks, rules and callouts.
+⚠️ Gated on **`.ProseMirror-focused`, not `:focus`** — `:focus` stops matching when
+the WINDOW loses focus, so the band would flicker on every app switch.
 
-Fixed in **`lib/suggestion-position.ts`**, now shared by all three menus (`/`, `@`,
-`[[`): the menu is **capped to the room on the side it opens into**, so it physically
-cannot overflow — 120px of space means a 120px menu that scrolls its own list; it
-re-places on update, on scroll (capture phase, so the note's own scroller counts) and
-on resize; and it places again on the next animation frame, once the element really
-has a height. **FORWARD RULE: any new caret-anchored popover uses `createMenuPositioner()`
-— do not hand-roll the maths a fourth time.**
-Verified at 838px (flips up, 180px clearance), at 460px, and at 300px (capped to
-267px, sits at the 8px margin, scrolls inside); and the menu now follows the caret
-when the note is scrolled underneath it (332 → 516px, measured).
-
-**⚠️ A FIFTH, also reported by the owner: "the cursor disappears… hard to place or
-see where I am" on the white sheet.** Measured before changing anything — the mouse
-pointer is a normal I-beam at every point over the note, so nothing was hiding it.
-What was hard to see was the **caret**, and for a reason we chose ourselves: Phase 1.5
-removed the focus ring from the writing surface (the blue box he hated), on the
-grounds that "the blinking caret is the focus indicator". That left a **1px near-black
-hairline as the only signal of where you are**, on a 68ch sheet.
-
-CSS can recolour a caret but **cannot thicken one** — there is no `caret-width`, and
-`caret-shape` is not usable; drawing our own means hiding the native caret and tracking
-the selection by hand, which breaks IME (the same trick already caused trouble in
-`CaretInput`). So the answer is a bigger **target for the eye**, not a bigger caret:
-
-- the caret is now the **accent blue**;
-- a **soft band sits behind the block the caret is in** (`components/note-active-line.tsx`,
-  a ProseMirror decoration), the way iA Writer and Ulysses do it. It shows only while
-  the editor is focused, vanishes on any selection (a selection is its own, louder
-  marker), and skips tables, code blocks and rules, where a band reads as a bug.
-
-⚠️ Gated on **`.ProseMirror-focused`, not `:focus`** — `:focus` stops matching when the
-WINDOW loses focus, so the band would flicker off every time you switched app and back.
-Verified: class lands on the caret's block and moves with it (block 0 → 1), exactly one
-at a time, none inside a table, painting `rgba(37,144,239,0.05)` with the bleed shadow,
-caret `rgb(37,144,239)` — **and the three rules survived Lightning CSS** (checked in the
-served stylesheet, per the §11 trap). To remove: drop `ActiveLine` from the editor's
-extensions and the two rules from globals.css.
-
-**⚠️ Testing note for the next session:** the browser-automation `key Return` does
-**not** reach the note's contenteditable (two presses, still one paragraph — measured).
-It is not an app bug. Dispatch the event instead:
+⚠️ **Testing note:** browser-automation `key Return` does **not** reach the note's
+contenteditable. Dispatch the event instead:
 `el.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',keyCode:13,bubbles:true,cancelable:true}))`.
 Likewise a dispatched `blur` does not fire React's `onBlur` — use `focusout`.
 
-**Deferred from this phase, on purpose:** **"unlinked mentions"** (text that happens to
-name an entity, offered as a link). It needs a matcher over every company, person and
-task name against the note text, and it is the one part of Phase 3 that edges toward
-the AI-that-tidies temptation in §6 — it belongs with Phase 5, where a suggestion has
-an accept/discard step to live in. **`target_code` is only populated for tasks**; the
-other types resolve by id, which is what the panels use.
-
-**Also still open from Phase 2:** attachments into `documents`, callouts, and
-drag-to-reorder blocks.
+**`target_code` is only populated for tasks**; the other types resolve by id.
 
 ### Phase 4 — ✅ DONE, 17 Aug 2026. To-dos + reminders. Migration **0121** (`todos.note_id`).
 
 **The whole integration is ONE nullable column.** A note's to-do is an ORDINARY
-`todos` row with `note_id` set — so it arrives already wired into the reminder cron,
-the push, the morning digest, "Your day" and the Home card, with no second engine and
-no second list to keep in step. That was §1's rule from the first draft and it paid
-off exactly as hoped.
+`todos` row with `note_id` set — reminder cron, push, morning digest and the Home
+card for nothing. No second engine.
 
 - **A tick-box line promotes to a real to-do.** A context bar appears only while the
   caret is in a checklist line (the same discipline the table bar follows) offering
@@ -653,7 +450,8 @@ foot of the sheet, each dismissible.
 ### Phase 5 — ✅ DONE, 17 Aug 2026. AI, every action a proposal.
 
 `lib/note-ai.ts` (the model calls) · `app/notes/ai-actions.ts` (the server actions) ·
-`components/note-ai-panel.tsx` (the strip) · `components/ask-notes.tsx` (the shelf).
+`components/note-ai-panel.tsx` (the strip; in Studio its card is portalled into the
+note rail) · "Ask your notes" now lives inside `studio-notes-shelf.tsx`.
 
 **Tidy the writing · Summarise · Find the jobs · Name it**, plus **Ask your notes**
 on the shelf. Everything runs on the existing `callAIText`/`callAIJson` harness, so
@@ -664,39 +462,24 @@ Accept and the EDITOR applies it. AI-off, out-of-budget and unreachable all come
 as a plain sentence, never an error. Accepting a rewrite **snapshots the old version
 first**, so it is one click from being put back.
 
-**Verified live against the real model:** "Find the jobs" pulled three real
-commitments out of a rough dictated note *with its reasons* ("because: he wants
-payment before he starts") and accepting made three ordinary to-dos; "Tidy the
-writing" fixed the prose while keeping **every figure and name** ($600, $100,
-Sulleiman, Amal); "Ask your notes" answered "how much is Sulleiman charging" correctly
-**and cited the note it came from**.
-
 ⚠️ A whole-note polish returns PLAIN PROSE, so tables, pictures and callouts would be
 flattened. The panel checks for them and says so before you accept — a warning, not a
 refusal, and the old version is kept either way.
 
 ### Phase 6 — ✅ DONE, 17 Aug 2026. Recall + shape. Migration **0122** (`note_revisions`).
 
-**Notes are a first-class indexed type.** The three edits the plan predicted turned
-out to be **one and a half**: a previous session had already added `note` to
-`SourceType` and to `ENTITY_LABELS_ORDER` (parked at `searchOrder: -1`), so this was
-the `EntityDef` plus promoting that number. **One thing the plan did not foresee:
-`SearchResultType` in `search.ts` is a SEPARATE hand-maintained union** and also
-needed `note` — the compiler caught it.
+**Notes are a first-class indexed type** (the `EntityDef`, plus `SearchResultType` in
+`search.ts` — see §12).
 - It indexes **`body_text`, never `body_json`** — a tree of ProseMirror braces would
   embed as noise. That is what the two columns are for.
 - ⚠️ **Re-indexed on a LONG idle (20s) and on close, never on save.** Autosave fires
   a second after the last keystroke and embedding on that cadence is money on fire.
   Archiving re-indexes immediately, because that changes lifecycle.
-- Verified: `unifiedSearch("sulleiman permits")` returned the note FIRST, above every
-  document.
 
 **Versions** (`lib/note-versions.ts`, `components/note-versions-panel.tsx`) — taken at
 the moments that matter (before an AI rewrite, before a template, or "Save a
 version"), **never per autosave**: a row a second is a log nobody can read.
-⚠️ Restoring **snapshots the current text first**, so a restore is itself undoable —
-verified live: restore brought the rough original back and left the polished one in
-the list.
+⚠️ Restoring **snapshots the current text first**, so a restore is itself undoable.
 ⚠️ Restore and apply-template **reload the page** rather than `router.refresh()`. The
 open editor holds the body and `updated_at` in refs a re-render does not reset, so it
 would save over the restore and then cry "changed elsewhere" — the same one-writer
@@ -722,240 +505,77 @@ write paths cannot disagree.
 **No undo token, deliberately:** all three actions are additive or reversible by the
 same tool. (A future `replace` MUST snapshot into `note_revisions` and register one.)
 
-**Verified live through the real endpoint** with a bearer key: 26 tools advertised
-including both; create → append (the original text survived, verified by `get`) →
-search → archive ("nothing is deleted") → and `action: "delete"` **rejected by the
-schema**.
+Verified live: `action: "delete"` is **rejected by the schema**.
 
-**Phase 6 — recall + shape.** Make notes a first-class indexed type — **three
-edits**: add `"note"` to the `SourceType` union in `src/lib/embeddings.ts`, add its
-entry to `ENTITY_LABELS_ORDER` in `entity-meta.ts` (a `Record<EntityType, …>`, so
-TypeScript *refuses to compile* until you do — a rare case of the type system
-enforcing the forward rule for you), then the `EntityDef` itself. **No migration:**
-`embeddings.source_type` is plain `text` with no CHECK constraint and the
-`hybrid_search`/`upsert_embedding` RPCs take it as text, so the database accepts a
-new type as-is. Then: saved views as smart folders; templates (`kind='template'`,
-which is what turns a daily note from an empty page into a prompt); and
-`note_revisions` with a simple "restore this version".
+### Phase 8 — the editor on a phone (17 Aug toolbar/menus; 28 Aug the full-screen sheet)
 
-**Phase 7 — MCP + automation.** §7's two tools. Optional: morning-run drops a daily
-note; a meeting/event can spawn a linked note.
-
-### Phase 8 — ✅ DONE, 17 Aug 2026. The editor on a phone.
-
-Measured at 375px first, as always. Two real faults, both fixed:
-
-- **The toolbar wrapped to THREE ROWS — 71px of controls above the note**, on the
-  screen with the least room to give. It is now ONE row that scrolls sideways below
-  `sm` (and still wraps from `sm` up, so the desktop is untouched). Measured: toolbar
-  **71px → 41px**, writing area **499px → 529px**; desktop unchanged.
+- **The toolbar is ONE row that scrolls sideways below `sm`** (it wrapped to three
+  rows, 71px of controls); desktop still wraps.
 - ⚠️ **The `/` and `@` menus would have opened BEHIND the on-screen keyboard.**
   `window.innerHeight` does not change when the keyboard appears — only
-  `visualViewport` knows where it is — so a menu measured against `innerHeight` is
-  placed in the part of the screen the keyboard is covering, and typing `/` on a
-  phone looks like it does nothing. `suggestion-position.ts` now measures the room
-  against the **visible band** and re-places on `visualViewport` resize/scroll (the
-  keyboard fires neither `resize` nor `scroll` on the window).
-  ⚠️ **Layout vs visual coordinates are kept strictly apart** in that file — `position:
-  fixed` is laid out against the LAYOUT viewport while the band comes from the visual
-  one, and mixing them is the easy mistake.
+  `visualViewport` knows — so `suggestion-position.ts` measures the room against the
+  **visible band** and re-places on `visualViewport` resize/scroll.
+  ⚠️ **Layout vs visual coordinates are kept strictly apart** in that file —
+  `position: fixed` is laid out against the LAYOUT viewport while the band comes from
+  the visual one.
+- **The title is a `<textarea>`**, because a title on paper wraps (an `<input>` held
+  759px of text in a 294px box). Enter still moves to the body.
+  ⚠️ **The auto-grow must add the border back** — `scrollHeight` measures the CONTENT
+  box while the element is `border-box`; it sets
+  `scrollHeight + (offsetHeight - clientHeight)`.
+- The drag handle is hover-driven; touch got `note-touch-drag.tsx` (§13).
 
-**Quick Note was already one tap**: `ENTITY_VIEWS.note.create` put "Note" second in
-the global New menu and in ⌘K back in Phase 1, so there was nothing to build.
+**The full-screen sheet (28 Aug 2026).** Measured first at 375×812: the writing had
+**277px (34%)**; the sheet was a 343px bordered card with a control row above and
+three panels below, and the page scrolled around a note that also scrolled. Now
+**734px (90%)**, edge to edge, one scroller. `immersive` and desktop's `full` share
+one flag (`cover`). Desktop is untouched.
 
-**A floating format bar** turned out to be unnecessary: the **bubble menu** built in
-Phase 1.5 already appears on selection, which is the same gesture on touch.
-
-**Not done at the time, and honest about it:** the drag handle is hover-driven and
-therefore inert on touch (a mouse affordance, not a broken one). ✅ **Closed on
-21 Aug 2026** by `note-touch-drag.tsx` — press and hold, drag, let go. See §13.
-
-**A third fault, reported by the owner straight after: the TITLE overflowed on a
-phone.** It was an `<input>` — a single line — so a long title just scrolled sideways
-inside its own box: on a 375px screen the field was 294px wide holding **759px** of
-text, and the owner could never see the title he had written. It is a `<textarea>`
-now, because a title on paper WRAPS. It auto-grows to fit (verified 84 → 29 → 111px
-as the text changed), Enter still moves to the body rather than making a second line,
-and it is 22px on a phone / 26px from `sm` up — 26px eats a lot of a small screen.
-⚠️ **The auto-grow must add the border back.** `scrollHeight` measures the CONTENT
-box while the element is `border-box`, so `height = scrollHeight` left the border
-eating 2px and clipping the descenders of the last line (measured). It sets
-`scrollHeight + (offsetHeight - clientHeight)`.
-
----
-
-## 13. What could come next (17 Aug 2026, after all eight phases)
-
-Written down so the next decision starts from a list rather than a blank page. **None
-of this is agreed** — it is what building the module suggested was worth having.
-
-**✅ ALL OF THESE WERE BUILT ON 21 AUG 2026, except voice.**
-
-- **Smart folders — ✅ done.** `SavedViewsBar` on the shelf, `listKey="note"`, stored
-  as `note.savedViews` in `settings`. No new table and no new screen: the shelf
-  already filtered through `useUrlFilters`, which is the whole reason a saved view
-  had something to save. A folder is where you PUT a note; a smart folder is a
-  question the shelf keeps asking. Both are useful, so the folder rail stays.
-- **A note from a task, person or company — ✅ done.** "Write a note about this" on
-  the Notes tab of all three (`linked-notes.tsx` → `createNoteAbout`).
-  ⚠️ **It writes an `@`-mention INTO THE BODY; it does not insert a `note_links`
-  row.** That is the only reason it is allowed to exist — the ban below on an
-  "attach a note" button stands, because a link made away from the writing is one
-  the writing does not know about. Verified live: the link came back derived.
-- **Daily note templates — ✅ done.** One settings row (`notes.dailyTemplateId`),
-  set from the record bar of any note that is already a template. `openTodaysNote`
-  seeds today's page from it on CREATE only — a page that exists is your writing
-  and is never touched. It stores the ID, not a copy: editing the template changes
-  tomorrow, and yesterday keeps what it had.
-- **Long-press drag on touch — ✅ done** (`note-touch-drag.tsx`). Press and hold a
-  block, it lifts, drag it, let go. Three things make it behave: it only engages
-  after a STILL press (moving first means you meant to scroll), it takes the touch
-  off the page once engaged (`passive: false`, or the note scrolls under your
-  finger), and it moves whole top-level blocks only.
-  ⚠️ The index arithmetic is in `blockMovePlan` in `offline-notes-shared.ts` —
-  pure and tested, because the block is DELETED before it is inserted, so every
-  position after it shifts up by one and a target below the original must be
-  reduced by one. Off by one and it lands one place too far down, which reads as
-  "the drag not quite working" and is very hard to see in a long note.
-- **AI "suggest links" — ✅ done.** The last of §6's actions. The unlinked-mention
-  strip matches names EXACTLY; this reads the MEANING, so "the permit chap" finds
-  Sulleiman. ⚠️ **Two guards, both load-bearing:** the model is given NUMBERED
-  candidates and must answer with numbers, so it cannot invent a record; and the
-  phrase it quotes is checked against the note before the suggestion is offered,
-  because accepting REWRITES those words — and rewriting words nobody wrote is the
-  one way this could damage a note. Accepting goes through the editor's existing
-  `linkSuggestion`, so there stays ONE way a link is ever made.
-
-**Still not done:**
-- **Voice into a note.** `voice-button.tsx` and "speak rough, save polished" exist
-  and were listed in §1 as a reuse; nothing has wired them to the editor. Left out
-  of the 21 Aug sweep at the owner's request.
-- **A note from a meeting.** The big one — see §14. ⚠️ Still blocked on the two
-  facts in that section, which are not ours to decide.
-- **Note-to-note relationships beyond links** — a "related notes" strip driven by
-  the embedding index, which now exists.
-
-**Deliberately still NOT doing** (§9 stands): real-time collaboration, nested folder
-trees, a graph view, handwriting, per-note passwords, offline editing, public share
-links, block-level transclusion.
-
-## 14. A note from a Google Meet — the plan (17 Aug 2026)
-
-The owner asked for "a bot that joins and takes notes". **The right answer here is
-NOT a bot.** Google already transcribes its own meetings, and there is an official API
-to fetch the result. A third-party bot that joins the call is the gimmick version: it
-needs a paid seat per meeting, it shows up as a stranger in the participant list, and
-it is one more vendor holding the group's private conversations.
-
-**What already exists in Oracle:** Google OAuth (`src/lib/google.ts`), Meet links created
-and stored on `calendar_events.meet_link`, the notes module, the AI polish/summarise/
-extract actions, note links, and to-dos. The only genuinely new part is the fetch.
-
-**How it would work:**
-1. Oracle creates the meeting (it already does) **and turns transcription on in the
-   invite** — Google has allowed pre-configuring that on the Calendar event since Jul
-   2024, so nobody has to remember to press record.
-2. The meeting happens. **Google transcribes it**, with speaker names.
-3. A cron picks up events whose end time has passed, and asks the **Meet REST API v2**
-   for `conferenceRecords.transcripts.entries` — structured lines with who said what.
-4. Oracle makes a **note**, linked to the event and its company/people, holding the
-   transcript.
-5. The owner presses the buttons that already exist: **Tidy the writing** for readable
-   minutes, **Find the jobs** for the actions, **Summarise** for the top.
-
-**Two things must be true, and they are not ours to decide:**
-- **The Workspace plan must be Business Standard or higher.** Business Starter and
-  personal Gmail have no transcription at all. ⚠️ **CHECK THIS FIRST — the whole idea
-  dies here otherwise.**
-- **Transcription must be on for that meeting.** Step 1 handles the meetings Oracle
-  creates; a meeting someone else organised is *their* Drive and *their* transcript,
-  and Oracle cannot reach it.
-
-**New scopes needed** beyond today's `calendar.events`: the Meet API's
-`meetings.space.readonly` (and Drive read if the Google Doc version is wanted). That
-means the owner re-consents once in Settings.
-
-**Where it will disappoint, said plainly:** Google's transcription is good on clear
-English and noticeably worse on names, Swahili, and heavy accents on a bad line. The
-AI can tidy grammar but **cannot recover a word that was never heard** — so a
-transcript is a first draft to correct, not minutes to trust unread. Anyone promising
-otherwise is selling something.
-
-**Rough size:** the fetch + cron + note creation is a small piece of work, because
-every other part is built. Confirming the licence and the scopes is the slow bit.
-
-## 11. Risks and the traps I already know about
-
-- **Autosave vs. two tabs.** Last-write-wins on a jsonb blob loses work silently.
-  Cheapest guard: an `updated_at` precondition on save, and if it fails, keep the
-  local version and tell the owner. Do not skip this.
-- **`body_text` drift** — derive it in the same write path, never in a cron.
-- **Editor popovers and the portal's 0.8 zoom** — `layoutRect()`, always (§4).
-- **Bundle size.** The editor must be a lazily-loaded client chunk, or `/notes`
-  slows every other page's shared bundle.
-- **Embedding cost/noise.** A note re-embedded on every keystroke-batch is money on
-  fire; re-index on idle (or on close), not on save.
-- **The AI-that-tidies temptation.** See §6. Suggest, never act.
-- **Dev-server traps** in this repo: a new import into a compiled file needs a
-  restart, and a killed server leaves truncated `.next/dev/types`. Both cost an hour
-  each if forgotten.
-
----
-
-## 12. What I checked, and what is still open
-
-**Verified against this codebase / the live database (17 Aug 2026):**
-`meetings.kind='note'` = **4 rows**, no folders, latest 7 Jul 2026 · `todos` =
-**373 rows**, 2 with reminders · `brief_notes` = 2 · **no** editor/markdown/CRDT
-dependency of any kind in `package.json` · Next **16.2.11**, React **19.2.4**, zod 4,
-framer-motion 12, cmdk 1 · `EntityDef`, `EntityView`, `McpTool` contracts read
-first-hand · `todos` columns read first-hand.
-
-**Verified by research (sources at the end of the chat message):** Tiptap core +
-most extensions MIT with only Cloud paid; BlockNote XL (incl. AI) GPL-3.0-or-
-commercial; Plate MIT with a React 19 + Next 16 template; `immediatelyRender: false`
-required under SSR; ProseMirror JSON is the recommended store with markdown as an
-export; the feature set worth copying (Apple Notes: checklists, tables, tags, smart
-folders, quick note — Obsidian: `[[wikilinks]]`, automatic backlinks, daily notes —
-Notion/Mem/Reflect: AI summaries, cited Q&A over your own notes, auto-linking).
-
-**Corrected while double-checking this plan** (both worth knowing before Phase 6):
-- I first wrote "one `EntityDef` and notes are searchable". **Wrong.** `SourceType`
-  in `src/lib/embeddings.ts` is a hand-maintained union of ten types with no `note`
-  in it, and `ENTITY_LABELS_ORDER` is an exhaustive `Record`. So it is three edits —
-  though the compiler catches two of them, which is the good kind of chore.
-- I expected a `CHECK` constraint on `embeddings.source_type` and a migration with
-  it. **There is none** — it is plain `text`, and the RPCs pass it through. One less
-  migration than feared.
-
-**Answered by the owner, 17 Aug 2026 — these are settled, do not re-ask:**
-1. **Staff notes in the portal? NO.** Owner-only. Dropped: `visibility`, the portal
-   twin, the capability key, the whole portal half of Phase 8. See §8.
-2. **Are notes about a company? "Not really, can be anything."** So there is no
-   primary axis: no `company_id`/`person_id` columns, every association is a
-   `note_links` row. See §3.
-3. **Daily notes? Useful.** Moved forward into Phase 2 (they are thin), with
-   templates in Phase 6 to make them more than a blank page.
-
-**4. Editor weight — ANSWERED by the Phase 0 spike: 121.6 kB gzip, one lazy chunk,
-6.3% of client JS, nothing eager.** Tiptap stays; Plate is no longer needed as a
-fallback. Nothing in this plan is open any more — Phase 1 can start.
+- ⚠️ **`fixed inset-x-0 top-0 h-[100dvh]`, NOT `inset-0`.** `bottom-0` on a fixed
+  element resolves against the LARGE viewport on iOS, so the last line of a note
+  would sit under Safari's address bar — the one place a writing screen must
+  never lose. `dvh` follows the address bar **and the soft keyboard**.
+- ⚠️ **It lands at z-50, above the nav pill's z-40, so `top-pill.tsx` needed no
+  change at all.** The sheet simply covers the pill. One less thing to keep in step.
+- ⚠️ **THE WAY OUT COMES FIRST.** Covering the pill means the phone has no way
+  back, and a note is often arrived at from a link where the browser's own back
+  goes somewhere else. A back arrow sits at the head of the toolbar — a note already has a toolbar.
+- ⚠️ **Everything ABOUT the note moved behind "⋯"** — folder, pin, archive,
+  template, to-dos, links, versions, in a `BottomSheet` (`note-extras.tsx`, fired
+  by a `cos:note-extras` window event). **Nothing removed, only moved**, and the
+  trigger sits in the toolbar — a drawer you cannot find is a deleted feature.
+- ⚠️ **The AI bar scrolls sideways on one row** (it wrapped to 65px); its buttons
+  need `shrink-0` — a flex row that scrolls must not let its children squash.
+- ⚠️ **The toolbar's full-screen dimming is off on touch** — `opacity-40` promises
+  that hovering brings it back, and a finger cannot hover. The full-screen button
+  is hidden there too.
+- ⚠️ **Room under the last line is the whole of "immersive" on a phone**
+  (`pb-[40vh]`). Without it the caret sinks to the bottom edge and every word is
+  typed on the last visible row, exactly where the keyboard is about to appear.
+  ⚠️ **NOT paired with the typewriter scrolling `full` uses** — mobile browsers
+  already scroll a focused caret into view, and a second script nudging the same
+  box fights it. The padding gets the benefit with nothing to fight.
+- Safe areas both ends: the toolbar clears the notch, the paper clears the home
+  indicator.
+- ⚠️ **Both loading placeholders match the sheet at both sizes, in CSS** — or a
+  phone flashes a bordered card before the full-screen sheet arrives.
+- **`src/lib/use-media-query.ts`** is the shared `matchMedia` hook. ⚠️ Its initial
+  value is read **synchronously** where there is a window — a hook that starts
+  `false` renders one frame of the wrong layout. ⚠️ **Prefer a Tailwind variant**:
+  the hook is for behaviour (a scroll lock, an effect that must not run), never for
+  layout CSS can express.
+- The same day, every `RecordList` got **`bleed`** (runs to both edges of a phone) —
+  see CLAUDE.md. ⚠️ **`border-y` plus a conditional `border-x`, never `border` with
+  `border-x-0` over it** — the winner depends on Tailwind's emit order.
 
 ---
 
 ## Writing on the whole screen (19 Aug 2026 — owner: "I want to feel immersed")
 
-The owner's words: the shelf and the editor are right, but there was **a band of
-empty grey under the paper**, and writing is what he does most — planning and
-brainstorming. Two changes, both in `note-editor.tsx`.
-
-**1. The sheet ends where the screen ends.** Its height was
-`calc(100dvh - 11rem)` — a GUESS at the chrome above it, and wrong: at
-1750×1043 it left ~140px of dead grey, and it would have been wrong again the
-first time the control row wrapped. It now measures its own top
-(`getBoundingClientRect().top + scrollY` — document-space, so it reads the same
-at any scroll, and an element's own height cannot move its own top) and takes
-the height that is left.
+**1. The sheet ends where the screen ends.** It measures its own top in document
+space and takes the height that is left (`useFillViewport`), instead of a
+`calc(100dvh - 11rem)` guess. (The "nav pill" below is the pre-Studio chrome;
+the z-order reasoning still holds for whatever floats at z-40.)
 
 ⚠️ **The bottom padding on `<main>` is not always ours to take.** Below `xl` that
 padding (`pb-28`/`md:pb-32`) is holding the floating nav pill off the content, so
@@ -992,127 +612,89 @@ more than he reads).
 
 ---
 
-## Phase 8 — the phone. Built 28 Aug 2026
+## 13. After the eight phases — built 21 Aug 2026, except voice
 
-The owner asked for the note page to feel full screen on a phone, with no
-borders, so typing is immersive. It was the one phase never started.
+- **Smart folders — ✅ done.** Saved views on the shelf, stored as `note.savedViews`
+  in `settings`; the shelf filters through `useUrlFilters`, which is what gives a
+  view something to save. Folders stay: a folder is where you PUT a note, a smart
+  folder is a question the shelf keeps asking.
+- **A note from a task, person or company — ✅ done.** "Write a note about this" on
+  the Notes tab of all three (`linked-notes.tsx` → `createNoteAbout`).
+  ⚠️ **It writes an `@`-mention INTO THE BODY; it does not insert a `note_links`
+  row.** That is the only reason it is allowed to exist — the ban below on an
+  "attach a note" button stands, because a link made away from the writing is one
+  the writing does not know about. Verified live: the link came back derived.
+- **Daily note templates — ✅ done.** One settings row (`notes.dailyTemplateId`),
+  set from the record bar of any note that is already a template. `openTodaysNote`
+  seeds today's page from it on CREATE only — a page that exists is your writing
+  and is never touched. It stores the ID, not a copy: editing the template changes
+  tomorrow, and yesterday keeps what it had.
+- **Long-press drag on touch — ✅ done** (`note-touch-drag.tsx`). Press and hold a
+  block, it lifts, drag it, let go. Three things make it behave: it only engages
+  after a STILL press (moving first means you meant to scroll), it takes the touch
+  off the page once engaged (`passive: false`, or the note scrolls under your
+  finger), and it moves whole top-level blocks only.
+  ⚠️ The index arithmetic is in `blockMovePlan` in `offline-notes-shared.ts` —
+  pure and tested, because the block is DELETED before it is inserted, so every
+  position after it shifts up by one and a target below the original must be
+  reduced by one. Off by one and it lands one place too far down, which reads as
+  "the drag not quite working" and is very hard to see in a long note.
+- **AI "suggest links" — ✅ done.** The last of §6's actions. The unlinked-mention
+  strip matches names EXACTLY; this reads the MEANING, so "the permit chap" finds
+  Sulleiman. ⚠️ **Two guards, both load-bearing:** the model is given NUMBERED
+  candidates and must answer with numbers, so it cannot invent a record; and the
+  phrase it quotes is checked against the note before the suggestion is offered,
+  because accepting REWRITES those words — and rewriting words nobody wrote is the
+  one way this could damage a note. Accepting goes through the editor's existing
+  `linkSuggestion`, so there stays ONE way a link is ever made.
 
-### What was measured first, on a 375×812 phone
+**Still not done:**
+- **Voice into a note.** `voice-button.tsx` exists; nothing wires it to the editor
+  (left out at the owner's request).
+- **A note from a meeting.** The big one — see §14. ⚠️ Still blocked on the two
+  facts in that section, which are not ours to decide.
+- **Note-to-note relationships beyond links** — a "related notes" strip driven by
+  the embedding index, which now exists.
 
-- **The writing got 277px of an 812px screen — 34%.** The rest was a control row
-  above it and three panels (to-dos, links, versions) below it.
-- The sheet was **343px wide inside a 375px screen** — 16px of grey down each
-  side, plus a border, rounded corners and a shadow. A frame round nothing, on a
-  device that only ever shows one thing at a time.
-- `min-h-[24rem]` was what actually set the height: `useFillViewport` measured
-  LESS than the floor, because it correctly subtracts everything below and there
-  were three panels there.
-- The page scrolled to 1062px, so the note was a small window you scrolled inside
-  a page you also scrolled.
+**Deliberately still NOT doing:** §9 stands.
 
-### What it is now
+## 14. A note from a Google Meet — parked plan (17 Aug 2026)
 
-**The sheet IS the screen below `lg`.** `immersive` and the existing `full`
-share one flag (`cover`) rather than growing a second code path — one is chosen
-with ⌘⇧F, the other is the only sensible default on a phone.
+The owner asked for "a bot that joins and takes notes". **The answer is NOT a bot**:
+Google transcribes its own meetings and the **Meet REST API v2**
+(`conferenceRecords.transcripts.entries`) returns who said what. Plan: Oracle turns
+transcription on in the invites it creates → a cron fetches transcripts of ended
+events → a note linked to the event, its company and people → the owner presses the
+existing Tidy / Find the jobs / Summarise.
+- ⚠️ **CHECK THE WORKSPACE PLAN FIRST** — Business Standard or higher; Business
+  Starter and personal Gmail have no transcription and the idea dies there.
+- Only meetings Oracle organises are reachable; someone else's transcript is in
+  their Drive.
+- Needs the `meetings.space.readonly` scope (the owner re-consents once).
+- Transcription is weak on names, Swahili and bad lines; AI cannot recover a word
+  never heard — a first draft, not minutes to trust unread.
+## 11. Standing risks
 
-- ⚠️ **`fixed inset-x-0 top-0 h-[100dvh]`, NOT `inset-0`.** `bottom-0` on a fixed
-  element resolves against the LARGE viewport on iOS, so the last line of a note
-  would sit under Safari's address bar — the one place a writing screen must
-  never lose. `dvh` follows the address bar **and the soft keyboard**.
-- ⚠️ **It lands at z-50, above the nav pill's z-40, so `top-pill.tsx` needed no
-  change at all.** The sheet simply covers the pill, which is what chat achieves
-  by hiding it. One less thing to keep in step.
-- ⚠️ **THE WAY OUT COMES FIRST.** Covering the pill means the phone has no way
-  back, and a note is often arrived at from a link where the browser's own back
-  goes somewhere else. A back arrow sits at the head of the toolbar — chat needed
-  a floating button for this, a note already has a toolbar.
-- ⚠️ **Everything ABOUT the note moved behind "⋯"** — folder, pin, archive,
-  template, to-dos, links, versions, in a `BottomSheet` (`note-extras.tsx`,
-  fired by a `cos:note-extras` window event). None of them is something you look
-  at WHILE writing. **Nothing was removed, only moved**, and the trigger sits in
-  the toolbar beside the tools rather than floating over the writing — a drawer
-  you cannot find is the same as a feature that was deleted.
-- ⚠️ **The AI bar was 65px of buttons wrapped onto two rows**, permanently between
-  the writing and the bottom of the screen. It now scrolls sideways on one row,
-  the same treatment the writing toolbar already had, for the same reason — 65px
-  → 37px. Its buttons needed `shrink-0`: a flex row that scrolls must not let its
-  children squash.
-- ⚠️ **The toolbar's full-screen dimming is off on touch.** `opacity-40` is a
-  promise that hovering brings it back, and a finger cannot hover — on a phone it
-  would just be a permanently faded toolbar. The full-screen BUTTON is hidden
-  there too: it offers what you already have, and its only visible effect would be
-  to dim the toolbar.
-- ⚠️ **Room under the last line is the whole of "immersive" on a phone**
-  (`pb-[40vh]`). Without it the caret sinks to the bottom edge and every word is
-  typed on the last visible row, exactly where the keyboard is about to appear.
-  ⚠️ **NOT paired with the typewriter scrolling `full` uses** — mobile browsers
-  already scroll a focused caret into view, and a second script nudging the same
-  box fights it. The padding gets the benefit with nothing to fight.
-- Safe areas both ends: the toolbar clears the notch, the paper clears the home
-  indicator.
-- ⚠️ **Both loading placeholders match the sheet at both sizes, in CSS.** The
-  `next/dynamic` one and the editor's own still drew a bordered card, so a phone
-  flashed a frame before the full-screen sheet arrived. CSS, not measurement —
-  they render before any of the editor's code does.
+- **Autosave vs. two tabs** — the `updated_at` precondition; on failure keep the
+  local version and tell the owner. Never last-write-wins.
+- **`body_text` drift** — derive it in the same write path, never in a cron.
+- **Editor popovers** — `createMenuPositioner()` in `lib/suggestion-position.ts`, always.
+- **Bundle size** — the editor stays a lazily-loaded client chunk.
+- **Embedding cost** — re-index on idle or close, never on save.
+- **The AI-that-tidies temptation** — suggest, never act (§6).
+- **Dev-server traps** — a new import into a compiled file needs a restart, and a
+  killed server leaves truncated `.next/dev/types`.
 
-### Measured after
+## 12. Settled answers — do not re-ask
 
-| on a 375×812 phone | before | after |
-|---|---|---|
-| Writing area | 277px (34%) | **734px (90%)** |
-| Sheet width | 343px, bordered | **375px, edge to edge** |
-| Chrome around the writing | 535px | **78px** |
-| Scrollers on the screen | 2 (page + note) | **1** |
+1. **Staff notes in the portal? NO.** Owner-only. See §8.
+2. **Are notes about a company? "Not really, can be anything."** No primary axis:
+   every association is a `note_links` row. See §3.
+3. **Daily notes? Useful** — built, with templates.
+4. **Editor weight** — 121.6 kB gzip, one lazy chunk. Tiptap stays.
 
-Desktop is untouched: same bordered card, same record bar, same right rail, same
-745px of paper, no dialog, no scroll lock.
-
-### Also
-
-- **`src/lib/use-media-query.ts`** is new and shared. Ten components hand-roll
-  `matchMedia`; this is not an eleventh copy inline. ⚠️ Its initial value is read
-  **synchronously** where there is a window — a hook that starts `false` and
-  corrects itself in an effect renders one frame of the wrong layout, which here
-  would be a bordered box flashing before the full-screen sheet. ⚠️ Its own
-  header says to **prefer a Tailwind variant**: layout CSS can express belongs in
-  CSS, and this is only for behaviour — a scroll lock, an effect that must not
-  run, a component that must not be in the tree.
-- The shelf's search box had a fixed `w-[15rem]` — 240px in a 343px card, so it
-  took a row and shoved the four buttons onto lines of their own. Full width below
-  `sm`.
-
-### Left alone, deliberately
-
-The shelf is a LIST, and a list is correctly a bordered card in Desk. Making
-lists full-bleed on a phone would mean changing `RecordList`, which is every list
-in Oracle — a separate decision, not a side effect of this one. It still carries
-249px of header, chips, search and four buttons above the rows on a phone.
-
-### The list too — same day
-
-The owner asked for the shelf to get the same treatment, so it went into
-`RecordList` rather than into notes: **every list in Oracle runs to both edges of a
-phone now** (`bleed`, on by default; 50 lists use the component).
-
-- Measured at 375px: `main`'s 16px gutters left the card 343px, and each row gave
-  up another 12px a side — **56px of a 375px screen spent on the list being "a
-  card"**. It bleeds through the gutters below `sm`, loses its side borders and
-  corners, and rows carry a phone-sized 16px. From `sm` up **nothing changes**.
-- Note titles that read `Today's Priorities — 20 Aug 20…` now fit whole.
-- ⚠️ **`border-y` plus a conditional `border-x`, never `border` with `border-x-0`
-  over it** — both set a border width and the winner depends on Tailwind's emit
-  order.
-- `bleed={false}` is the escape for a list inside somebody else's padded housing.
-  `bare` lists never bleed. Checked on `/notes`, `/hrms/assets`,
-  `/hrms/commitments`, `/documents`, `/people`, `/?tab=tasks`, `/marketing/posts`
-  and `/ledger/assets`: no page scrolls sideways, desktop is byte-identical.
-
-**And a pre-existing bug the sweep found:** `/ledger/assets` scrolled sideways by
-140px on a phone — not the list, a **tab strip**. `ledger-tabs`, `ops-tabs` and
-`project-tabs` were plain flex rows; the ledger's is 499px wide at 375px, so the
-whole page could be dragged off-centre. All three scroll within themselves now.
-
-**Still not done:** `/hrms/assets` wraps its "⋯" menu onto a second line per row
-on a phone — its own column widths, not the shell, and it was worse before the
-bleed rather than better. That is a per-list `hideBelow` job.
+⚠️ Making a NEW type searchable is more than one `EntityDef`: `SourceType` in
+`src/lib/embeddings.ts`, `ENTITY_LABELS_ORDER` in `entity-meta.ts` (an exhaustive
+`Record`, so the compiler insists) and **`SearchResultType` in `search.ts`** (a
+separate hand-maintained union) all need the type. `embeddings.source_type` is plain
+`text` with no CHECK constraint, so no migration.

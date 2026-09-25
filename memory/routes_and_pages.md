@@ -1,6 +1,6 @@
 ---
 name: routes-and-pages
-description: "Current pages, server actions, and API routes"
+description: "Current pages, redirect stubs, API routes, crons and server-action files"
 metadata:
   node_type: memory
   type: project
@@ -8,144 +8,156 @@ metadata:
 
 # Routes and Pages
 
-All list/data pages are dynamic because operational data changes often.
+Checked against `src/app/**/page.tsx`, `route.ts(x)`, `next.config.ts` and
+`vercel.json`. The page order in the Studio footer and Go-to panel comes from
+`NAV_ROUTES` in `src/lib/nav.ts` via `src/lib/studio-nav.ts`.
 
-## Pages
+## Owner screens (also directors and managers, scoped)
 
-| Route | File | Purpose |
-|---|---|---|
-| `/` | `src/app/page.tsx` + `_hub/*` | Administrator with Overview, Companies, and Tasks tabs. Includes Welcome Hero, Needs Attention, company risk, task views, Quick Capture, and Ask Oracle. |
-| `/task/new` | `src/app/task/new/page.tsx` | Create task form. |
-| `/task/[code]` | `src/app/task/[code]/page.tsx` | Task detail, edit form, assignees, latest update, source meeting card, updates, audit timeline, similar tasks, draft email. |
-| `/registry` | `src/app/registry/page.tsx` | Redirects to `/?tab=tasks&view=table`. |
-| `/brief` | `src/app/brief/page.tsx` | **Director Brief** (V2): glanceable portfolio report incl. delivered-this-month; stat cards, per-company strip (done/open/in-progress/overdue), delivered + watch-list; WhatsApp/Email/Copy share + PDF (print-only detailed per-company tables). Data via `src/lib/director-brief.ts`. |
-| `/hrms` | `src/app/hrms/page.tsx` | **HRMS hub** (V2): registry cards (OECR, OCR, Companies, People, Documents) with live stats. |
-| `/hrms/oecr` | `src/app/hrms/oecr/page.tsx` | **OECR** stock control: Dashboard / Register / Purchases / Issues. `src/lib/stock*.ts`. |
-| `/hrms/assets` | `src/app/hrms/assets/page.tsx` | **Asset & Vendor Register** (V3): Assets/Vendors toggle. `src/lib/assets.ts` + `src/lib/vendors.ts`. |
-| `/hrms/leave` | `src/app/hrms/leave/page.tsx` | **Leave & Attendance** (V3): Overview/Requests/Setup; ELR-Act leave. `src/lib/leave.ts`. |
-| `/hrms/ocr` | `src/app/hrms/ocr/page.tsx` | **OCR** daily cleaning checklist (one shared register). `src/lib/cleaning*.ts`. |
-| `/hrms/org` | `src/app/hrms/org/page.tsx` | **Organogram** (V3): group overview → per-company reporting tree + company switcher. `src/lib/org-chart.ts` + `src/components/org-chart.tsx`. Also the Org tab on `/companies/[id]?tab=org`. |
-| `/system-map` | `src/app/system-map/page.tsx` | **System Map** (V3): navigable diagram of every area + its pages; config in `src/components/system-map.tsx` (`SYSTEM_MAP`). Doubles as a full index. In the HRMS launcher. |
-| `/meeting` | `src/app/meeting/page.tsx` | Mobile-tight Meeting Workspace: saved notes, AI minutes, clean notes, decisions, risks, follow-up draft, history search/filter, action extraction, linked tasks, voice polish, dictionary teaching. |
-| `/workbook` | `src/app/workbook/page.tsx` | Meetings / Notes / To-do. |
-| `/companies` | `src/app/companies/page.tsx` | Company list with KPIs. Reached via HRMS; smart `?from=task:CODE` breadcrumb. |
-| `/companies/[id]` | `src/app/companies/[id]/page.tsx` | Company detail with Overview, Completed, Timeline. Open tasks grouped by month. |
-| `/people` | `src/app/people/page.tsx` | People directory (internal/external/expat); bulk deactivate; notes surfaced. |
-| `/documents` | `src/app/documents/page.tsx` | Documents & Compliance: tracking + expiry reminders; unified capture (Upload·Link·Paste text); AI reads PDFs/images incl. scanned. **"Add several"** = bulk multi-file queue (full doc form per file); recency-aware duplicate detection. |
-| `/letters` | `src/app/letters/page.tsx` | **Letters** (V3): list + New. Editor `/letters/[id]`, print route `/letters/[id]/print`. `src/lib/letters.ts`. See `memory/letters.md`. |
-| `/letterheads` | `src/app/letterheads/page.tsx` | **Company letterheads** (V3): per-company branding (typed / header+footer images / full-page background). |
-| `/outbox` | `src/app/outbox/page.tsx` | Reminder drafts and sent log. Drafts show priority + description + latest update (no code/status). |
-| `/inbox` | `src/app/inbox/page.tsx` | Smart intake: "Add to inbox" (paste text + multi-file bundle); unified "Process" → review queue files docs + enriches person profile (blanks-only). `memory/v3_plan.md`. |
-| `/insights` | `src/app/insights/page.tsx` | Analytics/insights. |
-| `/settings` | `src/app/settings/page.tsx` | Risk thresholds, weather location, AI master switch, reminders, nav reorder, resync. |
+Directors and managers sign in on the portal but use these same screens through
+`getViewer()` (`src/lib/viewer.ts`), limited to their companies. `src/proxy.ts`
+lets them reach only the paths in `DIRECTOR_PATHS` (Home/Tasks, a task, new
+task, Files, People, Companies, Calendar, Outbox, Announcements). With no
+viewer, most of these pages redirect to `/portal` (`/outbox` and
+`/announcements` to `/login`).
 
-## Removed Routes
-
-Do not recreate these as standalone pages:
-
-- `/capture` - folded into hub Quick Capture. `src/app/capture/actions.ts` remains.
-- `/task` list - folded into hub Tasks tab.
-- `/digest` - folded into Ask Oracle weekly digest.
-- `/escalations` - folded into Needs Attention.
-- `/audit` - standalone page removed; audit data remains and powers timelines. `src/app/audit/actions.ts` remains.
-
-### Slim-down to pure task management (Jul 2026)
-
-Removed at the owner's request to cut unused surface area. **All DB tables were KEPT** —
-the data is intact, just unreachable — so any of these can be revived by restoring the
-route. Nothing was dropped or migrated.
-
-- `/workbook` (+ its Meetings / Notes / To-do tabs) and `/meeting` (which only redirected
-  to `/workbook`). Tables `meetings` / `meeting_tasks` retained. `src/app/todos/actions.ts`
-  SURVIVES — Home, the staff portal to-do list and onboarding/offboarding journeys all
-  still use the `todos` table.
-- `/hrms/org` (Organogram) — the standalone page and the ELK flowchart entry point only.
-  The per-company **Org tab on `/companies/[id]` still works**: `components/org-chart.tsx`,
-  `components/org-web.tsx`, `lib/org-chart.ts` and `components/org-flow.tsx` are all
-  retained, and the reporting server actions moved from `src/app/hrms/org/actions.ts` to
-  **`src/lib/org-actions.ts`**. `reporting_lines` / `department_heads` / `people.manager_id`
-  are untouched.
-- `/letters`, `/letters/[id]`, `/letters/[id]/print`, `/letterheads`. `letters` table and
-  the 6 letterhead-only `companies` columns retained. **`logo_path`, `signatory_name` and
-  `signatory_title` are still live** — used by Director Brief, Home, Documents and the
-  company profile.
-- `/requests` and `/portal/requests` (the staff Request Desk). Tables `requests` /
-  `request_recipients` / `request_updates` retained. NOT to be confused with
-  `leave_requests`.
-- `/people/form` (printable staff data-collection form).
-- The **Leave** half of `/hrms/leave`. That route is now **Attendance** with
-  `Register | Holidays` tabs. `public_holidays` MUST stay — `lib/attendance.ts` reads it
-  (and `leave_requests`) in 4 places to auto-fill "Holiday"/"On leave". Leave types,
-  requests, approvals, balances and the portal leave self-service are gone; mark
-  "On leave" directly on the attendance register instead.
-
-Also removed with them: the `letter` and `meeting` entity types from the ORI search index
-(`lib/entity-registry.ts` + `lib/entity-meta.ts` + `lib/embeddings.ts` `SourceType`), their
-ORI tools and undo handlers, the `navRequests` / `approveLeave` portal capabilities, and the
-`request` notification kind.
-
-## Server Actions
-
-- `src/app/task/actions.ts` - create/update/delete tasks, add task updates, audit logging.
-- `src/app/capture/actions.ts` - Quick Capture submit path.
-- `src/app/meeting/actions.ts` - saved meetings, notes clean-up, minutes, insights, task extraction, bulk create, meeting-task links.
-- `src/app/outbox/actions.ts` - record sends.
-- `src/app/settings/actions.ts` - save typed settings.
-- `src/app/voice/actions.ts` - shared dictation polish and voice dictionary teaching.
-- `src/app/audit/actions.ts` - edit/delete/restore audit timeline rows.
-- `src/app/people/actions.ts` - people/contact management; bulk `setPeopleActive`.
-- `src/app/scope-actions.ts` - company scope controls.
-- `src/app/documents/actions.ts` - document CRUD, file upload/sign, AI extraction (text + vision incl. scanned-PDF rasterise via `renderPdfPages`), overflow-to-Notes.
-- `src/app/hrms/actions.ts` - OECR stock items + purchases/issues (create/update/delete; negative-stock guard).
-- `src/app/hrms/ocr/actions.ts` - OCR cleaning ticks, attendance, note, sign-off.
-- `src/app/todos/actions.ts` - personal to-do list CRUD + reminder drafts.
-
-## Navigation (V2)
-
-One bottom-floating pill: **Home · Director Brief · Task Management · Workbook · HRMS** + page-action `+` · Search · Theme (`src/components/top-pill.tsx`). The **HRMS icon opens a single centred "Go to" launcher** (Radix Dialog) listing all secondary destinations (HRMS Hub, OECR, OCR, Companies, People, Documents, Outbox, Inbox, Insights, Settings). The old "More" sheet and per-tab popovers were removed.
-
-## API Routes
-
-| Endpoint | Purpose |
+| Route | What |
 |---|---|
-| `/api/polish` | Groq/rules action-item polish. |
-| `/api/draft-email` | Groq task follow-up email draft. |
-| `/api/digest` | Weekly digest payload for Ask Oracle. |
-| `/api/digest-narrative` | Groq narrative from digest stats. |
-| `/api/ask` | Ask Oracle RAG over tasks, updates, people, companies, and saved meetings/minutes. |
-| `/api/action` | Natural-language command parser and executor. |
-| `/api/company-summary` | Per-company executive briefing. |
-| `/api/similar-tasks` | Keyword duplicate finder, no LLM. |
-| `/api/search` | Command palette search. |
-| `/api/task-detail` | Data for task drawer, including source meeting. |
-| `/api/people-detail` | Data for person drawer. |
-| `/api/undo` | Undo token execution. |
-| `/api/health` | Health check. |
-| `/api/admin/resync-latest-update` | Resync denormalised task latest updates. |
-| `/api/cron/snapshots` | Writes daily company KPI snapshots when authorised. |
-| `/api/cron/cleanup` | Cleans expired undo tokens and records heartbeat. |
-| `/api/prefs/nav-pins` | Navigation pins in settings table. |
-| `/api/prefs/nav-recents` | Navigation recents in settings table. |
-| `/api/prefs/task-views` | Saved task view preferences. |
-| `/api/trace` | **Entity trail** (ORI-brain, Jun 2026): `?type=&id=` → `{type,id,label,events:[…]}` newest-first (≤200, best-effort). Stitches each entity's history from its native trail (task→task_updates+audit_log; person→person_events+leave+assets; company→facts ledger+resolutions+audit_log; document→intake state+renewal chain+links+automation_events; generic fallback→row state+automation_events). Powers the "Trace history" button on deep-search results + `TracePanel` (`src/components/trace-panel.tsx`, listens for `cos:trace` CustomEvent). |
-| `/api/ai-memory` | **ORI memory** (Jun 2026): POST records a QA/preference/fact; GET lists. Lets the streaming Ask client persist answers into the `ai_memory` table. `src/lib/ai-memory.ts` (recordQA/rememberPreference/recallMemories — AI-free recall). |
-| `/api/notifications/act` | **Actionable push** (Jun 2026): handles notification action buttons (open / done / snooze) from the service worker (`sw.js`, cache `cos-v8`); offline-safe, never performs a Tier-3 (send/spend/delete) action. |
+| `/` | Studio Home (`_hub/studio-home.tsx`). `?tab=tasks` = Tasks (`_hub/tasks-section.tsx`): List by default, plus Cards, Board, Calendar, Timeline. `?report=1` opens the report panel |
+| `/task/[code]` | The task record page (`TaskRecordPage`). Link with `taskHref()` |
+| `/task/new` | New task (Studio form) |
+| `/task/recurring` | Recurring tasks (repeat rules) |
+| `/people`, `/people/[id]` | Directory and person record |
+| `/people/[id]/pack` | Printable person pack |
+| `/companies`, `/companies/[id]` | Companies hub (with Departments/Sites/Roles) and company record (Overview, Profile, Tasks, Notes, Timeline, Org) |
+| `/files` | Files Management. Links use `?co=` / `?pe=` / `?open=` |
+| `/calendar` | Calendar |
+| `/announcements` | Announcements feed and composer |
+| `/outbox` | Live per-person reminders and drafts |
+| `/notes`, `/notes/[id]`, `/notes/offline` | Owner-only Notes; the offline page is the one app page the service worker keeps |
+| `/insights` | Insights |
+| `/hrms/command-centre` | Tax & Legal (recurring obligations) |
+| `/hrms/supplies` | Supplies (stock) |
+| `/hrms/assets`, `/hrms/assets/[id]`, `/hrms/assets/[id]/receipt`, `/hrms/assets/print` | Assets, tools and vendors; hand-over receipt; printable register |
+| `/hrms/vendors/[id]` | Vendor record |
+| `/hrms/leave` | Attendance register and holidays |
+| `/hrms/cleaning` | Cleaning |
+| `/ori-automations` | ORI Automation (standing rules) |
+| `/graph` | Entity connections graph (`?type=company|person&id=`), opened from a company profile |
+| `/settings` | Settings |
+| `/login` | Sign-in (Studio): staff and administrator. Already signed in → `/` (owner, director, manager) or `/portal` (staff) |
+| `/mcp/connect` | MCP OAuth consent screen (outside the admin gate) |
 
-Note: meeting extraction now lives in `src/app/meeting/actions.ts` rather than a separate `/api/extract-meeting` route.
+### Redirect stubs
 
-## June 2026 route/page changes
-- `/login` — tabbed (Staff Login default | Administrator) + passkey button; `app/login/{auth-tabs,passkey-login-button,passkey-actions}.tsx`. See `memory/auth_login.md`.
-- `/hrms/command-centre` — UI label is now **"Tax & Legal"** (route path unchanged).
-- `/hrms/org` — Portfolio view = ELK flowchart (`org-flow.tsx`). See `memory/organogram.md`.
-- `/hrms/leave` — **Leave | Attendance** tabs (`?view=attendance&ym=YYYY-MM`); attendance register built.
-- `/companies` — hub tabs **Companies · Departments · Sites · Roles** (reference-data centre). Standalone `/hrms/departments` route REMOVED.
-- `/people` — Work site/Residence fields, reporting on cards/drawer, All-Locations filter.
-- `/portal/profile` — adds Your attendance + Sign in faster (passkeys); portal home adds Team attendance today; check-in pop-up in portal `(app)/layout.tsx`.
-- `/settings` — redesigned (compact `SettingsCard` + `SettingsNav`); adds Owner identity, Face ID & fingerprint sections. Same forms/fields.
+| Route | Goes to |
+|---|---|
+| `/hrms` | `/hrms/command-centre` |
+| `/hrms/ocr` | `/hrms/cleaning` (query kept) |
+| `/hrms/oecr` | `/hrms/supplies` (query kept) |
+| `/documents` | `/files` (query kept) |
+| `/documents/[id]` | `/files?open=<id>` |
+| `/brief` | `/?report=1…` with its filters |
+| `/registry` | `/?tab=tasks…` |
+| `/ask` | `/` (asking ORI lives in ⌘K now) |
 
-## ORI-as-the-brain surface changes (Jun 2026 — see `memory/ori_brain.md`)
-- **Command palette** (mounted in the root layout, `src/components/command-palette.tsx`) now opens with **Ctrl+Space** as well as ⌘K / Ctrl+K (portal guard respected).
-- **Deep search** groups now span the 12 indexable entity types — added **Governance · Risks · Applications · Commitments** alongside People/Companies/Documents/Letters/Meetings/Vendors/Assets/Tasks. New **"Include history"** toggle (default off) surfaces archived/closed/inactive/expired rows (dimmed, ranked below live). Each deep-index result row carries a **"Trace history"** button (→ `/api/trace` → `TracePanel`). The searchable/traceable/visible set all derive from the single entity registry (`src/lib/entity-registry.ts`; client-safe labels in `src/lib/entity-meta.ts`).
-- **`/inbox`** now hosts the **System status card**, the **Intake accuracy card** (`intake-accuracy.tsx`), and the **Automations feed** — the intake/automation cockpit.
-- **`/approvals`** — the cockpit: pending automation/AI proposals to approve.
-- **`/settings`** gained the in-app **Groq key** (masked, rotate without redeploy), **AI monthly spend cap**, **quiet hours**, and **notification digest** controls.
+`redirects()` in `next.config.ts` (temporary) send `/chat`, `/chat/*`,
+`/activity`, `/hrms/pipeline`, `/hrms/commitments`, `/hrms/registers` and
+`/approvals` to `/`, and `/portal/chat`, `/portal/chat/*`, `/portal/activity`
+to `/portal`. `rewrites()` serve the OAuth discovery documents at
+`/.well-known/oauth-authorization-server` and
+`/.well-known/oauth-protected-resource`.
+
+## Staff portal (`/portal/*`)
+
+Every `(app)` page sends a signed-out visitor to `/portal/login`. The portal
+layout sends a **director or manager** on to the shared screen for any old
+address (`studioPathForDirector`); only `/portal/profile` and `/portal/cleaning`
+stay. For **staff and the receptionist**, `PortalFrame` draws the Studio frame
+on the pages in `isStaffStudioPath`, and the old chrome elsewhere.
+
+| Route | What |
+|---|---|
+| `/portal/login` | Staff sign-in; already signed in → `/` or `/portal` by role |
+| `/portal` | Staff Studio Home (directors/managers → `/`) |
+| `/portal/tasks`, `/portal/task/[code]` | Staff task list and task page (Studio) |
+| `/portal/task/new` | New task (needs `createTasks`) |
+| `/portal/profile` | Profile: documents, attendance, equipment, passkeys, install |
+| `/portal/people`, `/portal/people/[id]` | People (Studio) |
+| `/portal/companies`, `/portal/companies/[id]` | Companies (Studio) |
+| `/portal/meetings` | Briefings: meetings and announcements tabs |
+| `/portal/announcements` | Announcements |
+| `/portal/cleaning` | Cleaning log (receptionist) / overview (managers with the capability) |
+| `/portal/board`, `/portal/directory`, `/portal/insights`, `/portal/outbox`, `/portal/team` | Older portal pages, still in the tree; directors/managers are redirected away |
+
+## API routes
+
+- **Tasks and records**: `task-detail`, `similar-tasks`, `company-detail`,
+  `company-summary`, `people-detail`, `person-assets`, `person-journey`,
+  `person-pack`, `journey-templates`, `entity-glance`, `picker`, `faces`,
+  `calendar/[id]`, `files/[id]`, `files/zip`, `undo`,
+  `admin/resync-latest-update`.
+- **Search and AI**: `search`, `trace`, `ask`, `ori`, `action` (natural-language
+  commands), `brief`, `briefing`, `pulse`, `polish`, `draft-email`,
+  `transcribe` (Groq Whisper), `ai-memory`, `ai-usage` (+ `models`,
+  `chat-model`), `agent/trigger` (left from the retired ORI cloud worker).
+- **Notes**: `notes/file/[id]`, `notes/linked`, `notes/offline-cache`,
+  `notes/offline-sync`, `note-mentions`.
+- **Portal**: `portal/attachment`, `portal/brief-pdf`, `portal/document`,
+  `portal/ori/{ask,search,act}`, `portal/reauth`, `portal/remember-token`,
+  `portal/search`, `portal/sync`.
+- **MCP**: `mcp` (Streamable HTTP), `mcp/oauth/{authorization-server,
+  protected-resource, register, token, revoke}`.
+- **Notifications and prefs**: `notifications`, `notifications/act`,
+  `push/subscribe`, `push/test`, `prefs/list-views`, `prefs/nav-pins`,
+  `prefs/nav-recents`, `activity/ping` (page-visit telemetry).
+- **Integrations and system**: `google/connect`, `google/callback`,
+  `telegram/webhook`, `wa-card` and `og-banner` (link-preview images),
+  `desktop/version`, `health`, `csp-report` (public on purpose).
+- **Outside `/api`**: `/brief/pdf` (Director Brief PDF) and
+  `/e/[id]/doc/[docId]` (permanent public link to an event's document).
+
+## Crons (`vercel.json`, UTC)
+
+| Path | Schedule | Does |
+|---|---|---|
+| `/api/cron/snapshots` | 02:00 | `daily_snapshots` |
+| `/api/cron/cleanup` | 03:00 | `runCleanup` |
+| `/api/cron/reindex` | 05:00 | Semantic index sweep |
+| `/api/cron/event-reminders` | 05:00 | Event reminders |
+| `/api/cron/morning-run` | 05:30 | Date-driven work, then the morning brief; flushes push digests |
+| `/api/cron/email` | 06:00 | Email-automation dispatcher |
+| `/api/cron/ori-automations` | 06:00 | ORI standing rules |
+| `/api/cron/reminders` | 07:00 | To-do and task reminders |
+
+Unscheduled on purpose: `automations` (morning-run does it), `notify` (digests
+flush in morning-run), `tick` (for an external scheduler).
+
+## Server-action files
+
+Every one starts with its guard (`guardOwner` / `guardViewer` / a portal check).
+
+- **Home and tasks**: `_hub/control-actions.ts`, `task/actions.ts`,
+  `task/subtask-actions.ts`, `task/recurring-actions.ts`, `report/actions.ts`,
+  `todos/actions.ts`, `audit/actions.ts`, `capture/actions.ts`,
+  `automations/actions.ts`, `ori-automations/actions.ts`.
+- **Records**: `people/actions.ts`, `people/onboarding-actions.ts`,
+  `people/pack-actions.ts`, `companies/[id]/actions.ts`,
+  `companies/department-actions.ts`, `companies/reference-actions.ts`,
+  `facts/actions.ts`, `governance/actions.ts`, `files/actions.ts`,
+  `documents/actions.ts`, `documents/upload-actions.ts`.
+- **Calendar, comms, notes**: `calendar/actions.ts`,
+  `calendar/attachment-actions.ts`, `announcements/actions.ts`,
+  `outbox/actions.ts`, `notes/actions.ts`, `notes/ai-actions.ts`,
+  `notes/attachment-actions.ts`.
+- **Operations**: `hrms/actions.ts`, `hrms/assets/actions.ts`,
+  `hrms/assets/site-tools-actions.ts`, `hrms/vendors/actions.ts`,
+  `hrms/cleaning/actions.ts`, `hrms/command-centre/actions.ts`,
+  `hrms/leave/actions.ts`.
+- **Auth and settings**: `login/actions.ts`, `login/passkey-actions.ts`,
+  `mcp/connect/actions.ts`, `settings/actions.ts`, `settings/mcp-actions.ts`,
+  `settings/passkey-actions.ts`.
+- **Portal**: `portal/actions.ts`, `portal/attendance-actions.ts`,
+  `portal/bulk-task-actions.ts`, `portal/passkey-actions.ts`,
+  `portal/tour-actions.ts`, `portal/trace-actions.ts`,
+  `portal/(app)/cleaning/actions.ts`, `portal/(app)/tasks/automations-actions.ts`.

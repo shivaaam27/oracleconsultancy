@@ -10,29 +10,32 @@ metadata:
 Read [[mcp_plan]] for the architecture. This file answers the owner's question
 (Aug 2026): *"if I add new things and features to my site, how will MCP behave?"*
 
-## Coverage today (Aug 2026) — 24 tools
+## Coverage today (Sept 2026) — 28 tools
 
-Every module of Oracle is now reachable. **Reading: all of it.** Writing: tasks,
-calendar, documents, assets, and four of the wider modules.
+Count them in `src/lib/mcp/registry.ts` (one `name:` per tool). Oracle is a
+task-management system again (the other modules were removed 21 Sept 2026), and
+everything it still has is reachable. **Reading: all of it.** Writing: tasks,
+calendar, documents, assets, notes, to-dos, attendance and announcement drafts.
 
 `list_records` is the pattern to copy — ONE tool with a `type` argument covers
-twelve registers (todos, risks, decisions, governance, pipeline, commitments,
-vendors, stock, cleaning, announcements, holidays, facts) for the cost of one
-description. Twelve separate tools would have cost twelve.
+ten registers (`RECORD_TYPES` in `src/lib/mcp/records.ts`: todos, risks,
+decisions, governance, vendors, stock, cleaning, announcements, holidays, facts)
+for the cost of one description. Ten separate tools would have cost ten.
 
-Writable beyond tasks: `manage_todo`, `mark_attendance`, `manage_pipeline`,
-`draft_announcement` (draft only — it never publishes).
+Writable beyond tasks: `manage_todo`, `mark_attendance`, `draft_announcement`
+(draft only — it never publishes), `note_write` (owner-only). `manage_pipeline`
+went with the pipeline (26 Sept 2026).
 
 **Deliberately NOT writable, and why** (see the foot of `src/lib/mcp/records.ts`):
-people (HR records, duplicates are painful), chat (sending a message to a person),
-publishing announcements, cleaning ticks, stock issues, governance and the fact
-ledger (records a person should enter with the evidence in front of them).
-`governance`, `facts` and `stock` are **owner-only even to read**.
+people (HR records, duplicates are painful), publishing announcements, holidays,
+cleaning ticks, stock issues, governance and the fact ledger (records a person
+should enter with the evidence in front of them). `governance` and `facts` are
+**owner-only even to read** (`OWNER_ONLY` in `records.ts`).
 
 ## The short answer
 
 **Nothing new reaches Claude by itself.** MCP knows exactly the tools listed in
-`src/lib/mcp/registry.ts` — nineteen of them today. Add a page, a module, a table,
+`src/lib/mcp/registry.ts` — 28 of them today. Add a page, a module, a table,
 a whole new section of the business, and Claude cannot see it, cannot search it and
 cannot touch it until somebody adds a registry entry.
 
@@ -40,7 +43,7 @@ That is the safe direction to fail in. A new feature never leaks itself to an
 assistant, and adding a table can never quietly widen what Claude may do.
 
 But it fails **silently**, and that is the thing to watch. Claude will not say
-"there's a new module I don't know about." It will answer from the nineteen tools
+"there's a new module I don't know about." It will answer from the tools
 it has and sound perfectly confident doing it. The gap shows up as an assistant
 that seems oddly out of date rather than as an error.
 
@@ -96,15 +99,14 @@ point is that the question gets ASKED, not that the tool gets built.
 
 ## How to add capability without bloating the prompt
 
-Every tool's description sits in the prompt of every conversation. Nineteen is
+Every tool's description sits in the prompt of every conversation. Twenty-eight is
 comfortable. A hundred and fifty would make Claude slower, dearer and measurably
 worse at picking the right tool. So:
 
 1. **One tool per subject, not per button.** `bulk_task_action` does six things
    through one `action` argument; `archive_task` does archive AND restore through
-   one boolean. On that pattern, the whole remaining administrator — people,
-   to-dos, attendance, chat, governance, stock, cleaning, pipeline, commitments —
-   is roughly **10–14 more tools, not 150**.
+   one boolean. `list_records` covers ten registers with one description. Grow
+   on that pattern and the tool count stays in the tens, never the hundreds.
 2. **Distinct descriptions beat a short list.** Claude picks the wrong tool when
    two descriptions sound alike, not because there are many. Say what the tool is
    FOR and when to reach for it, in plain words.

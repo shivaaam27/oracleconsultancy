@@ -1,70 +1,85 @@
 ---
 name: dev-workflow
-description: "Local setup, scripts, migrations, and Supabase pooler rules"
+description: "Local setup, scripts, migrations, verification and the Supabase pooler rules"
 metadata:
   node_type: memory
   type: project
 ---
 
-# Dev Workflow
+# Dev workflow
 
 ## Setup
 
 ```bash
 npm install
-npm run dev
+npm run dev        # http://localhost:3000 (already runs with a 4 GB heap)
 ```
 
-Open `http://localhost:3000`.
+## Environment (`.env.local`)
 
-## Required Environment
+Required:
 
-- `DATABASE_URL` - Supabase pooler URL on port `6543`.
-- `NEXT_PUBLIC_SUPABASE_URL` - Supabase project URL for server client paths.
-- `SUPABASE_SERVICE_ROLE_KEY` - service-role key for server Supabase client paths.
+- `DATABASE_URL` — Supabase pooler on port `6543`.
+- `NEXT_PUBLIC_SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` — the server client (`sb`).
+- `PORTAL_SESSION_SECRET` — signs the owner and staff cookies (without it a
+  `DATABASE_URL`-derived key is used; never acceptable in production).
 
-Optional:
+Usually wanted:
 
-- `GROQ_API_KEY` - AI features.
-- `XLSX_PATH` - workbook import override.
+- `GEMINI_API_KEY` — all text and vision AI (can be set in Settings instead).
+- `GROQ_API_KEY` — voice transcription only (Whisper).
+- `DIRECT_DATABASE_URL` — session pooler / direct (5432) for migrate, backup and
+  the security check; falls back to `DATABASE_URL`.
+- `COS_MCP_KEY` — written by `npm run mcp:key`, read by `.mcp.json`.
+
+The full list with what each one does is in `tech_stack.md`.
 
 ## Scripts
 
 | Script | Purpose |
 |---|---|
-| `npm run dev` | Next dev server |
-| `npm run build` | Production build |
-| `npm run start` | Production server |
-| `npm run db:generate` | Generate Drizzle migration |
-| `npm run db:migrate` | Apply migrations using `scripts/migrate.ts` |
-| `npm run db:push` | Direct schema sync; avoid in production |
+| `npm run dev` | Dev server |
+| `npm run build` | Production build (8 GB heap built in) |
+| `npm test` | Vitest, run once |
+| `npm exec tsc -- --noEmit` | Type-check (`NODE_OPTIONS=--max-old-space-size=4096` for a full run) |
+| `npm run db:generate` | Generate a Drizzle migration from `schema.ts` |
+| `npm run db:migrate` | Apply migrations (`scripts/migrate.ts`) |
+| `npm run db:backup` | Per-table JSON snapshot into `backups/` (git-ignored, ~15 min) |
+| `npm run db:restore -- <folder>` | Restore a snapshot |
+| `npm run db:check-security` | Re-test RLS, anon grants, functions, buckets; exits 1 on a finding |
+| `npm run db:embed-backfill` | Fill the semantic-search index |
+| `npm run mcp:key` | Mint an MCP key into `.env.local` as `COS_MCP_KEY` |
 | `npm run db:studio` | Drizzle Studio |
-| `npx tsx scripts/import.ts` | Import workbook |
-| `npm exec tsc -- --noEmit` | Type-check |
+| `npm run db:push` | Direct schema sync — never against production |
 
-## Migration Flow
+## Migrations
 
 1. Edit `src/db/schema.ts`.
-2. Generate migration with `npm run db:generate`, or write/review SQL carefully if doing a manual migration.
-3. Review SQL in `drizzle/`.
-4. Apply with `npm run db:migrate`.
-5. Verify with `npm exec tsc -- --noEmit`.
+2. `npm run db:generate`, or hand-write the SQL.
+3. Review the SQL in `drizzle/`. The snapshot can lag the live database, so a
+   generated `CREATE` can collide — use `IF NOT EXISTS` or trim.
+4. `npm run db:migrate`. On Vercel, `vercel-build` runs the migrator before
+   `next build` (best effort; `MIGRATE_STRICT=1` makes a failure fail the build).
+5. Run `npm run db:check-security` after any schema work.
 
-Latest feature migrations: `drizzle/0017_yummy_mad_thinker.sql` (HRMS stock) and `drizzle/0018_glamorous_lady_vermin.sql` (OCR cleaning). Some migrations (`0000` baseline, `0017_documents_compliance`, `0018_document_files`) were applied **manually outside the Drizzle journal**, so generated SQL can re-emit existing tables — **review and trim** before applying. See `database_schema.md`.
+Latest migration: **0172** (`announcements.delivered_at`).
 
-## Supabase Pooler
+- ⚠️ **A hand-written migration needs a journal `when` later than the newest
+  APPLIED one** (use `Date.now()`), or the migrator skips it and still prints
+  "Migrations applied." Prove it ran by checking its effect.
+- Back up FIRST only when a migration drops, rewrites or bulk-deletes data.
+  Additive migrations go straight in; otherwise one backup at the end of a
+  session.
+- Create tables by migration, never in the Supabase dashboard (see `security.md`).
 
-Use port `6543` transaction mode.
+## Supabase pooler
 
-`src/db/index.ts` must keep:
+Port `6543`, transaction mode. `src/db/index.ts` must keep `prepare: false` and
+`max: 1`. Direct `5432` can exhaust connections from serverless.
 
-- `prepare: false`
-- `max: 1`
+## Git
 
-Direct port `5432` behaves differently and can exhaust connections in serverless environments.
-
-## Git Notes
-
-- Current feature branch used in recent work: `codex/cos-system`.
-- Do not push unless asked.
-- Untracked local helper files may exist; check `git status` before staging.
+- One branch: **`master`**. Vercel deploys only `master`; push only to `master`,
+  and only when asked.
+- Check `git status` before staging; untracked local helpers may exist.
+- Do not clear `.next` while the dev server is running.

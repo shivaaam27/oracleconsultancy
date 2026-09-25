@@ -1,103 +1,81 @@
 ---
 title: Timeline & Activity
-description: "The three timeline scopes, the shared event model, and the unified TimelineEntry component"
+description: "The timeline scopes, the shared event model, the TimelineEntry component and the delete model"
 ---
 
 # Timeline & Activity
 
-Timelines trace **what has happened** to work — distinct from the Table (current
-state) and Board (workflow). There are **three scopes**, all built on the same
-event model so they read consistently.
+Timelines show **what has happened** to work, as opposed to the list (current
+state) and the board (workflow). Every scope is built on the same event model.
 
 ## Scopes
 
-1. **Global activity feed** — the hub Timeline view (`view=timeline`).
-   - `src/app/task/_views/timeline-view.tsx`
-   - Two lenses via a toggle:
-     - **Activity** (default): a chronological event feed across every task/company,
-       grouped by day (Today / Yesterday / weekday-date), newest first.
-     - **Schedule**: tasks placed on a date axis (Origin / Deadline / Last activity),
-       grouped by month. This is the older "tasks on a timeline" lens, kept as a
-       secondary view.
-2. **Per-task timeline** — the task drawer History and the `/task/[code]` page.
-   - Drawer: `src/components/task-drawer.tsx` (uses the shared `TimelineEntry`).
-   - Full page: `src/app/task/[code]/page.tsx` (richer; its own edit/pin menus).
-3. **Per-company timeline** — the company page Timeline tab.
-   - `src/app/companies/[id]/_tabs/timeline-tab.tsx` (richer; `UpdateMenu`/`AuditMenu`).
-   - Not yet migrated to `TimelineEntry`; candidate for future unification.
+1. **Tasks → Timeline view** — `/?tab=tasks&view=timeline`, one of the five
+   views in the Studio Tasks switcher (`components/studio/tasks/studio-tasks.tsx`;
+   List · Cards · Board · Calendar · Timeline). On a phone only List and Board
+   show in the switcher; Timeline is tablet and up.
+   - `src/app/task/_views/timeline-view.tsx`, two lenses:
+     - **Activity** (default): events across every task, grouped by day, newest
+       first, with an "All companies" filter.
+     - **Schedule**: tasks on a date axis (origin / deadline / last activity),
+       grouped by month.
+   - Data: `getRecentActivity(limit)` in `src/lib/queries.ts` (recent
+     `task_updates` + `audit_log`, `deleted_at` null). `tasks-section.tsx` loads
+     it only when `view=timeline`, with a `taskMeta` map (id → code, legacy code,
+     company, title) so rows get task chips; unresolved rows fall back to a
+     code-only chip.
+2. **Per-task** — the task record page `/task/[code]` (`TaskRecordPage` in
+   `src/components/task-drawer.tsx`, Studio details and update cards). The
+   legacy drawer (`?task=CODE`) uses the same code.
+3. **Per-company** — company record → Timeline tab
+   (`src/app/companies/[id]/_tabs/timeline-tab.tsx`, with `audit-menu.tsx`).
+   Still has its own row rendering, not `TimelineEntry`.
+
+Home's **"Latest activity"** card is separate and simpler: `listRecentActivity()`
+in `src/lib/activity.ts` reads only recent `task_updates` (see
+`audit_trail.md`).
 
 ## Event model
 
-Events come from two tables, merged and normalised by `src/lib/timeline.ts`:
+Two tables, merged by `src/lib/timeline.ts`:
 
 - `task_updates` → `update` items (body, edited/pinned metadata).
-- `audit_log` → `audit` items (field change, CREATE, ESCALATION, etc.).
+- `audit_log` → `audit` items (CREATE, CHANGE, UNDO, CORRECTION…).
 
-`timeline.ts` helpers (shared by every scope):
+Helpers:
 
-- `sortTimeline` — newest first, stable tiebreak (update before audit).
-- `mergeStatusIntoUpdates` — folds a status-change audit into the update that
-  triggered it (shows a compact `from → to` chip instead of duplicate rows).
-- `suppressUpdateMetaAudits` / `suppressNoReasonAudits` — hide noise (edit/pin
-  meta rows, reason-less imported field changes). Rows stay in the DB.
-- `groupFieldEdits` — collapses a burst of same-task edits into one "Edited N
-  fields" group (keyed by task code/id + a time window).
-- `liftPinnedUpdates` — hoists pinned updates to the top (per-task only).
-- `summariseEditGroup` — label for an edit group ("Edited N fields", or "Updated"
-  when no concrete fields).
+- `sortTimeline` — newest first; an update sorts before an audit row at the
+  same time.
+- `mergeStatusIntoUpdates` — folds a status change into the update that caused
+  it (a `from → to` chip instead of two rows).
+- `suppressUpdateMetaAudits` / `suppressNoReasonAudits` — hide edit/pin meta rows
+  and reason-less imported changes (rows stay in the database).
+- `groupFieldEdits` / `summariseEditGroup` — collapse a burst of edits into one
+  "Edited N fields" item.
+- `groupBulkRuns` — collapse a bulk run into one summary.
+- `liftPinnedUpdates` — pinned updates first (per-task only).
+- `parseTimelineFilter` / `applyTimelineFilter` — filter by kind.
+- `cleanReason`, `formatAuditValue`, `splitCodeRefs` — display helpers.
 
-## Shared component — `TimelineEntry`
+The task page runs
+`liftPinnedUpdates(groupFieldEdits(suppressUpdateMetaAudits(mergeStatusIntoUpdates(sortTimeline(raw)))))`.
 
-`src/components/timeline-entry.tsx` renders one event row, used by the drawer and
-the global feed (and available for the company tab later). It owns the **visual
-language**:
+## `TimelineEntry`
 
-- A coloured **icon node** by event type: created (blue), status (info; green when
-  Completed/Closed, red when Blocked), update (accent), escalation/delete (red),
-  deadline/date (amber), generic edit (muted) — plus a connector line.
-- **Actor** (`createdBy` → "You" for web-ui, "AI" for ai-command, "Meeting" for
-  meeting-mode, else the raw value) and **relative time** ("2h ago", exact on hover).
-- An optional clickable **task chip** (code + title) for the global/company scopes;
-  per-task scope omits it. Falls back to a code-only chip for orphaned/legacy events
-  so the feed stays traceable. `relTime()` is exported for reuse.
+`src/components/timeline-entry.tsx` renders one row for the task page and the
+Tasks Timeline view: a coloured node by event type, the actor (`created_by` →
+"You", "AI", "Meeting" for old rows, or the name), relative time (exact on
+hover), and an optional task chip. Its ⋯ menu removes a row
+(`deleteTaskUpdate` / `deleteAuditEntry`) or records a correction
+(`recordCorrection`). "Task created" cannot be removed.
 
-## Controls
+## Delete model — history is kept
 
-- **Company filter** (Activity feed): an "All companies" select narrows events to
-  one company. The list is derived from tasks that have activity; orphaned/legacy
-  events (no resolvable task) only appear under "All".
-- **Per-entry delete (permanent)**: `TimelineEntry` has a ⋯ menu (drawer + global
-  feed) that **hard-deletes** the underlying row(s) — updates via
-  `deleteTaskUpdate`, audits via `deleteAuditEntry` (which also clears any
-  `corrections` referencing them). Instant, no undo. "Task created" (CREATE) is not
-  deletable. Edit-groups delete all the audit rows they fold.
-
-## Delete model — permanent
-
-Deletes are **permanent wipes** (not soft-delete), reflected everywhere:
-
-- **Task delete** (`deleteTask` / `deleteTaskQuick`) calls `purgeTaskHistory` to
-  remove the task's `audit_log` rows (these do *not* cascade — the FK only nulls
-  `task_id`) plus referencing `corrections`, then deletes the task (updates,
-  assignees, meeting-links cascade). No tombstone, no undo. A confirm guards the
-  task-level delete; single timeline entries delete instantly.
-- The legacy `deleted_at` columns and `restore*` actions remain in the codebase
-  but are no longer the delete path.
-
-## Data hygiene
-
-- `scripts/purge-orphan-history.ts --apply` permanently deletes orphaned history
-  (audit/update rows whose task no longer exists) — the phantom "multiple
-  companies" in the timeline. Run once after switching to permanent delete; with
-  `purgeTaskHistory` in place no new orphans are created.
-- `scripts/tidy-audit-noise.ts` (dry-run only, **not applied**) could prune
-  reason-less field-change residue, but those are real per-task history shown as
-  "Edited N fields"; leave unless you deliberately want to prune.
-
-## Global feed data
-
-`getRecentActivity(limit)` in `src/lib/queries.ts` returns recent `task_updates` +
-`audit_log` rows (deleted_at null, newest first). `tasks-section.tsx` fetches it
-only when `view=timeline` and passes a `taskMeta` map (id → code/legacyCode/company/
-title) so the client can attach task chips. The client resolves a task by `task_id`,
-then by `task_code`/legacy code, then degrades to a code-only chip.
+- Removing an **update** or an **audit row** is a soft delete (`deleted_at`);
+  `restoreTaskUpdate` / `restoreAuditEntry` bring it back.
+- Deleting a **task** (`deleteTaskQuick`) has a ten-minute undo; its audit rows
+  survive by `task_code`.
+- `purgeTaskHistory` (permanent wipe) exists but is not called.
+- `scripts/purge-orphan-history.ts --apply` removes orphans left by older
+  permanent deletes. `scripts/tidy-audit-noise.ts` is dry-run only and has not
+  been applied.

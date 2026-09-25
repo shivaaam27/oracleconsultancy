@@ -1,151 +1,137 @@
-# Deployment & Portability Guide
+# Deployment & portability guide
 
-Plain-language reference for running the Oracle system and for moving it between
-hosts. **This file lists variable _names_ and what they do — never the secret
-values.** The real values live only in your local `.env.local` and in your
-host's settings, and must never be committed to the repository.
+Plain-language reference for running Oracle and moving it between hosts.
+**This file lists variable _names_ and what they do — never the values.** The
+real values live only in your local `.env.local` and your host's settings, and
+must never be committed.
 
 ---
 
-## The big picture (what lives where)
+## The big picture
 
 | Thing | Where it lives | Affected by changing host? |
 |---|---|---|
-| All your data (tasks, meetings, notes, inbox, settings) | **Supabase** (separate service) | ❌ No — completely independent |
-| The app code | This repository | ✅ Re-deploy on the new host |
+| All your data (tasks, people, companies, files, notes, settings) | **Supabase** (a separate service) | ❌ No |
+| The app code | This repository (GitHub) | ✅ Re-deploy on the new host |
 | Configuration (the variables below) | Host settings + your `.env.local` | ✅ Re-enter on the new host |
-| Scheduled jobs | `vercel.json` (Vercel-specific) | ✅ Must be re-wired (see below) |
+| Scheduled jobs | `vercel.json` (Vercel-specific) | ✅ Re-wire (see below) |
 | Domain | Your DNS provider | ✅ Re-point to the new host |
 
-The app is a standard **Next.js** app, so it runs on Vercel, Netlify, Render,
-Railway, Fly.io, Cloudflare, or your own server. Nothing locks you to Vercel
-except the scheduled-jobs file, which is easy to replace.
+Oracle is a standard **Next.js** app. Nothing ties it to Vercel except the
+scheduled-jobs file.
+
+## How a deploy happens
+
+**Push to `master`. That is the only deploy.** `vercel.json` switches deploys
+off for every other branch (`"**": false, "master": true`), so do not also push
+a working branch — that just builds the same code twice.
+
+On Vercel the build command is `vercel-build`: it runs the database migrations
+first, then `next build`. A failed migration is logged and the build carries on
+(set `MIGRATE_STRICT=1` to make it fail the build instead).
 
 ---
 
 ## Environment variables
 
-Set these in your host's environment settings (and keep matching copies in
-`.env.local` for local development).
+Set these in the host's settings, with matching copies in `.env.local`.
 
-### Required — the app will not work without these
-
-| Name | What it is |
-|---|---|
-| `DATABASE_URL` | Supabase Postgres connection string (the pooler on port `6543`). Used by the app and by database migrations. |
-| `NEXT_PUBLIC_SUPABASE_URL` | Your Supabase project URL. Used by newer write paths. |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service-role key for server-side database writes. **Secret.** |
-
-### AI features
+### Required
 
 | Name | What it is |
 |---|---|
-| `GROQ_API_KEY` | Groq Cloud key powering Ask Oracle, dictation polish, meeting intelligence, etc. If absent, AI features degrade gracefully and the rest of the app still works. **Secret.** |
+| `DATABASE_URL` | Supabase Postgres connection string — the pooler on port `6543`. |
+| `NEXT_PUBLIC_SUPABASE_URL` | Your Supabase project URL. |
+| `SUPABASE_SERVICE_ROLE_KEY` | Server-side database key. **Secret.** The database is locked to this key. |
+| `PORTAL_SESSION_SECRET` | Signs every sign-in cookie (owner and staff). **Secret.** Without it, cookies are signed with a key derived from `DATABASE_URL` — never acceptable in production. |
+| `CRON_SECRET` | Protects the scheduled jobs (`/api/cron/*`). Vercel Cron sends it for you. **Secret.** |
 
-> **The Groq key can now be set two ways.** As of June 2026 the owner can paste the key
-> **in-app** (Settings → masked Groq key field) so it can be rotated without a redeploy, **or**
-> set `GROQ_API_KEY` in the host environment. The in-app key takes precedence; the env var is
-> the fallback. For a fresh host, either works.
-
-### Push notifications (phone alerts)
-
-| Name | What it is |
-|---|---|
-| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | Public key the browser uses to subscribe to notifications. Safe to expose (it's public by design). |
-| `VAPID_PRIVATE_KEY` | Private key the server signs notifications with. **Secret.** |
-| `VAPID_SUBJECT` | A contact address, e.g. `mailto:you@example.com`. Must be a real domain — **not** `.local` (Apple rejects those). |
-
-### Secrets that protect endpoints
+### Strongly recommended
 
 | Name | What it is |
 |---|---|
-| `CRON_SECRET` | Shared password protecting the scheduled-job endpoints (`/api/cron/*`). The scheduler must send it as `Authorization: Bearer <CRON_SECRET>`. **Secret.** |
-| `INBOX_SECRET` | Shared password protecting the inbound capture endpoint (`/api/inbox`). The email/WhatsApp bridges send it to post items. **Secret.** |
+| `DIRECT_DATABASE_URL` | Session pooler or direct connection (port 5432) used by migrations, backups and the security check. Falls back to `DATABASE_URL`. |
+| `GEMINI_API_KEY` | Powers all the AI (Ask ORI, polish, drafting, reading documents and tickets). Can instead be pasted in Settings → AI & Voice, which wins over the variable. Without either, AI switches off and everything else works. **Secret.** |
+| `GROQ_API_KEY` | Voice transcription only (Whisper). Can also be set in Settings. Without it the microphone falls back to the browser's own speech recognition. **Secret.** |
+| `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN` | Error alerts. If unset, nothing is reported. |
 
-### Optional
+### Features
 
 | Name | What it is |
 |---|---|
-| `SENTRY_DSN` | Error-reporting endpoint. Optional — if unset, error reporting is skipped. |
-| `XLSX_PATH` | Only used by the one-off `scripts/import.ts` data-import script. Not needed in production. |
-| `APP_PASSPHRASE` | Present in env files but **not currently read by any code** (reserved for a future login feature). Safe to leave or remove for now. |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google Calendar and Meet sync. **Secret.** |
+| `GMAIL_USER` / `GMAIL_APP_PASSWORD` | Sends email through the Gmail mailbox. Optional `SMTP_HOST` / `SMTP_PORT` for another SMTP server. **Secret.** |
+| `RESEND_API_KEY` | Alternative email sender (needs a verified domain). **Secret.** |
+| `TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` / `TWILIO_WHATSAPP_FROM` | WhatsApp sending. Optional `TWILIO_DEFAULT_CONTENT_SID` / `TWILIO_DEFAULT_LANG`. **Secret.** |
+| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | Public key browsers use to subscribe to notifications. Public by design. |
+| `VAPID_PRIVATE_KEY` | Signs push notifications. **Secret.** |
+| `VAPID_SUBJECT` | A contact, e.g. `mailto:you@example.com`. Must be a real domain — Apple rejects `.local`. |
+| `NEXT_PUBLIC_APP_URL` | The public address, used in links. Falls back to Vercel's own URL. |
+| `CSP_ENFORCE` | Set to `1` to enforce the Content-Security-Policy (otherwise it only reports). Read at build time, so redeploy after changing it. |
+| `TELEGRAM_BOT_TOKEN` / `TELEGRAM_WEBHOOK_SECRET` | The Telegram → ORI bridge. Dormant; leave unset. |
+
+No longer used — safe to delete from old env files: `INBOX_SECRET`,
+`APP_PASSPHRASE`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `OCRSPACE_API_KEY`.
 
 ---
 
-## Scheduled jobs (the one host-specific piece)
+## Scheduled jobs
 
-These run automatically on a timer. On Vercel they're defined in `vercel.json`.
-Each is a web address that does its work when visited with the `CRON_SECRET`.
+Defined in `vercel.json` (always the authoritative list). Each is an address that
+does its work when called with `Authorization: Bearer <CRON_SECRET>`.
 
 | Job | When (UTC) | What it does |
 |---|---|---|
-| `/api/cron/snapshots` | 02:00 daily | Records a daily health snapshot per company (for trends). |
-| `/api/cron/cleanup` | 03:00 daily | Removes expired "undo" tokens. |
-| `/api/cron/email` | 06:00 daily | Runs the enabled email-automation categories. |
-| `/api/cron/reindex` | 05:00 daily | Re-indexes changed rows for search. |
-| `/api/cron/reminders` | 07:00 daily | Fires due per-person reminder pushes. |
-| `/api/cron/auto-sort` | 08:00 daily | Sorts the inbox (files docs to owners/categories). |
-| `/api/cron/morning-run` | 05:30 daily | The consolidated owner job: chases dates, self-heals, watches model/key health, flushes the held notification digest, and sends ONE morning brief. (Replaced the old standalone `/api/cron/notify` schedule.) |
+| `/api/cron/snapshots` | 02:00 | Daily health snapshot per company (for trends). |
+| `/api/cron/cleanup` | 03:00 | Removes expired undo tokens. |
+| `/api/cron/reindex` | 05:00 | Search freshness sweep (no-op when semantic search is off). |
+| `/api/cron/event-reminders` | 05:00 | Delivers calendar reminders that have fallen due. |
+| `/api/cron/morning-run` | 05:30 | The owner's morning job: chases dates, runs the date automations, self-heals, flushes the held notification digest, sends one morning brief. |
+| `/api/cron/email` | 06:00 | Runs the enabled email automations. |
+| `/api/cron/ori-automations` | 06:00 | Fires ORI's standing rules (remind, nudge, escalate). |
+| `/api/cron/reminders` | 07:00 | Pushes every "remind me" whose time has passed. |
 
-> `/api/cron/notify` still exists (the same consolidated alert + digest flush) for
-> manual or legacy triggers, but it is **not** scheduled — the morning-run above is
-> the one in `vercel.json`. If you enable "Batch routine alerts into a digest" or
-> quiet hours, the held pushes are flushed by the morning-run, so they are never
-> lost. Authoritative list is always `vercel.json`.
+**Deliberately unscheduled** — do not add them: `/api/cron/automations` (the
+morning-run does it), `/api/cron/notify` (the morning-run flushes the digest),
+and `/api/cron/tick` (a heartbeat for an optional external scheduler, e.g. every
+15 minutes, for time-of-day ORI rules).
 
-**On Vercel:** these work automatically as long as `CRON_SECRET` is set in
-Vercel — Vercel Cron sends the secret for you.
+**On another host:** use its scheduler or a free external cron service to call
+each address on the same timetable with the `Authorization` header.
 
-**On another host:** use that host's scheduler, or a free external cron service
-(e.g. cron-job.org), to visit each address on the same timetable. Add an
-`Authorization: Bearer <CRON_SECRET>` header so the request is accepted.
+⚠️ When you delete a cron route, delete its entry in `vercel.json` too, or Vercel
+fires a daily 404 at it.
 
 ---
 
 ## Moving to a new host — checklist
 
-1. **Leave Supabase alone.** Your data stays put; don't touch it.
-2. Create the project on the new host, pointing at this Git repository.
-3. Copy every environment variable above into the new host's settings
-   (values from your `.env.local`).
-4. Deploy. Confirm the site loads and shows your existing data.
-5. **Re-create the scheduled jobs** on the new host (see above).
-6. Re-point your domain's DNS to the new host.
-7. Test: open the app, run an Ask Oracle query, send a test notification
-   (Settings → Notifications), and POST a test item to `/api/inbox`.
-
-That's the whole move. The app, data, and logic travel with you; only config
-and the timer jobs need re-entering.
+1. **Leave Supabase alone.** Your data stays put.
+2. Create the project on the new host, pointing at this repository.
+3. Copy every variable above into the new host's settings.
+4. Deploy. Confirm the site loads and shows your data.
+5. Re-create the scheduled jobs.
+6. Re-point your domain's DNS.
+7. Test: sign in, ask ORI a question, send a test notification
+   (Settings → Notifications), and open Settings → Security & Access →
+   **Security check** — every line should be green.
 
 ---
 
-## Build & native dependencies (V2)
+## Build notes
 
-- **`@napi-rs/canvas`** is a prebuilt native module used to rasterise scanned
-  PDFs for the document vision reader. It ships platform binaries (works on
-  Linux/Vercel and Windows) and is listed alongside `unpdf` in
-  `serverExternalPackages` (`next.config.ts`) so Turbopack doesn't try to bundle
-  it. `npm install` pulls the right binary for the host; no extra setup needed.
-- Document uploads ride server actions, so `next.config.ts` sets
-  `serverActions.bodySizeLimit: "25mb"` (the documents bucket allows up to 20 MB).
-- The **Director Brief PDF** uses the browser's print-to-PDF (no server PDF
-  library, nothing to deploy).
+- `npm run build` already raises the memory limit (8 GB); the default dies after
+  "Compiled successfully".
+- `unpdf`, `@napi-rs/canvas` (a prebuilt native module) and
+  `@react-pdf/renderer` are in `serverExternalPackages`; `npm install` fetches
+  the right binary for the host.
+- Uploads ride server actions, so `serverActions.bodySizeLimit` is `25mb`.
+- The Director Brief PDF is rendered on the server by `@react-pdf/renderer`
+  (`src/lib/brief-pdf.tsx`).
 
-## Database migrations (for reference)
+## Database migrations
 
-- Schema is defined in `src/db/schema.ts`; migrations live in `drizzle/`.
-- **Migrations `0094`/`0095`/`0096` must be applied before (or together with) deploying
-  this code.** They are **already applied to the live DB** (backups taken before each), so a
-  Vercel redeploy needs nothing extra. A fresh host pointed at a fresh database must apply them.
-  - `0094_embeddings_lifecycle.sql` — adds `embeddings.lifecycle` + updates the
-    `replace_embeddings`/`hybrid_search` RPCs (history-aware search). Raw SQL — embeddings is
-    supabase-js/RPC, not Drizzle.
-  - `0095` — `ai_memory` table (ORI memory: recorded QA + preferences).
-  - `0096` — `ai_usage` table (AI spend tracking / monthly cap).
-- The baseline (`0000`), the documents tables, and some others were applied by
-  hand, so the Drizzle snapshot can lag behind the live database. Generate with
-  `npm run db:generate`, then **review the SQL** before applying — if it tries
-  to recreate tables that already exist, trim it to only the new changes (as was
-  done for the HRMS stock migration and the `inbox` table). Latest feature
-  migrations: `0017_yummy_mad_thinker` (stock), `0018_glamorous_lady_vermin`
-  (cleaning).
+- Schema in `src/db/schema.ts`, migrations in `drizzle/`. Latest: **0172**.
+- Vercel applies them on every deploy (see above). A fresh host on a fresh
+  database gets them all from the same step, or run `npm run db:migrate`.
+- After any schema change, run `npm run db:check-security`.

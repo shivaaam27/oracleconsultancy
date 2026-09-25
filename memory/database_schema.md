@@ -1,6 +1,6 @@
 ---
 name: database-schema
-description: "Current database tables, relationships, and non-obvious conventions"
+description: "Current database tables by area, what is live and what is kept but unreachable"
 metadata:
   node_type: memory
   type: project
@@ -8,266 +8,186 @@ metadata:
 
 # Database Schema
 
-Defined in `src/db/schema.ts`. SQL migrations live in `drizzle/`; **latest is `drizzle/0096_ai_usage.sql`**. Recent: 0062 (webauthn_credentials), 0072–0078 (doc intake/embeddings/semantic), 0086 (phase-0 hardening), 0087–0092 (intake buckets/automation/shelves/owner-corrections), 0093 (document_confidence), **0094 (embeddings.lifecycle), 0095 (ai_memory), 0096 (ai_usage)** — see the "ORI-as-the-brain additions" section below and `memory/ori_brain.md`. Earlier: 0055-0057 (compliance events/review dates/supersede), 0058 (person_events), 0059 (people.wage), 0060 (sites + people.work_site_id/residence_site_id), 0061 (job_titles). See **"## June 2026 additions"** at the foot of this file for the newest tables/columns. Older note kept below. Notable recent migrations: `0013` (todos.important), `0014` (all wall-clock columns → `timestamptz`), `0015` (todos.person_id), `0016` (outbox draft columns), `0017` (documents + document_links), `0018` (documents.storage_path/file_name).
+Source of truth: `src/db/schema.ts` (99 tables). Migrations live in `drizzle/`;
+**the latest is `0172_announcement_delivered.sql`**. Three more tables exist only
+in migrations, not in `schema.ts`: `embeddings` (semantic index, RPC-driven),
+`tours` and `tour_completions` (onboarding tours, read by `src/lib/tours.ts`).
 
-> Migration-numbering note: `0017_documents_compliance` and `0018_document_files` were applied manually (outside the Drizzle journal, like the `0000` baseline), so the journal's last entry was `0016`. When the HRMS stock tables were generated, drizzle-kit numbered them `0017_yummy_mad_thinker` and re-emitted the (already-existing) documents tables; that file was trimmed by hand to the three new `stock_*` tables only before `db:migrate`. Future `db:generate` runs see a clean snapshot.
+Recent migrations worth knowing:
 
-## Core
+| No. | What |
+|---|---|
+| 0114 | Document intelligence stripped — nine tables and fifteen `documents` columns dropped |
+| 0139 / 0140 | RLS on for every table, every anon/authenticated grant revoked (tables, then functions) |
+| 0145–0165 | CocoZuri, marketing, ledger, recruitment — tables all dropped again by 0167. Kept because the journal is append-only |
+| 0166 | `tasks.recurring_rule_id` — a task points at the repeat rule it came from |
+| 0167 | Five modules removed: **72 tables dropped** (data gone, not archived) |
+| 0168 | Drops `cz_events`, the one CocoZuri table 0167 missed |
+| 0169 | `folders` + `documents.folder_id / deleted_at / starred / file_size` (Files Management) |
+| 0170 | `task_subtasks` |
+| 0171 | `assets.warranty_until`, `assets.checked_at`, `asset_services` |
+| 0172 | `announcements.delivered_at` (scheduled posts deliver at go-live) |
 
-### companies
-`id, name, code, active, accent_color`.
+Conventions:
 
-`code` is used as the task-code prefix: `CO01`, `CO02`, etc.
+- Every wall-clock column is `timestamptz` (since 0014). Write `.toISOString()`.
+- RLS is on everywhere with no policies; Oracle reads and writes as the service
+  role / `postgres`. Never grant to `anon`. Run `npm run db:check-security` after
+  schema work. Create tables through migrations, never the Supabase dashboard.
+- A hand-written migration needs a journal `when` later than the newest applied
+  one (use `Date.now()`), or drizzle skips it silently.
+- A second FK from a table to `companies` breaks PostgREST `companies(name)`
+  embeds — use `companies!company_id(name)`.
+- Four FKs to `people` are ON DELETE NO ACTION (`tasks.owner_id`,
+  `tasks.created_by_person_id`, `tasks.blocked_on_person_id`,
+  `department_heads.head_person_id`); the person-delete action clears them first.
 
-### departments
-`id, name`.
+## Organisation and people
 
-Auto-created by helper paths when a task references a new department.
+- **companies** — `name`, `code`, **`code_prefix`** (two letters, the task-code
+  prefix), `file_prefix`, `accent_color`, `active`, `aliases`; letterhead/profile
+  fields (`legal_name`, `address`, `phone`, `email`, `registration_no`, `tin`,
+  `vrn`, `incorporation_date`, `logo_path`, signatory, letterhead images and
+  margins); `authorised_shares` / `issued_shares`. Never hard-code the list.
+- **departments**, **sites** (shared work/residence locations), **job_titles**
+  (managed role list; `people.role` stays free text), **department_heads**
+  (per-company head of a department).
+- **people** — contact fields, `role`, `company_id`, `department_id`,
+  `manager_id`, HR profile (`start_date`, `date_of_birth`, `nationality`,
+  `national_id`, `passport_no`, `address`, emergency contact,
+  `probation_end_date`), `person_type`, `staff_category`, `previous_staff_ids`,
+  `work_site_id` / `residence_site_id`, `active`, `snoozed_until`; portal auth
+  (`portal_password_hash`, `portal_enabled_at`, `portal_last_login_at`,
+  **`portal_role`** staff | manager | director | receptionist,
+  `portal_designation`, `director_company_id`). Staff IDs are computed
+  (`src/lib/staff-id.ts`), not stored.
+- **person_companies** (secondary company links), **director_companies** (a
+  director's company scope), **reporting_lines** ("also reports to"; the primary
+  manager stays `people.manager_id`).
+- **person_events** — person-record change log.
+- **journey_step_templates** — onboarding/offboarding step templates; the steps
+  themselves are `todos` rows with a `kind`.
 
-### people
-`id, name, email, phone, whatsapp, preferred_channel, role, company_id, manager_id, contact_status, active, notes, snoozed_until, person_type, related_person_id`.
+Only `src/lib/portal-access.ts` may write `portal_role`, `director_companies` or
+`director_company_id`.
 
-`person_type` is `internal`, `external`, or `expat`.
+## Sign-in and MCP
 
-### person_companies
-Join table for secondary company associations.
+- **webauthn_credentials** — passkeys; `person_id` null = owner. Public key only.
+- **mcp_keys** (bearer keys, SHA-256), **mcp_oauth_clients**,
+  **mcp_oauth_codes**, **mcp_oauth_tokens** (claude.ai / phone OAuth).
+- **push_subscriptions** — web-push endpoints per recipient.
 
-`person_id, company_id, relationship`.
+## Tasks
 
-Used for external contacts such as brokers, agents, vendors, or specialists who serve companies without being employed there.
+- **tasks** — `code`, `legacy_code`, `company_id`, `department_id`,
+  `action_item`, `owner_id`, `created_date`, `meeting_date`, `deadline`,
+  `status`, `priority`, `category`, `risk`, `escalation`, `accountability`,
+  `comments`, `latest_update` / `last_updated_at` (mirrors the newest update),
+  `closed_date`, `archived`, `created_by_person_id`, `requires_attachment`
+  (proof gate), `creator_close_only` (written, never read), block fields
+  (`blocked_on_person_id`, `blocked_reason`, `blocked_since`),
+  `recurring_rule_id`, `source_event_id`.
+- **task_assignees** — `(task_id, person_id)`, `role`, `part_done_at`.
+- **task_updates** — the conversation: `body`, `created_by`, `original_body` /
+  `edited_at`, `deleted_at` (soft), `pinned_at`, `parent_update_id`,
+  `attachment_document_id`.
+- **update_mentions**, **update_acks**, **task_views** (last viewed per viewer,
+  drives "unread").
+- **task_subtasks** — a checklist inside a task (`title`, `done_at`,
+  `sort_order`).
+- **audit_log** — field-level history (`entry_type`, `field`, `old_value`,
+  `new_value`, `change_reason`, `created_by`, soft `deleted_at`). See
+  `audit_trail.md`.
+- **corrections** — links an audit row to the row that corrected it.
+- **automation_rules** — standing rules, including repeat rules
+  (`kind = 'recurring_task'`) and ORI automations.
+- **automation_events** — what automations did (with undo data).
+- **undo_tokens** — ten-minute undo payloads.
+- **daily_snapshots** — nightly per-company counts (company momentum strip).
 
-### reporting_lines — migration 0030 (organogram)
-Secondary / "dotted-line" reporting for the org chart. `person_id, manager_id, note`; composite PK `(person_id, manager_id)`, both FK→people (cascade). The **primary** manager stays on `people.manager_id` (the solid line the tree is drawn from); this table holds *additional* managers a person also reports to (matrix/functional), rendered as dotted lines. Synced in `src/app/people/actions.ts` (`syncReportingLines`, excludes self + the primary manager); surfaced as `Person.secondaryManagers` in `src/lib/people-queries.ts`; edited via the "Also reports to" field on the person form.
+All task writes go through `src/lib/task-write.ts`.
 
-### tasks
-`id, code, company_id, department_id, meeting_date, action_item, owner_id, created_date, deadline, status, priority, category, risk, escalation, comments, latest_update, last_updated_at, closed_date, archived`.
+## Calendar, announcements, notifications
 
-`latest_update` is denormalised from the newest `task_updates.body`. Keep it in sync if bulk-editing updates.
+- **calendar_events** (+ Google sync fields, recurrence, attendees),
+  **event_categories**, **event_documents** (papers that travel with an event).
+- **announcements** (`status`, `publish_at`, `expires_at`, `published_at`,
+  **`delivered_at`**, audience, `require_ack`, `deliver_channels`),
+  **announcement_receipts**, **announcement_reactions**,
+  **announcement_comments**.
+- **notifications** — the bell (`kind`, `task_id`/`task_code`, `read_at`).
+  `thread_id` and `request_id` survive from removed features.
 
-### task_assignees
-Many-to-many join between tasks and people.
+## Files, notes, to-dos
 
-Composite primary key: `(task_id, person_id)`.
-
-### task_updates
-`id, task_id, body, created_at, created_by, original_body, edited_at, deleted_at, pinned_at`.
-
-Supports edit history, soft-delete, and pinned updates in task timelines.
-
-## Meetings
-
-### meetings
-`id, title, company_id, meeting_date, attendees, raw_notes, minutes, created_at, updated_at, created_by`.
-
-`company_id` is nullable for group-wide meetings.
-
-### meeting_tasks
-Links tasks created from Meeting Workspace back to their source meeting.
-
-`meeting_id, task_id, created_at`.
-
-Composite primary key: `(meeting_id, task_id)`.
-
-## Governance
-
-### audit_log
-`id, external_id, task_id, task_code, company_id, entry_type, field, old_value, new_value, change_reason, created_at, created_by, deleted_at`.
-
-Audit data powers per-task timelines. The standalone audit page was removed.
-
-### corrections
-`id, audit_log_id, corrected_by_entry_id, status, created_at`.
-
-Schema exists, but no UI flow writes corrections yet.
+- **documents** — `title`, `company_id` / `person_id` / `vendor_id`, `category`,
+  `doc_type`, `issuer`, `reference_no`, `issue_date`, `expiry_date`,
+  `reminder_lead_days`, `file_url`, `storage_path`, `file_name`, `file_size`,
+  **`folder_id`**, `starred`, `deleted_at` (Deleted, kept 30 days), `archived`.
+  Status (valid/expiring/expired) is derived, never stored.
+- **folders** — `name`, `parent_id`, `color`, `company_id` / `person_id`,
+  `deleted_at`.
+- **document_links** — document ↔ task.
+- **notes**, **note_folders**, **note_tags**, **note_links**,
+  **note_revisions**, **note_offline_edits** — owner-only Notes (see
+  `notes_module_plan.md`).
+- **todos** — `title`, `done`, `important`, `kind` (self / onboarding /
+  offboarding), `sort_order`, `due_at`, `remind_at`, `pushed`, `company_id`,
+  `person_id`, `task_id`, `note_id`.
+- **brief_notes** — the owner's notes on the report.
 
 ## Outreach
 
-### reminders
-`id, task_id, person_id, channel, message_type, escalation_level, sent_at, dedupe_key, created_at`.
+- **outbox** — drafts and sent records (`channel`, recipient, `body`, `status`,
+  `source`, `person_id`, `todo_id`, `scheduled_for`).
+- **reminders** — per-task reminder log; `dedupe_key` is unique.
 
-`dedupe_key` has a unique index for idempotency.
+## Operations (HR and office)
 
-### outbox
-`id, channel, recipient_name, recipient_contact, company, subject, body, message_type, status, contact_status, notes, source, person_id, todo_id, scheduled_for, created_at, sent_at`.
+- **assets** (tag, category, serial, company, vendor, status, assignee /
+  custodian, purchase, **`warranty_until`**, **`checked_at`**),
+  **asset_assignments**, **asset_services** (service/repair log).
+- **site_tools**, **site_tool_movements** — tools on site.
+- **vendors** — supplier register (shared; untouched by 0167).
+- **stock_items**, **stock_purchases**, **stock_issues** — Supplies. Current
+  stock is derived.
+- **cleaning_areas**, **cleaning_days**, **cleaning_checks** — Cleaning.
+- **attendance** — one row per person per day; **public_holidays**.
+- **leave_types** — still read by `lib/leave.ts`.
+- **recurring_obligations**, **obligation_company** — Tax & Legal.
 
-Now backs **two** flows: (1) the legacy human-readable send record (`status` "Sent"); (2) **persisted drafts** (`status` "Draft", `source` of `task`/`todo`/`adhoc`, optional `person_id`/`todo_id`, optional `scheduled_for`). The Outbox page renders a Drafts section above the live task reminders. See `outbox_and_reminders.md`. Real WhatsApp/email/SMS dispatch is still not server-side — sending is via channel deep-links (`wa.me`/`mailto:`/`sms:`) plus manual "Mark sent".
+## Governance and facts
 
-## To-dos
+**facts** (append-only fact ledger), **cap_table**, **beneficial_owners**,
+**key_persons**, **signatories**, **resolutions**, **risks**, **decisions** —
+shown on the company profile and the entity graph.
 
-### todos
-`id, title, done, important, due_at, company_id, person_id, task_id, created_at, completed_at`.
+## AI and system
 
-The personal to-do list (Workbook → To-do). `important` is the star flag; `person_id` is the assignee (feeds Outbox reminders); `task_id` links a to-do that was **promoted to a tracked task**. See `todos.md`.
+- **ai_memory**, **ai_usage** (spend ledger), **ai_jobs** (queue left from the
+  retired ORI cloud worker).
+- **settings** (key/value; includes saved views and permissions),
+  **system_events** (job health, CSP reports), **activity_events** (page-visit
+  telemetry), **number_series**.
+- **embeddings** (migration-only) — semantic index with `lifecycle`.
 
-## Compliance & Documents
+## Kept, but no screen reaches them
 
-### documents
-`id, title, company_id?, person_id?, category, doc_type, issuer, reference_no, issue_date, expiry_date, reminder_lead_days, file_url?, storage_path?, file_name?, notes, archived, created_at, updated_at, created_by`.
+The tables stay; the features are gone. Do not build on them without asking.
 
-Tracks licences, contracts, certificates, registrations, insurance, leases, permits, immigration/visas, tax filings. `file_url` is an optional external link (Drive/email). **In-app uploads** (Phase 4, migration `0018`): `storage_path` is the object key in the private Supabase Storage bucket **`documents`** (created via `scripts/create-documents-bucket.ts`, 20 MB limit) and `file_name` is the original name. Files are served via short-lived signed URLs (`signDocumentFile` / `getDocumentFileLinkAction`). Uploads ride server actions, so `next.config.ts` sets `serverActions.bodySizeLimit: "25mb"`. Owned by a company and/or a person (both `set null` on delete). Lifecycle status (Valid / Expiring / Expired / No expiry / Archived) is **derived** at read time in `src/lib/documents.ts` (`deriveDocStatus`), never stored — mirrors `derive.ts` for tasks. `reminder_lead_days` (default 30, category defaults in `DEFAULT_LEAD_DAYS`) drives expiry reminders. Soft-delete via `archived`. Indexes on `expiry_date` and `company_id`.
+| Table(s) | Removed feature | Still touched by code? |
+|---|---|---|
+| `chat_threads`, `chat_participants`, `chat_messages`, `chat_message_mentions`, `chat_message_hidden` | Chat (26 Sept 2026) | No |
+| `pipeline`, `commitments` | Pipeline / Commitments (26 Sept 2026) | Only a `target_table` check in `automation-time.ts` |
+| `inbox` | Document intake (Aug 2026) | No |
+| `letters` | Letters (Jul 2026) | No |
+| `requests`, `request_updates`, `request_recipients` | Requests (Jul 2026) | `requests` read by `/api/briefing`, `/api/pulse` and an ORI undo handler |
+| `leave_requests` | Leave module (Jul 2026) | Read only — approved leave shows on the attendance register and in Ask |
+| `meetings`, `meeting_tasks` | Meeting workspace (Jul 2026) | Read by the task record and `/api/pulse`; ORI's agent can still insert a meeting |
+| `compliance_events` | Document compliance (Aug 2026) | No |
+| `number_series` | Ledger numbering | No |
 
-### document_links
-`document_id, task_id, created_at`. Composite PK `(document_id, task_id)`. Links a renewal/action task back to its document; mirrors `meeting_tasks`.
-
-## HRMS — Stock Control
-
-`/hrms` is a **hub** of registry cards (`src/components/hrms/registry-card.tsx`, live stats). First registry: **OECR — Office Equipment Control Registry** at `/hrms/oecr` (tabs: Dashboard / Register / Purchases / Issues; `HrmsShell` with back-link to the hub). Second card **OCR — Office Cleaning Registry** is a "Coming soon" placeholder only (no module/route yet). Mirrors the Excel stock workbook. Pure maths (source of truth) lives in `src/lib/stock-shared.ts` (client-safe, incl. `fmtMoney` → TZS); Supabase helpers in `src/lib/stock.ts`; server actions in `src/app/hrms/actions.ts`. UI components under `src/components/hrms/`. Items support edit/archive/**delete**; movements (purchases & issues) support edit + delete (simple, no reverse-entry trail — owner's call for stationery). **Current stock is never stored** — it is derived at read time: `currentStock = openingStock + Σ purchases − Σ issues` (same pattern as `deriveDocStatus`). `stockStatus` → `OK` / `Reorder` (≤ reorderLevel) / `Out of Stock` (≤ 0).
-
-### stock_items
-`id, code (unique, e.g. ST-001), name, category, unit, opening_stock, reorder_level, unit_cost, archived, created_at, updated_at, created_by`. Soft-delete via `archived`.
-
-### stock_purchases
-Stock IN. `id, date, item_code (FK→stock_items.code, cascade), qty, unit_cost, supplier, ref (invoice/PO), created_at, created_by`. Each row raises the item's current stock.
-
-### stock_issues
-Stock OUT. `id, date, item_code (FK→stock_items.code, cascade), qty, issued_to, company_id (FK→companies, set null — tags the issue to one of the 7 portfolio companies, replaces the demo's free-text "entity"), notes, created_at, created_by`. `recordIssue` blocks taking stock negative by default (`InsufficientStockError`); pass `{ allowNegative: true }` to override.
-
-## HRMS — OCR (Office Cleaning Registry)
-
-Second registry under `/hrms`, at `/hrms/ocr`. Digital version of the paper daily cleaning checklist — **one shared "Oracle Office" register**. Pure helpers/types in `src/lib/cleaning-shared.ts`; Supabase helpers in `src/lib/cleaning.ts`. Completion % is **derived** (done ticks ÷ active areas), never stored. Phase 1 = data layer + areas list page; the daily checklist UI is Phase 2.
-
-### cleaning_areas
-The editable "columns" of the register. `id, name, sort_order, active, created_at`. Seeded on first run with `DEFAULT_CLEANING_AREAS` (Reception, Directors Office, Staff Working Area, Board Room 1/2, "Daniel, Ashit and Jitesh Office", Admin Office, Kitchen, Office/Staff Washroom, Bathing Area, Outside Area) via `ensureDefaultAreas()` (no-op once any area exists). Retire via `active=false`.
-
-### cleaning_days
-One row per calendar date (unique index on `date`, stored at UTC midnight). `id, date, attendance_person_id (FK people, set null), note, signed_by_person_id (FK people, set null), signed_by_name, signed_at, created_at, updated_at`. Sign-off = tap-to-confirm + name; `signed_at` locks the day. `ensureDay(date)` creates the day plus blank checks for every active area.
-
-### cleaning_checks
-One tick per (day, area). `id, day_id (FK cleaning_days, cascade), area_id (FK cleaning_areas, cascade), done, done_at, comment`. Unique index `(day_id, area_id)`. `setCheck` upserts a tick + timestamps `done_at`.
-
-## HR compliance (per-person required documents) — migration 0020
-
-### requirement_profiles / requirement_items
-A profile per person type (`applies_to_type`) lists the documents that type must/may provide. Items: `label, category, mandatory, expiry_tracked, default_lead_days, sort_order`. Seeded via `scripts/seed-requirement-profiles.ts`. See `src/lib/requirements.ts`.
-
-### person_requirements
-Snapshot of a person's checklist (so later profile edits don't rewrite history). Per item: `status` (missing/requested/received/verified/waived, plus `removed` to hide a standard item) + optional `document_id`. `auto_link` (bool, migration 0032) — set false when the operator manually **unlinks** a document so the category auto-linker stops re-attaching it on the next load; manual linking still works. Effective status derives expiry; score = verified-mandatory / mandatory → 100%. Unique on `(person_id, item_id)`. **Sync with template** (`syncPersonRequirements` in `src/lib/requirements.ts`) re-adds new profile items and restores previously-removed standard items on demand; surfaced as a button on the person drawer Document compliance section and an inline "add an item to request" in Prepare pack (saves a real person requirement).
-
-### journey_step_templates — migration 0031
-Editable onboarding/offboarding step templates, **per person type**. `kind` (onboarding|offboarding), `applies_to_type`, `label`, `offset_days` (days from anchor: start date for onboarding, today for offboarding), `active`, `sort_order`. Seeded once from the hard-coded defaults in `src/lib/onboarding.ts` (`seedJourneyTemplates`); thereafter edited via **Documents → Manage onboarding steps** (`/api/journey-templates`, `JourneyTemplatesButton`). `startJourney` creates a person's journey (todos tagged `kind`) from these; **Sync with template** (`syncJourneyToTemplate`) appends missing template steps to an existing journey (matched by label). Edits/deletes don't rewrite journeys already created.
-
-## HRMS — Assets & Vendors — migrations 0022/0023
-
-### assets / asset_assignments
-Durable, individually-tracked equipment (laptops, phones, vehicles) — distinct from consumable OECR stock. `assets`: `tag` (unique-nullable), name, category, serial_no, company_id, vendor_id (supplier), location, status (in_store|assigned|maintenance|retired), assigned_to_person_id, assigned_to_company_id, custodian_person_id, assigned_at, purchase_date/cost, archived. `asset_assignments` = assign/return ledger (open row = currently held). Offboarding (archive person) auto-returns held assets. `src/lib/assets.ts`.
-
-### vendors
-Suppliers/contractors/landlords/utilities. `name, category, company_id, contact_name, email, phone, location, notes, active`. Their **contracts are `documents` rows** linked via `documents.vendor_id`. `src/lib/vendors.ts`.
-
-## HRMS — Leave & Attendance (Tanzania ELR Act 2004) — migrations 0025/0026
-
-### leave_types
-`name, color, paid, default_days` (total entitlement per cycle), `cycle_months` (Annual 12, Sick 36), `half_pay_days` (Sick 63 of 126), active, sort_order. Seeded via `scripts/seed-leave-types.ts` (Annual 28, Sick 126[63+63], Maternity 84, Paternity 3, Compassionate 4, Unpaid 0).
-
-### public_holidays
-`date, name, company_id` (null = all). Excluded from leave-day counts.
-
-### leave_requests
-`person_id, leave_type_id, start_date, end_date, half_day, days, reason, status` (Pending/Approved/Rejected/Cancelled), `decided_by/decided_at, notes`. Working days counted **Mon–Sat minus holidays** (half-day = 0.5). Balances derived (entitlement − approved over the type's cycle window). `src/lib/leave.ts`.
-
-### attendance
-Daily register, one row per `(person_id, date)` (unique). `status` (Present/Absent/On leave/Holiday/Remote/Half-day/Sick), note. (Register UI = phase 4.2, pending.)
-
-## Letters — migration 0029
-
-### letters
-System-wide branded PDF letters. `type` (template id), `title, company_id, person_id, ref, letter_date, addressee, subject, body, letterhead_snapshot` (JSON frozen at Issue), `status` (Draft/Issued), issued_at. Draft renders live company letterhead; Issued uses the frozen snapshot. `src/lib/letters.ts`, routes `/letters` + `/letters/[id]/print`. Per-company letterhead lives on `companies` (branding cols, migrations 0027/0028: typed fields + logo, or designed header/footer images, or full-page background + body margins; `letterhead_mode` = typed|images|background).
-
-## New columns on existing tables
-
-- **people** (migrations 0019/0024): `department_id`, `start_date`, `date_of_birth`, `nationality`, `national_id`, `passport_no`, `address`, `emergency_contact_name`, `emergency_contact_phone`, `probation_end_date`. `person_type` default now `local_staff`.
-- **todos** (0021): `kind` ("onboarding"|"offboarding"|null) + `sort_order` — journey steps; excluded from the Workbook/pack todo lists.
-- **documents** (0023): `vendor_id` (links a contract to a vendor).
-- **companies** (0027/0028): letterhead/branding cols (see Letters above).
-
-## Inbox — manual bundles
-
-`inbox` also accepts in-app bundles: pasted text + multiple uploaded files (stored in the `documents` bucket under `inbox/`, recorded in `attachments` JSON with `storagePath`). Unified "Process" opens the doc review queue and can enrich the person profile (blanks-only).
-
-## Analytics and System
-
-### daily_snapshots
-`id, snapshot_date, company_id, total, open, overdue, due_soon, blocked, critical, escalated, completed, closed, risk_score`.
-
-Unique index on `(company_id, snapshot_date)`. `/api/cron/snapshots` can write snapshots; production scheduling still needs verification.
-
-### settings
-`key, value`.
-
-Stores typed `v2.*` app settings plus nav pins/recents JSON.
-
-Current typed settings include risk thresholds, weather location, AI master switch, `v2.voiceLanguage`, and `v2.voiceDictionary`.
-
-### system_events
-`id, kind, status, details, created_at`.
-
-Used by cron/health/error style event logging.
-
-### undo_tokens
-`id, kind, payload, task_id, created_by, created_at, expires_at, consumed_at`.
-
-Supports undo flows. `/api/cron/cleanup` removes expired tokens.
-
-## Conventions
-
-- **Timestamps are `timestamptz`** (Drizzle `mode: "date", withTimezone: true`) as of migration `0014`. Previously they were `timestamp without time zone`, which lost the offset on read and showed times ~3h off for the UTC+3 (Dar es Salaam) operator. All writes use `.toISOString()` (UTC); both read paths (Drizzle/postgres.js and the Supabase JS client) now return offset-aware instants, and the browser renders them in the viewer's local zone. Do not revert columns to plain `timestamp`.
-- Soft delete: `tasks.archived`, `people.active`, `companies.active`, `task_updates.deleted_at`, `audit_log.deleted_at`.
-- Supabase pooler transaction mode requires `prepare: false` and `max: 1` in `src/db/index.ts`.
-- Newer write paths often use the server-side Supabase client in `src/db/supabase.ts`.
-
-## June 2026 additions (V3 — reference data, attendance, locations, passkeys)
-
-Tables/columns NOT in the per-table sections above:
-
-- **reporting_lines** `(person_id, manager_id)` PK + optional `note` — secondary/"also reports to" managers. Primary stays `people.manager_id`. FK cascade on delete. Drives the organogram dotted lines + drawer.
-- **department_heads** `id, company_id, department_id, head_person_id, updated_at` — per-company head of a department (same dept can have different heads per company). Set in Organogram → By department.
-- **sites** `id, name (unique), active` — shared **people locations** (work site / residence; NOT company branches). Seeded from distinct `site_tools.location` + `assets.location`. `people.work_site_id` / `people.residence_site_id` FK here. Admin: Companies hub → Sites (add/rename/merge/delete; merge re-points work+residence). `lib/sites.ts`.
-- **job_titles** `id, name (unique), active` — managed role list powering the role combobox. `people.role` stays free TEXT (not an FK); rename/merge here re-points people whose `role` matches exactly. Admin: Companies hub → Roles. `lib/roles.ts`.
-- **attendance** `id, person_id, date, status, note, created_at, updated_at`, unique `(person_id, date)`. Status: Present/Absent/On leave/Holiday/Remote/Half-day/Sick. **Now writable** (was read-only): admin register (`attendance-register.tsx` brush-paint) + staff self-check-in (`portalMarkAttendance`, note `portal:<Name>`). `lib/attendance.ts` (getAttendanceMonth, personAttendanceWeek/Today, teamAttendanceToday). On-leave/Holiday are DERIVED overlays (from leave_requests + public_holidays), not stored.
-- **webauthn_credentials** `id, person_id (null=owner), credential_id (unique, b64url), public_key (b64url), counter, transports, label, created_at, last_used_at` — passkeys. Stores ONLY public keys. `lib/webauthn.ts` (@simplewebauthn). Challenge in httpOnly cookie `cos_webauthn`.
-- **people** added cols across V3: `department_id, start_date, date_of_birth, nationality, national_id, passport_no, address, emergency_contact_name, emergency_contact_phone, probation_end_date, wage_amount, wage_basis, work_site_id, residence_site_id, portal_password_hash, portal_enabled_at, portal_last_login_at, portal_role, previous_staff_ids, staff_category, related_person_id`.
-- **settings** keys added: `v2.adminPasswordHash`, `v2.adminSessionGen`, `v2.ownerName`, `v2.ownerEmail` (owner identity 2nd factor), `director.outreachPaused`, `email.testMode`, email-automation config JSON.
-- NOTE: `people.group_service` (a brief "Group Shared Services" experiment) was **added then reverted** — migration 0060 was regenerated for sites; the column does NOT exist.
-
-## ORI-as-the-brain additions (Jun 2026 — migrations 0094/0095/0096; see `memory/ori_brain.md`)
-
-These three migrations underpin universal search/find/trace + ORI memory + AI spend. The `embeddings` table and its RPCs are managed via **raw SQL** (supabase-js / RPC, not Drizzle) — `schema.ts` is untouched for them; `ai_memory` and `ai_usage` are ordinary Drizzle tables.
-
-- **embeddings** — gained a **`lifecycle` column** (`text not null default 'active'`, values `'active' | 'history'`, indexed) in **migration 0094**. History rows (archived/closed/inactive/expired sources) are now KEPT and labelled, never deleted, so search can surface past records on demand. The two RPCs are now **lifecycle-aware**: `replace_embeddings` takes `p_lifecycle` (default `'active'`); `hybrid_search` is the new 8-arg form with `filter_lifecycle` (default `'active'`, inserted positionally after `filter_types`) and RETURNS an extra `lifecycle` column. Old 7-arg `hybrid_search` dropped. `SourceType` covers all **12** indexable entity types; the `embeddings.source` id for governance uses a stable composite scheme (GOV_BASE: cap_table 1e6 / beneficial_owner 2e6 / signatory 3e6 / key_person 4e6 + row id) since one `governance` type spans four tables.
-- **ai_memory** — **migration 0095**. ORI's durable memory: `id, recipient, kind ('qa' | 'preference' | 'fact'), question, answer, tags, created_at`. Records owner Q&A, stated preferences, and remembered facts; recall is AI-free. Written by `src/lib/ai-memory.ts` (recordQA / rememberPreference / recallMemories) and the `/api/ai-memory` route; the Ask route recalls into context and auto-records on non-stream answers.
-- **ai_usage** — **migration 0096**. Per-call AI spend ledger: `id, at, model, source, prompt_tokens, completion_tokens, est_cost`. `recordUsage` is fire-and-forget from `ai-json.ts`; `src/lib/ai-spend.ts` derives `monthlySpend` / `isOverSpendCap` (cached 60s, **fails open**). The `v2.aiMonthlySpendCap` setting (default 0 = unlimited) gates `getGroqKey()`.
-
-**Entity registry (single source of truth):** `src/lib/entity-registry.ts` now describes all **12 indexable entity types** (task, person, company, governance, risk, document, letter, meeting, vendor, asset, pipeline, commitment) — one `EntityDef` per type carrying its table/idColumn/selectColumns/textFor/lifecycleFor plus the search + trace knowledge. Both the per-write index hooks (`index-hooks.ts`) and the nightly catch-all (`embeddings-reindex.ts`) derive from it, so coverage can never drift. Client-safe labels/order live in `src/lib/entity-meta.ts` (no DB import).
-
-
-## General ledger (ERP Phase 1, migrations 0137/0138 — APPLIED)
-
-**Read `memory/ledger.md` and `memory/erp_gap_plan.md` before touching any of
-this.** Oracle is the accounting system now (owner's decision, Aug 2026).
-
-- **`gl_accounts`** — the chart, a tree, ONE PER COMPANY (all seeded from the
-  same template in `lib/ledger-coa-template.ts`, so the numbers line up across
-  the thirteen and consolidation is a group-by on `number`).
-  `parent_id` · `root_type` (Asset|Liability|Equity|Income|Expense) ·
-  `account_type` · `is_group` (a heading, takes no postings) · `currency` ·
-  `default_for` (the role the engine finds it by — "receivable", "payable",
-  "vat_output"…, unique per company).
-- **`gl_entries`** — **the books. APPEND-ONLY.** One row is one side of one
-  posting. `debit`/`credit` are ALWAYS TZS; the original money and the frozen
-  rate sit beside them in `debit_fx`/`credit_fx`/`currency`/`ex_rate`.
-  `voucher_type`+`voucher_id` say which document made it (deliberately not an
-  FK — it points at a different table per type, exactly as ERPNext's GL Entry
-  does). `is_reversal`+`reverses_id` are how a mistake is undone.
-  ⚠️ **NO `archived` column, no UPDATE path, no DELETE path — anywhere.**
-  ⚠️ `gl_entries_voucher_line_unique` makes double-posting impossible at the
-  database, not merely unlikely.
-- **`journal_entries`** + **`journal_entry_lines`** — the manual voucher.
-  Draft → Posted → Reversed. Lines cascade on delete (a draft owns them); a
-  POSTED entry can never be deleted, so cascade never reaches the books.
-  `reversal_of_id` sits on the reversal; there is deliberately no
-  `reversed_by_id` (it is derived).
-
-⚠️ **There is no `balance` column anywhere and there must never be one.** Every
-balance, trial balance, P&L and statement is worked out on read from
-`gl_entries`. That is rule 3 of the plan and the founding principle of Oracle one
-level up.
+Everything the ledger, CocoZuri, Orders & Imports, Capital projects, Marketing,
+Recruitment, requirement profiles / person requirements and document intake
+owned has been **dropped**, not kept.

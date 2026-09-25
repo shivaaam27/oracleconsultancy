@@ -14,7 +14,7 @@ attention, and leaves the results where the owner will see them.
 
 Examples worth having:
 - "Every weekday at 7am, find what's overdue and draft the nudges into the Outbox."
-- "Every Monday, summarise last week per company and post it to the owner's chat."
+- "Every Monday, summarise last week per company and send it to the owner's notification bell (a push via `createNotification`), or leave it as an Outbox draft."
 - "When a document is 30 days from expiry and has no renewal task, draft one."
 
 ## Two ways to schedule, and which to pick

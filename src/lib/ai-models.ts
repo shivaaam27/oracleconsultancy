@@ -78,7 +78,7 @@ export const GROQ_WHISPER = "whisper-large-v3-turbo"; // speech-to-text
  * ---------------------------------------------------------------------- */
 // Widened Jul 2026, then UNIFIED 2026-07-05 (owner audited the full AI Studio
 // model list against what's actually enabled on the key — see
-// memory/ai_provider_gemini.md for the full cross-reference). Same capability
+// memory/ai_integration.md for the full cross-reference). Same capability
 // order across ALL THREE tiers now: try the most advanced model first, fall
 // through on a 429 (ai-json.ts already retries 429 by walking the ladder) down
 // to the highest-daily-quota models last, so the app basically never goes

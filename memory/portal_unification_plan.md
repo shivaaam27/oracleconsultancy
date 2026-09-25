@@ -1,140 +1,96 @@
-# Portal unification — one system, permissions decide (plan, 25 Sept 2026)
+# Portal unification — one system, permissions decide (plan 25 Sept 2026)
 
-Owner's ask: the portal stops being a separate app. Directors use THE SAME
+Owner's ask: the portal stops being a separate app. Everyone uses THE SAME
 (Studio) screens as the administrator, limited by their role, capabilities and
-company scope; managers and staff likewise, focused on task management.
-Directors first. Audit run 25 Sept 2026 (three passes + a live look as Pulin
-Manek, a portfolio director).
+company scope, focused on task management. Directors went first, then
+managers, then staff. Current reference for the portal: `memory/portal.md`.
 
-## Where it stands
-- Portal = 17 routes, all on the OLD Desk look, with portal-only twins of the
-  admin screens (portal-tasks-command.tsx 1919 lines ≈ admin task list;
-  director-board-client ≈ home; portal-sidebar/pill ≈ desk-sidebar/top-pill;
-  portal task page ≠ task-drawer). Shared already: RecordList,
-  PortalConversation, ChatSurface, announcements, RecurringTasksPanel.
-- The permission engine is sound and is the thing to build on:
-  `PortalPerson` (portal-auth.ts) carries role, scopeLevel, caps,
-  directorCompanyIds; scope via `companyScope` / `visibleTaskIds` /
-  `personCanSeeTask|Person|Company`; caps editable in Settings → Portals.
-  MCP already models "owner = a caller with everything" (`McpCaller`).
-- Admin Studio pages load EVERYTHING (getAllTasks, getLibrary, …) and ~60 admin
-  server actions + /api/task-detail, /api/company-summary, /api/person-assets
-  have no check of their own — the proxy gate is their only protection, and
-  authors are stamped "web-ui" (= the owner).
+## Where it stands (26 Sept 2026)
 
-## The design
-1. **A Viewer** (`lib/viewer.ts`, server-only): owner (admin cookie) → scope
-   null, every capability, actor "web-ui"; otherwise the PortalPerson →
-   companyScope / visibleTaskIds, caps, actor "portal-dir:<Name>" etc.
-2. **Guard every shared write + API** with the viewer (requireViewer(cap) +
-   canManageTask/personCanSeeTask), stamp viewer.actorTag, record views as the
-   person. Non-negotiable BEFORE any director reaches a Studio screen.
-3. **Filter data once, after the cached global loaders** (tasks by
-   visibleTaskIds, companies/people/files/calendar by companyScope).
-4. **Pass `can` (from caps) into the Studio components** so buttons hide.
-5. **Routes stay /portal/…** — thin pages rendering the same Studio
-   components; the admin login and proxy stay simple. Shell takes its stops as
-   a prop.
-6. Per-role "New look" switch so directors can go first.
+| Who | Screens | Status |
+|---|---|---|
+| Owner | Studio everywhere | ✅ |
+| Directors | the owner's Studio screens over their companies: Home, Tasks (list, record, side panel, bulk, new task), Calendar, Announcements, Outbox, Companies, People, Files, + Studio Profile at `/portal/profile` | ✅ |
+| Managers | exactly what directors have, over the companies on their record (same `Viewer` kind, `role: "manager"`, stamp `portal-mgr:`), + Studio Profile (with check-in) and the Studio cleaning overview at `/portal/cleaning` | ✅ (walked through as Shivam, 26 Sept) |
+| Staff | Studio pages under `/portal/*`: Home, Tasks, a task, Profile, and the shared People, Companies, Calendar (`/portal/meetings`) and Announcements screens, cut to "own work only" | ✅ |
+| Receptionist | the staff Studio pages (`isStaffLikeRole`) + the Studio cleaning log | ✅ |
 
-## Phases
-0 safety (guards, author stamps, APIs) → 1 viewer + Tasks list/record/panel for
-directors → 2 director Home (cut-down), Calendar, Companies, People, Files per
-new caps → 3 managers → 4 staff → 5 retire the portal twins one by one.
+- **The per-page switches are gone** — `ui.studioPages` and `src/lib/studio.ts`
+  were deleted with every rebuilt page's old branch. There is no "new look"
+  toggle for anyone; Studio is simply the design.
+- Chat, the Activity page, Requests, Leave self-service and the `hr` role were
+  removed (tables kept).
+- **Decision 2 is answered** (26 Sept 2026): managers get what directors get,
+  over their own companies; staff get the same screens limited to their own
+  work.
 
-## Fixed during the audit (25 Sept 2026)
-- `portalBulkCreateTasks`: a company-scoped director could bulk-create in EVERY
-  company (branch tested `portalRole === "director"` only). Now scoped.
-- `StudioShellServer` / `TopPillServer` ran on every page and were hidden only
-  on the client, so the owner's next task title was in the page data of the
-  portal and the public /e/ /r/ links. Now owner-only.
+## The design (as built)
 
-## Other findings to handle in the phases
-- Role-fixed checks that bypass caps/scope: announcements composer lists every
-  company to any director; posting is role-fixed; "Every task across all
-  companies" subtitle for scoped directors; `portalCapabilities()` (role-fixed)
-  still gates document downloads beside the configurable `caps`.
-- MCP task scope uses only companyScope — an `own` staff caller sees none.
-- ORI's `set_role_capability` saves without diffFromDefaults.
+1. **A Viewer** (`src/lib/viewer.ts`, server-only): owner (admin cookie) →
+   scope null, every capability, actor `web-ui`; a director or manager → the
+   `PortalPerson`, `companyScope`, caps, actor `portal-dir:` / `portal-mgr:`.
+   **Staff are deliberately NOT a Viewer** — a new kind would fail open in every
+   `kind === "director"` check; their pages stay under `/portal/*` on
+   portal-auth and the portal actions.
+2. **Every administrator server action is guarded** — `guardOwner` /
+   `guardViewer` / `guardSignedIn` at the top (codemod
+   `scripts/guard-actions.mts`), decided by Next's `actionAsyncStorage`: from a
+   browser the caller must be allowed; from the server (MCP, ORI, cron, render)
+   the guard stands aside; a portal action calling an admin function on the
+   person's behalf wraps it in `trusted()`.
+3. **Data is filtered once, after the cached global loaders** — tasks by
+   `visibleTaskIds`, companies/people/files/calendar by `companyScope`.
+   Directors' view-only pages take a `readOnly` flag and blank private people
+   fields on the server.
+4. **Buttons follow `caps`**; the server re-checks.
+5. **Routing**: `src/proxy.ts` `DIRECTOR_PATHS` admits a signature-checked
+   portal session to the shared routes; the portal layout sends directors and
+   managers from old portal addresses to them (`studioPathForDirector`) before
+   drawing anything. Staff pages are framed client-side by `PortalFrame` +
+   `isStaffStudioPath` (both in `src/lib/director-routes.ts` /
+   `components/portal-frame.tsx`).
 
-## Built — 25 Sept 2026
-- **Step 0 (safety)**: `lib/viewer.ts` — `getViewer()` (owner | director),
-  `guardOwner` / `guardViewer` / `guardSignedIn` at the top of every
-  administrator server action (codemod `scripts/guard-actions.mts`), decided by
-  Next's `actionAsyncStorage` (`isAction`, covers fetch AND plain-form posts):
-  from a browser → must be allowed; from the server (MCP, ORI, cron, render) →
-  stands aside; a portal action calling an admin function on the person's
-  behalf wraps it in `trusted()`. Proven live: an anonymous action call is
-  refused. Closed: admin actions bundled into ungated portal pages were
-  callable with no session (listTodos, updatePerson, grantPortalAccess…);
-  announcements' `canAuthor` treated "no session" as the owner; upload slots
-  needed no sign-in; portal chat `listPeople` listed every name to anyone.
-- **Step 1**: directors on the shared Home + Tasks (list, record, side panel,
-  bulk, new task) — `src/proxy.ts` `DIRECTOR_PATHS` admits a SIGNATURE-CHECKED
-  portal session to `/`, `/task/new`, `/task/CODE`, `/api/task-detail` only;
-  each checks `getViewer()` itself. Task actions: `taskActor()` (scope +
-  capability), `lib/viewer-scope.ts` (`needCap`, `needCompany`, `stampOf`,
-  `assigneesFor` — directors never create a person, stamped `portal-dir:<Name>`).
-  Director footer (`directorStops`), no ⌘K, no owner drawers, Home cut down;
-  portal board/tasks/task redirect to the shared pages. **No switch** — every
-  director, always (owner's decision).
-- **Old design deleted**: the page switches and `lib/studio.ts`, every rebuilt
-  page's old branch, 44 orphaned files (old Home, desk sidebar, top pill,
-  command deck, signals…), the `@modal` new-task pop-up. ~9k lines.
-- Footer has **Sign out** (owner → adminLogout, director → portalLogout).
+## Built — the record
 
-## Built — 25 Sept 2026 (later): the rest of a director's day, VIEW-ONLY
-Files, People, Companies and Calendar — each page checks `getViewer()`, scopes
-its data to the director's companies, and takes a `readOnly` flag that hides
-every write (and every write is `guardOwner` on the server anyway).
-- **Files**: `viewerLibrary` / `viewerCanSeeDocument` (lib/files.ts) — their
-  companies' files and their people's papers; preview, download, .zip.
-- **People**: their companies' active people; **private details (national ID,
-  passport, address, DOB, emergency contact, notes) are BLANKED on the server
-  before the page is built**, not hidden; workload counts only their
-  companies' tasks (`getAllPeopleWithWorkload({ taskScope })`). Person tabs:
-  Overview, Tasks, Files, History (no Journey, Equipment, Notes, Edit, facts).
-- **Companies**: their companies; no Add company, no Departments/Sites/Roles.
-  Company page: Notes tab gone (owner's notes), Profile locked
-  (`<fieldset disabled>`), no facts/governance panels, documents → "Open
-  <company>'s files", Timeline without update/audit menus or "Recently
-  removed", Org without pickers, no AI briefing. Tasks tab = full task powers.
-- **Calendar**: events of their companies or that invite them; overlays =
-  their task deadlines + renewals + holidays (no leave/birthdays/probation,
-  no announcements); an event opens read-only (fieldset disabled, share links
-  kept, no invite/drafts/delete/papers). The page's opportunistic writes
-  (advanceDueMeetingTasks / postMeetingFollowups) do NOT run for a director.
+- **Step 0 (safety, 25 Sept)**: the guards above. Closed: admin actions bundled
+  into ungated portal pages were callable with no session; announcements'
+  `canAuthor` treated "no session" as the owner; upload slots needed no sign-in.
+  `portalBulkCreateTasks` let a company-scoped director create in every company.
+  `StudioShellServer` leaked the owner's next task into portal page data — now
+  owner/viewer-only.
+- **Directors (25 Sept)**: Home + Tasks; then Files, People, Companies,
+  Calendar view-only; Outbox (reminders for their companies' people, signed
+  with their name, `directorMayRecord`); governance read-only
+  (`GovernancePanel readOnly`); Briefings and Directory replaced by Calendar and
+  People; footer with "What needs you now" and Sign out.
+- **Old design deleted**: the page switches and `lib/studio.ts`, 44 orphaned
+  files (old Home, desk sidebar, top pill, command deck…), ~9k lines.
+- **Managers (26 Sept)**: moved onto the director path; Profile and Cleaning
+  overview rebuilt in Studio.
+- **Staff (26 Sept)**: Home, Tasks, task page, Profile; then People, Companies,
+  Calendar, Announcements (`StudioPathsProvider staff`,
+  `lib/staff-colleagues.ts`). Receptionist moved on with them.
+- **Announcements** rebuilt for directors and managers (`/announcements`).
+
+## Traps
+
 - ⚠️ **A director's page must not call an owner-only action on load** — the
-  guard throws and Next shows the red issue badge. Found twice (event papers):
-  gate such effects on `readOnly`. Sweep: fetch each director page and grep
-  for "Only the administrator".
-- Footer "What needs you now" (owner and director, scoped) and **Sign out**.
-- Tested live as Pulin Manek (portfolio director). A COMPANY-SCOPED director
-  has not been walked through live yet — the scope code paths are the same.
+  guard throws and Next shows the issue badge. Gate such effects on `readOnly`.
+  Sweep: fetch each director page and grep for "Only the administrator".
+- ⚠️ **The staff frame is chosen on the client** — a layout is not re-rendered
+  between its pages, so a server-side choice froze the first page's frame.
+- ⚠️ **The portal layout's director redirect needs `x-cos-path`**, set by the
+  proxy's `refreshPortalSession`. Without it nothing redirects.
 
-## Built — 25 Sept 2026 (evening): Outbox, governance, a shorter footer
-- **Outbox** (`/outbox`, in DIRECTOR_PATHS): the Studio screen, same for both.
-  A director gets reminders for people in their companies, each person's tasks
-  cut to those companies, and a WhatsApp message signed with THEIR name that
-  points the person at the portal (`buildPortalTaskReminder`). No saved drafts,
-  no Skip today (snooze is global), no undo, automation card read-only.
-  Server: `sendReminderEmail` hands a director to `portalSendReminderEmail`;
-  `recordSent` checks `messageOnTasks`, the outreach pause, the person and every
-  task code against their scope (`directorMayRecord`).
-- **Governance** — owner's decision 1, "yes": a director reads their company's
-  cap table, signatories and resolutions (`GovernancePanel readOnly`,
-  `loadCompanyGovernance` = guardViewer + needCompany). Tracked facts stay the
-  owner's.
-- **Briefings and Directory are gone for directors** (owner: People covers the
-  directory, Calendar the meetings). `/portal/meetings` → `/calendar` (or
-  `/portal/announcements` with `?tab=announcements`), `/portal/directory` →
-  `/people`, `/portal/outbox` → `/outbox`. **Announcements is its own stop**
-  (`/portal/announcements`, still the portal page — its Studio restyle is a
-  later phase). Managers and staff keep all three until their turn.
-- Footer order: Home, Tasks, Calendar, Announcements, Outbox, Companies,
-  People, Files, Chat — the same order the Go-to panel groups them in.
+## Left
 
-## Next
-**Decision 2 is OWED — remind the owner**: what managers and staff get (scope
-and screens). He said "later, remind me" on 25 Sept 2026. Open for directors:
-event papers read-only, search (⌘K) scoped, Announcements restyled.
+- Retire the dead portal twins: `/portal/board` (`director-board-client.tsx`),
+  `/portal/team`, `/portal/directory`, and the old chrome
+  (`portal-sidebar.tsx`, `portal-pill.tsx`, `portal-capabilities.ts`) once
+  nothing reads them.
+- `/portal/outbox` and `/portal/insights` are still the old pages, reachable by
+  staff only if the owner grants `navOutbox` / `navInsights`.
+- Search (⌘K) for directors/managers on the shared screens, scoped.
+- A company-scoped director has not been walked through live on Studio.
+- MCP task scope uses only `companyScope` — an `own` staff caller sees none.
+- ORI's `set_role_capability` saves without `diffFromDefaults`.

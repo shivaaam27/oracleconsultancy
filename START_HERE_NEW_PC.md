@@ -1,10 +1,9 @@
-# START HERE — Moving the Oracle System to a New PC
+# START HERE — moving Oracle to a new PC
 
-**Read this first. On the new PC, tell Claude: _"Read `START_HERE_NEW_PC.md` and get me
-set up."_ Claude will then walk through every step below and verify each one.**
+**On the new PC, tell Claude: _"Read `START_HERE_NEW_PC.md` and get me set up."_
+Claude will walk through every step below and check each one.**
 
-This document is written in plain English for a non-technical owner. It exists so that
-**nothing breaks** when you move to a new computer.
+Written in plain English, so that **nothing breaks** when you change computer.
 
 ---
 
@@ -12,155 +11,138 @@ This document is written in plain English for a non-technical owner. It exists s
 
 Your system lives in **three places**. Only one of them is your PC.
 
-| Where | What's there | Safe if PC dies? |
+| Where | What's there | Safe if the PC dies? |
 |-------|--------------|------------------|
-| **The cloud (Supabase + Vercel)** | All your real data — tasks, people, documents, companies, everything you've typed in. The live website at `oracleconsultancy.vercel.app`. | ✅ **Yes.** Not on your PC at all. |
-| **GitHub** (`github.com/shivaaam27/oracleconsultancy`) | All the code, plus the project's own `memory/` notes, `CLAUDE.md`, `DESIGN_SYSTEM.md` and every guide. | ✅ **Yes.** One `git clone` brings it all back. |
-| **Your PC only** | Two things: (1) your **secret keys** file (`.env.local`), and (2) **Claude's memory folder**. | ❌ **No — these must be hand-carried.** |
+| **The cloud (Supabase + Vercel)** | All your real data — tasks, people, companies, files, notes. The live site at `oracleconsultancy.vercel.app`. | ✅ **Yes.** Not on your PC at all. |
+| **GitHub** (`github.com/shivaaam27/oracleconsultancy`) | All the code, plus `CLAUDE.md`, the `memory/` notes and every guide. There is one branch: `master`. | ✅ **Yes.** One `git clone` brings it back. |
+| **Your PC only** | (1) your **secret keys** file (`.env.local`), and (2) **Claude's own memory folder**. | ❌ **No — carry these by hand.** |
 
-So moving PCs is really just: **re-download the code from GitHub, then put back the two
-local-only things.** That's what the transfer folder is for.
+So moving PCs is: **download the code from GitHub, then put back the two
+local-only things.**
 
 ---
 
 ## Before you leave the OLD PC
 
-Everything you need is already packed into this folder:
-
-```
-C:\Users\User\Documents\Oracle-NEW-PC-TRANSFER\
-```
-
-Copy that **entire folder** to a USB stick or your cloud drive (Google Drive/Dropbox/OneDrive).
-It contains:
-
-- `secrets/.env.local` and `secrets/.env` — your 22 secret keys (database, AI, login, email, WhatsApp).
-- `claude-memory/` — Claude's full memory (53 notes + the index) so the new PC's Claude knows the whole history.
-- `README-FIRST.md` — the same steps as here, but standalone.
-
-**Also make sure your work is pushed to GitHub.** Ask Claude: _"is everything committed and
-pushed?"_ Anything uncommitted only exists on the old PC.
-
-> 💡 The transfer folder is a **snapshot**. If you keep working on the old PC after making it,
-> re-run the packing (ask Claude to "refresh the transfer folder") so it stays current.
+1. **Make sure everything is on GitHub.** Ask Claude: _"is everything committed
+   and pushed to master?"_ Anything not pushed exists only on the old PC.
+2. **Copy these to a USB stick or cloud drive:**
+   - `.env.local` (and `.env` if there is one) from the project folder — your
+     secret keys.
+   - Claude's memory folder:
+     `C:\Users\<you>\.claude\projects\<project-key>\memory\`
+     (the project key is the project's path with `\`, `:` and spaces turned
+     into `-`, e.g. `C--Users-Shivam-Parmar-Documents-cos-system`).
 
 ---
 
-## On the NEW PC — the setup checklist
+## On the NEW PC
 
-Claude will do most of this for you when you point it at this file. Steps in order:
+### 1. Install the tools
+- **Node.js** 20 or newer (built on Node 24) — nodejs.org.
+- **Git** — git-scm.com.
+- **Claude Code**.
 
-### 1. Install the basic tools
-- **Node.js** (version 20 or newer — this project was built on Node 24). From nodejs.org.
-- **Git**. From git-scm.com.
-- **Claude Code** (so I can help you again on the new PC).
-- *(Optional)* VS Code as an editor.
-
-### 2. Get the code back from GitHub
-Put the project in the **same location** as before so paths line up:
-```
-C:\Users\User\Documents\cos-system
-```
-Command:
+### 2. Get the code
+Use the **same folder path** as before if you can — Claude's memory folder is
+keyed to it.
 ```bash
-cd C:\Users\User\Documents
+cd C:\Users\<you>\Documents
 git clone https://github.com/shivaaam27/oracleconsultancy.git cos-system
 ```
-> Using the exact same folder path matters — Claude's memory folder is keyed to it (see step 4).
 
-### 3. Put back your secret keys
-Copy the two files from your transfer folder into the project root:
-- `Oracle-NEW-PC-TRANSFER\secrets\.env.local`  →  `C:\Users\User\Documents\cos-system\.env.local`
-- `Oracle-NEW-PC-TRANSFER\secrets\.env`  →  `C:\Users\User\Documents\cos-system\.env`
-
-**Without `.env.local` nothing works** — no database, no login, no AI. This is the single most
-important file to restore. (It is deliberately kept out of GitHub so your passwords never leak.)
+### 3. Put back the secret keys
+Copy `.env.local` (and `.env`) into the project folder
+(`C:\Users\<you>\Documents\cos-system\`).
+**Without `.env.local` nothing works** — no database, no sign-in, no AI. It is
+kept out of GitHub on purpose.
 
 ### 4. Put back Claude's memory
-Copy everything from `Oracle-NEW-PC-TRANSFER\claude-memory\` into:
-```
-C:\Users\User\.claude\projects\C--Users-User-Documents-cos-system\memory\
-```
-(Create those folders if they don't exist. If the project path in step 2 is identical, this path
-will be identical too.) This is what lets the new Claude remember the whole build history instead
-of starting blind.
+Copy the memory folder into `C:\Users\<you>\.claude\projects\<project-key>\memory\`
+(create the folders if needed). If the project path is different on the new PC,
+the key is different too — work it out from the new path as above.
 
 ### 5. Install and run
 ```bash
-cd C:\Users\User\Documents\cos-system
+cd C:\Users\<you>\Documents\cos-system
 npm install
 npm run dev
 ```
-Then open `http://localhost:3000`. If the site loads and you can log in, the move worked.
+Open `http://localhost:3000`. If it loads and you can sign in, the move worked.
 
 ### 6. Final check (Claude does this)
-- `npm exec tsc -- --noEmit` — confirms the code still type-checks (no errors).
-- `npm test` — runs the safety tests (should be ~272 passing).
-- Load the live preview and log in.
+- `npm exec tsc -- --noEmit` — the code type-checks.
+- `npm test` — the safety tests pass.
+- `npm run db:check-security` — the database is still locked.
+- Sign in on the local site.
 
 ---
 
 ## What each secret key is for
-*(So if one is ever missing, you know what stops working. Full template with blanks is in `.env.example`.)*
+*(If one is missing, this is what stops working. The template is `.env.example`.)*
 
 | Key | Powers | If missing… |
 |-----|--------|-------------|
-| `DATABASE_URL` | The cloud database (Supabase pooler, port 6543) | **Nothing loads at all** |
-| `APP_PASSPHRASE` | The owner login password | Can't log in as owner |
-| `PORTAL_SESSION_SECRET` | Staff portal logins | Staff can't sign in |
-| `CRON_SECRET` | Protects the automated background jobs | Automations won't run |
-| `INBOX_SECRET` | Document intake endpoint | Inbox intake breaks |
-| `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Search + realtime chat | Search/chat degrade |
-| `SUPABASE_SERVICE_ROLE_KEY` | Server database access, embeddings/indexing | Indexing & some writes fail |
-| `GROQ_API_KEY` | Voice transcription + fallback AI | Voice/AI degrade (key can also be set in-app Settings) |
+| `DATABASE_URL` | The cloud database (Supabase pooler, port 6543) | **Nothing loads** |
+| `DIRECT_DATABASE_URL` | Migrations, backups, the security check (port 5432) | They fall back to `DATABASE_URL` |
+| `NEXT_PUBLIC_SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` | Server database access, search indexing, files | Pages and saves fail |
+| `PORTAL_SESSION_SECRET` | Signs every sign-in (owner and staff) | Works locally, but must be set on the live site |
+| `CRON_SECRET` | Protects the background jobs | Jobs refuse to run |
+| `GEMINI_API_KEY` | All the AI — Ask ORI, polish, drafting, reading documents | AI switches off (the key can also live in Settings) |
+| `GROQ_API_KEY` | Voice transcription | Microphone uses the browser's own speech (can also live in Settings) |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google Calendar & Meet sync | Calendar sync off |
-| `GMAIL_USER` / `GMAIL_APP_PASSWORD` | Sending email | Emails won't send |
-| `TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` / `TWILIO_WHATSAPP_FROM` | WhatsApp sending (sandbox) | WhatsApp off |
-| `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN` | Error monitoring | You won't get error alerts |
-| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` | Phone push notifications | Push notifications off |
-| `VERCEL_TOKEN` | Deploying to the live site | Can't deploy from CLI |
+| `GMAIL_USER` / `GMAIL_APP_PASSWORD` | Sending email | Emails don't send |
+| `TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` / `TWILIO_WHATSAPP_FROM` | WhatsApp sending | WhatsApp off |
+| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` | Phone push notifications | Push off |
+| `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN` | Error alerts | You won't hear about crashes |
+| `COS_MCP_KEY` | Lets Claude Code on this PC reach Oracle | Run `npm run mcp:key` to mint a new one |
 
-> **Note:** Some AI keys (e.g. the Gemini vision key) may be stored **inside the app's Settings
-> page**, which lives in the cloud database — so they travel automatically and don't need to be in
-> `.env.local`. If document reading (OCR) works on the new PC, that key is fine.
-
----
-
-## Where the knowledge lives (so Claude can "sort everything out")
-
-Once the code is cloned, everything Claude needs to understand the system is already inside it:
-
-1. **`CLAUDE.md`** — the master brief: product, stack, every page, every rule. Claude reads this automatically.
-2. **`DESIGN_SYSTEM.md`** — the "Aurora" look-and-feel rules for any new screen.
-3. **`memory/MEMORY.md`** — the index of the project's deep notes; **`memory/session_handover_jul8_2026.md`** is the most recent "start here" pickup point.
-4. **The restored Claude memory** (step 4) — the richer running index + feedback/preferences.
-5. This file (`START_HERE_NEW_PC.md`) — the move guide.
-
-**To bring Claude fully up to speed on the new PC, say:**
-> _"Read CLAUDE.md, then memory/MEMORY.md and memory/session_handover_jul8_2026.md, and give me a summary of where we left off."_
+The owner password is **not** a key in this file — it is stored (as a hash) in
+the database, so it travels with the cloud. Keys pasted into Settings (Gemini,
+Groq) travel the same way. `APP_PASSPHRASE`, `INBOX_SECRET` and
+`NEXT_PUBLIC_SUPABASE_ANON_KEY` are no longer used; leave them out.
 
 ---
 
-## The "please don't break these" rules
-*(These are the fragile spots. They're also in `CLAUDE.md` — this is the short list.)*
+## Where the knowledge lives
 
-- **Database connection** (`src/db/index.ts`): must keep `prepare: false` and `max: 1`, and
-  `DATABASE_URL` must use the Supabase **pooler on port 6543**. Changing these breaks all data access.
-- **Login gate** (`src/proxy.ts`): the secret derivation must stay identical across `src/proxy.ts`,
-  `src/lib/admin-auth.ts`, and `src/lib/portal-auth.ts`. If they drift, logins fail.
-- **Always take a database backup before any schema change**: `npm run db:backup`.
-- **Never delete the `.next` folder while the dev server is running** — stop it first.
-- **Times are stored in UTC** and shown in Dar es Salaam time; don't change the timestamp columns.
-- **Migrations**: latest is **0111**. Vercel runs them on deploy (needs `DIRECT_DATABASE_URL`, port 5432).
+1. **`CLAUDE.md`** — the master brief: product, stack, pages, rules. Claude reads
+   it automatically.
+2. **`memory/studio_redesign.md`** — the Studio design every rebuilt page uses;
+   **`DESIGN_SYSTEM.md`** — Desk, for pages not yet rebuilt.
+3. **`memory/README.md`** — the index of the project's deeper notes.
+4. **Claude's own memory** (step 4) — preferences and running notes.
+
+To bring Claude up to speed, say:
+> _"Read CLAUDE.md and memory/README.md, and tell me where we left off."_
 
 ---
 
-## If something does break
-- **Site won't start / "SUPABASE... is not set"** → `.env.local` is missing or in the wrong folder (step 3).
-- **Can't log in** → `APP_PASSPHRASE` (owner) or `PORTAL_SESSION_SECRET` (staff) missing.
-- **Claude seems to have forgotten everything** → the memory folder wasn't restored (step 4).
-- **Type errors after clone** → run `npm install` again; then `npm exec tsc -- --noEmit` and hand the errors to Claude.
-- **Your data looks gone** → it isn't; it's in the cloud. Check `DATABASE_URL` points at the right Supabase project.
+## Please don't break these
+*(Also in `CLAUDE.md` — this is the short list.)*
 
-Your real data is always safe in the cloud. The worst a bad PC move can do is stop the *code* from
-running locally — and that's fully recoverable from GitHub + this transfer folder.
+- **Database connection** (`src/db/index.ts`): keep `prepare: false` and
+  `max: 1`, and `DATABASE_URL` on the **pooler, port 6543**.
+- **Sign-in**: the secret derivation must stay identical in `src/proxy.ts`,
+  `src/lib/admin-auth.ts` and `src/lib/portal-auth.ts`.
+- **Back up once, at the end of a session** (`npm run db:backup`, ~15 minutes) —
+  and first, before anything that drops or rewrites data.
+- **Never delete `.next` while the dev server is running** — stop it first.
+- **Times are stored in UTC** and shown in Dar es Salaam time.
+- **Migrations**: latest is **0172**. Vercel runs them on every deploy.
+- **Deploy = push to `master`.** Nothing else deploys.
+
+---
+
+## If something breaks
+- **"SUPABASE… is not set" / the site won't start** → `.env.local` is missing or
+  in the wrong folder (step 3).
+- **Can't sign in** → the password lives in the database, so check
+  `DATABASE_URL` first; staff sign-in also needs the same `PORTAL_SESSION_SECRET`
+  as before or old cookies stop working (just sign in again).
+- **Claude seems to have forgotten everything** → the memory folder wasn't
+  restored, or the project path changed (step 4).
+- **Type errors after cloning** → `npm install` again, then
+  `npm exec tsc -- --noEmit` and hand the errors to Claude.
+- **Your data looks gone** → it isn't; it's in the cloud. Check `DATABASE_URL`
+  points at the right Supabase project.

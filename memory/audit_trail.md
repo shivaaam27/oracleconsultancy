@@ -1,6 +1,6 @@
 ---
 name: audit-trail
-description: "What gets logged to audit_log and how timelines work"
+description: "What gets logged to audit_log, how deletion works, and where activity is shown"
 metadata:
   node_type: memory
   type: project
@@ -8,78 +8,57 @@ metadata:
 
 # Audit Trail
 
-Audit data is kept even though the standalone `/audit` page was removed. It powers per-task timelines.
+`audit_log` holds field-level task history. There is no standalone audit page;
+the rows feed the task timeline, the company Timeline tab, the Tasks Timeline
+view and the trace panel. The server actions in `src/app/audit/actions.ts`
+(edit a reason, record a correction, hide/restore an entry) are reached from
+the ⋯ menus on timeline rows (`timeline-entry.tsx`; `audit-menu.tsx` on the
+company Timeline tab).
 
-## Task Action Logging
+## What writes it
 
-Implemented mainly in `src/app/task/actions.ts`.
+All task writes go through `src/lib/task-write.ts`, so the web form, the portal,
+MCP and ORI log the same way.
 
-- `createTask` writes a `CREATE` audit entry.
-- `updateTask` diffs task fields and writes one `CHANGE` row per changed field.
-- `addTaskUpdate` writes a status-change audit row when `newStatus` changes.
-- Closing a task sets `closedDate`; reopening clears it.
-- Assignee changes are logged as `Accountable`.
+- `createTaskCore` — one `CREATE` row.
+- `updateTaskCore` — one `CHANGE` row per changed field. Assignee changes are
+  logged under the field `Accountable`. Closing sets `closed_date`; reopening
+  clears it.
+- `addTaskUpdateCore` — a status `CHANGE` row when the update moves the status.
+- `/api/action` (natural-language commands) — `CHANGE` / `CREATE` rows with
+  `created_by = "ai-command"`.
+- Automations (`automation-time.ts`, ORI automations cron, suggestions) and
+  other creators (to-dos promoted to tasks, Tax & Legal, documents, people
+  journeys) write `CREATE` rows; ORI automations also write `UPDATE`.
+- Undo writes `UNDO`; a recorded correction writes `CORRECTION` and a
+  `corrections` row linking the two entries.
 
-## AI Command Logging
+`created_by` is `"web-ui"` (owner), `"portal:<Name>"`, `"ai-command"`, or an
+MCP/ORI stamp. Old rows may still say `"meeting-mode"` (the Meeting workspace is
+gone; `activity.ts` and `/api/trace` still label it "Meeting").
 
-`/api/action` writes mutation audit rows with `createdBy: "ai-command"`.
+## Deletion keeps history
 
-Entry types include:
+- **An update or an audit row** is soft-deleted (`deleted_at`) and can be
+  restored. Every timeline filters `deleted_at IS NULL`.
+- **A task** (`deleteTaskQuick`) is deleted with a ten-minute undo: the task,
+  its assignees and conversation are snapshotted first; its `audit_log` rows
+  survive by `task_code` (the FK only nulls `task_id`).
+- `purgeTaskHistory` in `src/app/task/actions.ts` (permanent wipe) is reserved
+  for a future, explicitly confirmed delete; nothing calls it today.
+- `scripts/purge-orphan-history.ts` cleans orphaned history left by older
+  permanent deletes.
 
-- `STATUS`
-- `ESCALATION`
-- `PRIORITY`
-- `CREATE`
+## Where activity shows
 
-## Meeting Workspace Logging
+- **Task record** (`/task/[code]`, `TaskRecordPage` in `task-drawer.tsx`) — the
+  task's own updates and audit rows, merged by `src/lib/timeline.ts`.
+- **Home "Latest activity"** — `listRecentActivity()` in `src/lib/activity.ts`:
+  the newest `task_updates` across every company, author resolved from
+  `created_by` (a director's list is filtered to their tasks).
+- **Tasks → Timeline view** (`?tab=tasks&view=timeline`) —
+  `getRecentActivity()` in `src/lib/queries.ts`: recent updates plus audit rows,
+  rendered with `TimelineEntry`.
+- **Company → Timeline tab** — `companies/[id]/_tabs/timeline-tab.tsx`.
 
-Tasks created from Meeting Workspace:
-
-- write `audit_log.entry_type = "CREATE"`;
-- use `created_by = "meeting-mode"`;
-- use change reason `Created via Meeting Mode`;
-- are linked back through `meeting_tasks`.
-
-## Timeline Behaviour
-
-Timeline rendering combines:
-
-- `task_updates`
-- `audit_log`
-
-`src/lib/timeline.ts` handles:
-
-- stable sorting;
-- merging status changes into updates;
-- suppressing noisy edit/delete/pin audit rows;
-- grouping bursts of field edits;
-- hoisting pinned updates.
-
-Task detail pages, the task drawer, and the global activity feed all use this
-model. The drawer + global feed render through the shared `TimelineEntry`
-component (icon node + actor + relative time + optional task chip). The global
-feed (`getRecentActivity`) aggregates updates + audit across all tasks.
-
-See `memory/timeline.md` for the full picture (three scopes, event model, the
-shared component, and the activity-feed query).
-
-## Deletion is permanent
-
-Deletes are **hard deletes**, not soft-deletes (the operator wants a delete to
-wipe a thing entirely, everywhere):
-
-- Deleting a **task** runs `purgeTaskHistory` — removes its `audit_log` rows
-  (which don't cascade; the FK only nulls `task_id`) and referencing
-  `corrections`, then deletes the task (updates/assignees/meeting-links cascade).
-  No "Task deleted" tombstone, no undo.
-- Deleting a single **update** or **audit entry** from a timeline hard-deletes
-  that row immediately.
-- `scripts/purge-orphan-history.ts` cleans pre-existing orphans (tombstones from
-  older deletes that left audit rows behind as phantom timeline events).
-
-The `deleted_at` columns and `restore*` actions still exist but are off the
-current delete path.
-
-## Corrections
-
-`corrections` links an erroneous audit entry to the entry that corrected it. No UI writes this table yet.
+See `timeline.md` for the merge rules and components.

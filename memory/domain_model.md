@@ -10,21 +10,23 @@ metadata:
 
 ## Companies
 
-Oracle Consultancy has 7 portfolio companies:
+The portfolio companies live in the **`companies`** table — read them from
+there, never hard-code the list. There were seven at the start and there are
+about fourteen now; some have been renamed (DS was "Dar Spices", CC was
+"Cocozuri Chocolat") while keeping their prefix.
 
-- CO01 Dar Spices
-- CO02 Cocozuri Chocolat
-- CO03 Terra Green
-- CO04 Oracle Consultancy
-- CO05 PES Ltd
-- CO06 MES Ltd
-- CO07 Pamoja Plus
+Each company has a two-letter **`code_prefix`** (DS, CC, TG, OC, PE, ME, …).
+It is what task codes are built from, so it should not change once tasks exist
+(moving a task to another company re-issues its code). The older `code` column
+(`CO01`…) survives only as a fallback prefix.
 
 ## Task Codes
 
-Format: `<PREFIX>-NNN`, where PREFIX is the company's two-letter `code_prefix` (e.g. `DS-001` for Dar Spices). Legacy `COxx-NNN` codes are kept in `tasks.legacy_code` so old links redirect.
+Format: `<PREFIX>-NNN` (e.g. `DS-001`). Legacy `COxx-NNN` codes are kept in
+`tasks.legacy_code` so old links still resolve.
 
-Allocation uses read-max-then-insert with retries in helper paths. If task creation becomes highly concurrent, consider a stronger Postgres-side allocator.
+Allocation is in `createTaskCore` (`src/lib/task-write.ts`): read the highest
+number for the prefix, insert, and retry up to five times on a collision.
 
 ## Statuses
 
@@ -74,7 +76,7 @@ Flag order:
 
 ## Risk Score
 
-Company KPI (`computeCompanyKpis` in `queries.ts`) includes `total, open, inProgress, overdue, dueSoon, blocked, critical, escalated, completed, closed, aging, riskScore`. (`inProgress` = status "In Progress"; surfaced on the Director Brief.)
+Company KPI (`computeCompanyKpis` in `queries.ts`; `computeCompanyKpisForCompanies` in `company-kpis.ts`) includes `total, open, inProgress, overdue, dueSoon, blocked, critical, escalated, completed, closed, aging, riskScore`. (`inProgress` = status "In Progress"; surfaced on the Director Brief.)
 
 Risk score:
 
@@ -100,4 +102,4 @@ Outbox/reminders use uppercase channel strings:
 - `EMAIL`
 - `SMS`
 
-Product direction is a single user-facing "Messages" workflow once real dispatch exists.
+Email sends through `src/lib/email/send.ts` (Gmail SMTP or Resend). WhatsApp can send for real through Twilio (`src/lib/whatsapp.ts`) when its env vars are set; otherwise it falls back to `wa.me` links. Person-to-person messages from MCP are only ever Outbox drafts.

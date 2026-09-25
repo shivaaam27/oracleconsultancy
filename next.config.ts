@@ -6,7 +6,7 @@ import path from "node:path";
  *
  * There were NONE before 20 Aug 2026 — no CSP, no HSTS, nothing stopping the
  * site being framed inside a fake login page. These are the cheap half of the
- * security pass in memory/desktop_app_and_security_plan.md.
+ * security pass in memory/security.md.
  *
  * TWO SPEEDS, on purpose:
  *   • Everything except the CSP is ENFORCED straight away. None of it can break

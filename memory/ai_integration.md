@@ -1,145 +1,113 @@
 ---
 name: ai-integration
-description: "Groq AI routes, Ask Oracle context, meeting intelligence, and fallback rules"
+description: "The AI reference — Gemini harness, model ladders, key gate, spend cap, and every live AI surface"
 metadata:
   node_type: memory
   type: project
 ---
 
-# AI Integration
+# AI integration
 
-Provider: **Groq Cloud** via OpenAI-compatible chat completions.
+AI is optional. Every AI path must degrade gracefully when AI is off, unless the
+route documents a 503 (only `/api/draft-email` does).
 
-Models used in current code (env-overridable ladders in `src/lib/ai-models.ts`): `openai/gpt-oss-20b` (`GROQ_FAST`) for most routes, `openai/gpt-oss-120b` (`GROQ_SMART`) for higher-quality prose. **Migration (2026-06):** Groq deprecated the previous models `llama-3.1-8b-instant` + `llama-3.3-70b-versatile` on 2026-06-17 (shutdown 2026-08-16); the app moved to Groq's recommended `openai/gpt-oss-*` replacements, with the old llama names kept as last-resort ladder entries until shutdown. Vision/OCR still uses `meta-llama/llama-4-scout-17b-16e-instruct` (shutdown 2026-07-17; replacement to be confirmed — OCR degrades to "rules" if it goes). **Exception:** dictation clean-up (`polishDictation`) tries `GROQ_SMART` then `GROQ_FAST` in order (`DICTATION_MODELS`). `groqChat` now retries transient failures briefly per model, then falls through to the next model before giving up to the raw transcript. This matters because a 429 on polish is what made corrections silently fail: the fallback returned the raw sentence unchanged. Dictated text is sent as plain labelled text (not a JSON blob) with worked correction examples (incl. bare "no" mid-sentence), and output is run through `stripModelChrome` to drop any "Here is…"/quote wrapper.
+## Provider: Gemini only
 
-AI is optional. All AI features must respect `getGroqKey()` from `src/lib/settings.ts`, which is gated by the Settings AI master switch.
+- `getActiveProvider()` in `src/lib/settings.ts` is hard-coded to `"gemini"`.
+  The Groq provider code still exists in the harness but no text call reaches it.
+- **Groq is kept for ONE thing: Whisper speech-to-text** at `/api/transcribe`
+  (`whisper-large-v3-turbo`, `GROQ_WHISPER`), keyed by `getGroqOnlyKey()`.
+- Gemini is reached through its **OpenAI-compatible** endpoint
+  (`https://generativelanguage.googleapis.com/v1beta/openai/chat/completions`,
+  `Authorization: Bearer <key>`), so the harness is one OpenAI-compatible
+  implementation with two base URLs.
 
-## AI Surfaces
+## Models — `src/lib/ai-models.ts`
 
-### Voice intelligence actions
+- **One pair for every lane**: `gemini-3.1-flash-lite` primary →
+  `gemini-3.5-flash-lite` fallback. Fast, smart, vision and the ORI chat picker
+  (`CHAT_MODELS`) all use it. Both are multimodal, so the same pair reads scans.
+- Env-overridable: `GEMINI_FAST_MODELS` / `GEMINI_SMART_MODELS` /
+  `GEMINI_VISION_MODELS` (comma list). Per-model daily quotas in `MODEL_QUOTAS`,
+  overridable with `AI_MODEL_QUOTAS` (JSON).
+- **Tiers, not model names, at call sites.** Callers pass `AI_FAST`, `AI_SMART`
+  or `AI_VISION_MODELS[0]`. `tierOf()` maps that to a tier and
+  `providerLadder(provider, model)` substitutes the active provider's whole
+  ladder. `providerVisionModels(provider)` gives the vision ladder directly.
+- ⚠️ **Always pass a tier head, never a raw Gemini id.** A name `tierOf()` does
+  not recognise runs as a one-entry ladder with no fallback, so one rate-limited
+  model fails the whole call. If you already hold a ladder, pass it as `models:`.
+- Never list `gemini-*-latest` aliases (same quota bucket as the pinned model).
+  `npx tsx scripts/list-gemini-models.ts` lists what the current key can use —
+  run it after a key change before editing the ladders.
 
-Speech-to-text engine (Phase 1): `/api/transcribe` (`src/app/api/transcribe/route.ts`).
+## Harness — `src/lib/ai-json.ts`
 
-- Accepts recorded audio as multipart FormData (`audio`, optional `language`).
-- Transcribes via Groq Whisper `whisper-large-v3-turbo` at `https://api.groq.com/openai/v1/audio/transcriptions`.
-- Passes the personal voice dictionary as a `prompt` bias so uncommon names/terms are spelt correctly, and maps the BCP-47 voice language to Whisper's 2-letter `language` hint.
-- Returns `{ text, source }`. `source` is `ai` on success, `no-key` when AI is off, `error` on failure. The client uses these to fall back to browser speech.
+- `callAIJson()` (strict JSON: strip, parse, `validateShape`) and `callAIText()`.
+  Both retry a brief 429/5xx, time out (`DEFAULT_TIMEOUT_MS` 20s), fall through
+  the ladder, and record usage to `ai_usage` via `recordUsage()`.
+- **Gemini "thinks" by default**, which eats a small answer budget and truncates
+  JSON. `providerRequestExtras("gemini")` sends `reasoning_effort: "none"` on
+  every call. Direct-fetch callers (the `/api/ask` stream) must use
+  `PROVIDER_CHAT_URLS` + `providerRequestExtras` too.
+- `LOW_CONFIDENCE` (0.75) is the shared "unsure" threshold for readers.
 
-Clean-up actions in `src/app/voice/actions.ts`.
+## The key gate — `getAiKey()`
 
-- `polishDictation` cleans rough dictated speech into polished Oracle text. **Phase 2 (clean-up brain):** the system prompt resolves self-corrections (keeps the final value after cues like "actually", "no wait", "scratch that", "I mean", "sorry"), strips fillers, and collapses restarts/stutters — without dropping real information. **Phase 2 expansion:** (1) **real-name correction** — it loads the live company + people names via `loadContext()` from `src/lib/ai-context.ts`, merges them with the operator dictionary (deduped, capped at 200), and tells the model to fix mis-transcribed names to their exact spelling (e.g. "dar spaces" -> "Dar Spices"); a DB hiccup is swallowed so clean-up still runs. (2) **number/date/currency normalisation** — spoken numbers/times/dates/amounts become clear short forms (no invented currencies or calendar guesses). (3) **over-clean safety guard** — the rule fallback `basicClean` is deliberately conservative (only true tics um/uh/er/etc; it does NOT strip "actually/basically/literally" or resolve corrections, since without the model it can't tell a correction from real content). (4) **change count** — returns `changes` (word-level diff via `countChanges`); callers show "Tidied N things" plus a "Use raw" revert. Return type: `{ raw, polished, source, changes?, message? }`.
-- `teachVoiceDictionary` appends trusted names/phrases to the Settings voice dictionary.
+`getAiKey()` in `src/lib/settings.ts` is the one gate every AI path calls:
 
-The action uses Groq when available and falls back to basic clean-up when AI is off or fails. It receives context such as meeting title/company/attendees or task code/status, and it preserves configured dictionary terms.
+1. **Master switch** — Settings → AI & Voice → *AI assistance* → "Enable AI
+   features" (`v2.aiEnabled`). Off → `undefined` → rule/manual fallback.
+2. **Key** — in-app `geminiApiKey` (rotatable without a redeploy) → env
+   `GEMINI_API_KEY`.
+3. **Spend cap** — `isOverSpendCap()` (`src/lib/ai-spend.ts`). Only bites when
+   `aiMonthlySpendCap` > 0; the default 0 means unlimited, and any error fails
+   OPEN. Cached ~60s. Settings → *AI usage* shows today's calls and quota per
+   model; `/api/ai-usage` feeds the palette's "AI today".
 
-`src/components/voice-button.tsx` records real audio (MediaRecorder), shows a live mic-level meter and timer while recording and a transcribing state afterwards, sends the clip to `/api/transcribe`, then emits the transcript through `onResult` before firing `onStop`. It falls back to the browser Web Speech recogniser when audio recording is unsupported (and surfaces a hint when AI is off). Live captions are streamed via `onInterim` only — there is no caption bubble. Each caller writes interim text directly into its own text field (committed text + interim, without committing) so captions appear live where the text lands; the final Whisper transcript then replaces it via `onResult`. Callers (`quick-capture`, `update-box`, `meeting-extractor`, `ask-cos`) run `polishDictation` in their `onStop` handlers.
+## Live AI surfaces
 
-Current voice language choices live in Settings:
+| Surface | Where | Notes |
+|---|---|---|
+| Ask ORI (RAG) | `/api/ask` (+ `src/lib/ask-retrieval.ts`) | ⌘K palette and portal (`/api/portal/ori/ask`). Streams. Page context from `src/lib/page-context.ts`; memory via `/api/ai-memory` + `src/lib/ai-memory.ts`. |
+| AI commands | `/api/action` | Parse → confirm → execute; audit rows `createdBy: "ai-command"`; bulk over the current view (`src/lib/current-view.ts`, cap 50). |
+| ORI agent | `/api/ori` (`src/lib/ori/agent.ts`, tools in `src/lib/ori/`) | Plans, then runs only what the owner confirms. Portal twin `/api/portal/ori/act`. |
+| Task polish | `/api/polish` | `PolishedInput` and the quick-task popover; rule fallback `polishActionItem` (`smart-parse.ts`). |
+| Follow-up email | `/api/draft-email` | Task drawer button. 503 when AI is off. |
+| Company summary | `/api/company-summary` | Studio company page. |
+| Voice | `/api/transcribe` | Groq Whisper; voice dictionary sent as a prompt bias; returns `source` `ai` / `no-key` / `error`, and `VoiceButton` falls back to browser speech. |
+| Notes AI | `src/lib/note-ai.ts` via `src/app/notes/ai-actions.ts` | Tidy, Summarise, Find the jobs, Name it, Suggest links, Ask your notes. Every one is a PROPOSAL; nothing writes. |
+| Document reader | `src/lib/doc-read.ts` (Files → read details) | Reads and suggests fields only; never files, renames or picks an owner. Shares `file-extract.ts` with the event reader. |
+| Event reader | `src/lib/event-read.ts` / `event-read-core.ts` | Ticket/booking → event form. A time is never accepted without its IANA zone. |
+| Announcements | `src/app/announcements/actions.ts` | Draft from a prompt; translate EN ↔ SW. |
+| People | `src/app/people/actions.ts` | Extract a person's details from a pasted message. |
+| Search translation | `src/lib/embeddings.ts` | Translates non-English text to English before embedding (best effort). |
 
-- English (`en-GB`)
-- Swahili (`sw-TZ`)
-- Hindi (`hi-IN`)
-- Gujarati (`gu-IN`)
+Deterministic, no AI: `/api/brief`, `/api/briefing` (radar), the ORI
+automations cron.
 
-### `/api/polish`
+## Shared context — `src/lib/ai-context.ts`
 
-Polishes raw action-item text. Falls back to `polishActionItem` in `smart-parse.ts`.
+`loadContext()` (companies, people, recent tasks), `loadTaskContext(taskId)`,
+`findSimilarTasks(query)` (no LLM), `invalidateContext()`.
 
-### `/api/draft-email`
+## Dormant
 
-Drafts task follow-up email. Returns 503 when AI is unavailable.
+- `src/lib/model-watch.ts` — the Groq deprecation watch; silent while the
+  provider is Gemini.
+- `src/lib/ai-jobs.ts` + `/api/agent/trigger` — the old cloud-agent queue. It
+  has no producer any more.
+- `ocrSpaceApiKey` in settings — nothing reads it.
+- The Telegram bridge (`/api/telegram/webhook` → `/api/ask`) — inert without
+  `TELEGRAM_BOT_TOKEN` + `TELEGRAM_WEBHOOK_SECRET`, and `api/telegram` is not in
+  the `src/proxy.ts` exclusion list, so a delivery would be redirected to
+  `/login` today.
 
-### `/api/digest` and `/api/digest-narrative`
-
-`/api/digest` builds rule-based digest data/text. `/api/digest-narrative` uses Groq to turn digest stats into executive prose.
-
-### `/api/ask`
-
-Ask Oracle RAG endpoint.
-
-Context includes:
-
-- relevant tasks;
-- assignees;
-- recent updates;
-- matched companies and people;
-- relevant saved meetings, including title, company, date, attendees, minutes, raw notes, and linked task codes;
-- `currentPage` — the page the operator is viewing (label, plus resolved task code / company), so "this", "here", "this task/company" resolve correctly. The current page's task/company is force-included in retrieval.
-
-Page context is supplied by the floating assistant via `src/lib/page-context.ts` (`derivePageContext(pathname, searchParams)`) and passed in the request body as `pageContext`. `/api/action` also receives it as `activeContext` so pronoun commands ("escalate it") work on a task page.
-
-`derivePageContext` is **subsection-aware**: it reads search params too, so it knows the active tab (company Overview/Completed/Timeline, Workbook Meetings/Notes/To-do), the live task filters (flag/priority/status/company/search → `filterSummary`), and an open task drawer (`?task=`, which focuses that task anywhere). The assistant's header subtitle and starter prompts adapt to this — e.g. an "overdue" filter offers "Summarise these / Draft follow-ups / Who owns these?".
-
-When a task is focused (task page or open drawer), the assistant also shows **agentic quick-action chips** (Complete / Escalate / Mark blocked) that submit real commands through the same `/api/action` parse → confirm → execute pipeline as typed commands.
-
-**Bulk actions over the current view** are supported. A small client store (`src/lib/current-view.ts`, published by `ViewPublisher` from the hub Tasks section) holds the visible task codes + a label. AskCOS passes them as `activeContext.viewCodes`; the action parser can emit a `bulk` intent (`op`: complete / escalate / set_status / set_priority). `/api/action` resolves "these" to those codes (cap 50), shows a confirm card listing them, then applies the op to each with audit rows. This makes "escalate these" / "mark the overdue ones blocked" work even for derived flags, because the codes come from the rendered view rather than a DB re-query.
-
-NOTE: `FloatingAssistant` uses `useSearchParams()` and is mounted in the root layout, so it MUST stay wrapped in `<Suspense>` there — otherwise the production build fails prerendering `/_not-found`.
-
-The Ask Oracle mic (`src/components/ask-cos.tsx`) now uses the shared `VoiceButton` (Groq Whisper engine with live captions), not its own browser recogniser.
-
-Intent filters include overdue, critical, escalated, and closed task requests. Meeting retrieval is triggered by matching keywords, company names, or meeting-oriented words such as meeting, minutes, notes, decision, risk, blocker, attendee, and follow-up.
-
-Returns `{ answer, taskCount, meetingCount, source: "ai" }` when successful.
-
-### `/api/action`
-
-Natural-language commands to mutate or navigate. Two-step confirmation for mutations. Mutation audit rows use `createdBy: "ai-command"`.
-
-### `/api/company-summary`
-
-Per-company executive briefing.
-
-### Meeting Workspace AI Actions
-
-Implemented in `src/app/meeting/actions.ts`, not separate API routes.
-
-- `improveMeetingNotes` - cleans rough notes without changing facts.
-- `generateMeetingMinutes` - generates Markdown minutes with Summary, Decisions, Risks and Blockers, Follow-up Actions.
-- `generateMeetingInsight` - generates focused Decisions, Risks, or Follow-up Draft output.
-- `parseMeetingNotes` - extracts structured task candidates from notes.
-
-All Meeting Workspace AI actions have rule fallbacks:
-
-- no key -> basic local output;
-- AI error -> basic local output plus user-facing message;
-- empty AI output -> local fallback where possible.
-
-### Document AI (Documents & Compliance)
-
-Implemented in `src/app/documents/actions.ts`. Extracts document fields (title, category, type, issuer, reference no., issue/expiry dates, company, person) from:
-
-- **Pasted text** (`extractDocumentFields`) — Groq text model with a rule-based fallback (`ruleExtract`) when AI is off.
-- **Uploaded files** (`extractDocumentFromFile`):
-  - **Text-layer PDFs** → unpdf text → text model.
-  - **Images** → Groq **vision** model (`meta-llama/llama-4-scout-17b-16e-instruct`).
-  - **Scanned / image-only PDFs** → rasterised to PNGs (`renderPdfPages` via unpdf `renderPageAsImage` + **`@napi-rs/canvas`**, ≤2 pages, width 1400) → vision model (`groqVision`).
-- **Overflow-to-Notes** — the prompt also returns a `notes` field for anything that doesn't map to a labelled field (extra refs, conditions, addresses, handwritten remarks); the form **appends** it to the Notes box.
-- The prompt explicitly handles scans, phone photos, faded/dirty pages, handwritten/rough notes, and mixed EN/SW. Honours `getGroqKey()` (AI-off → manual entry).
-
-## Shared Context Helpers
-
-`src/lib/ai-context.ts` provides:
-
-- `loadContext()` - companies, people, recent action items.
-- `loadTaskContext(taskId)` - task detail context for email/task AI.
-- `findSimilarTasks(query)` - keyword duplicate finder with no LLM.
-- `invalidateContext()` - clear cached context after important creates.
-
-`/api/ask` currently has its own retrieval function because it needs broader query-specific task and meeting retrieval.
-
-## Prompt Rules To Preserve
+## Prompt rules
 
 - British English.
-- Decision-grade, concise responses.
-- Do not invent task codes, names, dates, decisions, or meeting details.
-- Cite task codes in brackets where relevant.
-- Cite meeting title/date when using meeting notes or minutes.
+- Decision-grade and short.
+- Never invent task codes, names, dates or decisions. Cite task codes in brackets.
 - Keep rule-based fallback contracts stable.
-
-## Planned AI Enhancements
-
-- Deeper multilingual meeting support: original-language notes plus optional English minutes/summary modes.
-- Use the personal dictionary more broadly in Ask Oracle, Outbox drafts, and action extraction.
-- Extend voice intelligence to remaining long-form inputs and Outbox drafts.
-- Optional web search with explicit user control and source attribution.
+- Intelligence may READ and SUGGEST; anything that writes needs the owner to
+  press a button.

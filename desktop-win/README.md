@@ -268,6 +268,29 @@ Both were found by launching the built `.exe` and reading the window title. Do
 that after any change here — it is the only check that catches this class of
 bug.
 
+## More traps
+
+- **A download is reported as a failed navigation.** WebView2 raises
+  `NavigationCompleted` with `IsSuccess = false` after a `Content-Disposition:
+  attachment` response. `OnNavigationCompleted` ignores a failure that follows
+  `DownloadStarting`; the offline screen carries a "Go to the home page instead"
+  escape — **any new dead-end screen needs one**, because this window has no
+  back button.
+- **Upload the installer BEFORE deploying the site.** The deploy is what
+  announces the new version (`DESKTOP_VERSION`); bump it together with
+  `<Version>` in the csproj (a test guards the drift).
+- **The saved window-state file only gains NULLABLE fields with defaults.** It
+  was written by the version being upgraded FROM; a required member throws and
+  every first launch after an update loses its size.
+- **The title bar is the one part the website cannot paint.**
+  `ShellThemeScript` (`src/components/shell-theme.tsx`, an inline head script so
+  it runs before hydration) posts `theme:dark`/`theme:light`; the shell paints it
+  with `DwmSetWindowAttribute`. **A COLORREF is `0x00BBGGRR` — blue first.**
+- **The tray icon is created at start-up** — it carries the only menu (About and
+  updates). "Could not ask" must never read like "you are up to date".
+- **Check what is actually installed** (`%LOCALAPPDATA%\Programs\Oracle
+  Consultancy`) before diagnosing an app problem.
+
 ## Later: the Microsoft Store
 
 When internal testing is done, package as MSIX and publish to the Microsoft Store
