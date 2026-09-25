@@ -934,3 +934,19 @@ a director gets no KPI/attendance/files/equipment); a Profile stop in
 Home's Latest activity. ⚠️ A fragment/array of PCards handed from a server page
 to a client component needs keys (the Profile's guides column).
 Left: /portal/cleaning (a manager's cleaning overview) is still the old page.
+
+## Managers = directors (checked 26 Sept 2026) and what is left
+- Managers and directors have identical capabilities in code AND in the live
+  settings row (`v2.portalPermissions` only switches ORI off for both). The one
+  difference by design: a director's reach can be all / own / chosen companies;
+  a manager always sees the companies they belong to. Managers also keep the
+  cleaning overview — now a Studio page (`components/studio/cleaning/`, drawn in
+  the Studio frame by `PortalFrame studioRole`).
+- `ensureDay` (lib/cleaning.ts) retries its read after a duplicate-key race —
+  the page used to throw.
+- STILL THE OLD LOOK for the owner: Activity, Approvals, Announcements, Chat,
+  Notes, Insights, ORI automations, and the HR/operations pages (Tax & Legal,
+  Supplies, Assets & Vendors, Attendance register, Cleaning, Applications in
+  progress, Commitments). Directors/managers see "being rebuilt" for
+  Announcements and Chat. HR and receptionist portal logins are still on the
+  old portal. Nothing on master yet.
