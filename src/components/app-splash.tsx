@@ -11,6 +11,17 @@ import { SplashController } from "./app-splash-controller";
  * The "O" mark is the single tracked object: it is the hero, then descends and
  * becomes the floating nav pill's accent lens — so the loader becomes the UI.
  */
+/** The old launch splash belongs to the STAFF PORTAL only (managers and
+ *  staff, until their turn). On every Studio page — the owner, a director, the
+ *  shared sign-in — it put the previous design over the screen for 1.7s on
+ *  every reload (owner, 25 Sept 2026: "the old system never shows up"). This
+ *  runs in <head>, before the splash is parsed, so it never paints at all. */
+export const SPLASH_GATE = `(function(){try{var p=location.pathname;var portal=p==="/portal"||p.indexOf("/portal/")===0;if(!portal||p.indexOf("/portal/login")===0)document.documentElement.setAttribute("data-no-splash","")}catch(e){}})()`;
+
+export function SplashGateScript() {
+  return <script dangerouslySetInnerHTML={{ __html: SPLASH_GATE }} />;
+}
+
 export function AppSplash() {
   return (
     <div id="aurora-splash" className="aurora-splash" role="status" aria-label="Loading Oracle Consultancy" aria-live="polite">

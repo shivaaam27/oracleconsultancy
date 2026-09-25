@@ -15,8 +15,6 @@ export default async function PortalChatPage({
   // Mirrors the admin /chat behaviour.
   const { dm } = await searchParams;
   const who = await getPortalPerson();
-  // A director chats on the shared screens now.
-  if (who?.portalRole === "director") redirect(dm ? `/chat?dm=${encodeURIComponent(dm)}` : "/chat");
   if (dm) {
     const personId = Number(dm);
     if (Number.isFinite(personId) && personId > 0) {

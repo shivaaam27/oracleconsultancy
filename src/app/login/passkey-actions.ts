@@ -4,6 +4,7 @@ import type { AuthenticationResponseJSON } from "@simplewebauthn/server";
 import { beginAuthentication, finishAuthentication } from "@/lib/webauthn";
 import { setAdminCookie } from "@/lib/admin-auth";
 import { setSessionCookie } from "@/lib/portal-auth";
+import { sb } from "@/db/supabase";
 
 /** Step 1: discoverable sign-in options for the browser. */
 export async function startPasskeyLogin() {
@@ -15,5 +16,8 @@ export async function completePasskeyLogin(response: AuthenticationResponseJSON)
   const res = await finishAuthentication(response);
   if (!res.ok) return { ok: false, error: res.error };
   if (res.personId == null) { await setAdminCookie(); return { ok: true, redirect: "/" }; }
-  await setSessionCookie(res.personId); return { ok: true, redirect: "/portal" };
+  await setSessionCookie(res.personId);
+  // A director lands on the shared Home, never the old portal frame.
+  const { data } = await sb.from("people").select("portal_role").eq("id", res.personId).maybeSingle();
+  return { ok: true, redirect: data?.portal_role === "director" ? "/" : "/portal" };
 }

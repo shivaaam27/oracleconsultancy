@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
+import { usesStudio } from "@/lib/viewer";
+import { studioPathForDirector } from "@/lib/director-routes";
 import { portalHeaderLabel } from "@/lib/portal-labels";
 import { PortalPill } from "@/components/portal-pill";
 import { PortalSidebar, RAIL_COOKIE } from "@/components/portal-sidebar";
@@ -37,6 +39,14 @@ export const metadata: Metadata = {
 export default async function PortalLayout({ children }: { children: React.ReactNode }) {
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
+  // A director never sees this frame (bar the one page not rebuilt yet): send
+  // them on HERE, before the old sidebar and skeleton can paint.
+  if (await usesStudio(me)) {
+    const at = (await headers()).get("x-cos-path");
+    const [path, search = ""] = (at ?? "").split("?");
+    const to = at ? studioPathForDirector(path, search) : null;
+    if (to) redirect(to);
+  }
 
   // Urgent "takeover" announcements block the portal until acknowledged, and the
   // unseen guided tours, are both best-effort and NON-essential — and independent

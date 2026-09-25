@@ -14,8 +14,6 @@ export const dynamic = "force-dynamic";
 export default async function PortalAnnouncements() {
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
-  // A director reads and posts on the shared screens now.
-  if (me.portalRole === "director") redirect("/announcements");
 
   const attrs = await getPersonAudienceAttrs(me.id);
   const feed = attrs ? await feedForPerson(attrs) : [];

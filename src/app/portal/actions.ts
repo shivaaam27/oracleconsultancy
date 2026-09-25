@@ -77,10 +77,9 @@ export async function portalLogin(
   after(() => {
     sb.from("people").update({ portal_last_login_at: new Date().toISOString() }).eq("id", personId);
   });
-  // Land directors straight on their board. Going via /portal (which then
-  // re-redirects directors to /portal/board) is a second redirect hop that
-  // intermittently shows "the page couldn't load" until a manual reload.
-  redirect(person.portal_role === "director" ? "/portal/board" : "/portal");
+  // Land directors straight on the shared Home — never via the old portal
+  // (a second hop showed its frame, and once "the page couldn't load").
+  redirect(person.portal_role === "director" ? "/" : "/portal");
 }
 
 /* Sign out lands on the unified login screen (/login), NOT /portal/login — so

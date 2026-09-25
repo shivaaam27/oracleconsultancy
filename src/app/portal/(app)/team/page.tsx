@@ -38,10 +38,6 @@ export default async function PortalTeamPage() {
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
   if (me.portalRole === "staff") redirect("/portal");
-  // Directors no longer have a separate Team page — Outbox (per-person tasks +
-  // reminders) plus the Directory (contacts) cover it, and attendance was removed
-  // from the director view. Managers/HR keep this page (it carries team attendance).
-  if (me.portalRole === "director") redirect("/outbox");
 
   const tasks = (await getAllTasks()).filter((t) => isOpen(t.status));
   const byPerson = new Map<number, typeof tasks>();

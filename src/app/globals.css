@@ -2145,3 +2145,16 @@ body:has(main .studio) > * [data-field-label] {
 .st-desk [data-switch][data-on] { background: var(--st-ink); }
 .st-desk [data-switch][data-on] > span { background: var(--st-surface); }
 
+
+/* Task-row faces (components/studio/face.tsx, `peek`): the face for a second,
+   the initials for three, in a loop. Every row shares one clock through a
+   negative animation-delay set inline. Hover holds the face; reduced motion
+   shows the initials only (the face on hover). */
+@keyframes st-face-peek { 0% { opacity: 0 } 5%, 28% { opacity: 1 } 33%, 100% { opacity: 0 } }
+[data-face-peek][style*="animation-delay"] { animation: st-face-peek 4s linear infinite; }
+.group\/face:hover [data-face-peek] { animation: none; opacity: 1; }
+@media (prefers-reduced-motion: reduce) { [data-face-peek] { animation: none !important; } }
+html[data-motion="reduced"] [data-face-peek] { animation: none !important; }
+
+/* The old launch splash is the staff portal's only (components/app-splash.tsx). */
+html[data-no-splash] #aurora-splash { display: none !important; }

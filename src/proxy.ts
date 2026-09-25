@@ -101,7 +101,12 @@ async function isValidAdminToken(token: string | undefined): Promise<boolean> {
  * preserved, so a password change still invalidates the cookie in getPortalPerson;
  * we NEVER redirect (the portal pages own their own auth). */
 async function refreshPortalSession(req: NextRequest): Promise<NextResponse> {
-  const res = NextResponse.next();
+  // The portal layout needs the address to send a director to the shared
+  // screen BEFORE it draws the old frame (lib/director-routes.ts); a layout is
+  // not told its path, so it travels as a request header.
+  const headers = new Headers(req.headers);
+  headers.set("x-cos-path", req.nextUrl.pathname + req.nextUrl.search);
+  const res = NextResponse.next({ request: { headers } });
   const token = req.cookies.get("cos_portal")?.value;
   if (!token) return res;
   const segs = token.split(".");

@@ -30,7 +30,7 @@ import { LocationTracker } from "@/components/location-tracker";
 import { IosResume } from "@/components/ios-resume";
 import { HideOnPortal } from "@/components/hide-on-portal";
 import { NavVisibilityProvider } from "@/components/nav-visibility";
-import { AppSplash } from "@/components/app-splash";
+import { AppSplash, SplashGateScript } from "@/components/app-splash";
 import { ActivityPinger } from "@/components/activity-pinger";
 import { getAppSettings } from "@/lib/settings";
 import { getViewer } from "@/lib/viewer";
@@ -94,6 +94,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <PortalPrefsScript />
         <InstallPromptScript />
         <ShellThemeScript />
+        <SplashGateScript />
       </head>
       {/* ⚠️ ALWAYS RESERVE THE SCROLLBAR'S SPACE, OR EVERY PAGE CHANGE JUMPS
           15px SIDEWAYS.

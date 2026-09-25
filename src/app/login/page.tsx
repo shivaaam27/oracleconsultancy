@@ -9,7 +9,8 @@ export const dynamic = "force-dynamic";
 
 export default async function AdminLoginPage() {
   if (await isAdminSession()) redirect("/");
-  if (await getPortalPerson()) redirect("/portal");
+  const me = await getPortalPerson();
+  if (me) redirect(me.portalRole === "director" ? "/" : "/portal");
   const firstRun = (await getAdminHash()) === null;
 
   return (

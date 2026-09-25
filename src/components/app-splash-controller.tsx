@@ -45,6 +45,15 @@ export function SplashController() {
     if (!el) return;
 
     const html = document.documentElement;
+    // Studio pages and the shared sign-in never show it (see SPLASH_GATE).
+    const noSplash = !/^\/portal(\/|$)/.test(path) || /^\/portal\/login/.test(path);
+    if (noSplash) {
+      html.setAttribute("data-no-splash", "");
+      el.classList.add("aurora-splash--done");
+      html.removeAttribute("data-splash");
+      return;
+    }
+    html.removeAttribute("data-no-splash");
     const prefersReduced =
       html.getAttribute("data-motion") === "reduced" ||
       window.matchMedia("(prefers-reduced-motion: reduce)").matches;

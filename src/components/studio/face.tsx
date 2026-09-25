@@ -9,14 +9,17 @@
  *  - Colour = role, expression = how their work looks now (lib/face-mood.ts,
  *    worked out by /api/faces — read ONCE per page load in the background, so
  *    nothing waits on it; until it lands a face is calm and neutral).
- *  - `peek` (task rows, small circles): the face shows for a moment, then fades
- *    to the initials; hovering brings it back.
+ *  - `peek` (task rows, small circles): a LOOP — the face for a second, the
+ *    initials for three (owner, 25 Sept 2026), every row in step. It is pure
+ *    CSS (`st-face-peek` in globals.css) with a negative delay taken from the
+ *    clock, so a list of 241 rows runs no timers and re-renders nothing.
+ *    Hovering holds the face.
  *  - Otherwise (People, a person's page): the face stays.
  *  - ALIVE (owner: "can't they be alive and reactive?"): a showing face
  *    breathes, bobs and blinks (`animate="always"`), and a new mood MORPHS into
  *    place rather than swapping. Faces 36px and up also watch the pointer
- *    (`useGaze`). A peek face animates only while it shows — a hidden one is a
- *    still picture, so a list of fifty rows is not fifty running animations.
+ *    (`useGaze`). A peek face is a still picture that animates on hover only,
+ *    so a list of fifty rows is not fifty running animations.
  *  - Reduced motion (the OS setting or the portal's own toggle) = still faces.
  */
 import { useEffect, useState } from "react";
@@ -69,22 +72,25 @@ function useFace(name: string): { role: FaceRole; mood: FaceMood } | null {
 const GAZE_MIN = 36;
 const finePointer = () => typeof window !== "undefined" && window.matchMedia("(hover: hover) and (pointer: fine)").matches;
 
-type BlobProps = { name: string; size: number; role: FaceRole; mood: FaceMood; animate: boolean };
+type BlobProps = { name: string; size: number; role: FaceRole; mood: FaceMood; animate: false | "always" | "hover" };
 
 function Blob({ name, size, role, mood, animate }: BlobProps) {
   return (
     <Blobatar name={name} size={size} background="circle" hue={ROLE_HUE[role]} tone={role === "none" ? 0.25 : 0.55}
-      expression={EXPRESSION[mood]} animate={animate ? "always" : undefined} />
+      expression={EXPRESSION[mood]} animate={animate || undefined} />
   );
 }
 
-function GazingBlob(props: BlobProps) {
+function GazingBlob(props: Omit<BlobProps, "animate">) {
   const { ref } = useGaze({ travel: 3, lookAt: "pointer" });
   return (
     <Blobatar ref={ref} name={props.name} size={props.size} background="circle" hue={ROLE_HUE[props.role]}
       tone={props.role === "none" ? 0.25 : 0.55} expression={EXPRESSION[props.mood]} animate="always" />
   );
 }
+
+/** Face 1s, initials 3s (the keyframes in globals.css are written to this). */
+const PEEK_CYCLE_MS = 4000;
 
 const reducedMotion = () =>
   typeof window !== "undefined" &&
@@ -102,19 +108,9 @@ export function PersonFace({ name, size = 32, peek = false, ring = false, classN
   const face = useFace(name);
   const role = face?.role ?? "none";
   const mood = face?.mood ?? "idle";
-  // Peek: visible for ~2.4s after the face arrives, then the initials.
-  const [showFace, setShowFace] = useState(!peek);
-  // Keyed on primitives: `face` is a fresh object every render, and depending
-  // on it restarted the timer on every render, so in a busy list the faces
-  // never faded — 241 of them animating at once on the task list.
-  const known = face !== null;
-  useEffect(() => {
-    if (!peek || !known) return;
-    setShowFace(true);
-    if (reducedMotion()) { setShowFace(false); return; }
-    const t = setTimeout(() => setShowFace(false), 2400);
-    return () => clearTimeout(t);
-  }, [peek, known, mood]);
+  // Every peek face in step: the loop's phase comes from the wall clock.
+  const [phase, setPhase] = useState<number | null>(null);
+  useEffect(() => { if (peek) setPhase(Date.now() % PEEK_CYCLE_MS); }, [peek]);
 
   // Motion is decided after mount (the server has no window to ask).
   const [motion, setMotion] = useState<"none" | "alive" | "gaze">("none");
@@ -129,17 +125,17 @@ export function PersonFace({ name, size = 32, peek = false, ring = false, classN
       title={title}
       aria-label={title}
       role="img"
-      onMouseEnter={peek ? () => setShowFace(true) : undefined}
-      onMouseLeave={peek ? () => setShowFace(false) : undefined}
-      className={cn("relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full", ring && "ring-2 ring-[var(--st-surface)]", className)}
+      className={cn("group/face relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full", ring && "ring-2 ring-[var(--st-surface)]", className)}
       style={{ width: size, height: size, background: avatarTint(name) }}
     >
       {/* The initials sit underneath; the face fades over them. */}
       <span aria-hidden className="font-semibold text-[#111214]" style={{ fontSize: Math.max(9, Math.round(size / 3.1)) }}>{initials(name)}</span>
-      <span aria-hidden className={cn("absolute inset-0 transition-opacity duration-500", showFace ? "opacity-100" : "opacity-0")}>
+      <span aria-hidden data-face-peek={peek ? "" : undefined}
+        className={cn("absolute inset-0", peek && "opacity-0 transition-opacity duration-300 group-hover/face:opacity-100")}
+        style={peek && phase !== null && motion !== "none" ? { animationDelay: `-${phase}ms` } : undefined}>
         {motion === "gaze" && !peek
-          ? <GazingBlob name={name} size={size} role={role} mood={mood} animate />
-          : <Blob name={name} size={size} role={role} mood={mood} animate={motion !== "none" && showFace} />}
+          ? <GazingBlob name={name} size={size} role={role} mood={mood} />
+          : <Blob name={name} size={size} role={role} mood={mood} animate={motion === "none" ? false : peek ? "hover" : "always"} />}
       </span>
     </span>
   );
