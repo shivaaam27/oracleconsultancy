@@ -418,3 +418,23 @@ export async function translateAnnouncementAction(text: string, to: "sw" | "en")
   if (!res.ok || !res.data) return { ok: false, error: "Could not translate just now." };
   return { ok: true, text: String(res.data.text ?? "") };
 }
+
+/** Who a notice reached, for the owner's "Who has seen it" (Studio, 26 Sept
+ *  2026): everyone in its audience, with when they saw and acknowledged it. */
+export async function announcementReceiptsAction(id: number): Promise<{ ok: true; people: { id: number; name: string; seenAt: string | null; ackAt: string | null }[] } | { ok: false; error: string }> {
+  await guardOwner();
+  const a = await getAnnouncement(id);
+  if (!a) return { ok: false, error: "Not found." };
+  const ids = await resolveAudiencePersonIds(a);
+  if (ids.length === 0) return { ok: true, people: [] };
+  const [{ data: ppl }, { data: rec }] = await Promise.all([
+    sb.from("people").select("id,name").in("id", ids),
+    sb.from("announcement_receipts").select("recipient,seen_at,ack_at").eq("announcement_id", id),
+  ]);
+  const by = new Map((rec ?? []).map((r) => [r.recipient as string, r]));
+  const people = (ppl ?? []).map((p) => {
+    const r = by.get(personRecipient(p.id as number));
+    return { id: p.id as number, name: p.name as string, seenAt: (r?.seen_at as string | null) ?? null, ackAt: (r?.ack_at as string | null) ?? null };
+  }).sort((x, y) => Number(!!y.ackAt) - Number(!!x.ackAt) || Number(!!y.seenAt) - Number(!!x.seenAt) || x.name.localeCompare(y.name));
+  return { ok: true, people };
+}

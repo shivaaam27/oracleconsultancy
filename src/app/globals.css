@@ -2170,3 +2170,11 @@ html[data-no-splash] #aurora-splash { display: none !important; }
 .studio .st-signin-field:focus { border-color: #111214 !important; box-shadow: 0 0 0 3px rgb(17 18 20 / 0.08) !important; }
 .dark .studio .st-signin-field { background: #17181B !important; border-color: #3A3D42 !important; box-shadow: none !important; }
 .dark .studio .st-signin-field:focus { border-color: #F2F2F0 !important; box-shadow: 0 0 0 3px rgb(242 242 240 / 0.12) !important; }
+
+/* A text field inside a Studio sheet or page (26 Sept 2026). The global input
+   rule outranks utilities, and `bare-field` clears the border entirely — the
+   Announcements composer's Title and Message read as blank space. One class,
+   the sheet's own tokens, so it follows light and dark. */
+.studio .st-field { background: var(--sh-field, #FFFFFF) !important; border: 1px solid var(--sh-chip-line, #E4E4E0) !important; box-shadow: none !important; }
+.studio .st-field:hover { border-color: var(--sh-muted, #A9AAA6) !important; }
+.studio .st-field:focus { border-color: var(--sh-fg, #111214) !important; box-shadow: 0 0 0 3px rgb(17 18 20 / 0.06) !important; }
