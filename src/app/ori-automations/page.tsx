@@ -1,12 +1,7 @@
-import { Sparkles, Command } from "lucide-react";
-import { PageHeader } from "@/components/ui";
-import { HrmsCrumbs } from "@/components/hrms/hrms-crumbs";
 import { sb } from "@/db/supabase";
-import { describeRule, type RawRule, type NameMaps, type DescribedRule } from "./describe";
-import { AutomationControls, FiringHistory } from "./automation-row";
-import { RuleBuilder } from "./rule-builder";
-import { BuiltInSignals, type SignalLastFired } from "./built-in-signals";
+import { describeRule, relativeTime, type RawRule, type NameMaps } from "./describe";
 import { getAppSettings } from "@/lib/settings";
+import { StudioOri } from "@/components/studio/ori/studio-ori";
 
 export const dynamic = "force-dynamic";
 
@@ -52,6 +47,17 @@ async function loadNameMaps(rules: RawRule[]): Promise<NameMaps> {
   return { companies, taskCodes, people };
 }
 
+/** "Create “DSC Debtor Reports” every Mon…" → "DSC Debtor Reports": the quoted
+ *  name when a rule has one, else its scope line — for the watching card. */
+function shortName(title: string, target: string): string {
+  return /"([^"]+)"/.exec(title)?.[1] ?? target;
+}
+
+/**
+ * ORI Automation — Studio (boards Ori + OriBuilder). Every standing automation
+ * ORI holds, the three built-in signals, and the builder. The screen is
+ * components/studio/ori/*; this page only reads.
+ */
 export default async function OriAutomationsPage() {
   const { data } = await sb
     .from("automation_rules")
@@ -72,131 +78,39 @@ export default async function OriAutomationsPage() {
     ]),
   ]);
   const stampMap = new Map(((signalStamps.data ?? []) as { key: string; value: string | null }[]).map((r) => [r.key, r.value]));
-  const lastFired: SignalLastFired = {
-    quietStaff: stampMap.get("ori.signal.quiet-staff") ?? null,
-    decisionReminder: stampMap.get("ori.signal.undecided-decisions") ?? null,
-    healthDigest: stampMap.get("morningRun.lastHealthDigest") ?? null,
-  };
   const described = rules.map((r) => describeRule(r, maps));
-  const people = (peopleRes.data ?? []) as { id: number; name: string }[];
-  const companies = (companiesRes.data ?? []) as { id: number; name: string }[];
 
-  const active = described.filter((r) => r.active);
-  const paused = described.filter((r) => !r.active);
+  // The rule that fired most recently.
+  let latest: { when: string; what: string } | null = null;
+  let latestAt = 0;
+  rules.forEach((r, i) => {
+    const t = r.last_fired_at ? Date.parse(r.last_fired_at) : NaN;
+    if (Number.isFinite(t) && t > latestAt) {
+      latestAt = t;
+      latest = { when: relativeTime(r.last_fired_at) ?? "", what: shortName(described[i].title, described[i].target) };
+    }
+  });
 
   return (
-    <main className="mx-auto w-full px-4 pt-[max(1.5rem,env(safe-area-inset-top))] pb-28">
-      <HrmsCrumbs />
-      <PageHeader
-        title="ORI Automation"
-        sub="Every standing automation ORI holds — build a new one yourself, or pause and cancel any of them."
-      />
-
-      <RuleBuilder people={people} companies={companies} />
-
-      <div className="mb-6">
-        <BuiltInSignals
-          settings={{
-            quietStaffEnabled: settings.signalQuietStaffEnabled,
-            quietStaffDays: settings.signalQuietStaffDays,
-            decisionReminderEnabled: settings.signalDecisionReminderEnabled,
-            decisionReminderDays: settings.signalDecisionReminderDays,
-            healthDigestEnabled: settings.signalHealthDigestEnabled,
-          }}
-          lastFired={lastFired}
-        />
-      </div>
-
-      {described.length === 0 ? (
-        <EmptyState />
-      ) : (
-        <div className="space-y-6">
-          <RuleGroup label="Live" hint="Currently watching / scheduled" rules={active} />
-          {paused.length > 0 && (
-            <RuleGroup label="Paused" hint="Switched off — flip back on any time" rules={paused} muted />
-          )}
-        </div>
-      )}
-    </main>
-  );
-}
-
-function RuleGroup({ label, hint, rules, muted }: { label: string; hint: string; rules: DescribedRule[]; muted?: boolean }) {
-  if (rules.length === 0 && label === "Live") {
-    return (
-      <section className="rounded-2xl ring-1 ring-border/60 overflow-hidden">
-        <GroupHeader label={label} hint="Nothing live right now" count={0} />
-        <div className="px-4 py-6 text-center text-xs text-fg-muted">
-          Every automation is paused. Flip one back on below.
-        </div>
-      </section>
-    );
-  }
-  return (
-    <section className={`rounded-2xl ring-1 ring-border/60 overflow-hidden ${muted ? "opacity-90" : ""}`}>
-      <GroupHeader label={label} hint={hint} count={rules.length} />
-      <ul className="divide-y divide-border/50">
-        {rules.map((r) => (
-          <RuleRow key={r.id} r={r} />
-        ))}
-      </ul>
-    </section>
-  );
-}
-
-function GroupHeader({ label, hint, count }: { label: string; hint: string; count: number }) {
-  return (
-    <div className="flex items-center justify-between gap-3 bg-bg-subtle/60 px-4 py-2.5">
-      <div className="flex items-baseline gap-2">
-        <h2 className="text-xs font-medium uppercase tracking-[0.08em] text-fg-muted">{label}</h2>
-        <span className="text-xs tabular text-fg-subtle">{count}</span>
-      </div>
-      <span className="text-xs text-fg-subtle">{hint}</span>
-    </div>
-  );
-}
-
-function RuleRow({ r }: { r: DescribedRule }) {
-  const Icon = r.icon;
-  return (
-    <li className="flex items-center gap-3 px-3 py-3 sm:px-4">
-      <span
-        className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-accent"
-        style={{ backgroundColor: "color-mix(in srgb, hsl(var(--accent)) 14%, transparent)" }}
-      >
-        <Icon size={15} />
-      </span>
-      <div className="min-w-0 flex-1">
-        <div className="text-sm font-medium leading-snug text-fg">{r.title}</div>
-        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-fg-muted">
-          <span className="rounded px-1.5 py-0.5 ring-1 ring-border/60 bg-bg-elev">{r.kindLabel}</span>
-          <span className="truncate">{r.target}</span>
-          {r.done && <span className="text-fg-subtle">· completed</span>}
-        </div>
-        <FiringHistory id={r.id} lastFired={r.lastFired} />
-      </div>
-      <div className="shrink-0">
-        <AutomationControls id={r.id} active={r.active} />
-      </div>
-    </li>
-  );
-}
-
-function EmptyState() {
-  return (
-    <div className="rounded-2xl ring-1 ring-border/60 bg-bg-subtle/40 px-6 py-12 text-center">
-      <span className="mx-auto mb-4 grid h-11 w-11 place-items-center rounded-2xl bg-accent/12 text-accent">
-        <Sparkles size={20} />
-      </span>
-      <p className="text-sm font-medium text-fg">ORI isn&rsquo;t watching anything yet</p>
-      <p className="mx-auto mt-1.5 max-w-sm text-xs text-fg-muted">
-        Ask it in the command palette, e.g.{" "}
-        <span className="text-fg">&ldquo;tell me when PES raises a blocker&rdquo;</span> — the standing rule appears here to
-        pause or cancel.
-      </p>
-      <p className="mt-3 inline-flex items-center gap-1.5 text-xs text-fg-subtle">
-        <Command size={12} /> Open the palette with Ctrl + Space
-      </p>
-    </div>
+    <StudioOri
+      data={{
+        rules: described,
+        people: (peopleRes.data ?? []) as { id: number; name: string }[],
+        companies: (companiesRes.data ?? []) as { id: number; name: string }[],
+        signals: {
+          quietStaffEnabled: settings.signalQuietStaffEnabled,
+          quietStaffDays: settings.signalQuietStaffDays,
+          decisionReminderEnabled: settings.signalDecisionReminderEnabled,
+          decisionReminderDays: settings.signalDecisionReminderDays,
+          healthDigestEnabled: settings.signalHealthDigestEnabled,
+        },
+        signalsFired: {
+          quietStaff: relativeTime(stampMap.get("ori.signal.quiet-staff") ?? null),
+          decisionReminder: relativeTime(stampMap.get("ori.signal.undecided-decisions") ?? null),
+          healthDigest: relativeTime(stampMap.get("morningRun.lastHealthDigest") ?? null),
+        },
+        latest,
+      }}
+    />
   );
 }

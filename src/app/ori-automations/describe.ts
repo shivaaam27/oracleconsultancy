@@ -1,13 +1,11 @@
 import "server-only";
-import {
-  Eye, BellRing, MessageSquareWarning, ArrowUpCircle, CalendarPlus,
-  Repeat, PlaySquare, DoorClosed, UserCog, Cog, ListChecks, type LucideIcon,
-} from "lucide-react";
 
 // Turns a raw automation_rules row into a plain-language card for the management
 // screen. Every `kind` ORI can hold (the event-driven "watch" rules + the seven
 // time-driven cron kinds) maps to a one-line description of exactly what it does,
 // resolved against the names of the companies / people / tasks it references.
+// The icon is picked client-side (components/studio/ori/kinds.ts), so a described
+// rule stays plain data that can cross into a client component.
 
 export type RawRule = {
   id: number;
@@ -33,7 +31,6 @@ export type DescribedRule = {
   id: number;
   kind: string;
   kindLabel: string;
-  icon: LucideIcon;
   title: string;   // the plain-language "what it does"
   target: string;  // the scope line (task code / company / who's alerted)
   active: boolean;
@@ -58,18 +55,18 @@ function weeklyWhenPhrase(cfg: Record<string, unknown>): string {
   return `every ${wd != null ? WEEKDAYS[Math.min(6, Math.max(0, wd))] : "Monday"}`;
 }
 
-const KIND_META: Record<string, { label: string; icon: LucideIcon }> = {
-  watch: { label: "Watcher", icon: Eye },
-  reminder_before_deadline: { label: "Deadline reminder", icon: BellRing },
-  nudge_until_update: { label: "Nudge", icon: MessageSquareWarning },
-  escalate_if_no_update: { label: "Escalation", icon: ArrowUpCircle },
-  create_event_after_deadline: { label: "Follow-up event", icon: CalendarPlus },
-  auto_close_stale: { label: "Auto-close", icon: DoorClosed },
-  auto_reassign_on_leave: { label: "Leave cover", icon: UserCog },
-  recurring_task: { label: "Recurring task", icon: Repeat },
-  scheduled_macro: { label: "Scheduled macro", icon: PlaySquare },
-  smart_reminder: { label: "Smart reminder", icon: BellRing },
-  escalation_ladder: { label: "Overdue ladder", icon: ListChecks },
+const KIND_LABEL: Record<string, string> = {
+  watch: "Watcher",
+  reminder_before_deadline: "Deadline reminder",
+  nudge_until_update: "Nudge",
+  escalate_if_no_update: "Escalation",
+  create_event_after_deadline: "Follow-up event",
+  auto_close_stale: "Auto-close",
+  auto_reassign_on_leave: "Leave cover",
+  recurring_task: "Recurring task",
+  scheduled_macro: "Scheduled macro",
+  smart_reminder: "Smart reminder",
+  escalation_ladder: "Overdue ladder",
 };
 
 function num(v: unknown): number | null {
@@ -103,7 +100,7 @@ export function relativeTime(iso: string | null): string | null {
  *  to a neutral "Custom automation" line rather than blowing up the page. */
 export function describeRule(r: RawRule, maps: NameMaps): DescribedRule {
   const cfg = r.config ?? {};
-  const meta = KIND_META[r.kind] ?? { label: "Custom automation", icon: Cog };
+  const kindLabel = KIND_LABEL[r.kind] ?? "Custom automation";
   const companyName = (id: number | null | undefined) => (id != null ? maps.companies.get(id) ?? null : null);
   const taskCode = (id: number | null | undefined) => (id != null ? maps.taskCodes.get(id) ?? null : null);
   const personName = (id: number | null | undefined) => (id != null ? maps.people.get(id) ?? null : null);
@@ -321,8 +318,7 @@ export function describeRule(r: RawRule, maps: NameMaps): DescribedRule {
   return {
     id: r.id,
     kind: r.kind,
-    kindLabel: meta.label,
-    icon: meta.icon,
+    kindLabel,
     title,
     target,
     active: r.active,
