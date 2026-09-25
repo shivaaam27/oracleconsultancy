@@ -62,14 +62,20 @@ export default async function CalendarPage() {
 
   // Announcements with live receipt stats (seen / ack / audience total) for the
   // Announcements tab + the "haven't acknowledged" KPI.
-  const announcements: BriefAnnouncement[] = await Promise.all(
-    announcementsRaw.map(async (a) => ({
-      ...a,
-      live: isLive(a),
-      scheduled: isScheduled(a),
-      stats: a.status === "published" ? await receiptStats(a) : { seen: 0, ack: 0, total: 0 },
-    })),
-  );
+  // How many papers each entry carries — ONE query for the whole board, so a
+  // flight with its ticket attached is obvious without opening it. Read in the
+  // same round as the receipt stats, which it does not depend on.
+  const [announcements, attachmentCounts]: [BriefAnnouncement[], Awaited<ReturnType<typeof countEventDocuments>>] = await Promise.all([
+    Promise.all(
+      announcementsRaw.map(async (a) => ({
+        ...a,
+        live: isLive(a),
+        scheduled: isScheduled(a),
+        stats: a.status === "published" ? await receiptStats(a) : { seen: 0, ack: 0, total: 0 },
+      })),
+    ),
+    countEventDocuments(events.map((e) => e.id)),
+  ]);
   const unacknowledged = announcements
     .filter((a) => a.live && a.requireAck)
     .reduce((n, a) => n + Math.max(0, a.stats.total - a.stats.ack), 0);
@@ -91,9 +97,6 @@ export default async function CalendarPage() {
 
   // Pre-compute the share links server-side (the Google URL builder lives next to
   // the .ics builder; keeping it here avoids duplicating the mapping client-side).
-  // How many papers each entry carries — ONE query for the whole board, so a
-  // flight with its ticket attached is obvious without opening it.
-  const attachmentCounts = await countEventDocuments(events.map((e) => e.id));
 
   const views: CalendarEventView[] = events.map((ev) => ({
     ...ev,

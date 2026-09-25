@@ -10,7 +10,7 @@ import { buildCommandTasks } from "@/lib/portal-command-tasks";
 import { AttendanceCheckin } from "@/components/attendance-checkin";
 import { getPortalPerson, visibleTaskIds } from "@/lib/portal-auth";
 import { getGivenName, getInitials } from "@/lib/names";
-import { getPersonAudienceAttrs, feedForPerson } from "@/lib/announcements";
+import { feedForPersonId } from "@/lib/announcements";
 import { AnnouncementBanner } from "@/components/announcement-banner";
 import { getPortalNudge } from "@/lib/portal-nudge";
 import { TaskNudgeBanner } from "@/components/task-nudge-banner";
@@ -52,7 +52,7 @@ export default async function PortalHome() {
   // genuinely depend on the audience attrs, so that pair stays sequential inside
   // its own closure; everything else fans out.
   const [
-    today, week, myTodos, myMeetings, { announcements }, ids,
+    today, week, myTodos, myMeetings, announcements, ids, nudge,
   ] = await Promise.all([
     personAttendanceToday(me.id),
     personAttendanceWeek(me.id),
@@ -61,20 +61,16 @@ export default async function PortalHome() {
     // the single nearest one within 2 days — the full list lives on /portal/meetings.
     scopedUpcomingMeetings(me),
     // Announcements that target this person (pinned + newest, with their read state).
-    (async () => {
-      const audienceAttrs = await getPersonAudienceAttrs(me.id);
-      return { announcements: audienceAttrs ? await feedForPerson(audienceAttrs) : [] };
-    })(),
+    feedForPersonId(me.id),
     // My own tasks; managers also see their direct reports' tasks.
     visibleTaskIds(me),
+    // Task nudge banner (above the hero) — computed fresh; null when nothing needs
+    // a look or the owner has switched it off in Settings → Portals.
+    getPortalNudge(me),
   ]);
 
   // The person's tasks in the shared Aurora command shape (same as the Tasks tab).
   const cmd = await buildCommandTasks(ids, me.id, me.name);
-
-  // Task nudge banner (above the hero) — computed fresh; null when nothing needs
-  // a look or the owner has switched it off in Settings → Portals.
-  const nudge = await getPortalNudge(me);
 
   // Create-surface pickers (task quick-add + the manager event form) are scoped to
   // the viewer's companies through the one shared helper — a manager only sees their

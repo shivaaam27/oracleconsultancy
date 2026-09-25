@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { notFound } from "next/navigation";
 import { getAsset, listAssetHistory, listAssetServices } from "@/lib/assets";
 import { listVendorsLite } from "@/lib/vendors";
@@ -9,9 +10,12 @@ import { StudioAsset } from "@/components/studio/assets/studio-asset";
 
 export const dynamic = "force-dynamic";
 
+// The title and the page both need the asset; read it ONCE per request.
+const loadAsset = cache(getAsset);
+
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const asset = await getAsset(Number(id)).catch(() => null);
+  const asset = await loadAsset(Number(id)).catch(() => null);
   return { title: asset ? `${asset.name} · Assets` : "Asset · COS" };
 }
 
@@ -20,9 +24,9 @@ export default async function AssetPage({ params }: { params: Promise<{ id: stri
   const assetId = Number(id);
   if (!Number.isFinite(assetId)) notFound();
 
-  const asset = await getAsset(assetId);
-  if (!asset) notFound();
-  const [history, services, vendors, tools, { data: companies }, { data: people }, { data: locs }, { data: cats }] = await Promise.all([
+  // The asset and its pick lists do not depend on each other: one round.
+  const [asset, history, services, vendors, tools, { data: companies }, { data: people }, { data: locs }, { data: cats }] = await Promise.all([
+    loadAsset(assetId),
     listAssetHistory(assetId).catch(() => []),
     listAssetServices(assetId).catch(() => []),
     listVendorsLite(),
@@ -32,6 +36,7 @@ export default async function AssetPage({ params }: { params: Promise<{ id: stri
     sb.from("assets").select("location").eq("archived", false).not("location", "is", null),
     sb.from("assets").select("category").eq("archived", false).not("category", "is", null),
   ]);
+  if (!asset) notFound();
 
   return (
     <StudioAsset

@@ -19,7 +19,7 @@ import { getAllTasks, type TaskRow } from "@/lib/queries";
 import { personAttendanceToday, personAttendanceWeek } from "@/lib/attendance";
 import { listSelfTodos } from "@/lib/todo-reminders";
 import { scopedUpcomingMeetings } from "@/lib/portal-meetings-data";
-import { getPersonAudienceAttrs, feedForPerson } from "@/lib/announcements";
+import { feedForPersonId } from "@/lib/announcements";
 import { getGivenName } from "@/lib/names";
 import { withReturn } from "@/lib/return-to";
 import { portalTaskHref } from "@/lib/portal-task-href";
@@ -43,8 +43,8 @@ export async function StaffStudioHome({ me }: { me: PortalPerson }) {
     scopedUpcomingMeetings(me, { daysAhead: 8 }).catch(() => []),
     (async () => {
       try {
-        const attrs = await getPersonAudienceAttrs(me.id);
-        return attrs ? await feedForPerson(attrs) : [];
+        // Cached per request, so the portal frame's read of it is reused.
+        return await feedForPersonId(me.id);
       } catch { return []; }
     })(),
   ]);

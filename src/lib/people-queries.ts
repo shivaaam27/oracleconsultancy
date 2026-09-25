@@ -332,33 +332,91 @@ export async function getPersonDetail(id: number): Promise<PersonDetail | null> 
 
   if (!rawPerson) return null;
 
-  const { data: rawDepartments } = await sb.from("departments").select("id,name").order("name");
+  const cMap = new Map((rawCompanies ?? []).map((c) => [c.id as number, c.name as string]));
+  const relatedPersonId = (rawPerson.related_person_id as number | null) ?? null;
+  const hasSite = !!(rawPerson.work_site_id || rawPerson.residence_site_id);
+  // Tasks this person is on — needs only their id, so their recent updates can
+  // be read in the same round as everything else below.
+  const involvedTaskIds = tasks.filter((t) => t.ownerId === id || t.assigneeIds.includes(id)).map((t) => t.id);
+
+  // Everything else depends only on the id (or on the row just read), so it is
+  // read in ONE round rather than a dozen one-after-another waits.
+  const [
+    { data: rawDepartments },
+    relatedPersonName,
+    secondaryManagers,
+    staffIdMap,
+    sMap,
+    updRaw,
+    { data: rawAllPeople },
+    [{ data: primReports }, dotPeople],
+    [events, leaveBalances, leaveRequests, attendance, { data: portalRow }],
+    sites,
+    roles,
+    portalPermissions,
+  ] = await Promise.all([
+    sb.from("departments").select("id,name").order("name"),
+    (async (): Promise<string | null> => {
+      if (!relatedPersonId) return null;
+      const { data: rel } = await sb.from("people").select("name").eq("id", relatedPersonId).maybeSingle();
+      return (rel?.name as string | null) ?? null;
+    })(),
+    // Secondary (dotted-line) managers this person also reports to.
+    (async () => {
+      const { data: rawSecMgr } = await sb.from("reporting_lines").select("manager_id").eq("person_id", id);
+      const secMgrIds = (rawSecMgr ?? []).map((r) => r.manager_id as number);
+      const secMgrNames = new Map<number, string | null>();
+      if (secMgrIds.length) {
+        const { data: mgrRows } = await sb.from("people").select("id,name").in("id", secMgrIds);
+        for (const m of mgrRows ?? []) secMgrNames.set(m.id as number, (m.name as string | null) ?? null);
+      }
+      return secMgrIds.map((mid) => ({ id: mid, name: secMgrNames.get(mid) ?? null }));
+    })(),
+    getStaffIdMap(),
+    hasSite ? siteNameMap() : Promise.resolve(null),
+    (async () => {
+      if (involvedTaskIds.length === 0) return null;
+      const { data } = await sb
+        .from("task_updates")
+        .select("id,task_id,body,created_at")
+        .in("task_id", involvedTaskIds)
+        .is("deleted_at", null)
+        .order("created_at", { ascending: false })
+        .limit(15);
+      return data;
+    })(),
+    sb.from("people").select("id,name,active").order("name"),
+    // Direct reports — who reports to THIS person (primary line) + dotted-line reports.
+    Promise.all([
+      sb.from("people").select("id,name,role,company_id").eq("manager_id", id).eq("active", true).order("name"),
+      (async () => {
+        const { data: dotRows } = await sb.from("reporting_lines").select("person_id").eq("manager_id", id);
+        const dotIds = (dotRows ?? []).map((r) => r.person_id as number);
+        if (!dotIds.length) return [];
+        const { data: dp } = await sb.from("people").select("id,name,role,company_id,active").in("id", dotIds).order("name");
+        return dp ?? [];
+      })(),
+    ]),
+    Promise.all([
+      listPersonEvents(id, 40),
+      personLeaveBalances(id),
+      listLeaveRequests({ personId: id }),
+      personAttendanceThisMonth(id),
+      sb.from("people").select("portal_password_hash,portal_role,portal_designation,portal_last_login_at,director_company_id,director_companies(company_id)").eq("id", id).maybeSingle(),
+    ]),
+    listSiteNames(),
+    listRoleNames(),
+    getPortalPermissions(),
+  ]);
+
   const dMap = new Map((rawDepartments ?? []).map((d) => [d.id as number, d.name as string]));
   const departments = (rawDepartments ?? []).map((d) => d.name as string);
-  const cMap = new Map((rawCompanies ?? []).map((c) => [c.id as number, c.name as string]));
-
-  const relatedPersonId = (rawPerson.related_person_id as number | null) ?? null;
-  let relatedPersonName: string | null = null;
-  if (relatedPersonId) {
-    const { data: rel } = await sb.from("people").select("name").eq("id", relatedPersonId).maybeSingle();
-    relatedPersonName = (rel?.name as string | null) ?? null;
-  }
 
   const associations: CompanyAssociation[] = (rawAssoc ?? []).map((a) => ({
     companyId: a.company_id as number,
     companyName: cMap.get(a.company_id as number) ?? null,
     relationship: (a.relationship as string | null) ?? null,
   }));
-
-  // Secondary (dotted-line) managers this person also reports to.
-  const { data: rawSecMgr } = await sb.from("reporting_lines").select("manager_id").eq("person_id", id);
-  const secMgrIds = (rawSecMgr ?? []).map((r) => r.manager_id as number);
-  const secMgrNames = new Map<number, string | null>();
-  if (secMgrIds.length) {
-    const { data: mgrRows } = await sb.from("people").select("id,name").in("id", secMgrIds);
-    for (const m of mgrRows ?? []) secMgrNames.set(m.id as number, (m.name as string | null) ?? null);
-  }
-  const secondaryManagers = secMgrIds.map((mid) => ({ id: mid, name: secMgrNames.get(mid) ?? null }));
 
   const person: Person = {
     id: rawPerson.id as number,
@@ -392,7 +450,7 @@ export async function getPersonDetail(id: number): Promise<PersonDetail | null> 
     relatedPersonName,
     associations,
     secondaryManagers,
-    staffId: (await getStaffIdMap()).get(rawPerson.id as number) ?? null,
+    staffId: staffIdMap.get(rawPerson.id as number) ?? null,
     previousStaffIds: (rawPerson.previous_staff_ids as string | null) ?? null,
     staffCategory: (rawPerson.staff_category as string | null) ?? null,
     workSiteId: (rawPerson.work_site_id as number | null) ?? null,
@@ -400,8 +458,7 @@ export async function getPersonDetail(id: number): Promise<PersonDetail | null> 
     residenceSiteId: (rawPerson.residence_site_id as number | null) ?? null,
     residenceName: null,
   };
-  if (person.workSiteId || person.residenceSiteId) {
-    const sMap = await siteNameMap();
+  if (sMap) {
     person.workSiteName = person.workSiteId ? sMap.get(person.workSiteId) ?? null : null;
     person.residenceName = person.residenceSiteId ? sMap.get(person.residenceSiteId) ?? null : null;
   }
@@ -436,16 +493,8 @@ export async function getPersonDetail(id: number): Promise<PersonDetail | null> 
     };
   });
 
-  const assignedTaskIds = assignedTasks.map((t) => t.id);
   let recentUpdates: PersonDetail["recentUpdates"] = [];
-  if (assignedTaskIds.length > 0) {
-    const { data: updRaw } = await sb
-      .from("task_updates")
-      .select("id,task_id,body,created_at")
-      .in("task_id", assignedTaskIds)
-      .is("deleted_at", null)
-      .order("created_at", { ascending: false })
-      .limit(15);
+  if (updRaw) {
     const taskByIdLookup = new Map(tasks.map((t) => [t.id, t]));
     recentUpdates = (updRaw ?? []).map((u) => {
       const t = taskByIdLookup.get(u.task_id as number);
@@ -465,10 +514,6 @@ export async function getPersonDetail(id: number): Promise<PersonDetail | null> 
     .map(([id, name]) => ({ id, name }))
     .sort((a, b) => a.name.localeCompare(b.name));
 
-  const { data: rawAllPeople } = await sb
-    .from("people")
-    .select("id,name,active")
-    .order("name");
   const peopleList = (rawAllPeople ?? []).map((p) => ({
     id: p.id as number,
     name: p.name as string,
@@ -480,28 +525,12 @@ export async function getPersonDetail(id: number): Promise<PersonDetail | null> 
 
   // Direct reports — who reports to THIS person (primary line) + dotted-line reports.
   const directReports: PersonDetail["directReports"] = [];
-  const [{ data: primReports }, { data: dotRows }] = await Promise.all([
-    sb.from("people").select("id,name,role,company_id").eq("manager_id", id).eq("active", true).order("name"),
-    sb.from("reporting_lines").select("person_id").eq("manager_id", id),
-  ]);
   for (const r of primReports ?? []) {
     directReports.push({ id: r.id as number, name: r.name as string, role: (r.role as string | null) ?? null, companyName: r.company_id ? cMap.get(r.company_id as number) ?? null : null, kind: "primary" });
   }
-  const dotIds = (dotRows ?? []).map((r) => r.person_id as number);
-  if (dotIds.length) {
-    const { data: dp } = await sb.from("people").select("id,name,role,company_id,active").in("id", dotIds).order("name");
-    for (const r of dp ?? []) if (r.active) {
-      directReports.push({ id: r.id as number, name: r.name as string, role: (r.role as string | null) ?? null, companyName: r.company_id ? cMap.get(r.company_id as number) ?? null : null, kind: "dotted" });
-    }
+  for (const r of dotPeople) if (r.active) {
+    directReports.push({ id: r.id as number, name: r.name as string, role: (r.role as string | null) ?? null, companyName: r.company_id ? cMap.get(r.company_id as number) ?? null : null, kind: "dotted" });
   }
-
-  const [events, leaveBalances, leaveRequests, attendance, { data: portalRow }] = await Promise.all([
-    listPersonEvents(id, 40),
-    personLeaveBalances(id),
-    listLeaveRequests({ personId: id }),
-    personAttendanceThisMonth(id),
-    sb.from("people").select("portal_password_hash,portal_role,portal_designation,portal_last_login_at,director_company_id,director_companies(company_id)").eq("id", id).maybeSingle(),
-  ]);
   const portal = {
     enabled: !!(portalRow?.portal_password_hash as string | null),
     role: (portalRow?.portal_role as string | null) ?? "staff",
@@ -519,12 +548,12 @@ export async function getPersonDetail(id: number): Promise<PersonDetail | null> 
 
   return {
     person, workload, kpiMonths, assignedTasks, documents, recentUpdates, companies, peopleList, departments, events,
-    sites: await listSiteNames(),
-    roles: await listRoleNames(),
+    sites,
+    roles,
     leave: { balances: leaveBalances, requests: leaveRequests, attendance },
     portal, directReports,
     // The live per-role scope, so the drawer's access panel states what the
     // portal actually enforces rather than a second hard-coded copy of it.
-    portalScope: resolveMatrix(await getPortalPermissions()).scope,
+    portalScope: resolveMatrix(portalPermissions).scope,
   };
 }

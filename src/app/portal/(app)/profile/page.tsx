@@ -56,23 +56,56 @@ export default async function PortalProfile() {
   // `listDocuments()` — the entire library, filtered in JavaScript.
   const isDirector = me.portalRole === "director";
 
-  let companyName: string | null = null;
-  if (me.companyId) {
-    const { data } = await sb.from("companies").select("name").eq("id", me.companyId).maybeSingle();
-    companyName = (data?.name as string | null) ?? null;
-  }
-  const staffId = await staffIdFor(me.id);
+  const audience = audienceForRole(me.portalRole);
 
-  // The signed-in person's OWN editable contact details (pre-fill the form). Read
-  // here, scoped to me.id; the write goes through portalStaffUpdateContact, which
-  // re-scopes to the caller and only ever touches these five contact columns.
-  const { data: contactRow } = isDirector
-    ? { data: null }
-    : await sb
-        .from("people")
-        .select("phone,whatsapp,address,emergency_contact_name,emergency_contact_phone")
-        .eq("id", me.id)
-        .maybeSingle();
+  // Every read on this page needs only `me`, so they go in ONE round rather than
+  // a dozen waits one after another.
+  const [companyName, staffId, { data: contactRow }, docItems, [journey, equipment, attendance], passkeys, [welcomeTour, spotlights], briefOptions, allTasks] = await Promise.all([
+    me.companyId
+      ? sb.from("companies").select("name").eq("id", me.companyId).maybeSingle().then(({ data }) => (data?.name as string | null) ?? null)
+      : Promise.resolve(null),
+    staffIdFor(me.id),
+    // The signed-in person's OWN editable contact details (pre-fill the form). Read
+    // here, scoped to me.id; the write goes through portalStaffUpdateContact, which
+    // re-scopes to the caller and only ever touches these five contact columns.
+    isDirector
+      ? Promise.resolve({ data: null })
+      : sb
+          .from("people")
+          .select("phone,whatsapp,address,emergency_contact_name,emergency_contact_phone")
+          .eq("id", me.id)
+          .maybeSingle(),
+    // The documents filed against this person — a plain list, no checklist.
+    (async (): Promise<PortalDocumentItem[]> => {
+      if (isDirector) return [];
+      const { deriveDocStatus, expiryLabel: docExpiryLabel, listDocuments } = await import("@/lib/documents");
+      return (await listDocuments())
+        .filter((d) => d.personId === me.id && !d.archived)
+        .map((d) => ({
+          id: d.id,
+          title: d.title,
+          category: d.category,
+          status: deriveDocStatus(d),
+          expiryLabel: docExpiryLabel(d),
+        }));
+    })(),
+    isDirector
+      ? Promise.resolve([null, [] as Awaited<ReturnType<typeof assetsForPerson>>, { days: [] as Awaited<ReturnType<typeof personAttendanceWeek>>["days"], todayEditable: false, lockReason: null } as Awaited<ReturnType<typeof personAttendanceWeek>>] as const)
+      : Promise.all([
+          getJourney(me.id, "onboarding"),
+          assetsForPerson(me.id),
+          personAttendanceWeek(me.id),
+        ]),
+    listCredentials({ kind: "person", id: me.id, name: me.name }),
+    // Guides the person can replay (welcome walkthrough + past feature spotlights).
+    Promise.all([firstRunTourFor(audience), spotlightsFor(audience)]),
+    // Director Brief filters — gated by the owner-configurable `directorBrief`
+    // capability, not the role. Both lists are scoped to what this person may see,
+    // so a company-locked director never sees other companies' staff names.
+    me.caps.directorBrief ? portalBriefOptions(me) : Promise.resolve(null),
+    // Every branch below reads the task list (the KPI or the Studio page).
+    getAllTasks(),
+  ]);
   const contact: ContactDetails = {
     phone: (contactRow?.phone as string | null) ?? "",
     whatsapp: (contactRow?.whatsapp as string | null) ?? "",
@@ -81,33 +114,6 @@ export default async function PortalProfile() {
     emergencyContactPhone: (contactRow?.emergency_contact_phone as string | null) ?? "",
   };
 
-  // The documents filed against this person — a plain list, no checklist.
-  let docItems: PortalDocumentItem[] = [];
-  if (!isDirector) {
-    const { deriveDocStatus, expiryLabel: docExpiryLabel, listDocuments } = await import("@/lib/documents");
-    docItems = (await listDocuments())
-      .filter((d) => d.personId === me.id && !d.archived)
-      .map((d) => ({
-        id: d.id,
-        title: d.title,
-        category: d.category,
-        status: deriveDocStatus(d),
-        expiryLabel: docExpiryLabel(d),
-      }));
-  }
-
-  const [journey, equipment, attendance] = isDirector
-    ? [null, [] as Awaited<ReturnType<typeof assetsForPerson>>, { days: [] as Awaited<ReturnType<typeof personAttendanceWeek>>["days"], todayEditable: false, lockReason: null } as Awaited<ReturnType<typeof personAttendanceWeek>>] as const
-    : await Promise.all([
-        getJourney(me.id, "onboarding"),
-        assetsForPerson(me.id),
-        personAttendanceWeek(me.id),
-      ]);
-  const passkeys = await listCredentials({ kind: "person", id: me.id, name: me.name });
-
-  // Guides the person can replay (welcome walkthrough + past feature spotlights).
-  const audience = audienceForRole(me.portalRole);
-  const [welcomeTour, spotlights] = await Promise.all([firstRunTourFor(audience), spotlightsFor(audience)]);
   const welcome = welcomeTour
     ? { key: welcomeTour.key, title: welcomeTour.title, body: welcomeTour.body, route: welcomeTour.route }
     : null;
@@ -126,15 +132,9 @@ export default async function PortalProfile() {
   const accessLabel =
     me.portalRole === "director" ? "Director" : me.portalRole === "hr" ? "Admin access" : me.portalRole === "manager" ? "Manager access" : "Staff access";
 
-  // Director Brief filters — gated by the owner-configurable `directorBrief`
-  // capability, not the role. Both lists are scoped to what this person may see,
-  // so a company-locked director never sees other companies' staff names.
-  const briefOptions = me.caps.directorBrief ? await portalBriefOptions(me) : null;
-
   // Self-KPI (staff/managers only) — last 4 months of their own scorecard.
   let kpiMonths: React.ComponentProps<typeof PortalKpiCard>["months"] = [];
   if (!isDirector) {
-    const allTasks = await getAllTasks();
     const nowK = new Date();
     kpiMonths = Array.from({ length: 4 }, (_, i) => {
       const dt = new Date(nowK.getFullYear(), nowK.getMonth() - i, 1);
@@ -149,7 +149,7 @@ export default async function PortalProfile() {
   // still in the old portal. A director keeps what their old page showed: no
   // KPI, attendance, files, equipment or contact form.
   if (isStaffLikeRole(me.portalRole) || me.portalRole === "manager" || isDirector) {
-    const allT = await getAllTasks();
+    const allT = allTasks;
     // "Open now" and "late" are THEIR tasks (on it, or accountable) — not every
     // task a manager can see.
     const openMine = allT.filter((r) => (r.ownerId === me.id || r.assigneeIds.includes(me.id)) && r.status !== "Completed" && r.status !== "Closed");

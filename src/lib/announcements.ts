@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { sb } from "@/db/supabase";
 import {
   type Announcement,
@@ -115,17 +116,33 @@ export async function audienceCount(a: Announcement): Promise<number> {
 
 /* ----------------------------- feed ------------------------------ */
 
-/** Live announcements that target this person, with their own read/ack state.
- *  Pinned first, then newest. */
-export async function feedForPerson(attrs: PersonAudienceAttrs): Promise<FeedAnnouncement[]> {
-  const now = new Date();
+/** Every published announcement, pinned first, then newest. */
+async function publishedAnnouncements(): Promise<Announcement[]> {
   const { data } = await sb
     .from("announcements")
     .select(COLS)
     .eq("status", "published")
     .order("pinned", { ascending: false })
     .order("published_at", { ascending: false });
-  const live = (data ?? []).map(mapRow).filter((a) => isLive(a, now) && announcementTargetsPerson(a, attrs));
+  return (data ?? []).map(mapRow);
+}
+
+/** `feedForPerson` from a person id. The person's audience details and the
+ *  published list do not depend on each other, so they are read together
+ *  rather than one after the other. Cached per request: the portal frame and
+ *  the page under it both ask, and the second ask costs nothing. Treat the
+ *  result as read-only. */
+export const feedForPersonId = cache(async (personId: number): Promise<FeedAnnouncement[]> => {
+  const [attrs, published] = await Promise.all([getPersonAudienceAttrs(personId), publishedAnnouncements()]);
+  return attrs ? feedForPerson(attrs, published) : [];
+});
+
+/** Live announcements that target this person, with their own read/ack state.
+ *  Pinned first, then newest. */
+export async function feedForPerson(attrs: PersonAudienceAttrs, published?: Announcement[]): Promise<FeedAnnouncement[]> {
+  const now = new Date();
+  const rows = published ?? (await publishedAnnouncements());
+  const live = rows.filter((a) => isLive(a, now) && announcementTargetsPerson(a, attrs));
   if (live.length === 0) return [];
   const liveIds = live.map((a) => a.id);
   const [{ data: receipts }, { data: reactions }, { data: comments }] = await Promise.all([
@@ -226,6 +243,12 @@ export async function takeoverFeedForPerson(attrs: PersonAudienceAttrs): Promise
   return feed.filter((a) => a.takeover && a.requireAck && !a.ackAt);
 }
 
+/** `takeoverFeedForPerson` from a person id (shares `feedForPersonId`'s read). */
+export async function takeoverFeedForPersonId(personId: number): Promise<FeedAnnouncement[]> {
+  const feed = await feedForPersonId(personId);
+  return feed.filter((a) => a.takeover && a.requireAck && !a.ackAt);
+}
+
 /* --------------------------- delivery (A4) --------------------------- */
 
 /** For an announcement's selected channels, create Outbox drafts to the audience
@@ -297,8 +320,10 @@ export async function acknowledge(announcementId: number, recipient: string): Pr
 
 /** Reach/seen/acknowledged counts for an announcement (admin analytics). */
 export async function receiptStats(a: Announcement): Promise<ReceiptStats> {
-  const total = await audienceCount(a);
-  const { data } = await sb.from("announcement_receipts").select("seen_at,ack_at").eq("announcement_id", a.id);
+  const [total, { data }] = await Promise.all([
+    audienceCount(a),
+    sb.from("announcement_receipts").select("seen_at,ack_at").eq("announcement_id", a.id),
+  ]);
   const rows = data ?? [];
   return { total, seen: rows.filter((r) => r.seen_at).length, ack: rows.filter((r) => r.ack_at).length };
 }

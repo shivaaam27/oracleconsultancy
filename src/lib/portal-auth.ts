@@ -399,8 +399,10 @@ export const getPortalPerson = cache(async (): Promise<PortalPerson | null> => {
   const { personId, fp } = parsed;
 
   // Owner-configurable role permissions (cached) — merged onto the person below so
-  // every scope helper + gate reads one resolved object.
-  const permsConfig = await getPortalPermissions();
+  // every scope helper + gate reads one resolved object. Started now, awaited
+  // below: it does not depend on the person row, so the two reads overlap
+  // instead of queueing (this runs on every portal request).
+  const permsConfigP = getPortalPermissions();
 
   // The token IS valid. Now look the person up — but a freshly-woken phone (PWA
   // relaunched from recents → cold serverless + cold PgBouncer connection +
@@ -430,7 +432,7 @@ export const getPortalPerson = cache(async (): Promise<PortalPerson | null> => {
       if (fp !== null && fp !== sessionFingerprint(data.portal_password_hash as string)) {
         console.warn(`[portal-auth] fingerprint mismatch person ${personId} — keeping session (cookie valid)`);
       }
-      return mapPortalPerson(data as Record<string, unknown>, permsConfig);
+      return mapPortalPerson(data as Record<string, unknown>, await permsConfigP);
     }
 
     // No error but NO row can be a cold/transient empty read on a freshly-woken

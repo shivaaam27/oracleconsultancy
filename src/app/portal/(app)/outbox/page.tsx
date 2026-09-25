@@ -23,22 +23,28 @@ export default async function PortalOutboxPage() {
   if (!me.caps.navOutbox) redirect("/portal"); // owner-configurable (Settings → Portals)
 
   const groupWide = seesAllCompanies(me);
-  let drafts = await generateDrafts();
-  if (!groupWide) {
+  // The drafts and (for a scoped viewer) the scope and company map need only
+  // `me`, so they are read in one round.
+  const [draftsAll, scope, map] = await Promise.all([
+    generateDrafts(),
+    groupWide ? Promise.resolve(null) : companyScope(me),
+    groupWide ? Promise.resolve(null) : getPersonCompaniesMap(),
+  ]);
+  let drafts = draftsAll;
+  if (!groupWide && map) {
     // Two-part scoping so a manager / company-scoped director only ever sees work
     // for the companies they govern:
     //  1. WHICH PEOPLE appear — their team / everyone in their companies;
     //  2. WHICH TASKS show per person — ONLY tasks in the viewer's companies.
     // Without (2) a shared staffer's other-company tasks would leak into the
     // summary (e.g. an MES manager seeing a person's Terra Green tasks).
-    const scope = await companyScope(me); // null = every company (never here — not group-wide)
+    // scope: null = every company (never here — not group-wide)
     const scopeSet = scope != null ? new Set(scope) : null;
 
     // WHICH PEOPLE appear is purely company-based (managers AND scoped directors):
     // only people who BELONG to a company in scope. This deliberately excludes a
     // manager's cross-company direct reports — an Oracle/Pamoja manager never sees
     // a report who works only in Tanam/DSC. (Reporting-based reach is a later call.)
-    const map = await getPersonCompaniesMap();
     const allowed = new Set(
       [...map.entries()].filter(([, cids]) => cids.some((c) => scopeSet?.has(c))).map(([pid]) => pid)
     );

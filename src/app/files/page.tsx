@@ -21,11 +21,10 @@ export default async function FilesPage({ searchParams }: { searchParams: Promis
   // (download yes, change nothing). lib/viewer.ts.
   const viewer = await getViewer();
   if (!viewer) redirect("/portal");
-  const [full, { data: cosRaw }] = await Promise.all([
-    getLibrary(),
+  const [library, { data: cosRaw }] = await Promise.all([
+    viewerLibrary(viewer, getLibrary()),
     sb.from("companies").select("id,name,code_prefix").eq("active", true).order("name"),
   ]);
-  const library = await viewerLibrary(viewer, full);
   const cos = (cosRaw ?? []).filter((c) => viewer.scope == null || viewer.scope.includes(c.id as number));
   const companies: FilesCompany[] = cos.map((c, i) => ({
     id: c.id as number,

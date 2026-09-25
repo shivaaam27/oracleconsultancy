@@ -15,18 +15,28 @@ export default async function PortalCleaningPage() {
   const canView = me.caps.cleaningOverview;
   if (!canLog && !canView) redirect("/portal");
 
-  await ensureDefaultAreas();
   const todayIso = new Date(Date.now() + 3 * 3_600_000).toISOString().slice(0, 10); // EAT, same day as the administrator's log
-  const [day, areas] = await Promise.all([ensureDay(todayIso), listAreas()]);
-  const checks = await listChecks(day.id);
-
-  // Read-only oversight — managers / directors (e.g. Shivam). Recent history with
-  // per-day completion, resolved in two batched queries (no N+1).
-  const recentDays = await listDays({ limit: 14 });
-  const dayIds = recentDays.map((d) => d.id);
-  const { data: allChecks } = dayIds.length
-    ? await sb.from("cleaning_checks").select("day_id,done").in("day_id", dayIds)
-    : { data: [] };
+  // The areas (once the defaults exist) beside today's day and everything that
+  // hangs off it. The recent days are read AFTER today's day is made, so a day
+  // created by this visit is in the history, as before.
+  const [areas, [day, checks, recentDays, allChecks]] = await Promise.all([
+    ensureDefaultAreas().then(() => listAreas()),
+    ensureDay(todayIso).then(async (day) => {
+      const [checks, [recentDays, allChecks]] = await Promise.all([
+        listChecks(day.id),
+        // Read-only oversight — managers / directors (e.g. Shivam). Recent history with
+        // per-day completion, resolved in two batched queries (no N+1).
+        listDays({ limit: 14 }).then(async (recentDays) => {
+          const dayIds = recentDays.map((d) => d.id);
+          const { data } = dayIds.length
+            ? await sb.from("cleaning_checks").select("day_id,done").in("day_id", dayIds)
+            : { data: [] };
+          return [recentDays, data] as const;
+        }),
+      ]);
+      return [day, checks, recentDays, allChecks] as const;
+    }),
+  ]);
   const doneByDay = new Map<number, number>();
   for (const c of (allChecks ?? []) as { day_id: number; done: boolean }[]) {
     if (c.done) doneByDay.set(c.day_id, (doneByDay.get(c.day_id) ?? 0) + 1);

@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { notFound } from "next/navigation";
 import { getPersonDetail } from "@/lib/people-queries";
 import { getAllTasks } from "@/lib/queries";
@@ -34,10 +35,13 @@ async function personForViewer(personId: number) {
 
 export const dynamic = "force-dynamic";
 
+// The title and the page both need the person; read them ONCE per request.
+const loadPersonDetail = cache(getPersonDetail);
+
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!(await personForViewer(Number(id)))) return { title: "Person · COS" };
-  const detail = await getPersonDetail(Number(id)).catch(() => null);
+  const detail = await loadPersonDetail(Number(id)).catch(() => null);
   return { title: detail ? `${detail.person.name} · People` : "Person · COS" };
 }
 
@@ -53,15 +57,17 @@ export default async function PersonPage({ params, searchParams }: { params: Pro
   if (!viewer) notFound();
   const director = viewer.kind === "director";
 
-  const detail = await getPersonDetail(personId);
+  const detail = await loadPersonDetail(personId);
   if (!detail) notFound();
 
   const inScope = (cid: number | null | undefined) => viewer.scope == null || (cid != null && viewer.scope.includes(cid));
   if (director) {
     detail.assignedTasks = detail.assignedTasks.filter((t) => inScope(t.companyId));
-    const seen = await Promise.all(detail.documents.map((d) => viewerCanSeeDocument(viewer, d.id)));
+    const [seen, peopleOk] = await Promise.all([
+      Promise.all(detail.documents.map((d) => viewerCanSeeDocument(viewer, d.id))),
+      viewerPeopleIds(viewer),
+    ]);
     detail.documents = detail.documents.filter((_, i) => seen[i]);
-    const peopleOk = await viewerPeopleIds(viewer);
     if (peopleOk) detail.directReports = detail.directReports.filter((r) => peopleOk.has(r.id));
   }
   const p = director

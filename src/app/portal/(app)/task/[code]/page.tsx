@@ -73,10 +73,16 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
   // Hard gate: own tasks, or (managers) a direct report's task.
   if (!(await personCanSeeTask(me, task.id as number))) redirect("/portal");
 
-  // Record my view — powers the "Seen" indicator for everyone else.
-  await recordTaskView(task.id as number, `person:${me.id}`);
+  const assignedById = task.created_by_person_id as number | null;
+  const groupWide = seesAllCompanies(me);
+  const isModerator = me.portalRole === "director" || me.portalRole === "hr";
 
-  const [{ data: assignees }, { data: updates }, { data: views }, staffIds] = await Promise.all([
+  // Everything below needs only the task (and the gate above), so it is read in
+  // ONE round rather than one wait after another. Recording my view rides along:
+  // the only row it writes is mine, and the "Seen" line leaves me out anyway.
+  const [, { data: assignees }, { data: updates }, { data: views }, staffIds, assignedByName, { data: auditRows }, manage, { data: srcRow }, deletedRaw] = await Promise.all([
+    // Record my view — powers the "Seen" indicator for everyone else.
+    recordTaskView(task.id as number, `person:${me.id}`),
     sb.from("task_assignees").select("role,people(id,name)").eq("task_id", task.id),
     sb
       .from("task_updates")
@@ -86,33 +92,57 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
       .order("created_at", { ascending: false }),
     sb.from("task_views").select("viewer,last_viewed_at").eq("task_id", task.id),
     getStaffIdMap(),
-  ]);
-
-  // Who assigned this task — when a portal user (typically a director) created
-  // it, surface a quiet "Assigned by {Name}" line in the header meta.
-  const assignedById = task.created_by_person_id as number | null;
-  let assignedByName: string | null = null;
-  if (assignedById) {
-    if (assignedById === me.id) assignedByName = "You";
-    else {
+    // Who assigned this task — when a portal user (typically a director) created
+    // it, surface a quiet "Assigned by {Name}" line in the header meta.
+    (async (): Promise<string | null> => {
+      if (!assignedById) return null;
+      if (assignedById === me.id) return "You";
       const { data: assigner } = await sb
         .from("people")
         .select("name")
         .eq("id", assignedById)
         .maybeSingle();
-      assignedByName = (assigner?.name as string | null) ?? null;
-    }
-  }
-
-  // System events (status/deadline/priority/etc.) → thin inline markers.
-  const { data: auditRows } = await sb
-    .from("audit_log")
-    .select("id,field,old_value,new_value,created_at")
-    .eq("task_code", task.code as string)
-    .eq("entry_type", "CHANGE")
-    .in("field", ["status", "deadline", "priority", "risk", "escalation"])
-    .is("deleted_at", null)
-    .order("created_at", { ascending: false });
+      return (assigner?.name as string | null) ?? null;
+    })(),
+    // System events (status/deadline/priority/etc.) → thin inline markers.
+    sb
+      .from("audit_log")
+      .select("id,field,old_value,new_value,created_at")
+      .eq("task_code", task.code as string)
+      .eq("entry_type", "CHANGE")
+      .in("field", ["status", "deadline", "priority", "risk", "escalation"])
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false }),
+    // The management panel's data (see below) — management roles only.
+    isManagement
+      ? Promise.all([
+          buildCommandTasks([task.id as number], me.id, me.name),
+          sb.from("people").select("id,name,company_id").eq("active", true).order("name"),
+          sb.from("companies").select("id,name").order("name"),
+          getPersonCompaniesMap(),
+          !isScopedDirector(me) && !groupWide ? directReportIds(me.id) : Promise.resolve(null),
+        ])
+      : Promise.resolve(null),
+    // Related work — the task's OWN source meeting/note (safe provenance; no
+    // cross-task lookup, so nothing outside the viewer's scope is exposed).
+    sb
+      .from("meeting_tasks")
+      .select("meetings(title,kind)")
+      .eq("task_id", task.id)
+      .maybeSingle(),
+    // Moderators (director/HR) can bring back a wrongly-deleted note: the
+    // recently soft-deleted updates, so they can be restored.
+    isModerator
+      ? sb
+          .from("task_updates")
+          .select("id,body,created_by,deleted_at")
+          .eq("task_id", task.id)
+          .not("deleted_at", "is", null)
+          .order("deleted_at", { ascending: false })
+          .limit(10)
+          .then((r) => r.data)
+      : Promise.resolve(null),
+  ]);
   const fmtDate = (v: string) => {
     const d = new Date(v);
     return isNaN(d.getTime()) ? v : d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
@@ -134,14 +164,21 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
 
   // Acknowledgements ("Understood") for this task's pinned instructions.
   const pinnedIds = all.filter((u) => u.pinned_at).map((u) => u.id);
+  // Attachment file names for messages that carry a document.
+  const attachIds = all.map((u) => u.attachment_document_id).filter((x): x is number => x != null);
+  // Both lookups hang off the updates only, so they are read together.
+  const [acks, docs] = await Promise.all([
+    pinnedIds.length > 0
+      ? sb.from("update_acks").select("update_id,person_id,people(name)").in("update_id", pinnedIds).then((r) => r.data)
+      : Promise.resolve(null),
+    attachIds.length > 0
+      ? sb.from("documents").select("id,file_name,title").in("id", attachIds).then((r) => r.data)
+      : Promise.resolve(null),
+  ]);
   const ackMap = new Map<number, string[]>();
   const myAcks = new Set<number>();
-  if (pinnedIds.length > 0) {
-    const { data: acks } = await sb
-      .from("update_acks")
-      .select("update_id,person_id,people(name)")
-      .in("update_id", pinnedIds);
-    for (const a of acks ?? []) {
+  if (acks) {
+    for (const a of acks) {
       const uid = a.update_id as number;
       const pid = a.person_id as number;
       const nm = (a.people as unknown as { name: string } | null)?.name ?? "Someone";
@@ -177,13 +214,8 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
   // Body lookup for reply previews.
   const bodyById = new Map(all.map((u) => [u.id, { body: u.body, author: authorOf(u.created_by, me.name).name }]));
 
-  // Attachment file names for messages that carry a document.
-  const attachIds = all.map((u) => u.attachment_document_id).filter((x): x is number => x != null);
   const attachName = new Map<number, string>();
-  if (attachIds.length > 0) {
-    const { data: docs } = await sb.from("documents").select("id,file_name,title").in("id", attachIds);
-    for (const d of docs ?? []) attachName.set(d.id as number, (d.file_name as string | null) || (d.title as string) || "Attachment");
-  }
+  for (const d of docs ?? []) attachName.set(d.id as number, (d.file_name as string | null) || (d.title as string) || "Attachment");
 
   const messages: ConvoMessage[] = all.map((u) => {
     const a = authorOf(u.created_by, me.name);
@@ -227,14 +259,8 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
   let manageCmd: Awaited<ReturnType<typeof buildCommandTasks>>[number] | null = null;
   let managePeople: { id: number; name: string; companyId: number | null; companyIds: number[] }[] = [];
   let manageCompanies: { id: number; name: string }[] = [];
-  if (isManagement) {
-    const groupWide = seesAllCompanies(me);
-    const [cmdArr, { data: peopleRaw }, { data: companiesRaw }, personCompanies] = await Promise.all([
-      buildCommandTasks([task.id as number], me.id, me.name),
-      sb.from("people").select("id,name,company_id").eq("active", true).order("name"),
-      sb.from("companies").select("id,name").order("name"),
-      getPersonCompaniesMap(),
-    ]);
+  if (manage) {
+    const [cmdArr, { data: peopleRaw }, { data: companiesRaw }, personCompanies, reportIds] = manage;
     // Company move is a group-director/HR power, so only they get the full list;
     // everyone else sees no company picker (server enforces this too).
     manageCompanies = groupWide ? (companiesRaw ?? []).map((c) => ({ id: c.id as number, name: c.name as string })) : [];
@@ -247,21 +273,12 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
       const scope = new Set(me.directorCompanyIds);
       managePeople = managePeople.filter((p) => p.companyIds.some((c) => scope.has(c)));
     } else if (!groupWide) {
-      const reportSet = new Set([me.id, ...(await directReportIds(me.id))]);
+      const reportSet = new Set([me.id, ...(reportIds ?? [])]);
       managePeople = managePeople.filter((p) => reportSet.has(p.id));
     }
     manageCmd = cmdArr[0] ?? null;
   }
 
-  // Moderators (director/HR) can bring back a wrongly-deleted note. Load the
-  // recently soft-deleted updates so they can be restored.
-  // Related work — the task's OWN source meeting/note (safe provenance; no
-  // cross-task lookup, so nothing outside the viewer's scope is exposed).
-  const { data: srcRow } = await sb
-    .from("meeting_tasks")
-    .select("meetings(title,kind)")
-    .eq("task_id", task.id)
-    .maybeSingle();
   const srcMeeting = srcRow?.meetings
     ? (Array.isArray(srcRow.meetings) ? srcRow.meetings[0] : srcRow.meetings) as { title: string; kind: string | null } | null
     : null;
@@ -327,17 +344,9 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
     );
   }
 
-  const isModerator = me.portalRole === "director" || me.portalRole === "hr";
   let deletedUpdates: { id: number; body: string; author: string; at: string }[] = [];
-  if (isModerator) {
-    const { data: del } = await sb
-      .from("task_updates")
-      .select("id,body,created_by,deleted_at")
-      .eq("task_id", task.id)
-      .not("deleted_at", "is", null)
-      .order("deleted_at", { ascending: false })
-      .limit(10);
-    deletedUpdates = (del ?? []).map((u) => ({
+  if (deletedRaw) {
+    deletedUpdates = deletedRaw.map((u) => ({
       id: u.id as number,
       body: (u.body as string) ?? "",
       author: authorOf(u.created_by as string | null, me.name).name,

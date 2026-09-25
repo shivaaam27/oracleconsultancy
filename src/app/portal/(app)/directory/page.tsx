@@ -44,7 +44,17 @@ export default async function PortalDirectoryPage({
   // companies THEY belong to; a company-scoped director → their ONE company. An
   // unscoped person (no company at all) must NOT fall through to group-wide data, so
   // we deliberately show them an empty set rather than the whole portfolio.
-  const cids = groupWide ? [] : ((await colleagueCompanyScope(me)) ?? []);
+  //
+  // Everything that needs only `me` is read in ONE round: the scope, the
+  // company set per person, the support contacts, the task list and the logos.
+  const [scopeCids, companiesMap, supportIds, tasksAll, logoMap] = await Promise.all([
+    groupWide ? Promise.resolve(null) : colleagueCompanyScope(me),
+    getPersonCompaniesMap(),
+    groupWide ? Promise.resolve([] as number[]) : commandCentrePersonIds(),
+    getAllTasks(),
+    getCompanyLogoMap(),
+  ]);
+  const cids = groupWide ? [] : (scopeCids ?? []);
   const scopedUnscoped = !groupWide && cids.length === 0;
 
   // For non-group-wide viewers we must surface multi-company colleagues too: a
@@ -52,18 +62,17 @@ export default async function PortalDirectoryPage({
   // via person_companies should still appear. getPersonCompaniesMap maps each
   // active person -> the full set of companies they belong to, so we keep anyone
   // whose company set intersects mine.
-  const personCompaniesMap = groupWide ? null : await getPersonCompaniesMap();
   let visiblePersonIds: number[] | null = null;
   if (!groupWide) {
     const cidSet = new Set(cids);
     const inScope = scopedUnscoped
       ? []
-      : [...personCompaniesMap!.entries()]
+      : [...companiesMap.entries()]
           .filter(([, theirCids]) => theirCids.some((c) => cidSet.has(c)))
           .map(([pid]) => pid);
     // The Administrator is a default support contact for EVERYONE — always
     // include it even when the viewer shares no company with it.
-    visiblePersonIds = [...new Set([...inScope, ...(await commandCentrePersonIds())])];
+    visiblePersonIds = [...new Set([...inScope, ...supportIds])];
   }
 
   // Active people, ordered by name. Managers/staff see only people who share one
@@ -82,10 +91,9 @@ export default async function PortalDirectoryPage({
   let companyQuery = sb.from("companies").select("id,name").order("name");
   if (!groupWide) companyQuery = companyQuery.in("id", cids);
 
-  const [{ data: allPeopleRaw }, { data: allCompaniesRaw }, tasksAll] = await Promise.all([
+  const [{ data: allPeopleRaw }, { data: allCompaniesRaw }] = await Promise.all([
     peopleQuery,
     companyQuery,
-    getAllTasks(),
   ]);
 
   const allPeople = allPeopleRaw;
@@ -94,7 +102,6 @@ export default async function PortalDirectoryPage({
   // The full company set per person (primary ∪ person_companies) — drives both the
   // companyIds handed to each row (so a multi-company colleague filters under EVERY
   // company they work in, not just their primary) and the multi-company headcount.
-  const companiesMap = personCompaniesMap ?? (await getPersonCompaniesMap());
 
   const people: DirectoryPerson[] = (allPeople ?? []).map((p) => {
     const company = (Array.isArray(p.companies) ? p.companies[0] : p.companies) as { name: string } | null;
@@ -132,7 +139,6 @@ export default async function PortalDirectoryPage({
     for (const cid of p.companyIds ?? []) headcountByCompany.set(cid, (headcountByCompany.get(cid) ?? 0) + 1);
   }
 
-  const logoMap = await getCompanyLogoMap();
   const companies: DirectoryCompany[] = (allCompanies ?? []).map((c) => ({
     id: c.id as number,
     name: c.name as string,

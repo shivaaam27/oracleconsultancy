@@ -18,7 +18,7 @@ import { PortalNotifyPrompt } from "@/components/portal-notify-prompt";
 import { AnnouncementTakeover } from "@/components/announcement-takeover";
 import { getPortalPerson, isScopedDirector } from "@/lib/portal-auth";
 import { sb } from "@/db/supabase";
-import { getPersonAudienceAttrs, takeoverFeedForPerson } from "@/lib/announcements";
+import { takeoverFeedForPersonId } from "@/lib/announcements";
 import { audienceForRole, unseenToursFor } from "@/lib/tours";
 import { TourRunner } from "@/components/tour-guide";
 import { portalMarkTourSeen, portalGetTour } from "../tour-actions";
@@ -58,11 +58,16 @@ export default async function PortalLayout({ children }: { children: React.React
   // ABOVE the page error boundary, so a transient DB hiccup here would blank the
   // whole portal; guard each one independently so a failed lookup just means
   // "nothing right now", never a crash.
-  const [takeovers, tours] = await Promise.all([
-    (async (): Promise<Awaited<ReturnType<typeof takeoverFeedForPerson>>> => {
+  //
+  // The scoped director's company names ride in the same round — they need only
+  // `me` too, and waiting for them afterwards was one more round trip on every
+  // portal navigation.
+  const scopedDirector = isScopedDirector(me);
+  const [takeovers, tours, scopedCompanyName] = await Promise.all([
+    (async (): Promise<Awaited<ReturnType<typeof takeoverFeedForPersonId>>> => {
       try {
-        const attrs = await getPersonAudienceAttrs(me.id);
-        return attrs ? await takeoverFeedForPerson(attrs) : [];
+        // Cached per request — a page underneath that shows the feed reuses it.
+        return await takeoverFeedForPersonId(me.id);
       } catch {
         return [];
       }
@@ -74,29 +79,27 @@ export default async function PortalLayout({ children }: { children: React.React
         return [];
       }
     })(),
+    // A company-scoped director (e.g. MES Ltd) leads THEIR company, not Oracle — so
+    // the header leads with that company (full legal name where set) and credits
+    // Oracle as the platform. Everyone else keeps "Oracle Consultancy · <portal>".
+    (async (): Promise<string | null> => {
+      if (!scopedDirector || me.directorCompanyIds.length === 0) return null;
+      const { data } = await sb
+        .from("companies")
+        .select("name,legal_name")
+        .in("id", me.directorCompanyIds)
+        .order("name");
+      const names = (data ?? []).map((c) => ((c.legal_name as string | null)?.trim() || (c.name as string | null)?.trim())).filter(Boolean) as string[];
+      // One company → its (legal) name; several → the list, so the header reads
+      // "By Oracle Consultancy / DSC Ltd & PES Ltd / Directors Board".
+      return names.length === 0 ? null : names.length === 1 ? names[0] : names.slice(0, -1).join(", ") + " & " + names[names.length - 1];
+    })(),
   ]);
 
   // Everyone gets the room on a large screen (mobile/tablet keep the focused
   // max-w-3xl). Board-first operators (directors + managers) stay widest for
   // their two-column board.
   const wide = me.portalRole === "director" || me.portalRole === "manager";
-
-  // A company-scoped director (e.g. MES Ltd) leads THEIR company, not Oracle — so
-  // the header leads with that company (full legal name where set) and credits
-  // Oracle as the platform. Everyone else keeps "Oracle Consultancy · <portal>".
-  const scopedDirector = isScopedDirector(me);
-  let scopedCompanyName: string | null = null;
-  if (scopedDirector && me.directorCompanyIds.length > 0) {
-    const { data } = await sb
-      .from("companies")
-      .select("name,legal_name")
-      .in("id", me.directorCompanyIds)
-      .order("name");
-    const names = (data ?? []).map((c) => ((c.legal_name as string | null)?.trim() || (c.name as string | null)?.trim())).filter(Boolean) as string[];
-    // One company → its (legal) name; several → the list, so the header reads
-    // "By Oracle Consultancy / DSC Ltd & PES Ltd / Directors Board".
-    scopedCompanyName = names.length === 0 ? null : names.length === 1 ? names[0] : names.slice(0, -1).join(", ") + " & " + names[names.length - 1];
-  }
 
   // The rail's width, decided HERE rather than after hydration. The gutter in
   // globals.css reads this custom property, so the very first paint already has

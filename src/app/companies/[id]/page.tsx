@@ -56,7 +56,10 @@ export default async function CompanyPage({
   const asked = parseCompanyTab(sp.tab);
   // The Notes tab is the owner's notes — not a director's to read.
   const tab = director && asked === "notes" ? "overview" : asked;
-  const [allRows, documents, { data: companyRaw }, { data: assocRaw }, { data: companiesRaw }, { data: peopleRaw }, logoUrl] =
+  // Every read on this page needs only the company id and the tab, so they are
+  // made in ONE round — the tab's own data included — rather than one wait
+  // after another.
+  const [allRows, documents, { data: companyRaw }, { data: assocRaw }, { data: companiesRaw }, { data: peopleRaw }, logoUrl, { data: prefixRow }, relationships, overviewRaw, orgRaw] =
     await Promise.all([
       getAllTasks(),
       listDocuments(),
@@ -69,6 +72,23 @@ export default async function CompanyPage({
       sb.from("companies").select("id,name").order("name"),
       sb.from("people").select("id,name,role,company_id").eq("active", true).order("name"),
       getCompanyLogoUrl(companyId),
+      sb.from("companies").select("code_prefix").eq("id", companyId).maybeSingle(),
+      // Profile-only: the company's relationships.
+      tab === "profile" ? getCompanyRelationships(companyId) : Promise.resolve([] as Awaited<ReturnType<typeof getCompanyRelationships>>),
+      // Overview-only: assets + suppliers, the governance counts and staff ids.
+      tab === "overview"
+        ? Promise.all([
+            listAssets(),
+            listVendors(),
+            sb.from("cap_table").select("id", { count: "exact", head: true }).eq("company_id", companyId),
+            sb.from("signatories").select("id", { count: "exact", head: true }).eq("company_id", companyId),
+            sb.from("resolutions").select("id", { count: "exact", head: true }).eq("company_id", companyId),
+            sb.from("facts").select("id", { count: "exact", head: true }).eq("company_id", companyId),
+            getStaffIdMap(),
+          ])
+        : Promise.resolve(null),
+      // Org tab data (only when viewing the Org tab — these queries are heavier).
+      tab === "org" ? Promise.all([getAllPeopleWithWorkload(), getOrgExtras(), getDepartmentHeads()]) : Promise.resolve(null),
     ]);
   const companiesList = (companiesRaw ?? []) as Array<{ id: number; name: string }>;
   const peopleList = (peopleRaw ?? []).map((p) => ({ id: p.id as number, name: p.name as string }));
@@ -119,13 +139,10 @@ export default async function CompanyPage({
       .sort((a, b) => a.personName.localeCompare(b.personName));
   })();
 
-  // Profile-only: the company's relationships.
-  const relationships = tab === "profile" ? await getCompanyRelationships(companyId) : [];
-
   // Overview-only: assets at this company + its suppliers (heavier, so lazy).
   let overviewExtras: null | { assets: AssetRow[]; vendors: VendorRow[] } = null;
-  if (tab === "overview") {
-    const [assets, vendors] = await Promise.all([listAssets(), listVendors()]);
+  if (overviewRaw) {
+    const [assets, vendors] = overviewRaw;
     overviewExtras = {
       assets: assets.filter((a) => a.companyId === companyId || a.assignedToCompanyId === companyId),
       vendors: vendors.filter((v) => v.companyId === companyId),
@@ -140,8 +157,8 @@ export default async function CompanyPage({
     deptHeads: Record<string, number>;
     pickerPeople: Array<{ id: number; name: string; companyName: string | null }>;
   } = null;
-  if (tab === "org") {
-    const [allPeople, extras, deptHeads] = await Promise.all([getAllPeopleWithWorkload(), getOrgExtras(), getDepartmentHeads()]);
+  if (orgRaw) {
+    const [allPeople, extras, deptHeads] = orgRaw;
     const associated = allPeople
       .filter((p) => p.active)
       .flatMap((p) => p.associations.filter((a) => a.companyId === companyId).map((a) => ({ id: p.id, name: p.name, role: p.role, relationship: a.relationship, personType: p.personType })));
@@ -151,14 +168,8 @@ export default async function CompanyPage({
 
   // Studio (Settings → New look → Companies): mockup board Company.
   let overview: StudioCompanyData["overview"] = null;
-  if (tab === "overview") {
-    const [capT, sigT, resT, factT, staffIds] = await Promise.all([
-      sb.from("cap_table").select("id", { count: "exact", head: true }).eq("company_id", companyId),
-      sb.from("signatories").select("id", { count: "exact", head: true }).eq("company_id", companyId),
-      sb.from("resolutions").select("id", { count: "exact", head: true }).eq("company_id", companyId),
-      sb.from("facts").select("id", { count: "exact", head: true }).eq("company_id", companyId),
-      getStaffIdMap(),
-    ]);
+  if (overviewRaw) {
+    const [, , capT, sigT, resT, factT, staffIds] = overviewRaw;
     const docStatus = companyDocs.map((d) => deriveDocStatus(d));
     const isLate = (r: (typeof openRows)[number]) => r.flag === "overdue" || r.flag === "escalate-now";
     // Worst first: late, then by deadline, undated last.
@@ -199,7 +210,6 @@ export default async function CompanyPage({
       governance: { capTable: capT.count ?? 0, signatories: sigT.count ?? 0, resolutions: resT.count ?? 0, facts: factT.count ?? 0 },
     };
   }
-  const { data: prefixRow } = await sb.from("companies").select("code_prefix").eq("id", companyId).maybeSingle();
   const tf = sp.tf === "done" ? "done" as const : "open" as const;
   const card = "st-desk st-panel min-w-0 rounded-[20px] bg-[var(--st-surface)] px-5 py-4";
   // Each tab in the Studio look — cards, and the Studio task list (the same

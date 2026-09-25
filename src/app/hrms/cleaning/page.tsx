@@ -18,25 +18,28 @@ const shift = (iso: string, days: number) => {
  * so a hand-typed date cannot create an empty day row.
  */
 export default async function CleaningPage({ searchParams }: { searchParams: Promise<{ date?: string }> }) {
-  await ensureDefaultAreas();
   const { date } = await searchParams;
   const today = new Date(Date.now() + 3 * 3_600_000).toISOString().slice(0, 10); // EAT
-  const earliest = await earliestDayKey();
+  // Round one: the areas (after making sure the defaults exist), the earliest
+  // day and the people — none needs another.
+  const [areas, earliest, { data: peopleRaw }] = await Promise.all([
+    ensureDefaultAreas().then(() => listAreas()),
+    earliestDayKey(),
+    sb.from("people").select("id,name").eq("active", true).order("name"),
+  ]);
   const floor = earliest && earliest < shift(today, -30) ? earliest : shift(today, -30);
   let dateIso = isDateKey(date) ? date : today;
   if (dateIso > today) dateIso = today;
   if (dateIso < floor) dateIso = floor;
 
-  const [day, areas, recent, { data: peopleRaw }] = await Promise.all([
-    ensureDay(dateIso),
-    listAreas(),
-    listDays({ limit: 21 }),
-    sb.from("people").select("id,name").eq("active", true).order("name"),
-  ]);
-  const ids = recent.map((d) => d.id);
-  const [checks, { data: allChecks }] = await Promise.all([
-    listChecks(day.id),
-    ids.length ? sb.from("cleaning_checks").select("day_id,done").in("day_id", ids) : Promise.resolve({ data: [] as { day_id: number; done: boolean }[] }),
+  // Round two: the day (and its ticks) beside the recent days (and theirs).
+  const [[day, checks], [recent, allChecks]] = await Promise.all([
+    ensureDay(dateIso).then(async (d) => [d, await listChecks(d.id)] as const),
+    listDays({ limit: 21 }).then(async (recent) => {
+      const ids = recent.map((d) => d.id);
+      const { data } = ids.length ? await sb.from("cleaning_checks").select("day_id,done").in("day_id", ids) : { data: [] as { day_id: number; done: boolean }[] };
+      return [recent, data] as const;
+    }),
   ]);
   const doneBy = new Map<number, number>();
   for (const c of (allChecks ?? []) as { day_id: number; done: boolean }[]) if (c.done) doneBy.set(c.day_id, (doneBy.get(c.day_id) ?? 0) + 1);

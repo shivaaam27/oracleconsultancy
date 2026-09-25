@@ -7,7 +7,7 @@ import { AnnouncementComposer, type Opt } from "@/components/announcement-compos
 import { AnnouncementFeed } from "@/components/announcement-feed";
 import { StudioScope, StudioHeader, StudioCardRow, StudioCard, CardHead, BigNumber } from "@/components/studio/kit";
 import { getPortalPerson, directReportIds } from "@/lib/portal-auth";
-import { getPersonAudienceAttrs, feedForPerson } from "@/lib/announcements";
+import { feedForPersonId } from "@/lib/announcements";
 import type { AudienceKind } from "@/lib/announcements-shared";
 import { isStaffLikeRole } from "@/lib/director-routes";
 
@@ -17,8 +17,25 @@ export default async function PortalAnnouncements() {
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
 
-  const attrs = await getPersonAudienceAttrs(me.id);
-  const feed = attrs ? await feedForPerson(attrs) : [];
+  // A director is redirected above; a manager posts to their own team.
+  const canPost = me.portalRole === "manager";
+
+  // The feed and a manager's composer lists need only `me`, so read them together.
+  const [feed, composerData] = await Promise.all([
+    feedForPersonId(me.id),
+    canPost
+      ? (async () => {
+          // Manager: only their own company + their direct reports.
+          const reports = await directReportIds(me.id);
+          const ids = Array.from(new Set([me.id, ...reports]));
+          const [{ data: peopleRaw }, { data: companyRaw }] = await Promise.all([
+            sb.from("people").select("id,name").in("id", ids.length ? ids : [-1]).eq("active", true).order("name"),
+            me.companyId != null ? sb.from("companies").select("id,name").eq("id", me.companyId).maybeSingle() : Promise.resolve({ data: null }),
+          ]);
+          return { peopleRaw, companyRaw };
+        })()
+      : Promise.resolve(null),
+  ]);
 
   // Staff (26 Sept 2026): the Studio look — two dark cards, then the feed,
   // which keeps Acknowledge, reactions and comments exactly as they were.
@@ -51,19 +68,10 @@ export default async function PortalAnnouncements() {
       </StudioScope>
     );
   }
-  // A director is redirected above; a manager posts to their own team.
-  const canPost = me.portalRole === "manager";
-
   let composer: React.ReactNode = null;
-  if (canPost) {
+  if (composerData) {
     {
-      // Manager: only their own company + their direct reports.
-      const reports = await directReportIds(me.id);
-      const ids = Array.from(new Set([me.id, ...reports]));
-      const [{ data: peopleRaw }, { data: companyRaw }] = await Promise.all([
-        sb.from("people").select("id,name").in("id", ids.length ? ids : [-1]).eq("active", true).order("name"),
-        me.companyId != null ? sb.from("companies").select("id,name").eq("id", me.companyId).maybeSingle() : Promise.resolve({ data: null }),
-      ]);
+      const { peopleRaw, companyRaw } = composerData;
       const company = companyRaw as { id: number; name: string } | null;
       const lists = {
         companies: company ? [{ value: String(company.id), label: company.name } satisfies Opt] : [],

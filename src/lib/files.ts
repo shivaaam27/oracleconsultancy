@@ -119,10 +119,11 @@ export async function purgeExpiredDeleted(): Promise<number> {
  * View-only (and download): the files of their companies and of the people in
  * them, in the folders that hold them. Nothing deleted, nothing loose, nothing
  * of another company. The owner (scope null AND kind owner) sees everything. */
-export async function viewerLibrary(v: import("@/lib/viewer").Viewer, lib: Library): Promise<Library> {
-  if (v.kind === "owner") return lib;
+export async function viewerLibrary(v: import("@/lib/viewer").Viewer, libIn: Library | Promise<Library>): Promise<Library> {
+  if (v.kind === "owner") return libIn;
   const { viewerPeopleIds } = await import("@/lib/viewer-scope");
-  const people = await viewerPeopleIds(v);
+  // The library may still be loading: their people are read alongside it.
+  const [lib, people] = await Promise.all([libIn, viewerPeopleIds(v)]);
   const scope = v.scope;
   const fileOk = (f: FileRow) =>
     !f.deleted && (

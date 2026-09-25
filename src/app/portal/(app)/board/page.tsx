@@ -13,7 +13,7 @@ import { getGivenName, getInitials } from "@/lib/names";
 import { getCompanyLogoMap } from "@/lib/company-brand";
 import { getBrief } from "@/lib/director-brief";
 import { getScopedPickerData } from "@/lib/portal-picker";
-import { getPersonAudienceAttrs, feedForPerson } from "@/lib/announcements";
+import { feedForPersonId } from "@/lib/announcements";
 import { DirectorBoardClient, type WatchItem, type CompanyHealth } from "@/components/director-board-client";
 import { AutoRefresh } from "@/components/auto-refresh";
 
@@ -58,10 +58,7 @@ export default async function DirectorBoard({ searchParams }: { searchParams: Pr
    * before the shell can be sent.) */
   const [scope, announcements, nudge] = await Promise.all([
     companyScope(me),
-    (async () => {
-      const attrs = await getPersonAudienceAttrs(me.id);
-      return attrs ? await feedForPerson(attrs) : [];
-    })(),
+    feedForPersonId(me.id),
     // Task nudge banner (above the hero) — company-wise not-started + stale tasks
     // this operator raised. Null when nothing needs a look or it's switched off.
     getPortalNudge(me),
@@ -120,11 +117,13 @@ async function Board({ me, scope, boardLabel, composerModes, todos }: { me: Port
   // CONCURRENTLY rather than in series. The board's load (and its reload when you
   // navigate back from a company) is dominated by these round-trips, so overlapping
   // them is a direct win. Each falls back to empty on a transient error.
-  const [brief, pickerData] = await Promise.all([
+  const [brief, pickerData, logoMap] = await Promise.all([
     boardBrief(scope),
     // Composer pickers scoped through the one shared helper: a company-scoped
     // director gets only their companies + people; a portfolio director gets all.
     getScopedPickerData(me).catch(() => null),
+    // Company logos for the health column — independent of the other two.
+    getCompanyLogoMap(),
   ]);
 
   const companies = pickerData?.companies ?? [];
@@ -236,7 +235,6 @@ async function Board({ me, scope, boardLabel, composerModes, todos }: { me: Port
   // Per-company health = risk band (from tasks) merged with compliance score +
   // a one-line "why" (overdue tasks / expired / expiring / missing docs). Sorted
   // worst-first so the row that needs the board sits at the top.
-  const logoMap = await getCompanyLogoMap();
   const rank = (r: string) => (riskTone(r) === "danger" ? 0 : riskTone(r) === "warn" ? 1 : 2);
   // Company health reads from TASKS — open / in progress / overdue — not document
   // compliance, so the pill and the figures are the same lens. A company with no

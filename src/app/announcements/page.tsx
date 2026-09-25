@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { getViewer } from "@/lib/viewer";
 import { sb } from "@/db/supabase";
 import { directReportIds, isScopedDirector } from "@/lib/portal-auth";
-import { listAnnouncements, receiptStats, getPersonAudienceAttrs, feedForPerson } from "@/lib/announcements";
+import { listAnnouncements, receiptStats, feedForPersonId } from "@/lib/announcements";
 import { ANNOUNCEMENT_TYPES, audienceLabel, isLive, isScheduled, type AudienceKind } from "@/lib/announcements-shared";
 import { getSitesAdmin } from "@/lib/sites";
 import { listRoleNames } from "@/lib/roles";
@@ -27,15 +27,18 @@ export default async function AnnouncementsPage() {
 
   if (v.kind === "director") {
     const me = v.person;
-    const attrs = await getPersonAudienceAttrs(me.id);
-    const feed = attrs ? await feedForPerson(attrs) : [];
+    // Their feed and (a manager's) team need only `me` — read them together.
+    const [feed, reportIds] = await Promise.all([
+      feedForPersonId(me.id),
+      me.portalRole === "manager" ? directReportIds(me.id) : Promise.resolve([] as number[]),
+    ]);
     // Who they may post to: a manager — their company and their team; a
     // director — their companies and the people in them.
     let companyIds: number[] = [];
     let peopleIds: number[] = [];
     if (me.portalRole === "manager") {
       companyIds = me.companyId != null ? [me.companyId] : [];
-      peopleIds = [me.id, ...(await directReportIds(me.id))];
+      peopleIds = [me.id, ...reportIds];
     } else {
       companyIds = isScopedDirector(me) ? me.directorCompanyIds : (v.scope ?? []);
     }
