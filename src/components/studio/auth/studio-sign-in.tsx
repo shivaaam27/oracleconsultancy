@@ -49,18 +49,7 @@ export function StudioSignIn({ firstRun, defaultAs = "staff" }: { firstRun: bool
   };
 
   return (
-    <div className="studio fixed inset-0 z-[60] overflow-y-auto bg-[var(--st-page)] text-[var(--st-ink)] [font-family:var(--font-geist),var(--font-sans)]">
-      <span className="hidden lg:contents"><ThemeButton /></span>
-      <div className="mx-auto grid min-h-full max-w-[1280px] grid-cols-1 gap-5 p-3 sm:p-4 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] lg:p-5">
-        <BrandPanel />
-
-        <div className="flex flex-col items-center justify-center px-1 pb-2 pt-1 sm:px-2 sm:py-14">
-          {/* Phone (owner, 25 Sept 2026): the whole screen fits without scrolling. */}
-          <div className="flex w-full max-w-[440px] flex-col gap-3 sm:gap-6 lg:max-w-[400px]">
-            {/* Phone and tablet: the brand panel, compact, above the form. */}
-            <BrandCompact />
-
-            <div className="flex flex-col gap-3.5 rounded-[22px] bg-[var(--st-surface)] p-4 sm:gap-6 sm:p-6 lg:bg-transparent lg:p-0">
+    <AuthFrame>
             <div>
               <h1 className="m-0 text-[28px] font-medium leading-none tracking-[-0.035em] sm:text-[40px]">{firstRun && as === "admin" ? "Set up" : "Sign in"}</h1>
               <p className="m-0 mt-2.5 hidden text-[14px] text-[var(--st-ink)] sm:block">
@@ -92,16 +81,12 @@ export function StudioSignIn({ firstRun, defaultAs = "staff" }: { firstRun: bool
               )}
             </div>
 
-            <p className="m-0 hidden text-center text-xs leading-relaxed text-[var(--st-ink)] sm:block">
+            <p className="m-0 text-center text-xs leading-relaxed text-[var(--st-sub)] sm:text-[var(--st-ink)]">
               {as === "staff"
                 ? "No access yet? Ask your administrator to switch the portal on for you."
                 : firstRun ? "You can add Face ID or a fingerprint from Settings afterwards." : "Forgot it? Reset it from Settings on a device that is already signed in."}
             </p>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+    </AuthFrame>
   );
 }
 
@@ -201,19 +186,50 @@ function LogoTile({ size }: { size: number }) {
 // The owner's words (25 Sept 2026).
 const TAGLINE = "Built in-house, and the first in Tanzania — an advanced task management system for a group of companies.";
 
-/** Phone and tablet: the same dark panel, sized to sit above the form. */
+/**
+ * The whole sign-in screen's frame (26 Sept 2026, owner: "make this full page,
+ * add the footer, then merge it with the header"). On a desk: the dark brand
+ * panel beside the form, as before. Below `lg`: ONE full-screen piece — the
+ * dark header runs edge to edge under the status bar, and the white sheet with
+ * the form rises over its foot on rounded corners and runs to the bottom of
+ * the screen, where a small footer closes it. Used by /login, /portal/login and
+ * the Claude consent screen (/mcp/connect).
+ */
+export function AuthFrame({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="studio fixed inset-0 z-[60] overflow-y-auto bg-[var(--st-page)] text-[var(--st-ink)] [font-family:var(--font-geist),var(--font-sans)] max-lg:bg-[#141517]">
+      <span className="hidden lg:contents"><ThemeButton /></span>
+      <div className="flex min-h-full flex-col lg:mx-auto lg:grid lg:max-w-[1280px] lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] lg:gap-5 lg:p-5">
+        <BrandPanel />
+        <BrandCompact />
+        <div className="relative z-[1] -mt-7 flex flex-1 flex-col rounded-t-[28px] bg-[var(--st-surface)] px-5 pb-[max(16px,env(safe-area-inset-bottom))] pt-7 shadow-[0_-12px_32px_rgba(0,0,0,0.18)] sm:px-8 sm:pt-9 lg:mt-0 lg:items-center lg:justify-center lg:rounded-none lg:bg-transparent lg:px-2 lg:py-14 lg:shadow-none">
+          <div className="mx-auto flex w-full max-w-[440px] flex-1 flex-col gap-4 sm:gap-6 lg:max-w-[400px] lg:flex-none">
+            {children}
+            <footer className="mt-auto flex flex-wrap items-center justify-center gap-x-2 gap-y-1 pt-6 text-[11px] text-[var(--st-muted)] lg:hidden">
+              <span>© {new Date().getFullYear()} Oracle Consultancy Limited</span>
+              <span aria-hidden>·</span>
+              <span className="inline-flex items-center gap-1"><ShieldCheck size={11} />Secure sign-in</span>
+            </footer>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Below `lg`: the dark panel as a full-width header the sheet rises over. */
 export function BrandCompact() {
   return (
-    <div className="st-tex-rings relative overflow-hidden rounded-[22px] bg-[#141517] p-4 text-[#F2F2F0] sm:p-5 lg:hidden">
+    <div className="st-tex-rings relative overflow-hidden bg-[#141517] px-5 pb-14 pt-[max(24px,calc(env(safe-area-inset-top)+16px))] text-[#F2F2F0] sm:px-8 sm:pb-14 sm:pt-8 lg:hidden">
       <div className="flex items-center gap-2.5">
         <LogoTile size={36} />
         <div className="text-[15px] font-semibold leading-tight text-white">Oracle Consultancy Limited</div>
         <ThemeButton inline />
       </div>
-      <div className="mt-3.5 text-[26px] font-medium leading-none tracking-[-0.03em] sm:mt-5 sm:text-[32px]">Task Management</div>
+      <div className="mt-6 text-[30px] font-medium leading-none tracking-[-0.03em] sm:mt-7 sm:text-[36px]">Task Management</div>
       {/* No tagline on a phone (owner, 25 Sept 2026) — tablet up keeps it. */}
       <p className="m-0 mt-3 hidden text-[13px] leading-relaxed text-white sm:block">{TAGLINE}</p>
-      <div className="mt-3 flex h-[24px] items-end gap-[3px] sm:mt-4 sm:h-[34px]" aria-hidden>
+      <div className="mt-5 flex h-[34px] items-end gap-[3px] sm:mt-6 sm:h-[40px]" aria-hidden>
         {BARS.map((h, i) => (
           <span key={i} className="st-rise block min-w-0 flex-1 rounded-[2px]" style={{ height: `${Math.round((h / 66) * 100)}%`, maxWidth: 7, background: BAR_C(i), animationDelay: `${i * 18}ms` }} />
         ))}
