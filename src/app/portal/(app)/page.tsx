@@ -6,12 +6,9 @@ import { Panel, SectionLabel, TONE } from "@/components/surface-kit";
 import { PortalHomeHero } from "@/components/portal-home-hero";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { Reveal } from "@/components/reveal";
-import { PortalTasksCommand } from "@/components/portal-tasks-command";
 import { buildCommandTasks } from "@/lib/portal-command-tasks";
-import { getPersonCompaniesMap } from "@/lib/people-queries";
-import { type PickerPerson, type PickerCompany } from "@/lib/portal-picker";
 import { AttendanceCheckin } from "@/components/attendance-checkin";
-import { getPortalPerson, visibleTaskIds, colleagueCompanyScope } from "@/lib/portal-auth";
+import { getPortalPerson, visibleTaskIds } from "@/lib/portal-auth";
 import { getGivenName, getInitials } from "@/lib/names";
 import { getPersonAudienceAttrs, feedForPerson } from "@/lib/announcements";
 import { AnnouncementBanner } from "@/components/announcement-banner";
@@ -24,6 +21,7 @@ import { listSelfTodos } from "@/lib/todo-reminders";
 import { portalCreateTodo, portalToggleTodoDone, portalDeleteTodo, portalUpdateTodo } from "@/app/portal/actions";
 import { scopedUpcomingMeetings, nearestSoon } from "@/lib/portal-meetings-data";
 import { PortalMeetings } from "@/components/portal-meetings";
+import { StaffStudioHome } from "./staff-home";
 
 export const dynamic = "force-dynamic";
 
@@ -42,6 +40,8 @@ export default async function PortalHome() {
   // Home surface is for staff + HR only (avoids the duplicate task list managers
   // used to see on both Home and the Tasks tab).
   if (me.portalRole === "director" || me.portalRole === "manager") redirect("/portal/board");
+  // Staff are on Studio (26 Sept 2026): the owner's Home, for one person.
+  if (me.portalRole === "staff") return <StaffStudioHome me={me} />;
 
   // The once-a-day check-in pop-up lives here (home only) so it can't pop over
   // other portal surfaces or run a query on every navigation. Directors never
@@ -82,32 +82,11 @@ export default async function PortalHome() {
   // resolve every name/company label it shows.
   // Home is now staff + HR only (directors/managers are board-first). Staff get
   // the inline task view; HR get a link to the Tasks tab (too many to inline).
-  const inlineTasks = me.portalRole === "staff";
+  // Staff have their own Studio Home (above); what reaches here is HR and the
+  // receptionist, who get a link to the Tasks tab rather than an inline list.
   // Receptionist: a stripped home — announcements + check-in + to-do only. No tasks,
   // no meetings, no raise-a-request. Her work surface is the Cleaning tab.
   const isReceptionist = me.portalRole === "receptionist";
-  let cmdPeople: PickerPerson[] = [];
-  let cmdCompanies: PickerCompany[] = [];
-  if (inlineTasks) {
-    const [{ data: pl }, { data: cl }, pcMap, companyScopeIds] = await Promise.all([
-      sb.from("people").select("id,name,company_id").eq("active", true).order("name"),
-      sb.from("companies").select("id,name").order("name"),
-      getPersonCompaniesMap(),
-      colleagueCompanyScope(me),
-    ]);
-    // The company FILTER dropdown must never reveal companies the staff member
-    // isn't part of (confidentiality). `colleagueCompanyScope` = their own
-    // companies (null only for group-wide roles, which don't hit this branch).
-    const allow = companyScopeIds != null ? new Set(companyScopeIds) : null;
-    cmdCompanies = (cl ?? [])
-      .filter((c) => allow == null || allow.has(c.id as number))
-      .map((c) => ({ id: c.id as number, name: c.name as string }));
-    cmdPeople = (pl ?? []).map((p) => {
-      const id = p.id as number;
-      const primary = (p.company_id as number | null) ?? null;
-      return { id, name: p.name as string, companyId: primary, companyIds: pcMap.get(id) ?? (primary != null ? [primary] : []) };
-    });
-  }
 
   // (Manager team tools — attendance, leave-to-approve, my-team — moved to the
   // board; managers are board-first now. See components/manager-board-extras.tsx.)
@@ -149,7 +128,7 @@ export default async function PortalHome() {
       <AnnouncementBanner items={bannerItems} />
       {/* Staff have no separate Tasks page — their tasks live inline below, so the
           nudge SCROLLS to that section instead of navigating. HR keep the link. */}
-      {nudge && <TaskNudgeBanner nudge={nudge} scrollToId={inlineTasks ? "my-tasks" : undefined} />}
+      {nudge && <TaskNudgeBanner nudge={nudge} />}
       <AutoRefresh seconds={25} />
       <AttendanceCheckin firstName={getGivenName(me.name)} status={today.status} editable={today.editable} />
       {/* Uniform with the manager/director board hero — aurora shell + greeting +
@@ -230,14 +209,7 @@ export default async function PortalHome() {
       {/* Tasks — the same Aurora command view as the Tasks tab (portaltaskdesign),
           inline for staff, in a scroll housing so a long list doesn't run the page
           on. HR keep a link (too many to inline). Hidden for the receptionist. */}
-      {isReceptionist ? null : inlineTasks ? (
-        <Reveal delay={0.05} className="flex flex-col gap-2.5">
-          <div id="my-tasks" className="scroll-mt-4 flex flex-col gap-2.5">
-            <SectionLabel icon={<ListTodo size={13} />}>My tasks</SectionLabel>
-            <PortalTasksCommand tasks={cmd} people={cmdPeople} companies={cmdCompanies} role={me.portalRole} viewerId={me.id} canCreate={me.caps.createTasks} canManageAny={me.caps.manageAnyTask} canRepeat={me.caps.recurringTasks} houseList />
-          </div>
-        </Reveal>
-      ) : (
+      {isReceptionist ? null : (
         <Reveal delay={0.05}>
           <Link href="/portal/tasks" className="block group">
             <Panel className="flex items-center justify-between gap-3 p-4 transition-shadow group-hover:ring-accent/40">

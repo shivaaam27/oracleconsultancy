@@ -3,11 +3,12 @@ import { redirect } from "next/navigation";
 import { cookies, headers } from "next/headers";
 import { usesStudio } from "@/lib/viewer";
 import { studioPathForDirector } from "@/lib/director-routes";
+import { PortalFrame } from "@/components/portal-frame";
+import { StaffShellServer } from "@/components/studio/staff-shell-server";
 import { portalHeaderLabel } from "@/lib/portal-labels";
 import { PortalPill } from "@/components/portal-pill";
 import { PortalSidebar, RAIL_COOKIE } from "@/components/portal-sidebar";
 import { PortalSessionKeeper, PortalSignOut } from "@/components/portal-session";
-import { PageTransition } from "@/components/page-transition";
 import { NotificationBell } from "@/components/notification-bell";
 import { PortalSearch, PortalSearchTrigger } from "@/components/portal-search";
 import { PortalCommand, PortalCommandTrigger } from "@/components/portal-command";
@@ -41,10 +42,10 @@ export default async function PortalLayout({ children }: { children: React.React
   if (!me) redirect("/portal/login");
   // A director never sees this frame (bar the one page not rebuilt yet): send
   // them on HERE, before the old sidebar and skeleton can paint.
+  const at = (await headers()).get("x-cos-path");
+  const [atPath, atSearch = ""] = (at ?? "").split("?");
   if (await usesStudio(me)) {
-    const at = (await headers()).get("x-cos-path");
-    const [path, search = ""] = (at ?? "").split("?");
-    const to = at ? studioPathForDirector(path, search) : null;
+    const to = at ? studioPathForDirector(atPath, atSearch) : null;
     if (to) redirect(to);
   }
 
@@ -100,53 +101,8 @@ export default async function PortalLayout({ children }: { children: React.React
   // slow or failed hydration cannot leave it that way.
   const railCollapsed = (await cookies()).get(RAIL_COOKIE)?.value === "1";
 
-  return (
-    <div
-      data-portal-shell
-      style={{ "--portal-sidebar": railCollapsed ? "56px" : "208px" } as React.CSSProperties}
-      className={`flex flex-col gap-3 pb-28 md:pb-32 mx-auto ${wide ? "max-w-5xl lg:max-w-none" : "max-w-3xl lg:max-w-none"}`}
-    >
-      {/* The desktop rail. From lg up this replaces the floating pill, which
-          hides itself at the same width — the same arrangement the command
-          centre uses. Below lg nothing changes: the pill is still the
-          navigation, because a fixed rail on a phone is dead weight. */}
-      <PortalSidebar
-        role={me.portalRole}
-        canOri={me.caps.oriAsk}
-        name={scopedDirector && scopedCompanyName ? scopedCompanyName : "Oracle Consultancy"}
-        subtitle={scopedDirector ? "Directors Board" : portalHeaderLabel(me.portalRole, me.portalDesignation)}
-        tabOverrides={{ tasks: me.caps.navTasks, outbox: me.caps.navOutbox, insights: me.caps.navInsights, cleaning: me.caps.cleaningLog || me.caps.cleaningOverview }}
-        initialCollapsed={railCollapsed}
-      />
-      <header className="flex items-center justify-between gap-3 print-hidden">
-        {/* Bell sits top-LEFT, deliberately far from Sign out (top-right) so it
-            can't be mis-tapped. */}
-        <div className="flex min-w-0 items-center gap-2.5">
-          <NotificationBell to="/portal/task" align="left" />
-          {/* ORI is the richer, capability-gated command surface; when the person
-              can't use ORI, they still get the plain scoped search. Exactly one is
-              mounted so the ⌘K / Ctrl+Space hotkey never double-fires. */}
-          {me.caps.oriAsk ? <PortalCommandTrigger /> : <PortalSearchTrigger />}
-          <div className="min-w-0">
-            {scopedDirector && scopedCompanyName ? (
-              <>
-                <p className="text-[9px] font-medium uppercase tracking-[0.16em] text-fg-subtle">By Oracle Consultancy</p>
-                <p className="truncate text-xs font-semibold uppercase tracking-[0.14em] text-fg-muted">{scopedCompanyName}</p>
-                <p className="text-xs font-medium uppercase tracking-[0.18em] text-fg-subtle">Directors Board</p>
-                <p className="truncate text-sm font-semibold">{me.name}</p>
-              </>
-            ) : (
-              <>
-                <p className="text-xs font-medium uppercase tracking-[0.18em] text-fg-muted">
-                  Oracle Consultancy · {portalHeaderLabel(me.portalRole, me.portalDesignation)}
-                </p>
-                <p className="truncate text-sm font-semibold">{me.name}</p>
-              </>
-            )}
-          </div>
-        </div>
-        <PortalSignOut />
-      </header>
+  const common = (
+    <>
       {/* Cache a durable remember token so an installed PWA survives app-kill. */}
       <PortalSessionKeeper />
       <PortalInstallPrompt />
@@ -156,15 +112,78 @@ export default async function PortalLayout({ children }: { children: React.React
           + ask + optional act) when the person has oriAsk; otherwise the plain
           scoped search. Exactly one is mounted so the hotkey never double-fires. */}
       {me.caps.oriAsk ? <PortalCommand canAct={me.caps.oriAct} /> : <PortalSearch />}
-      <PageTransition>{children}</PageTransition>
-      <PortalPill
-        canCreate={me.caps.createTasks || me.caps.createEvents}
-        canOri={me.caps.oriAsk}
-        role={me.portalRole}
-        tabOverrides={{ tasks: me.caps.navTasks, outbox: me.caps.navOutbox, insights: me.caps.navInsights, cleaning: me.caps.cleaningLog || me.caps.cleaningOverview }}
-      />
       {takeovers.length > 0 && <AnnouncementTakeover items={takeovers} />}
       <TourRunner tours={tours} onSeen={portalMarkTourSeen} fetchReplay={portalGetTour} />
-    </div>
+    </>
+  );
+
+  const tabOverrides = { tasks: me.caps.navTasks, outbox: me.caps.navOutbox, insights: me.caps.navInsights, cleaning: me.caps.cleaningLog || me.caps.cleaningOverview };
+  const staff = me.portalRole === "staff";
+
+  return (
+    <PortalFrame
+      staff={staff}
+      // A member of staff on a page rebuilt in Studio wears the Studio footer
+      // instead of everything below (26 Sept 2026) — PortalFrame picks by address.
+      studioChrome={staff ? <StaffShellServer me={me} /> : null}
+      style={{ "--portal-sidebar": railCollapsed ? "56px" : "208px" } as React.CSSProperties}
+      className={`flex flex-col gap-3 pb-28 md:pb-32 mx-auto ${wide ? "max-w-5xl lg:max-w-none" : "max-w-3xl lg:max-w-none"}`}
+      common={common}
+      classicTop={
+        <>
+          {/* The desktop rail. From lg up this replaces the floating pill, which
+              hides itself at the same width — the same arrangement the command
+              centre uses. Below lg nothing changes: the pill is still the
+              navigation, because a fixed rail on a phone is dead weight. */}
+          <PortalSidebar
+            role={me.portalRole}
+            canOri={me.caps.oriAsk}
+            name={scopedDirector && scopedCompanyName ? scopedCompanyName : "Oracle Consultancy"}
+            subtitle={scopedDirector ? "Directors Board" : portalHeaderLabel(me.portalRole, me.portalDesignation)}
+            tabOverrides={tabOverrides}
+            initialCollapsed={railCollapsed}
+          />
+          <header className="flex items-center justify-between gap-3 print-hidden">
+            {/* Bell sits top-LEFT, deliberately far from Sign out (top-right) so it
+                can't be mis-tapped. */}
+            <div className="flex min-w-0 items-center gap-2.5">
+              <NotificationBell to="/portal/task" align="left" />
+              {/* ORI is the richer, capability-gated command surface; when the person
+                  can't use ORI, they still get the plain scoped search. Exactly one is
+                  mounted so the ⌘K / Ctrl+Space hotkey never double-fires. */}
+              {me.caps.oriAsk ? <PortalCommandTrigger /> : <PortalSearchTrigger />}
+              <div className="min-w-0">
+                {scopedDirector && scopedCompanyName ? (
+                  <>
+                    <p className="text-[9px] font-medium uppercase tracking-[0.16em] text-fg-subtle">By Oracle Consultancy</p>
+                    <p className="truncate text-xs font-semibold uppercase tracking-[0.14em] text-fg-muted">{scopedCompanyName}</p>
+                    <p className="text-xs font-medium uppercase tracking-[0.18em] text-fg-subtle">Directors Board</p>
+                    <p className="truncate text-sm font-semibold">{me.name}</p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-xs font-medium uppercase tracking-[0.18em] text-fg-muted">
+                      Oracle Consultancy · {portalHeaderLabel(me.portalRole, me.portalDesignation)}
+                    </p>
+                    <p className="truncate text-sm font-semibold">{me.name}</p>
+                  </>
+                )}
+              </div>
+            </div>
+            <PortalSignOut />
+          </header>
+        </>
+      }
+      classicBottom={
+        <PortalPill
+          canCreate={me.caps.createTasks || me.caps.createEvents}
+          canOri={me.caps.oriAsk}
+          role={me.portalRole}
+          tabOverrides={tabOverrides}
+        />
+      }
+    >
+      {children}
+    </PortalFrame>
   );
 }

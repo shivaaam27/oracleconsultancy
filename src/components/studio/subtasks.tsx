@@ -75,8 +75,10 @@ function Check({ done, tone }: { done: boolean; tone: Tone }) {
   );
 }
 
-function Row({ item, tone, onTick, onRename, onDelete, tickable = true }: {
+function Row({ item, tone, onTick, onRename, onDelete, tickable = true, meta, noun = "subtask" }: {
   tickable?: boolean;
+  meta?: { text: string; late?: boolean } | null;
+  noun?: string;
   item: { key: string | number; title: string; done: boolean };
   tone: Tone;
   onTick: (done: boolean) => void;
@@ -101,7 +103,7 @@ function Row({ item, tone, onTick, onRename, onDelete, tickable = true }: {
       {editing ? (
         <input autoFocus value={draft} onChange={(e) => setDraft(e.target.value)} onBlur={save}
           onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); save(); } else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); setDraft(item.title); setEditing(false); } }}
-          aria-label="Rename the subtask"
+          aria-label={`Rename the ${noun}`}
           style={{ background: "transparent", border: 0, boxShadow: "none", color: "inherit" }}
           className={cn("bare-field min-w-0 flex-1 py-0.5 text-[13.5px] font-medium leading-5 outline-none", t.fg)} />
       ) : (
@@ -112,6 +114,7 @@ function Row({ item, tone, onTick, onRename, onDelete, tickable = true }: {
           </motion.span>
         </button>
       )}
+      {meta && <span className={cn("mt-1 shrink-0 whitespace-nowrap text-[11px] tabular-nums", meta.late ? "text-[var(--st-late-text,#C2267A)]" : t.muted)}>{meta.text}</span>}
       <button type="button" aria-label={`Delete ${item.title}`} onClick={onDelete}
         className={cn("mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-[8px] transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover/sub:opacity-100 focus-visible:opacity-100", t.muted, "hover:text-[var(--st-late,#E0479E)]")}>
         <X size={13} />
@@ -120,9 +123,22 @@ function Row({ item, tone, onTick, onRename, onDelete, tickable = true }: {
   );
 }
 
-/** The list, the progress and the add field — shared by both modes. */
-function ListShell<T extends { key: string | number; title: string; done: boolean }>({ items, tone, title, onAdd, onTick, onRename, onDelete, autoFocus, tickable = true }: {
+/** The list, the progress and the add field — shared by both modes, and by the
+ *  staff to-do card on Home (same tick, same strike, same settle). */
+export function ListShell<T extends { key: string | number; title: string; done: boolean }>({ items, tone, title, onAdd, onTick, onRename, onDelete, autoFocus, tickable = true, placeholder, noun = "subtask", meta, addAccessory, inputId, scroll, empty }: {
   tickable?: boolean;
+  /** [empty list, list with items] — the add field's hint. */
+  placeholder?: [string, string];
+  noun?: string;
+  /** A short note at the right of a row (a to-do's reminder time). */
+  meta?: (item: T) => { text: string; late?: boolean } | null;
+  /** Sits inside the add field, at its right (the to-do's reminder bell). */
+  addAccessory?: React.ReactNode;
+  inputId?: string;
+  /** The rows scroll inside the card rather than growing it. */
+  scroll?: boolean;
+  /** Shown in place of an empty list (a card with room to fill). */
+  empty?: string;
   items: T[];
   tone: Tone;
   title?: boolean;
@@ -154,7 +170,7 @@ function ListShell<T extends { key: string | number; title: string; done: boolea
   const add = () => { const v = text.trim(); if (!v) return; onAdd(v); setText(""); };
 
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className={cn("flex flex-col gap-1.5", scroll && "min-h-0 flex-1")}>
       {title !== false && (
         <div className="flex items-center gap-2.5 px-1">
           <span className={cn("text-[13px] font-semibold", t.fg)}>Subtasks</span>
@@ -166,24 +182,30 @@ function ListShell<T extends { key: string | number; title: string; done: boolea
           )}
         </div>
       )}
-      <ul className="flex flex-col">
+      {empty && items.length === 0 && (
+        <div className="st-tex-paper-dots flex min-h-[72px] flex-1 items-center justify-center rounded-xl border border-dashed border-[var(--st-line)] p-4">
+          <span className="rounded-lg bg-[var(--st-surface)] px-3 py-1.5 text-center text-[13px] text-[var(--st-sub)]">{empty}</span>
+        </div>
+      )}
+      <ul className={cn("flex flex-col", scroll && items.length > 0 && "st-scroll -mr-2 min-h-0 overflow-y-auto pr-2")}>
         <AnimatePresence initial={false}>
           {ordered.map((i) => (
             <motion.li key={i.key} layout={!reduced} transition={timing(REORDER)}
               initial={reduced ? false : { opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={reduced ? undefined : { opacity: 0, height: 0 }}>
-              <Row item={i} tone={tone} tickable={tickable} onTick={(d) => onTick(i, d)} onRename={(v) => onRename(i, v)} onDelete={() => onDelete(i)} />
+              <Row item={i} tone={tone} tickable={tickable} noun={noun} meta={meta?.(i)} onTick={(d) => onTick(i, d)} onRename={(v) => onRename(i, v)} onDelete={() => onDelete(i)} />
             </motion.li>
           ))}
         </AnimatePresence>
       </ul>
-      <label className={cn("flex h-9 items-center gap-2 rounded-[11px] border px-2.5", t.field)}>
+      <label className={cn("flex h-9 shrink-0 items-center gap-2 rounded-[11px] border px-2.5", t.field)}>
         <Plus size={15} strokeWidth={2.2} className={t.fg} />
-        <span className="sr-only">Add a subtask</span>
-        <input value={text} autoFocus={autoFocus} onChange={(e) => setText(e.target.value)}
+        <span className="sr-only">Add a {noun}</span>
+        <input id={inputId} value={text} autoFocus={autoFocus} onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); e.stopPropagation(); add(); } }}
-          placeholder={items.length ? "Add another subtask" : "Add a subtask — Enter adds it"}
+          placeholder={placeholder ? placeholder[items.length ? 1 : 0] : items.length ? "Add another subtask" : "Add a subtask — Enter adds it"}
           style={{ background: "transparent", border: 0, boxShadow: "none", color: "inherit" }}
           className="bare-field h-full w-full text-[13px] outline-none" />
+        {addAccessory}
       </label>
     </div>
   );

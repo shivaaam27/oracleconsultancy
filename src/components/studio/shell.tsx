@@ -23,7 +23,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, ChevronUp, Home, LogOut, Moon, Plus, Search, Sun, Settings as SettingsIcon, UserRound, X } from "lucide-react";
 import { adminLogout } from "@/app/login/actions";
 import { portalLogout } from "@/app/portal/actions";
-import { studioStops, stopIndexFor, directorStops, directorStopIndex, type StudioStop } from "@/lib/studio-nav";
+import { studioStops, stopIndexFor, directorStops, directorStopIndex, staffStops, staffStopIndex, type StudioStop } from "@/lib/studio-nav";
 import { useCommandPalette } from "@/components/command-palette";
 import { NotificationBell } from "@/components/notification-bell";
 import { StudioQuickAdd } from "./quick-add";
@@ -40,7 +40,12 @@ const FOOT_BTN =
 /** A director on the shared screens (lib/viewer.ts): their own pages in the
  *  footer, their profile instead of Settings, no everything-search, and "+ New"
  *  makes a task (the one thing they create here). */
-export type ShellDirector = { name: string; role: string; outbox: boolean; createTasks: boolean; brief: boolean; cleaning?: boolean };
+export type ShellDirector = {
+  name: string; role: string; outbox: boolean; createTasks: boolean; brief: boolean; cleaning?: boolean;
+  /** A member of STAFF (26 Sept 2026): their own pages under /portal; "+"
+   *  makes a to-do; no Report, no search. */
+  staff?: boolean;
+};
 
 export function StudioShell({ needs, director = null }: { needs: NonNullable<StudioFootNote>[]; director?: ShellDirector | null }) {
   const pathname = usePathname() || "/";
@@ -71,13 +76,16 @@ export function StudioShell({ needs, director = null }: { needs: NonNullable<Stu
   const directorOutbox = director?.outbox ?? false;
   const directorCleaning = director?.cleaning ?? false;
   const isDirector = !!director;
+  const isStaff = !!director?.staff;
   const stops = useMemo(
-    () => (isDirector ? directorStops({ outbox: directorOutbox, cleaning: directorCleaning }) : studioStops().filter((s) => !isHiddenNavHref(s.href, vis))),
-    [vis, isDirector, directorOutbox, directorCleaning],
+    () => (isStaff ? staffStops() : isDirector ? directorStops({ outbox: directorOutbox, cleaning: directorCleaning }) : studioStops().filter((s) => !isHiddenNavHref(s.href, vis))),
+    [vis, isDirector, isStaff, directorOutbox, directorCleaning],
   );
   const tab = params.get("tab");
   let i: number;
-  if (director) {
+  if (isStaff) {
+    i = staffStopIndex(stops, pathname);
+  } else if (director) {
     i = directorStopIndex(stops, pathname, tab);
   } else {
     const here = studioStops()[stopIndexFor(pathname, tab)];
@@ -87,7 +95,7 @@ export function StudioShell({ needs, director = null }: { needs: NonNullable<Stu
   const current = stops[i];
   const prev = stops[(i - 1 + stops.length) % stops.length];
   const next = stops[(i + 1) % stops.length];
-  const onHome = pathname === "/" && tab !== "tasks";
+  const onHome = isStaff ? pathname === "/portal" : pathname === "/" && tab !== "tasks";
 
   /* ── Scroll or swipe through the pages (owner, 25 Sept 2026) ─────────────
      Over the ‹ page › pill a mouse wheel (or a trackpad, either direction)
@@ -198,7 +206,7 @@ export function StudioShell({ needs, director = null }: { needs: NonNullable<Stu
           {/* Centre: Home · ‹ page › · Settings */}
           <nav aria-label="Pages" className="flex min-w-0 items-center gap-1.5 text-[13px] max-md:contents md:gap-3 lg:gap-[22px]">
             <Link
-              href="/"
+              href={isStaff ? "/portal" : "/"}
               aria-label="Home"
               className={cn("flex h-11 w-11 shrink-0 items-center justify-center gap-[7px] rounded-[12px] transition-colors hover:text-white md:h-9 md:w-auto md:justify-start md:px-0", onHome ? "text-white" : "text-[#B4B7BC]")}
             >
@@ -284,17 +292,19 @@ export function StudioShell({ needs, director = null }: { needs: NonNullable<Stu
               </button>
             </SignOutForm>
             <NotificationBell
-              to="/task"
+              to={isStaff ? "/portal/task" : "/task"}
               align="right"
               lanes
               variant="studio"
               triggerClassName="relative inline-flex h-11 w-11 items-center justify-center rounded-[12px] border border-[#2A2C30] text-[#C9CBCF] transition-colors hover:border-[#3A3D42] hover:text-white sm:h-9 sm:w-9 sm:rounded-[10px]"
             />
             {/* "+ New" opens the one create card (mockup board QuickAdd). */}
-            {(!director || director.createTasks) && (
+            {(!director || director.createTasks || isStaff) && (
             <button
               type="button"
               onClick={() => {
+                // Staff make to-dos: Home's to-do card, ready to type.
+                if (isStaff) { router.push("/portal?todo=1"); return; }
                 // A director makes tasks only: straight to the new-task page.
                 if (director) { const q = params.toString(); router.push(`/task/new?returnTo=${encodeURIComponent(q ? `${pathname}?${q}` : pathname)}`); return; }
                 if (onFiles) { window.dispatchEvent(new Event("files:upload")); return; }
@@ -308,7 +318,7 @@ export function StudioShell({ needs, director = null }: { needs: NonNullable<Stu
               {/* The owner's footer carries three more buttons than a
                   director's, so on a tablet the word did not fit ("New task"
                   on two lines, "Upload" cut off): the + alone until lg. */}
-              <Plus size={14} strokeWidth={2.4} /><span className={cn("hidden", director ? "sm:inline" : "lg:inline")}>{director ? "New task" : onFiles ? "Upload" : `New ${newWord}`}</span>
+              <Plus size={14} strokeWidth={2.4} /><span className={cn("hidden", director ? "sm:inline" : "lg:inline")}>{isStaff ? "New to-do" : director ? "New task" : onFiles ? "Upload" : `New ${newWord}`}</span>
             </button>
             )}
           </div>

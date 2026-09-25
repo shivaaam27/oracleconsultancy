@@ -6,7 +6,7 @@
  * must list the same pages in the same order; a second hand-kept list is how
  * the launcher and the rail drifted apart before (see NAV_GROUPS' history).
  */
-import { Home, ListChecks, Megaphone, Send, MessageSquare, Users, FolderOpen, Building2, CalendarDays, Sparkles, type LucideIcon } from "lucide-react";
+import { Home, ListChecks, Megaphone, Send, MessageSquare, Users, FolderOpen, Building2, CalendarDays, Sparkles, UserRound, type LucideIcon } from "lucide-react";
 import { MODULE_BY_ID, moduleOwnGroups, systemItems } from "./nav";
 
 export type StudioStop = { id: string; label: string; href: string; group: string; icon: LucideIcon };
@@ -77,6 +77,29 @@ export function directorStops(o: { outbox: boolean; cleaning?: boolean }): Studi
     // page until Cleaning is rebuilt.
     ...(o.cleaning ? [{ id: "cleaning", label: "Cleaning", href: "/portal/cleaning", group: "Records", icon: Sparkles }] : []),
   ];
+}
+
+/** A member of STAFF on the Studio screens (26 Sept 2026): their own Home,
+ *  Tasks and Profile, rebuilt; Calendar, People, Announcements and Chat are the
+ *  current portal pages until each is rebuilt. Every address is under /portal,
+ *  where their session lives. */
+export function staffStops(): StudioStop[] {
+  return [
+    { id: "home", label: "Home", href: "/portal", group: "Work", icon: Home },
+    { id: "tasks", label: "Tasks", href: "/portal/tasks", group: "Work", icon: ListChecks },
+    { id: "calendar", label: "Calendar", href: "/portal/meetings", group: "Work", icon: CalendarDays },
+    { id: "announcements", label: "Announcements", href: "/portal/announcements", group: "Work", icon: Megaphone },
+    { id: "chat", label: "Chat", href: "/portal/chat", group: "Work", icon: MessageSquare },
+    { id: "people", label: "People", href: "/portal/directory", group: "Records", icon: Users },
+    { id: "profile", label: "Profile", href: "/portal/profile", group: "Records", icon: UserRound },
+  ];
+}
+
+export function staffStopIndex(stops: StudioStop[], pathname: string): number {
+  if (pathname === "/portal") return 0;
+  if (pathname.startsWith("/portal/task/") || pathname === "/portal/tasks") return 1;
+  const i = stops.findIndex((s) => s.href !== "/portal" && (pathname === s.href || pathname.startsWith(s.href + "/")));
+  return i >= 0 ? i : 0;
 }
 
 /** Which of a director's stops an address belongs to. */

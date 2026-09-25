@@ -47,11 +47,28 @@ export type StudioHomeData = {
 
 const BAND: Record<string, string> = { quiet: "#CFE05A", moving: "#19C37D", soon: "#F5A524", late: "#E0479E" };
 
-export function StudioHome({ data }: { data: StudioHomeData }) {
+export type StudioHomeLinks = { late: string; soon: string; done: string; announcements: string };
+const OWNER_LINKS: StudioHomeLinks = { late: "/?tab=tasks&flag=overdue", soon: "/?tab=tasks&flag=due-soon", done: "/?tab=tasks&done=1", announcements: "/announcements" };
+
+/**
+ * A member of STAFF gets this same Home (26 Sept 2026, mockup board S_Home) —
+ * the same grid, so the cards are exactly the owner's and directors' sizes.
+ * What differs is slotted in: `aside` takes the top-right place (their daily
+ * check-in) and the Due card moves down to the bottom row; `after` closes the
+ * bottom row (their to-do list); `phone` adds folds on a phone. `heroAction`
+ * replaces the Report button, `announcementAction` sits beside the live notice.
+ */
+export function StudioHome({ data, links = OWNER_LINKS, heroAction, announcementAction, aside, after, phone }: {
+  data: StudioHomeData;
+  links?: StudioHomeLinks;
+  heroAction?: React.ReactNode;
+  announcementAction?: React.ReactNode;
+  aside?: React.ReactNode;
+  after?: React.ReactNode;
+  phone?: { before?: React.ReactNode; after?: React.ReactNode };
+}) {
   const grid = useRef<HTMLDivElement>(null);
   useFitFrame(grid, { minimum: 560 });
-  const [due, setDue] = useState<"today" | "week">(data.due.today.n > 0 ? "today" : "week");
-  const d = data.due[due];
 
   return (
     <StudioScope>
@@ -59,15 +76,18 @@ export function StudioHome({ data }: { data: StudioHomeData }) {
         {/* ---------- hero ---------- */}
         <section className="flex min-w-0 flex-col rounded-[18px] bg-[var(--st-card)] px-[18px] py-4 text-[var(--st-on-card)] sm:px-6 sm:py-5 lg:col-span-2">
           <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:gap-4">
-            <div className="min-w-0 flex-1">
+            <div className="w-full min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[var(--st-on-card)] sm:text-[13px]">
                 {data.greeting}
                 {data.announcements && (
-                  <Link href="/announcements" className="inline-flex min-w-0 max-w-[22rem] items-center gap-1.5 rounded-lg bg-[#1F2023] px-2 py-0.5 text-xs text-[#E6E6E3] hover:bg-[#26282C]">
+                  <span className="inline-flex min-w-0 max-w-full items-center gap-1">
+                  <Link href={links.announcements} className="inline-flex min-w-0 max-w-[22rem] items-center gap-1.5 rounded-lg bg-[#1F2023] px-2 py-0.5 text-xs text-[#E6E6E3] hover:bg-[#26282C]">
                     <Megaphone size={12} className="shrink-0" />
                     <span className="truncate">Live: {data.announcements.first}</span>
                     {data.announcements.count > 1 && <span className="shrink-0 text-[var(--st-on-card-muted)]">+{data.announcements.count - 1}</span>}
                   </Link>
+                  {announcementAction}
+                  </span>
                 )}
               </div>
               <h1 className="m-0 mt-2 text-[24px] font-medium leading-[1.1] tracking-[-0.02em] sm:mt-1.5 sm:text-[30px] sm:leading-tight">
@@ -75,9 +95,9 @@ export function StudioHome({ data }: { data: StudioHomeData }) {
               </h1>
             </div>
             <div className="flex shrink-0 gap-[22px] sm:gap-6 sm:text-right">
-              <HeroNum n={data.late} label="late" color="#F07BBE" href="/?tab=tasks&flag=overdue" />
-              <HeroNum n={data.soon} label="due soon" color="#F5B94E" href="/?tab=tasks&flag=due-soon" />
-              <HeroNum n={data.done} label="done this month" color="#5BE0A5" href="/?tab=tasks&done=1" />
+              <HeroNum n={data.late} label="late" color="#F07BBE" href={links.late} />
+              <HeroNum n={data.soon} label="due soon" color="#F5B94E" href={links.soon} />
+              <HeroNum n={data.done} label="done this month" color="#5BE0A5" href={links.done} />
             </div>
           </div>
           <div className="min-h-3.5 flex-1 sm:min-h-4" />
@@ -104,16 +124,32 @@ export function StudioHome({ data }: { data: StudioHomeData }) {
             <span className="hidden text-[var(--st-muted)] lg:inline">Tap a bar to open that task</span>
             {/* The Report — what the Director Brief page became: filters, then
                 PDF · email · WhatsApp · copy · draft. */}
-            <button type="button" onClick={() => openReport()} className="inline-flex h-8 items-center gap-1.5 rounded-[9px] bg-[#F2F2F0] px-3 text-xs font-semibold text-[#111214] transition-opacity hover:opacity-90">
-              <FileText size={13} />Report
-            </button>
+            {heroAction === undefined ? (
+              <button type="button" onClick={() => openReport()} className="inline-flex h-8 items-center gap-1.5 rounded-[9px] bg-[#F2F2F0] px-3 text-xs font-semibold text-[#111214] transition-opacity hover:opacity-90">
+                <FileText size={13} />Report
+              </button>
+            ) : heroAction}
           </div>
         </section>
 
         {/* ---------- phone: one shape of card, folding (owner, 25 Sept 2026) ---------- */}
-        <PhoneFolds data={data} />
+        <PhoneFolds data={data} before={phone?.before} after={phone?.after} />
 
-        {/* ---------- due ---------- */}
+        {aside ?? <DueCard data={data} />}
+
+        {/* ---------- the turning cards ---------- */}
+        {aside ? <DueCard data={data} /> : null}
+        {data.cards.map((slides, i) => <TurnCard key={i} slides={slides} />)}
+        {after}
+      </div>
+    </StudioScope>
+  );
+}
+
+function DueCard({ data }: { data: StudioHomeData }) {
+  const [due, setDue] = useState<"today" | "week">(data.due.today.n > 0 ? "today" : "week");
+  const d = data.due[due];
+  return (
         <section className="st-tex-rings hidden min-w-0 flex-col md:flex rounded-[18px] bg-[var(--st-card)] px-[18px] py-4 text-[var(--st-on-card)] sm:px-6 sm:py-5">
           <div className="flex items-center justify-between gap-2">
             <div className="text-[15px] font-medium sm:text-[22px]">{due === "today" ? "Due today" : "Due this week"}</div>
@@ -141,11 +177,6 @@ export function StudioHome({ data }: { data: StudioHomeData }) {
             ))}
           </div>
         </section>
-
-        {/* ---------- the three turning cards ---------- */}
-        {data.cards.map((slides, i) => <TurnCard key={i} slides={slides} />)}
-      </div>
-    </StudioScope>
   );
 }
 
@@ -188,10 +219,10 @@ function TurnCard({ slides }: { slides: HomeSlide[] }) {
           <h2 className="m-0 mt-0.5 truncate text-[20px] font-medium tracking-[-0.015em] sm:text-[22px]">{s.title}</h2>
           <div className="mt-0.5 truncate text-[13px] text-[var(--st-muted)]">{s.sub}</div>
         </div>
-        <div className="flex shrink-0 gap-1">
+        {slides.length > 1 && <div className="flex shrink-0 gap-1">
           <button type="button" onClick={() => go(-1)} aria-label="Previous" className="flex h-[30px] w-[30px] items-center justify-center rounded-full border border-[var(--st-line)] hover:bg-[var(--st-page)]"><ChevronLeft size={13} /></button>
           <button type="button" onClick={() => go(1)} aria-label="Next" className="flex h-[30px] w-[30px] items-center justify-center rounded-full border border-[var(--st-line)] hover:bg-[var(--st-page)]"><ChevronRight size={13} /></button>
-        </div>
+        </div>}
       </div>
 
       <div key={i} className="st-pop flex min-h-0 flex-1 flex-col">
@@ -201,13 +232,13 @@ function TurnCard({ slides }: { slides: HomeSlide[] }) {
         {s.kind === "controls" && <ControlsSlide s={s} />}
       </div>
 
-      <div className="flex justify-center gap-1.5" aria-hidden>
+      {slides.length > 1 && <div className="flex justify-center gap-1.5" aria-hidden>
         {slides.map((_, k) => (
           <button key={k} type="button" tabIndex={-1} onClick={() => setI(k)}
             className="h-1.5 rounded-full transition-[width,background-color]"
             style={{ width: k === i ? 18 : 6, background: k === i ? "var(--st-ink)" : "var(--st-line)" }} />
         ))}
-      </div>
+      </div>}
     </section>
   );
 }
@@ -360,7 +391,7 @@ function ControlsSlide({ s }: { s: Extract<HomeSlide, { kind: "controls" }> }) {
 
 const FOLD_KEY = "studio.home.folds";
 
-function PhoneFolds({ data }: { data: StudioHomeData }) {
+function PhoneFolds({ data, before, after }: { data: StudioHomeData; before?: React.ReactNode; after?: React.ReactNode }) {
   const [open, setOpen] = useState<Record<string, boolean> | null>(null);
   useEffect(() => {
     let saved: Record<string, boolean> = {};
@@ -382,6 +413,7 @@ function PhoneFolds({ data }: { data: StudioHomeData }) {
   };
   return (
     <div className="flex flex-col gap-2.5 md:hidden">
+      {before}
       <Fold id="due" kicker="Diary" title={dueSlide.title} sub={d.sub} count={d.n} open={isOpen("due", true)} onToggle={() => toggle("due", true)}>
         <div className="mb-2 flex gap-0.5 self-start rounded-[10px] bg-[var(--st-page)] p-[3px]">
           {(["today", "week"] as const).map((k) => (
@@ -396,6 +428,7 @@ function PhoneFolds({ data }: { data: StudioHomeData }) {
       {data.cards.map((slides, i) => (
         <PhoneTurnFold key={i} id={`card${i}`} slides={slides} open={isOpen(`card${i}`, i === 0)} onToggle={() => toggle(`card${i}`, i === 0)} />
       ))}
+      {after}
     </div>
   );
 }
@@ -428,7 +461,7 @@ function PhoneTurnFold({ id, slides, open, onToggle }: { id: string; slides: Hom
   );
 }
 
-function Fold({ id, kicker, title, sub, count, open, onToggle, children }: {
+export function Fold({ id, kicker, title, sub, count, open, onToggle, children }: {
   id: string; kicker?: string; title: string; sub?: string; count?: number; open: boolean; onToggle: () => void; children: React.ReactNode;
 }) {
   return (

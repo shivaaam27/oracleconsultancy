@@ -38,3 +38,13 @@ export function studioPathForDirector(path: string, search = ""): string | null 
   // Activity, Insights, Cleaning and anything unknown: not a director screen.
   return "/";
 }
+
+/**
+ * The staff pages rebuilt in Studio (26 Sept 2026) — the portal layout draws
+ * the Studio frame and footer on these for a member of staff, and the old
+ * chrome everywhere else until each page's turn. Grows as pages are rebuilt.
+ */
+export function isStaffStudioPath(path: string): boolean {
+  const p = path.replace(/\/+$/, "") || "/portal";
+  return p === "/portal";
+}
