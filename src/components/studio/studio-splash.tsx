@@ -3,8 +3,8 @@
 /**
  * The launch screen for every Studio page (owner, 25 Sept 2026: "improve the
  * loading screen animation"). The Oracle mark on the grey page, and under it a
- * row of seven bars rising in a wave — the Home hero's activity chart in
- * miniature, in its four colours — then "Task Management".
+ * row of small bars rising in a wave — the sign-in panel's bars, in its
+ * colours. No words (owner, 25 Sept 2026). White tile, no dark frame.
  *
  * It is ONE-SHOT and nearly free:
  *  - it is in the first HTML, so it paints before any script runs;
@@ -19,7 +19,9 @@
  */
 import { useEffect } from "react";
 
-const BARS = ["#C9CBCF", "#19C37D", "#19C37D", "#F5A524", "#19C37D", "#E0479E", "#C9CBCF"];
+// The sign-in panel's bars, in its colours and at its size (owner: "more
+// smaller like the login page").
+const BARS = ["#CFE05A", "#CFE05A", "#19C37D", "#19C37D", "#19C37D", "#19C37D", "#19C37D", "#F5A524", "#F5A524", "#E0479E", "#E0479E", "#E0479E"];
 
 export function StudioSplash() {
   return (
@@ -30,9 +32,8 @@ export function StudioSplash() {
           <img src="/logo-source.png" alt="" width={34} height={34} />
         </span>
         <span className="st-splash__bars" aria-hidden>
-          {BARS.map((c, i) => <i key={i} style={{ background: c, animationDelay: `${i * 90}ms` }} />)}
+          {BARS.map((c, i) => <i key={i} style={{ background: c, animationDelay: `${i * 70}ms` }} />)}
         </span>
-        <span className="st-splash__name">Task Management</span>
       </div>
     </div>
   );

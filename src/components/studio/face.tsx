@@ -96,8 +96,10 @@ const reducedMotion = () =>
   typeof window !== "undefined" &&
   (window.matchMedia("(prefers-reduced-motion: reduce)").matches || document.documentElement.dataset.motion === "reduced");
 
-export function PersonFace({ name, size = 32, peek = false, ring = false, className }: {
+export function PersonFace({ name, size = 32, peek = false, ring = false, className, label }: {
   name: string;
+  /** What the initials circle says instead of the name's initials ("You"). */
+  label?: string;
   size?: number;
   /** Small circles in rows: the face shows, then fades to the initials. */
   peek?: boolean;
@@ -129,7 +131,7 @@ export function PersonFace({ name, size = 32, peek = false, ring = false, classN
       style={{ width: size, height: size, background: avatarTint(name) }}
     >
       {/* The initials sit underneath; the face fades over them. */}
-      <span aria-hidden className="font-semibold text-[#111214]" style={{ fontSize: Math.max(9, Math.round(size / 3.1)) }}>{initials(name)}</span>
+      <span aria-hidden className="font-semibold text-[#111214]" style={{ fontSize: Math.max(9, Math.round(size / 3.1)) }}>{label ?? initials(name)}</span>
       <span aria-hidden data-face-peek={peek ? "" : undefined}
         className={cn("absolute inset-0", peek && "opacity-0 transition-opacity duration-300 group-hover/face:opacity-100")}
         style={peek && phase !== null && motion !== "none" ? { animationDelay: `-${phase}ms` } : undefined}>

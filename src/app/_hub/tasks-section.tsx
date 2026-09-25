@@ -607,7 +607,12 @@ export async function TasksSection({ sp }: { sp: Sp }) {
   // three instead, so the card is never an empty box.
   const newest = [...withNews].sort((a, b) => b.latestActivity!.atISO.localeCompare(a.latestActivity!.atISO));
   const unreadNews = newest.filter((r) => r.unread);
-  const fresh = unreadNews.length ? unreadNews.slice(0, 60) : newest.slice(0, 3);
+  const freshRaw = unreadNews.length ? unreadNews.slice(0, 60) : newest.slice(0, 3);
+  // "You" on an update means the OWNER wrote it. A director reading the card is
+  // not the owner, so for them it says who it really was.
+  const fresh = director
+    ? freshRaw.map((r) => (r.latestActivity?.author === "You" ? { ...r, latestActivity: { ...r.latestActivity, author: "Administrator" } } : r))
+    : freshRaw;
   const updatedToday = withNews.filter((r) => eatDay(new Date(r.latestActivity!.atISO).getTime()) === today).length;
 
   // The Filters panel: every filter the old page offers, grouped.

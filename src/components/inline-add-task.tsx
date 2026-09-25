@@ -191,13 +191,16 @@ export function InlineAddTask({
         className={cn(
           "group/add relative flex flex-wrap items-center gap-x-2 gap-y-1.5 transition-colors sm:flex-nowrap",
           studio
-            ? cn("min-h-[46px] rounded-[14px] border px-5 py-1.5", open ? "border-[var(--st-line)] bg-[var(--st-surface)]" : "cursor-text border-dashed border-[#CFCFCA] bg-transparent hover:border-[var(--st-muted)]")
+            // A solid white row with an ink "+" tile and ink words — the dashed,
+            // grey version read as a blank space (owner, 25 Sept 2026: "too
+            // flat … the texts need to be black").
+            ? cn("min-h-[50px] rounded-[14px] border bg-[var(--st-surface)] py-1.5 pl-2.5 pr-5 shadow-[0_1px_2px_rgba(17,18,20,0.06)] transition-shadow", open ? "border-[var(--st-ink)]/25 shadow-[0_8px_24px_-12px_rgba(17,18,20,0.25)]" : "cursor-text border-[var(--st-line)] hover:border-[var(--st-muted)] hover:shadow-[0_6px_18px_-12px_rgba(17,18,20,0.3)]")
             : "rounded-lg border border-border bg-bg-elev px-3 py-2 focus-within:border-accent/50",
         )}
         onClick={() => studio && inputRef.current?.focus()}
       >
         {studio ? (
-          <Plus size={14} strokeWidth={2.2} className="shrink-0 text-[var(--st-sub)]" />
+          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[10px] bg-[var(--st-ink)] text-[var(--st-surface)]"><Plus size={15} strokeWidth={2.4} /></span>
         ) : (
           <span className="hidden h-6 w-6 shrink-0 place-items-center rounded-md bg-accent/10 text-accent sm:grid">
             <Plus size={14} />
@@ -216,12 +219,12 @@ export function InlineAddTask({
             }}
             placeholder=" "
             aria-label="New task — what needs doing?"
-            className="bare-field peer h-8 w-full bg-transparent text-sm outline-none caret-accent placeholder-shown:caret-transparent"
+            className={cn("bare-field peer h-8 w-full bg-transparent text-sm outline-none caret-accent placeholder-shown:caret-transparent", studio && "text-[14px] font-medium text-[var(--st-ink)]")}
           />
           <span aria-hidden className="pointer-events-none absolute inset-y-0 left-0 right-0 hidden items-center peer-placeholder-shown:flex">
             {studio ? (
-              <span className="truncate text-[13px] text-[var(--st-sub)]">
-                What needs doing?<span className="hidden text-[#A3A6AB] md:inline">&nbsp;&nbsp;Enter adds it · Shift+Enter opens the full form · or paste a list</span>
+              <span className="truncate text-[14px] font-medium text-[var(--st-ink)]">
+                What needs doing?<span className="hidden font-normal text-[var(--st-muted)] md:inline">&nbsp;&nbsp;Enter adds it · Shift+Enter opens the full form · or paste a list</span>
               </span>
             ) : (
               <>

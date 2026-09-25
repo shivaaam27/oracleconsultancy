@@ -231,7 +231,7 @@ function Panel({ task, rows, onClose }: { task: TaskRow; rows: TaskRow[]; onClos
         {msgs && msgs.length === 0 && <div className="m-auto max-w-[260px] text-center text-[13px] text-[var(--sh-muted)]">No updates yet — the first one you post tells everyone on the task.</div>}
         {msgs?.map((m) => (
           <div key={m.id} className="flex gap-2.5">
-            {m.me ? <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--sh-on-bg)] text-[9px] font-semibold text-[var(--sh-on-fg)]">You</span> : <PersonFace name={m.authorName} size={24} peek className="mt-0.5" />}
+            <PersonFace name={!m.authorName || m.authorName === "You" ? "Administrator" : m.authorName} label={m.me ? "You" : undefined} size={24} peek className="mt-0.5" />
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5 text-[11px] text-[var(--sh-muted)]">
                 <span className="font-medium text-[var(--sh-sub)]">{m.me ? "You" : m.authorName}</span>· {ago(m.at)}
