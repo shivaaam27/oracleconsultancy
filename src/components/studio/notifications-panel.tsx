@@ -94,19 +94,19 @@ export function StudioNotificationsPanel({
       aria-label="Notifications"
       /* `st-sheet`: white paper in light mode, the dark dotted card in dark mode
          (owner: "behave with light and dark mode and not a fixed dark mode"). */
-      className="studio st-sheet st-sheet-dots st-pop fixed bottom-[calc(var(--foot-h)+env(safe-area-inset-bottom)+8px)] right-3 z-[60] flex max-h-[calc(100dvh-100px)] w-[min(520px,calc(100vw-24px))] flex-col gap-3 rounded-3xl bg-[var(--sh-bg)] px-4 pb-3.5 pt-4 text-[var(--sh-fg)] shadow-[0_30px_80px_rgba(0,0,0,0.45)] sm:right-6"
+      className="studio st-sheet st-sheet-dots st-pop fixed inset-x-0 bottom-0 z-[60] flex max-h-[calc(100dvh-60px)] w-full flex-col gap-3 rounded-t-[26px] bg-[var(--sh-bg)] px-4 pb-[calc(14px+env(safe-area-inset-bottom))] pt-4 text-[var(--sh-fg)] shadow-[0_30px_80px_rgba(0,0,0,0.45)] sm:inset-x-auto sm:bottom-[calc(var(--foot-h)+var(--foot-safe)+8px)] sm:right-6 sm:max-h-[calc(100dvh-100px)] sm:w-[min(520px,calc(100vw-24px))] sm:rounded-3xl sm:pb-3.5"
     >
-      <div className="flex items-center gap-2.5 px-1">
-        <span className="text-[20px] font-medium tracking-[-0.01em]">Notifications</span>
-        {unread > 0 && <span className="rounded-[7px] bg-[var(--sh-pink-bg)] px-2 py-0.5 text-[11px] text-[var(--sh-pink-fg)]">{unread} new</span>}
+      <div className="flex items-center gap-2 px-1 sm:gap-2.5">
+        <span className="min-w-0 truncate text-[18px] font-medium tracking-[-0.01em] sm:text-[20px]">Notifications</span>
+        {unread > 0 && <span className="shrink-0 whitespace-nowrap rounded-[7px] bg-[var(--sh-pink-bg)] px-2 py-0.5 text-[11px] text-[var(--sh-pink-fg)]">{unread} new</span>}
         <span className="flex-1" />
         {unread > 0 && (
-          <button type="button" onClick={onReadAll} className="inline-flex h-[30px] items-center gap-1.5 rounded-[9px] border border-[var(--sh-chip-line)] px-2.5 text-xs text-[var(--sh-sub)] hover:text-[var(--sh-fg)]">
-            <CheckCheck size={12} />Mark all read
+          <button type="button" onClick={onReadAll} aria-label="Mark all read" title="Mark all read" className="inline-flex h-[30px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[9px] border border-[var(--sh-chip-line)] px-2 text-xs text-[var(--sh-sub)] hover:text-[var(--sh-fg)] sm:px-2.5">
+            <CheckCheck size={13} /><span className="hidden sm:inline">Mark all read</span>
           </button>
         )}
-        <Link href="/settings#notifications" onClick={onClose} aria-label="Notification settings" className="flex h-[30px] w-[30px] items-center justify-center rounded-[9px] border border-[var(--sh-chip-line)] text-[var(--sh-sub)] hover:text-[var(--sh-fg)]"><SettingsIcon size={13} /></Link>
-        <button type="button" onClick={onClose} aria-label="Close" className="flex h-[30px] w-[30px] items-center justify-center rounded-[9px] border border-[var(--sh-chip-line)] text-[var(--sh-sub)] hover:text-[var(--sh-fg)]"><X size={13} /></button>
+        <Link href="/settings#notifications" onClick={onClose} aria-label="Notification settings" className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[9px] border border-[var(--sh-chip-line)] text-[var(--sh-sub)] hover:text-[var(--sh-fg)]"><SettingsIcon size={13} /></Link>
+        <button type="button" onClick={onClose} aria-label="Close" className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[9px] border border-[var(--sh-chip-line)] text-[var(--sh-sub)] hover:text-[var(--sh-fg)]"><X size={13} /></button>
       </div>
 
       <div className="flex gap-0.5 rounded-xl bg-[var(--sh-field)] p-[3px]">
@@ -118,10 +118,10 @@ export function StudioNotificationsPanel({
         ))}
       </div>
 
-      <div className="flex flex-wrap gap-1.5">
+      <div className="-mx-4 flex shrink-0 gap-1.5 overflow-x-auto px-4 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 [&::-webkit-scrollbar]:hidden">
         {FILTERS.map(([k, l]) => (
           <button key={k} type="button" onClick={() => setFilter(k)}
-            className={cn("h-[30px] rounded-[9px] border px-2.5 text-xs", filter === k ? "border-[var(--sh-on-bg)] bg-[var(--sh-on-bg)] text-[var(--sh-on-fg)]" : "border-[var(--sh-chip-line)] text-[var(--sh-sub)] hover:text-[var(--sh-fg)]")}>
+            className={cn("h-[30px] shrink-0 whitespace-nowrap rounded-[9px] border px-2.5 text-xs", filter === k ? "border-[var(--sh-on-bg)] bg-[var(--sh-on-bg)] text-[var(--sh-on-fg)]" : "border-[var(--sh-chip-line)] text-[var(--sh-sub)] hover:text-[var(--sh-fg)]")}>
             {l}
           </button>
         ))}
@@ -176,8 +176,8 @@ export function StudioNotificationsPanel({
                     <span className="block text-[13px] leading-snug">
                       <b className="font-semibold">{n.actor ?? (isDailyReminder(n) ? "Daily reminder" : "Oracle")}</b>{" "}
                       <span className="text-[var(--sh-sub)]">{VERB[n.kind] ?? "updated"}</span>{" "}
-                      {n.taskCode && <span className="st-mono rounded-[5px] bg-[var(--sh-hover)] px-1.5 py-px text-[11px] text-[var(--sh-fg)]">{n.taskCode}</span>}
-                      {notifLane(n) === "needs-you" && <span className="ml-1.5 rounded-[5px] bg-[var(--sh-pink-bg)] px-1.5 py-px text-[10px] text-[var(--sh-pink-fg)]">needs you</span>}
+                      {n.taskCode && <span className="st-mono whitespace-nowrap rounded-[5px] bg-[var(--sh-hover)] px-1.5 py-px text-[11px] text-[var(--sh-fg)]">{n.taskCode}</span>}
+                      {notifLane(n) === "needs-you" && <span className="ml-1.5 whitespace-nowrap rounded-[5px] bg-[var(--sh-pink-bg)] px-1.5 py-px text-[10px] text-[var(--sh-pink-fg)]">needs you</span>}
                     </span>
                     <span className={cn("mt-0.5 block text-xs leading-relaxed text-[var(--sh-sub)]", isOpen ? "" : "line-clamp-2")}>{task}</span>
                     <span className="mt-1 block text-[11px] text-[var(--sh-muted)]">{notifAgo(n.createdAt)}{g.count > 1 ? ` · ${g.count} of these` : ""}</span>

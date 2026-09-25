@@ -164,7 +164,7 @@ function Panel({ task, rows, onClose }: { task: TaskRow; rows: TaskRow[]; onClos
       className={cn(
         "studio st-sheet st-panel-in fixed z-[45] flex flex-col overflow-hidden rounded-3xl border border-[var(--sh-line)] shadow-[0_24px_60px_rgba(17,18,20,0.18)]",
         // Phone and tablet: a sheet above the footer. Desktop: a column on the right.
-        "inset-x-2 bottom-[calc(var(--foot-h)+env(safe-area-inset-bottom)+8px)] max-h-[72dvh]",
+        "inset-x-2 bottom-[calc(var(--foot-h)+var(--foot-safe)+8px)] max-h-[72dvh]",
         "lg:inset-x-auto lg:right-4 lg:top-4 lg:max-h-none lg:w-[400px]",
         // Growing into the full task: the panel takes the whole frame and its
         // contents step back, then the page arrives in its place.

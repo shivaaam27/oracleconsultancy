@@ -1701,7 +1701,13 @@ section[data-page-header],
 :root { --page-foot: 0px; --page-top: 0px; }
 /* The Studio footer's height: taller on a phone so every button in it is a
    44px thumb target (Apple HIG 44pt, Material 48dp) — owner, 25 Sept 2026. */
-:root { --foot-h: 72px; }
+:root {
+  --foot-h: 64px;
+  /* The footer's own padding already clears most of the iPhone home bar, so
+     it takes only what is left of the safe area (owner, 26 Sept 2026: "the
+     footer is too long height wise leaving empty dark space"). */
+  --foot-safe: max(0px, calc(env(safe-area-inset-bottom) - 18px));
+}
 @media (min-width: 768px) { :root { --foot-h: 64px; } }
 /* Readable text everywhere (owner, 25 Sept 2026: "all texts should be white or
    black or dark grey"). --st-muted is a DARK grey now, for white surfaces; on a
@@ -1726,7 +1732,7 @@ section[data-page-header],
     left: 10px !important;
     right: 10px !important;
     top: auto !important;
-    bottom: calc(var(--foot-h) + env(safe-area-inset-bottom) + 10px) !important;
+    bottom: calc(var(--foot-h) + var(--foot-safe) + 10px) !important;
     width: auto !important;
     min-width: 0 !important;
     max-width: none !important;
@@ -1739,7 +1745,7 @@ section[data-page-header],
   }
 }
 html body:has([data-studio-frame]) {
-  --page-foot: calc(var(--foot-h) + env(safe-area-inset-bottom));
+  --page-foot: calc(var(--foot-h) + var(--foot-safe));
   background: #F3F3F1;
 }
 html.dark body:has([data-studio-frame]) { background: #121315; }
@@ -1784,13 +1790,13 @@ html[data-motion="reduced"] .st-panel-in { animation: none; }
   position: fixed;
   z-index: 40;
   pointer-events: none;
-  inset: 0 0 calc(var(--foot-h) + env(safe-area-inset-bottom)) 0;
+  inset: 0 0 calc(var(--foot-h) + var(--foot-safe)) 0;
   border-radius: 0 0 16px 16px;
   box-shadow: 0 0 0 100vmax #0E0F10;
 }
 @media (min-width: 640px) {
   .studio-frame {
-    inset: 12px 12px calc(var(--foot-h) + env(safe-area-inset-bottom)) 12px;
+    inset: 12px 12px calc(var(--foot-h) + var(--foot-safe)) 12px;
     border-radius: 20px;
   }
 }

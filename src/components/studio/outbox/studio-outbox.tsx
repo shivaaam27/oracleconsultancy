@@ -610,7 +610,7 @@ function SentLog({ log, onClose }: { log: { label: string; entries: SentRow[] }[
   return (
     <div className="fixed inset-0 z-[45]" role="dialog" aria-label="Sent log">
       <button type="button" aria-label="Close" onClick={onClose} className="absolute inset-0 cursor-default bg-[rgba(14,15,16,0.35)]" />
-      <div className="studio st-pop absolute bottom-[calc(var(--foot-h)+env(safe-area-inset-bottom)+8px)] right-3 top-3 flex w-[min(420px,calc(100vw-24px))] flex-col overflow-hidden rounded-[20px] bg-[var(--st-surface)] text-[var(--st-ink)] shadow-[0_30px_80px_rgba(0,0,0,0.3)]">
+      <div className="studio st-pop absolute bottom-[calc(var(--foot-h)+var(--foot-safe)+8px)] right-3 top-3 flex w-[min(420px,calc(100vw-24px))] flex-col overflow-hidden rounded-[20px] bg-[var(--st-surface)] text-[var(--st-ink)] shadow-[0_30px_80px_rgba(0,0,0,0.3)]">
         <div className="flex items-center justify-between border-b border-[var(--st-line-soft)] px-5 py-4">
           <div>
             <div className="text-[15px] font-semibold">Sent log</div>

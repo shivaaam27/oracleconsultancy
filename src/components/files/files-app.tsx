@@ -659,7 +659,7 @@ export function FilesApp({ library, companies, initialOpen, initialCompany, init
       {/* selection bar — on a phone it runs edge to edge and the buttons are
           icons only (their names are still read out): with words it was 490px
           wide on a 393px screen. */}
-      <div className={cn("fixed bottom-[calc(var(--foot-h)+env(safe-area-inset-bottom)+14px)] left-1/2 z-50 flex items-center gap-1.5 whitespace-nowrap max-sm:inset-x-3 max-sm:justify-between max-sm:gap-0.5 max-sm:pl-3.5 rounded-2xl bg-[#141517] py-1.5 pl-4 pr-1.5 text-[#F2F2F0] shadow-[0_18px_40px_rgba(0,0,0,0.3)] transition-all duration-200",
+      <div className={cn("fixed bottom-[calc(var(--foot-h)+var(--foot-safe)+14px)] left-1/2 z-50 flex items-center gap-1.5 whitespace-nowrap max-sm:inset-x-3 max-sm:justify-between max-sm:gap-0.5 max-sm:pl-3.5 rounded-2xl bg-[#141517] py-1.5 pl-4 pr-1.5 text-[#F2F2F0] shadow-[0_18px_40px_rgba(0,0,0,0.3)] transition-all duration-200",
         sel.size && nav.view !== "deleted" ? "pointer-events-auto -translate-x-1/2 opacity-100 max-sm:translate-x-0" : "pointer-events-none -translate-x-1/2 translate-y-4 opacity-0 max-sm:translate-x-0")}>
         <span className="mr-1.5 text-[13px] font-medium">{sel.size} selected</span>
         <SelBtn onClick={() => void download([...sel])} label="Download"><Download size={14} /><span className="max-sm:hidden">Download</span></SelBtn>
@@ -681,7 +681,7 @@ export function FilesApp({ library, companies, initialOpen, initialCompany, init
 
       {/* uploads tray */}
       {uploads.length > 0 && (
-        <div className="st-pop fixed bottom-[calc(var(--foot-h)+env(safe-area-inset-bottom)+14px)] right-4 z-[55] w-[min(340px,calc(100vw-32px))] rounded-[18px] border border-[var(--st-line-soft)] bg-[var(--st-surface)] p-3 shadow-[0_16px_40px_rgba(17,18,20,0.14)]">
+        <div className="st-pop fixed bottom-[calc(var(--foot-h)+var(--foot-safe)+14px)] right-4 z-[55] w-[min(340px,calc(100vw-32px))] rounded-[18px] border border-[var(--st-line-soft)] bg-[var(--st-surface)] p-3 shadow-[0_16px_40px_rgba(17,18,20,0.14)]">
           <div className="mb-2 flex items-center justify-between text-[13px] font-semibold">
             {uploads.some((u) => u.state === "up") ? `Uploading ${uploads.filter((u) => u.state === "up").length} of ${uploads.length}` : `${uploads.filter((u) => u.state === "done").length} uploaded`}
             <button type="button" onClick={() => setUploads([])} className={IB} aria-label="Close"><X size={14} /></button>

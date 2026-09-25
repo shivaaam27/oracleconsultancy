@@ -202,7 +202,7 @@ export function StudioShell({ needs, director = null }: { needs: NonNullable<Stu
       <footer
         data-studio-foot
         className={cn(
-          "fixed inset-x-0 bottom-0 z-[41] h-[calc(var(--foot-h)+env(safe-area-inset-bottom))] bg-[#0E0F10] pb-[env(safe-area-inset-bottom)] text-[#F2F2F0]",
+          "fixed inset-x-0 bottom-0 z-[41] h-[calc(var(--foot-h)+var(--foot-safe))] bg-[#0E0F10] pb-[var(--foot-safe)] text-[#F2F2F0]",
           "[font-family:var(--font-geist),var(--font-sans)]",
         )}
       >
@@ -226,14 +226,14 @@ export function StudioShell({ needs, director = null }: { needs: NonNullable<Stu
               <Home size={16} strokeWidth={2} />
               <span className="hidden lg:inline">Home</span>
             </Link>
-            <div ref={pill} title="Scroll or swipe to move between pages" className="flex touch-pan-y items-center gap-0.5 rounded-[13px] border border-[#2A2C30] bg-[#1C1D20] p-[3px] md:gap-1 md:rounded-xl">
+            <div ref={pill} title="Scroll or swipe to move between pages" className="flex min-w-0 touch-pan-y items-center gap-0.5 rounded-[13px] border border-[#2A2C30] bg-[#1C1D20] p-[3px] max-md:flex-1 md:gap-1 md:rounded-xl">
               <Link
                 href={prev.href}
                 prefetch
                 onClick={() => { setDir(-1); setPending((i - 1 + stops.length) % stops.length); }}
                 aria-label={`Previous page: ${prev.label}`}
                 title={prev.label}
-                className="flex h-[38px] w-11 items-center justify-center rounded-[10px] text-white transition-colors hover:bg-[#2A2C30] md:h-8 md:w-8 md:rounded-[9px]"
+                className="flex h-[38px] w-10 shrink-0 items-center justify-center rounded-[10px] text-white transition-colors hover:bg-[#2A2C30] md:h-8 md:w-8 md:rounded-[9px]"
               >
                 <ChevronLeft size={15} strokeWidth={2.6} />
               </Link>
@@ -243,7 +243,7 @@ export function StudioShell({ needs, director = null }: { needs: NonNullable<Stu
                 aria-haspopup="dialog"
                 aria-expanded={goTo}
                 title="Go to any page"
-                className="flex h-[38px] min-w-[104px] max-w-[40vw] items-center justify-center gap-2 overflow-hidden rounded-[10px] bg-[#F2F2F0] px-3.5 text-[14px] font-semibold text-[#111214] shadow-[0_1px_0_rgba(255,255,255,0.25)_inset] transition-colors hover:bg-white md:h-8 md:min-w-[120px] md:rounded-[9px] md:text-[13.5px] md:max-w-[46vw]"
+                className="flex h-[38px] min-w-0 flex-1 items-center justify-center gap-2 overflow-hidden rounded-[10px] bg-[#F2F2F0] px-3 text-[14px] font-semibold text-[#111214] shadow-[0_1px_0_rgba(255,255,255,0.25)_inset] transition-colors hover:bg-white md:h-8 md:w-auto md:flex-none md:min-w-[120px] md:max-w-[220px] md:rounded-[9px] md:px-3.5 md:text-[13.5px] xl:max-w-[280px]"
               >
                 {/* The name slides the way you are going, the moment you ask —
                     before the page has arrived, so the step never feels stuck. */}
@@ -256,7 +256,7 @@ export function StudioShell({ needs, director = null }: { needs: NonNullable<Stu
                 onClick={() => { setDir(1); setPending((i + 1) % stops.length); }}
                 aria-label={`Next page: ${next.label}`}
                 title={next.label}
-                className="flex h-[38px] w-11 items-center justify-center rounded-[10px] text-white transition-colors hover:bg-[#2A2C30] md:h-8 md:w-8 md:rounded-[9px]"
+                className="flex h-[38px] w-10 shrink-0 items-center justify-center rounded-[10px] text-white transition-colors hover:bg-[#2A2C30] md:h-8 md:w-8 md:rounded-[9px]"
               >
                 <ChevronRight size={15} strokeWidth={2.6} />
               </Link>
@@ -285,10 +285,10 @@ export function StudioShell({ needs, director = null }: { needs: NonNullable<Stu
           {/* Right: search everything · notifications · + New */}
           <div className="flex items-center justify-end gap-2 max-md:contents md:col-start-3">
             {/* Ask ORI or search — the palette (mockup board Ask). */}
-            <button type="button" onClick={openPalette} aria-label="Ask ORI or search everything (⌘K)" className={cn(FOOT_BTN, "hidden w-9 px-0 lg:w-auto lg:pl-3 lg:pr-2", !director && "sm:inline-flex")}>
+            <button type="button" onClick={openPalette} aria-label="Ask ORI or search everything (⌘K)" className={cn(FOOT_BTN, "hidden w-9 px-0 xl:w-auto xl:pl-3 xl:pr-2", !director && "sm:inline-flex")}>
               <Search size={14} />
-              <span className="hidden min-w-[110px] text-left text-[#C9CBCF] lg:inline">Ask or search</span>
-              <span className="hidden rounded-[5px] bg-[#1F2023] px-1.5 py-px text-[11px] text-[#B4B7BC] lg:inline">⌘K</span>
+              <span className="hidden min-w-[110px] text-left text-[#C9CBCF] xl:inline">Ask or search</span>
+              <span className="hidden rounded-[5px] bg-[#1F2023] px-1.5 py-px text-[11px] text-[#B4B7BC] xl:inline">⌘K</span>
             </button>
             {/* Sign out — the owner's session, or a director's portal one. It
                 lived only at the foot of Settings, which nobody finds (owner,
@@ -400,7 +400,9 @@ function GoToPanel({
   const [shortcut, setShortcut] = useState("Ctrl K");
   useEffect(() => { if (/Mac|iPhone|iPad/.test(navigator.platform)) setShortcut("⌘K"); }, []);
   useEffect(() => {
-    input.current?.focus({ preventScroll: true });
+    // Type-to-find straight away with a mouse and keyboard; on a touch
+    // screen focusing the box threw the keyboard up over the menu.
+    if (window.matchMedia("(pointer: fine)").matches) input.current?.focus({ preventScroll: true });
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -420,7 +422,7 @@ function GoToPanel({
     <div data-studio-goto className="fixed inset-0 z-[45]" role="dialog" aria-label="Go to a page">
       <button type="button" aria-label="Close" onClick={onClose} className="absolute inset-0 cursor-default bg-[rgba(14,15,16,0.35)]" />
       <div
-        className="st-sheet st-sheet-dots st-pop absolute inset-x-0 bottom-0 mx-auto flex max-h-[calc(100dvh-60px)] max-w-[860px] flex-col gap-3.5 overflow-y-auto rounded-t-[26px] bg-[var(--sh-bg)] px-4 pb-[calc(20px+env(safe-area-inset-bottom))] pt-2 text-[var(--sh-fg)] shadow-[0_30px_80px_rgba(0,0,0,0.4)] [font-family:var(--font-geist),var(--font-sans)] sm:inset-x-3 sm:bottom-[calc(var(--foot-h)+env(safe-area-inset-bottom)+8px)] sm:rounded-3xl sm:p-4"
+        className="st-sheet st-sheet-dots st-pop absolute inset-x-0 bottom-0 mx-auto flex max-h-[calc(100dvh-60px)] max-w-[860px] flex-col gap-3.5 overflow-y-auto rounded-t-[26px] bg-[var(--sh-bg)] px-4 pb-[calc(20px+env(safe-area-inset-bottom))] pt-2 text-[var(--sh-fg)] shadow-[0_30px_80px_rgba(0,0,0,0.4)] [font-family:var(--font-geist),var(--font-sans)] sm:inset-x-3 sm:bottom-[calc(var(--foot-h)+var(--foot-safe)+8px)] sm:rounded-3xl sm:p-4"
       >
         {/* Phone: the sheet's grabber. Below lg: who you are with Profile and
             Sign out — they left the footer so it fits a thumb and a tablet. */}
