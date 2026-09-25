@@ -407,7 +407,7 @@ async function fireSmartDigest(cfg: RuleConfig, tasks: DigestTask[], nowIso: str
     : cond === "no_deadline_or_assignee" ? "missing a deadline or owner"
     : cond === "no_update_today" ? "with no update today"
     : "needing attention";
-  const title = `${tasks.length} task${tasks.length === 1 ? "" : "s"} ${noun}`;
+  const allTitle = `${tasks.length} task${tasks.length === 1 ? "" : "s"} ${noun}`;
 
   // Worst-first: overdue (soonest-past first), then due-soonest, then no-deadline last.
   const now = Date.now();
@@ -423,11 +423,12 @@ async function fireSmartDigest(cfg: RuleConfig, tasks: DigestTask[], nowIso: str
   const lineOf = (t: DigestTask) =>
     `${t.code} — ${(t.action_item ?? "").slice(0, 70)} — (${ownerLabel(t)}) — ${t.status}`;
 
+  const linesOf = (list: DigestTask[]): string[] => {
   let lines: string[];
   if (SILENCE_CONDS.has(cond)) {
     // Group by who owes the update, most-tasks-owed first, worst-first within a person.
     const byPerson = new Map<string, DigestTask[]>();
-    for (const t of sorted) {
+    for (const t of list) {
       const key = ownerLabel(t);
       const bucket = byPerson.get(key) ?? [];
       bucket.push(t);
@@ -441,15 +442,30 @@ async function fireSmartDigest(cfg: RuleConfig, tasks: DigestTask[], nowIso: str
     }
     lines = lines.slice(0, 20);
   } else {
-    lines = sorted.slice(0, 15).map(lineOf);
-    if (sorted.length > 15) lines.push(`…and ${sorted.length - 15} more`);
+    lines = list.slice(0, 15).map(lineOf);
+    if (list.length > 15) lines.push(`…and ${list.length - 15} more`);
   }
-  const body = lines.join("\n");
+  return lines;
+  };
 
+  // Each recipient sees ONLY the tasks of companies they cover: the list used
+  // to go whole to every director and manager, so a company-scoped director
+  // read other companies' tasks on their lock screen (push audit, 25 Sept 2026).
   const recipients = await resolveAudience(cfg);
   for (const r of recipients) {
     try {
-      await createNotification({ recipient: r, kind: "assigned", taskId: sorted[0]?.id ?? null, taskCode: sorted[0]?.code ?? null, title, body, actor: "ORI" });
+      let mine = sorted;
+      const pid = /^person:(\d+)$/.exec(r)?.[1];
+      if (pid) {
+        const { portalPersonById, companyScope } = await import("@/lib/portal-auth");
+        const person = await portalPersonById(Number(pid));
+        const scope = person ? await companyScope(person) : [];
+        if (scope) mine = sorted.filter((t) => typeof t.company_id === "number" && scope.includes(t.company_id));
+      }
+      if (mine.length === 0) continue;
+      const title = mine.length === tasks.length ? allTitle : `${mine.length} task${mine.length === 1 ? "" : "s"} ${noun}`;
+      const body = linesOf(mine).join("\n");
+      await createNotification({ recipient: r, kind: "assigned", taskId: mine[0]?.id ?? null, taskCode: mine[0]?.code ?? null, title, body, actor: "ORI" });
     } catch (e) { await reportError(e, { route: "cron.ori-automations", step: "smart.digest", recipient: r }); }
   }
 }
