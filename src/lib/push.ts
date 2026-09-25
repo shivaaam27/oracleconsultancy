@@ -64,6 +64,14 @@ export type PushPayload = {
   count?: number;
 };
 
+/** How long the push service keeps trying a phone that is off or asleep. It
+ *  was 10 minutes for everything, so the morning brief, reminders and digests
+ *  were silently lost by any phone switched off overnight (push audit, 25 Sept
+ *  2026). A chat line goes stale in an hour; everything else keeps for 12. */
+function ttlFor(p: PushPayload): number {
+  return p.tag?.startsWith("chat-") ? 3600 : 12 * 3600;
+}
+
 function endpointHost(endpoint: string): string {
   try {
     return new URL(endpoint).host;
@@ -92,7 +100,7 @@ export async function sendToAll(
         // TTL keeps it deliverable for 10 min if the device is briefly offline.
         await webpush.sendNotification({ endpoint: s.endpoint, keys: s.keys }, body, {
           urgency: "high",
-          TTL: 600,
+          TTL: ttlFor(payload),
         });
         sent += 1;
       } catch (err: unknown) {
@@ -165,7 +173,7 @@ export async function sendToRecipient(recipient: string, payload: PushPayload): 
         await webpush.sendNotification(
           { endpoint: s.endpoint as string, keys: { p256dh: s.p256dh as string, auth: s.auth as string } },
           body,
-          { urgency: "high", TTL: 600 }
+          { urgency: "high", TTL: ttlFor(payload) }
         );
         sent += 1;
       } catch (err: unknown) {

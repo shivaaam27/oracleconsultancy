@@ -5,7 +5,10 @@
   "description": "Chief-of-Staff administrator for Oracle Consultancy",
   "lang": "en-GB",
   "dir": "ltr",
-  "categories": ["business", "productivity"],
+  "categories": [
+    "business",
+    "productivity"
+  ],
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
@@ -48,10 +51,10 @@
       ]
     },
     {
-      "name": "To-do & workbook",
-      "short_name": "To-do",
-      "description": "Open the workbook and to-do list",
-      "url": "/workbook",
+      "name": "Tasks",
+      "short_name": "Tasks",
+      "description": "Every open task",
+      "url": "/?tab=tasks",
       "icons": [
         {
           "src": "/icon-192.png",
@@ -62,10 +65,10 @@
       ]
     },
     {
-      "name": "Add to inbox",
-      "short_name": "Inbox",
-      "description": "Drop a note or file into the inbox",
-      "url": "/inbox",
+      "name": "Calendar",
+      "short_name": "Calendar",
+      "description": "The diary",
+      "url": "/calendar",
       "icons": [
         {
           "src": "/icon-192.png",
@@ -76,10 +79,10 @@
       ]
     },
     {
-      "name": "New meeting",
-      "short_name": "Meeting",
-      "description": "Open the meeting workspace",
-      "url": "/meeting",
+      "name": "Files",
+      "short_name": "Files",
+      "description": "The file library",
+      "url": "/files",
       "icons": [
         {
           "src": "/icon-192.png",

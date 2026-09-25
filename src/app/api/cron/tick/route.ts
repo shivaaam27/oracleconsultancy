@@ -65,6 +65,14 @@ async function tick(req: NextRequest) {
     } catch (err) {
       await reportError(err, { route: "cron.tick/event-reminders" });
     }
+    // Timed "remind me" pushes — daily on Vercel alone, so they rode here late.
+    let todos = 0;
+    try {
+      const { runTodoReminders } = await import("@/app/api/cron/reminders/route");
+      todos = (await runTodoReminders()).sent;
+    } catch (err) {
+      await reportError(err, { route: "cron.tick/todo-reminders" });
+    }
     // Meeting tasks move to In Progress when the meeting starts, and the
     // "how did it go?" note follows it — both used to wait for the next morning
     // run or for somebody to open the calendar (audit 24 Sept 2026).
@@ -88,8 +96,8 @@ async function tick(req: NextRequest) {
         await reportError(err, { route: "cron.tick/digest" });
       }
     }
-    await recordEvent("cron.tick", "ok", { evaluated, fired, retired, events, meetings, digest });
-    return NextResponse.json({ ok: true, ran: evaluated, fired, retired, events, meetings, digest });
+    await recordEvent("cron.tick", "ok", { evaluated, fired, retired, events, todos, meetings, digest });
+    return NextResponse.json({ ok: true, ran: evaluated, fired, retired, events, todos, meetings, digest });
   } catch (err) {
     // Fail-open: report + a soft 200 so a flaky sweep doesn't make the scheduler
     // hammer with retries; the next tick simply tries again.

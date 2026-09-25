@@ -1,5 +1,6 @@
 import "server-only";
 import { sb } from "@/db/supabase";
+import { isDirectorRecipient } from "@/lib/push-links";
 import { escapeLike } from "@/lib/db-helpers";
 import { sendToRecipient, queueDigestItem, isCritical } from "./push";
 import { isQuietHoursNow, getAppSettings } from "./settings";
@@ -91,6 +92,10 @@ export async function createNotification(input: {
   urgent?: boolean;
 }): Promise<void> {
   try {
+    // A director has no Announcements page (blocked until it is rebuilt), so an
+    // announcement neither lands in their bell nor buzzes their phone.
+    const director = input.recipient.startsWith("person:") ? await isDirectorRecipient(input.recipient) : false;
+    if (director && input.kind === "announcement") return;
     // Recurring items (the daily task reminder, ORI's daily digests) replace
     // yesterday's rather than stacking on top of it. Today's is the only one
     // that means anything, and left alone they became 90%+ of a portal bell.
@@ -120,17 +125,15 @@ export async function createNotification(input: {
     // isn't configured or they have no devices registered. Task-less notifs
     // open the relevant surface (the owner's leave page / the staff portal).
     const isAdmin = input.recipient === "admin";
+    // Owner and directors are on the Studio screens; staff on the portal.
+    const studio = isAdmin || director;
     const url = input.taskCode
-      ? isAdmin
-        ? `/task/${input.taskCode}`
-        : `/portal/task/${input.taskCode}`
+      ? studio ? `/task/${input.taskCode}` : `/portal/task/${input.taskCode}`
       : input.kind === "meeting"
-        ? isAdmin
-          ? `/calendar`
-          : `/portal/meetings`
-        : isAdmin
-          ? `/hrms/leave`
-          : `/portal/profile`;
+        ? studio ? `/calendar` : `/portal/meetings`
+        : input.kind === "announcement"
+          ? isAdmin ? `/announcements` : `/portal/announcements`
+          : studio ? `/` : `/portal`;
     const tag = input.taskCode
       ? `task-${input.taskCode}`
       : `notif-${input.kind}`;

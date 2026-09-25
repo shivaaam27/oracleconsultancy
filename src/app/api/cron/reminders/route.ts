@@ -7,20 +7,12 @@ import { dueTodoRemindersForPush, markTodosPushed } from "@/lib/todo-reminders";
 
 export const dynamic = "force-dynamic";
 
-// Fires the timed push for ad-hoc "remind me" items whose moment has passed.
-// Runs every ~15 min. Owner items push to "admin"; staff items to "person:<id>".
-export async function GET(req: NextRequest) {
-  const auth = authoriseCron(req);
-  if (!auth.ok) return NextResponse.json({ ok: false, message: auth.message }, { status: auth.status });
-
-  try {
-    if (!configurePush()) return NextResponse.json({ ok: true, skipped: "push-not-configured" });
-
+/** Push every "remind me" whose moment has passed. Idempotent (each is marked
+ *  pushed), so the 15-minute tick AND the daily cron can both call it. */
+export async function runTodoReminders(): Promise<{ sent: number; due: number }> {
+    if (!configurePush()) return { sent: 0, due: 0 };
     const due = await dueTodoRemindersForPush();
-    if (due.length === 0) {
-      await recordEvent("cron.reminders", "ok", { sent: 0, due: 0 });
-      return NextResponse.json({ ok: true, sent: 0 });
-    }
+    if (due.length === 0) return { sent: 0, due: 0 };
 
     let sent = 0;
     const pushedIds: number[] = [];
@@ -45,9 +37,23 @@ export async function GET(req: NextRequest) {
       pushedIds.push(r.id);
     }
     await markTodosPushed(pushedIds);
+    return { sent, due: due.length };
+}
 
-    await recordEvent("cron.reminders", "ok", { sent, due: due.length });
-    return NextResponse.json({ ok: true, sent, due: due.length });
+// Fires the timed push for ad-hoc "remind me" items whose moment has passed.
+// Vercel runs this once a day (the Hobby plan allows no finer); the 15-minute
+// /api/cron/tick heartbeat also calls runTodoReminders, which is what makes an
+// 11:00 reminder arrive at 11:00 rather than at 10:00 the next day (push audit,
+// 25 Sept 2026). Owner items push to "admin"; staff items to "person:<id>".
+export async function GET(req: NextRequest) {
+  const auth = authoriseCron(req);
+  if (!auth.ok) return NextResponse.json({ ok: false, message: auth.message }, { status: auth.status });
+
+  try {
+    if (!configurePush()) return NextResponse.json({ ok: true, skipped: "push-not-configured" });
+    const { sent, due } = await runTodoReminders();
+    await recordEvent("cron.reminders", "ok", { sent, due });
+    return NextResponse.json({ ok: true, sent, due });
   } catch (err) {
     await reportError(err, { route: "cron.reminders" });
     await recordEvent("cron.reminders", "error", {

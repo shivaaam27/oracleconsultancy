@@ -594,6 +594,11 @@ async function createChatNotification(input: {
       if (await isQuietHoursNow()) return;
     }
     const { sendToRecipient } = await import("./push");
+    // A director's Chat is closed until it is rebuilt: their thread pushes (the
+    // daily task reminder, calendar reminders, messages) open their Tasks
+    // instead of a page that only says "being rebuilt" (push audit, 25 Sept 2026).
+    const { isDirectorRecipient } = await import("./push-links");
+    const director = await isDirectorRecipient(input.recipient);
     const base = input.recipient === ADMIN ? "/chat" : "/portal/chat";
     // The recipient's total unread (incl. this one) so the SW badges the installed
     // app icon accurately, instead of always showing "1".
@@ -605,7 +610,7 @@ async function createChatNotification(input: {
     await sendToRecipient(input.recipient, {
       title: input.title,
       body: input.body,
-      url: `${base}/${input.threadId}`,
+      url: director ? "/?tab=tasks" : `${base}/${input.threadId}`,
       tag: `chat-${input.threadId}`,
       count: count ?? undefined,
     });
