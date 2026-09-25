@@ -39,7 +39,7 @@ export function PasskeyLoginButton({ studio = false }: { studio?: boolean } = {}
         const response = await startAuthentication({ optionsJSON, useBrowserAutofill: true });
         if (cancelled) return;
         const res = await completePasskeyLogin(response);
-        if (res.ok && res.redirect) window.location.assign(res.redirect);
+        if (res.ok && res.redirect) { rememberPasskeyUsed(); window.location.assign(res.redirect); }
       } catch {
         /* aborted / no passkey selected — this is normal, stay quiet */
       }
@@ -55,7 +55,7 @@ export function PasskeyLoginButton({ studio = false }: { studio?: boolean } = {}
       const optionsJSON = await startPasskeyLogin();
       const response = await startAuthentication({ optionsJSON });
       const res = await completePasskeyLogin(response);
-      if (res.ok && res.redirect) window.location.assign(res.redirect);
+      if (res.ok && res.redirect) { rememberPasskeyUsed(); window.location.assign(res.redirect); }
       else setErr(res.error ?? "No passkey on this device yet — add one from your profile first.");
     } catch (e) {
       if (!(e instanceof Error) || e.name !== "NotAllowedError") setErr("Couldn't sign in with this device.");
@@ -78,4 +78,11 @@ export function PasskeyLoginButton({ studio = false }: { studio?: boolean } = {}
       {err && <p className={studio ? "m-0 text-center text-xs text-[var(--st-late-text)]" : "text-center text-xs text-danger"}>{err}</p>}
     </div>
   );
+}
+
+/** This device has signed in with a passkey before — the sign-in screen then
+ *  puts the fingerprint / Face ID button first (26 Sept 2026). */
+export const PASSKEY_USED_KEY = "cos.passkeyUsed";
+function rememberPasskeyUsed() {
+  try { window.localStorage.setItem(PASSKEY_USED_KEY, "1"); } catch { /* private window */ }
 }

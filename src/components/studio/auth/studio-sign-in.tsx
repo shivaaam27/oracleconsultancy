@@ -22,7 +22,7 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import { useTheme } from "next-themes";
 import { Eye, EyeOff, Loader2, Moon, ShieldCheck, Sun, TriangleAlert, UserRound } from "lucide-react";
 import { ShakeOnError } from "@/components/auth-fields";
-import { PasskeyLoginButton } from "@/app/login/passkey-login-button";
+import { PasskeyLoginButton, PASSKEY_USED_KEY } from "@/app/login/passkey-login-button";
 import { adminLogin, adminSetup, type LoginState } from "@/app/login/actions";
 import { portalLogin } from "@/app/portal/actions";
 import { cn } from "@/lib/cn";
@@ -43,6 +43,22 @@ export function StudioSignIn({ firstRun, defaultAs = "staff" }: { firstRun: bool
       if (saved === "staff" || saved === "admin") setAs(saved);
     } catch { /* private window */ }
   }, []);
+  // A device that has signed in with a passkey gets that button first.
+  const [passkeyFirst, setPasskeyFirst] = useState(false);
+  useEffect(() => {
+    try { setPasskeyFirst(window.localStorage.getItem(PASSKEY_USED_KEY) === "1"); } catch { /* ignore */ }
+  }, []);
+  // On a computer the cursor waits in the first empty box (never on a phone,
+  // where focusing throws the keyboard over the screen).
+  useEffect(() => {
+    if (!window.matchMedia("(min-width: 1024px)").matches) return;
+    const t = setTimeout(() => {
+      const ids = as === "staff" ? ["signin-staff-identifier", "signin-staff-password"] : firstRun ? ["signin-admin-password"] : ["signin-admin-identifier", "signin-admin-password"];
+      const el = ids.map((id) => document.getElementById(id) as HTMLInputElement | null).find((x) => x && !x.value) ?? null;
+      el?.focus();
+    }, 60);
+    return () => clearTimeout(t);
+  }, [as, firstRun]);
   const choose = (v: As) => {
     setAs(v);
     try { window.localStorage.setItem(AS_KEY, v); } catch { /* ignore */ }
@@ -70,8 +86,16 @@ export function StudioSignIn({ firstRun, defaultAs = "staff" }: { firstRun: bool
             </div>
 
             <div key={as} className="st-pop flex flex-col gap-3 sm:gap-4">
+              {passkeyFirst && !(firstRun && as === "admin") && (
+                <>
+                  <PasskeyLoginButton studio />
+                  <div className="flex items-center gap-3 text-xs text-[var(--st-ink)]" aria-hidden>
+                    <span className="h-px flex-1 bg-[var(--st-line)]" />or use your password<span className="h-px flex-1 bg-[var(--st-line)]" />
+                  </div>
+                </>
+              )}
               {as === "staff" ? <StaffForm /> : <AdminForm firstRun={firstRun} />}
-              {!(firstRun && as === "admin") && (
+              {!passkeyFirst && !(firstRun && as === "admin") && (
                 <>
                   <div className="flex items-center gap-3 text-xs text-[var(--st-ink)]" aria-hidden>
                     <span className="h-px flex-1 bg-[var(--st-line)]" />or<span className="h-px flex-1 bg-[var(--st-line)]" />
@@ -198,19 +222,30 @@ const TAGLINE = "Built in-house, and the first in Tanzania — an advanced task 
 export function AuthFrame({ children }: { children: React.ReactNode }) {
   return (
     <div className="studio fixed inset-0 z-[60] overflow-y-auto bg-[var(--st-page)] text-[var(--st-ink)] [font-family:var(--font-geist),var(--font-sans)] max-lg:bg-[#141517]">
-      <span className="hidden lg:contents"><ThemeButton /></span>
-      <div className="flex min-h-full flex-col lg:mx-auto lg:grid lg:max-w-[1280px] lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] lg:gap-5 lg:p-5">
-        <BrandPanel />
-        <BrandCompact />
-        <div className="relative z-[1] -mt-7 flex flex-1 flex-col rounded-t-[28px] bg-[var(--st-surface)] px-5 pb-[max(16px,env(safe-area-inset-bottom))] pt-7 shadow-[0_-12px_32px_rgba(0,0,0,0.18)] sm:px-8 sm:pt-9 lg:mt-0 lg:items-center lg:justify-center lg:rounded-none lg:bg-transparent lg:px-2 lg:py-14 lg:shadow-none">
-          <div className="mx-auto flex w-full max-w-[440px] flex-1 flex-col gap-4 sm:gap-6 lg:max-w-[400px] lg:flex-none">
-            {children}
-            <footer className="mt-auto flex flex-wrap items-center justify-center gap-x-2 gap-y-1 pt-4 text-[11px] text-[var(--st-muted)] lg:hidden">
+      {/* Desk (26 Sept 2026, owner): ONE dark frame filling the window, the
+          form on a card inside it on the left, the brand and the big bars on
+          the right. Below lg the same tree is the phone's header + sheet. */}
+      <div className="flex min-h-full lg:p-4 xl:p-5">
+        <div className="relative flex min-h-full w-full flex-col lg:grid lg:min-h-[620px] lg:grid-cols-[minmax(440px,0.8fr)_minmax(0,1fr)] lg:overflow-hidden lg:rounded-[32px] lg:bg-[#141517] lg:p-3">
+          <div aria-hidden className="st-tex-rings pointer-events-none absolute inset-0 hidden lg:block" />
+          <BrandCompact />
+          <div className="relative z-[1] -mt-7 flex flex-1 flex-col rounded-t-[28px] bg-[var(--st-surface)] px-5 pb-[max(16px,env(safe-area-inset-bottom))] pt-7 shadow-[0_-12px_32px_rgba(0,0,0,0.18)] sm:px-8 sm:pt-9 lg:mt-0 lg:rounded-[24px] lg:px-10 lg:pb-6 lg:pt-7 lg:shadow-none xl:px-14">
+            {/* The card's own header on a desk: who you are signing in to. */}
+            <div className="mb-2 hidden items-center gap-2.5 lg:flex">
+              <LogoTile size={34} />
+              <span className="text-[14px] font-semibold leading-tight">Oracle Consultancy Limited</span>
+              <ThemeButton card />
+            </div>
+            <div className="mx-auto flex w-full max-w-[440px] flex-1 flex-col gap-4 sm:gap-6 lg:max-w-[380px] lg:justify-center lg:py-10">
+              {children}
+            </div>
+            <footer className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 pt-4 text-[11px] text-[var(--st-muted)]">
               <span>© {new Date().getFullYear()} Oracle Consultancy Limited</span>
               <span aria-hidden>·</span>
               <span className="inline-flex items-center gap-1"><ShieldCheck size={11} />Secure sign-in</span>
             </footer>
           </div>
+          <BrandSide />
         </div>
       </div>
     </div>
@@ -241,39 +276,38 @@ export function BrandCompact() {
 const BARS = [34, 52, 40, 60, 46, 66, 38, 58, 44, 64, 50, 36, 62, 48, 56, 42, 66, 40, 54, 46, 60, 38, 52, 44, 58, 36, 62, 50, 46, 64, 42, 56, 40, 60, 48, 54];
 const BAR_C = (i: number) => (i > 29 ? "#E0479E" : i > 26 ? "#F5A524" : i > 5 ? "#19C37D" : "#CFE05A");
 
-export function BrandPanel() {
+/** Desk: the right of the frame — the name, the line on what COS is, and the
+ *  Studio's bars drawn large along the foot (a fixed pattern, not data). */
+export function BrandSide() {
   return (
-    <aside className="st-tex-rings relative hidden min-h-[560px] flex-col justify-between overflow-hidden rounded-[28px] bg-[#141517] p-10 text-[#F2F2F0] lg:flex">
-      <div className="flex items-center gap-3">
-        <LogoTile size={48} />
-        <div className="text-[20px] font-semibold leading-none tracking-[-0.01em] text-white">Oracle Consultancy Limited</div>
-      </div>
-      <div>
-        <div className="text-[64px] font-medium leading-[0.95] tracking-[-0.04em]">Task<br />Management</div>
-        <p className="m-0 mt-5 max-w-[40ch] text-[15px] leading-relaxed text-white">{TAGLINE}</p>
-      </div>
-      <div>
-        <div className="flex h-[70px] items-end gap-[3px]" aria-hidden>
-          {BARS.map((h, i) => (
-            <span key={i} className="st-rise block w-[7px] rounded-[3px]" style={{ height: h, background: BAR_C(i), animationDelay: `${i * 18}ms` }} />
-          ))}
+    <aside className="relative hidden min-w-0 flex-col px-12 pb-0 pt-12 text-[#F2F2F0] lg:flex xl:px-16 xl:pt-16">
+      <div className="text-[64px] font-medium leading-[0.92] tracking-[-0.045em] xl:text-[88px]">Task<br />Management</div>
+      <p className="m-0 mt-6 max-w-[44ch] text-[15px] leading-relaxed text-white/85 xl:text-[16px]">{TAGLINE}</p>
+      <div className="mt-auto flex items-end justify-end pb-6 pt-10">
+        <div className="max-w-[300px] text-right">
+          <p className="m-0 text-[15px] leading-snug text-white">One place for every task, across every company.</p>
+          <p className="m-0 mt-1.5 text-xs text-white/60">Oracle Consultancy Limited</p>
         </div>
-        <div className="mt-4 flex items-center justify-between text-xs text-white">
-          <span>Secure sign-in</span><span>© {new Date().getFullYear()} Oracle Consultancy</span>
-        </div>
+      </div>
+      <div className="flex h-[min(34vh,280px)] items-end gap-[5px] xl:gap-[7px]" aria-hidden>
+        {BARS.map((h, i) => (
+          <span key={i} className="st-rise block min-w-0 flex-1 rounded-t-[6px]" style={{ height: `${Math.round((h / 66) * 100)}%`, background: BAR_C(i), animationDelay: `${i * 22}ms` }} />
+        ))}
       </div>
     </aside>
   );
 }
 
-export function ThemeButton({ inline = false }: { inline?: boolean }) {
+export function ThemeButton({ inline = false, card = false }: { inline?: boolean; card?: boolean }) {
   const { resolvedTheme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   const dark = mounted && resolvedTheme === "dark";
   return (
     <button type="button" onClick={() => setTheme(dark ? "light" : "dark")} aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
-      className={inline
+      className={card
+        ? "ml-auto flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] border border-[var(--st-line)] text-[var(--st-ink)] hover:bg-[var(--st-page)]"
+        : inline
         ? "ml-auto flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] border border-[#2E3035] text-[#C9CBCF] hover:text-white"
         : "fixed right-8 top-8 z-10 flex h-10 w-10 items-center justify-center rounded-[12px] border border-[var(--st-line)] bg-[var(--st-surface)] text-[var(--st-ink)] hover:text-[var(--st-ink)]"}>
       {dark ? <Sun size={16} /> : <Moon size={16} />}
