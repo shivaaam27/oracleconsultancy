@@ -19,5 +19,5 @@ export async function completePasskeyLogin(response: AuthenticationResponseJSON)
   await setSessionCookie(res.personId);
   // A director lands on the shared Home, never the old portal frame.
   const { data } = await sb.from("people").select("portal_role").eq("id", res.personId).maybeSingle();
-  return { ok: true, redirect: data?.portal_role === "director" ? "/" : "/portal" };
+  return { ok: true, redirect: data?.portal_role === "director" || data?.portal_role === "manager" ? "/" : "/portal" };
 }

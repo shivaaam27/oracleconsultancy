@@ -17,6 +17,9 @@ export function studioPathForDirector(path: string, search = ""): string | null 
   let m: RegExpExecArray | null;
 
   if (p === "/portal/profile") return null;
+  // A manager's cleaning overview (caps.cleaningOverview) — not rebuilt yet;
+  // the page sends anyone without the capability on by itself.
+  if (p === "/portal/cleaning") return null;
   if (p === "/portal" || p === "/portal/board") return "/";
   if (p === "/portal/tasks") return "/?tab=tasks";
   if (p === "/portal/task/new") return "/task/new";

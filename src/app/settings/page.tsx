@@ -426,7 +426,7 @@ export default async function SettingsPage({
         {/* ───────────────────────── Portals ───────────────────────── */}
         <section data-group="portals" className="space-y-4">
           {/* Staff portal access */}
-          <SettingsCard id="portal" icon={<Users size={15} />} title="Staff portal access" desc="Give staff a /portal sign-in. Revoke any time." keywords="portal staff access password role manager director revoke outreach">
+          <SettingsCard id="portal" icon={<Users size={15} />} title="Portal access" desc="Give someone a sign-in. Directors and managers use the main screens over their companies; staff their own portal. Revoke any time." keywords="portal staff access password role manager director revoke outreach">
             {sp.portal === "saved" && (
               <p className="flex items-center gap-2 text-sm text-success"><Check size={14} /> Portal access saved.</p>
             )}
@@ -487,11 +487,11 @@ export default async function SettingsPage({
 
             <form action={setDirectorOutreach} className="mt-1 flex items-center justify-between gap-3 border-t border-border/60 pt-3">
               <div className="min-w-0">
-                <p className="text-sm font-medium">Director outreach</p>
+                <p className="text-sm font-medium">Director &amp; manager outreach</p>
                 <p className="text-xs text-fg-muted">
                   {directorPaused
-                    ? "Paused — directors can't draft messages/reminders right now."
-                    : "Active — directors can draft messages/reminders (saved to Outbox first)."}
+                    ? "Paused — directors and managers can't draft messages/reminders right now."
+                    : "Active — directors and managers can draft messages/reminders (saved to Outbox first)."}
                 </p>
               </div>
               <input type="hidden" name="paused" value={directorPaused ? "0" : "1"} />
@@ -501,7 +501,7 @@ export default async function SettingsPage({
             </form>
           </SettingsCard>
 
-          <SettingsCard id="portal-permissions" icon={<ShieldCheck size={15} />} title="Roles & permissions" desc="Full control over what Staff, Managers, Admin & Directors can see and do." keywords="permissions roles staff manager admin hr director scope visibility capabilities create tasks manage complete delete events leave outbox insights requests tabs portal access">
+          <SettingsCard id="portal-permissions" icon={<ShieldCheck size={15} />} title="Roles & permissions" desc="What Staff, Managers, HR and Directors can see and do. Managers match Directors, limited to their companies." keywords="permissions roles staff manager admin hr director scope visibility capabilities create tasks manage complete delete events leave outbox insights requests tabs portal access">
             <PortalPermissionsEditor initial={portalPermsMatrix} action={savePortalPermissionsAction} />
           </SettingsCard>
 

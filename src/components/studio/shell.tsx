@@ -40,7 +40,7 @@ const FOOT_BTN =
 /** A director on the shared screens (lib/viewer.ts): their own pages in the
  *  footer, their profile instead of Settings, no everything-search, and "+ New"
  *  makes a task (the one thing they create here). */
-export type ShellDirector = { name: string; outbox: boolean; createTasks: boolean; brief: boolean };
+export type ShellDirector = { name: string; role: string; outbox: boolean; createTasks: boolean; brief: boolean; cleaning?: boolean };
 
 export function StudioShell({ needs, director = null }: { needs: NonNullable<StudioFootNote>[]; director?: ShellDirector | null }) {
   const pathname = usePathname() || "/";
@@ -69,10 +69,11 @@ export function StudioShell({ needs, director = null }: { needs: NonNullable<Stu
   }, []);
 
   const directorOutbox = director?.outbox ?? false;
+  const directorCleaning = director?.cleaning ?? false;
   const isDirector = !!director;
   const stops = useMemo(
-    () => (isDirector ? directorStops({ outbox: directorOutbox }) : studioStops().filter((s) => !isHiddenNavHref(s.href, vis))),
-    [vis, isDirector, directorOutbox],
+    () => (isDirector ? directorStops({ outbox: directorOutbox, cleaning: directorCleaning }) : studioStops().filter((s) => !isHiddenNavHref(s.href, vis))),
+    [vis, isDirector, directorOutbox, directorCleaning],
   );
   const tab = params.get("tab");
   let i: number;
@@ -329,7 +330,7 @@ export function StudioShell({ needs, director = null }: { needs: NonNullable<Stu
           onGo={(href) => { setGoTo(false); router.push(href); }}
           onSearch={director ? undefined : () => { setGoTo(false); openPalette(); }}
           me={director
-            ? { name: director.name, role: "Director", profile: "/portal/profile", profileLabel: "Profile", logout: portalLogout }
+            ? { name: director.name, role: director.role, profile: "/portal/profile", profileLabel: "Profile", logout: portalLogout }
             : { name: "Administrator", role: "Every company", profile: "/settings", profileLabel: "Settings", logout: adminLogout }}
         />
       )}

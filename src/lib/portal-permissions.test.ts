@@ -72,10 +72,10 @@ describe("the default capabilities — what each level may DO", () => {
     createTasks: ["manager", "hr", "director"],
     manageAnyTask: ["manager", "hr", "director"],
     bulkTaskActions: ["manager", "hr", "director"],
-    crossCompanyTasks: ["hr", "director"],
+    crossCompanyTasks: ["manager", "hr", "director"],
     recurringTasks: ["manager", "hr", "director"],
     messageOnTasks: ["manager", "hr", "director"],
-    bulkOutreach: ["director"],
+    bulkOutreach: ["manager", "director"],
     createEvents: ["manager", "hr", "director"],
     navTasks: ["manager", "hr", "director"],
     navOutbox: ["manager", "hr", "director"],
@@ -84,7 +84,7 @@ describe("the default capabilities — what each level may DO", () => {
     oriAct: ["manager", "director"],
     cleaningLog: ["receptionist"],
     cleaningOverview: ["manager", "receptionist"],
-    directorBrief: ["director"],
+    directorBrief: ["manager", "director"],
   };
 
   for (const [cap, allowed] of Object.entries(expected) as [CapabilityKey, PortalRoleKey[]][]) {

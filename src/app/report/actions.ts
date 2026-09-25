@@ -129,7 +129,7 @@ export async function emailReport(input: ReportInput, to: string[]): Promise<{ o
   const { renderEmail, senderName } = await import("@/lib/email/layout");
   const { sendEmail } = await import("@/lib/email/send");
   const email = briefEmail(b);
-  const office = v.kind === "director" ? "director" : "command";
+  const office = v.kind === "director" ? v.role : "command";
   const res = await sendEmail({
     to: list,
     subject: email.subject,
@@ -154,7 +154,7 @@ export async function draftReport(input: ReportInput): Promise<{ ok: true } | { 
   const b = await build(v, input);
   const email = briefEmail(b);
   const { error } = await sb.from("outbox").insert({
-    channel: "EMAIL", recipient_name: "Director", recipient_contact: null,
+    channel: "EMAIL", recipient_name: v.kind === "director" ? v.name : "Director", recipient_contact: null,
     company: b.selectedCompanyName ?? "Portfolio", subject: email.subject, body: email.body,
     message_type: "DIRECTOR BRIEF", status: "Draft", source: `report-draft:${v.actor}`, created_at: new Date().toISOString(),
   });

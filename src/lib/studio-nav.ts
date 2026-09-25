@@ -6,7 +6,7 @@
  * must list the same pages in the same order; a second hand-kept list is how
  * the launcher and the rail drifted apart before (see NAV_GROUPS' history).
  */
-import { Home, ListChecks, Megaphone, Send, MessageSquare, Users, FolderOpen, Building2, CalendarDays, type LucideIcon } from "lucide-react";
+import { Home, ListChecks, Megaphone, Send, MessageSquare, Users, FolderOpen, Building2, CalendarDays, Sparkles, type LucideIcon } from "lucide-react";
 import { MODULE_BY_ID, moduleOwnGroups, systemItems } from "./nav";
 
 export type StudioStop = { id: string; label: string; href: string; group: string; icon: LucideIcon };
@@ -61,7 +61,7 @@ export function studioNeighbours(pathname: string, tab?: string | null) {
  * then their portal pages (which keep the portal's own layout until each is
  * rebuilt on the shared screens). ⚠️ Every href here must be a page the front
  * door lets a director reach — src/proxy.ts DIRECTOR_PATHS, or /portal/…. */
-export function directorStops(o: { outbox: boolean }): StudioStop[] {
+export function directorStops(o: { outbox: boolean; cleaning?: boolean }): StudioStop[] {
   return [
     { id: "home", label: "Home", href: "/", group: "Work", icon: Home },
     { id: "tasks", label: "Tasks", href: "/?tab=tasks", group: "Work", icon: ListChecks },
@@ -73,6 +73,9 @@ export function directorStops(o: { outbox: boolean }): StudioStop[] {
     { id: "companies", label: "Companies", href: "/companies", group: "Records", icon: Building2 },
     { id: "people", label: "People", href: "/people", group: "Records", icon: Users },
     { id: "files", label: "Files", href: "/files", group: "Records", icon: FolderOpen },
+    // A manager's cleaning overview (caps.cleaningOverview) — still the portal
+    // page until Cleaning is rebuilt.
+    ...(o.cleaning ? [{ id: "cleaning", label: "Cleaning", href: "/portal/cleaning", group: "Records", icon: Sparkles }] : []),
   ];
 }
 

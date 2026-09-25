@@ -60,7 +60,7 @@ export default async function OutboxPage() {
   // person at their portal — the same text the portal's own reminder builds.
   if (v.kind === "director") {
     const link = `${appBaseUrl()}/portal`;
-    const from = `${v.name} - Director`;
+    const from = `${v.name} - ${v.role === "manager" ? "Manager" : "Director"}`;
     drafts = drafts.map((d) => ({ ...d, messages: { ...d.messages, WHATSAPP: buildPortalTaskReminder(d.recipientName, d.tasks, link, from) } }));
   }
 

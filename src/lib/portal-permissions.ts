@@ -67,7 +67,7 @@ export const CAPABILITY_GROUPS: { id: string; label: string; caps: CapabilityMet
     id: "tasks",
     label: "Tasks",
     caps: [
-      { key: "createTasks", label: "Create tasks", desc: "Raise new tasks from the portal." },
+      { key: "createTasks", label: "Create tasks", desc: "Raise new tasks." },
       { key: "manageAnyTask", label: "Manage any task", desc: "Edit, complete, close or delete any task in their scope (not just ones they raised)." },
       { key: "bulkTaskActions", label: "Bulk actions", desc: "Select many tasks to postpone or delete at once." },
       { key: "crossCompanyTasks", label: "Copy / move across companies", desc: "Copy a task to, or move it between, companies. Needs all-company scope." },
@@ -93,10 +93,10 @@ export const CAPABILITY_GROUPS: { id: string; label: string; caps: CapabilityMet
     id: "nav",
     label: "Navigation & surfaces",
     caps: [
-      { key: "navTasks", label: "Tasks tab", desc: "The filterable Tasks list in the nav pill." },
+      { key: "navTasks", label: "Tasks", desc: "The Tasks list, with its filters." },
       { key: "navOutbox", label: "Outbox", desc: "Drafted messages / reminders surface." },
       { key: "navInsights", label: "Insights", desc: "Glanceable portfolio / team insights." },
-      { key: "directorBrief", label: "Director Brief download", desc: "Download the Director Brief PDF from their profile, with month / company / person filters. Always limited to the companies they may see." },
+      { key: "directorBrief", label: "Report", desc: "The Report panel: company / person / period, then the PDF, email with the PDF attached, WhatsApp or copy. Always limited to the companies they may see." },
     ],
   },
   {
@@ -141,10 +141,10 @@ export const DEFAULT_CAPS: Record<CapabilityKey, Record<PortalRoleKey, boolean>>
      now. The owner can still switch it off per role in Settings → Portals. */
   manageAnyTask: { staff: false, manager: true, hr: true, director: true, receptionist: false },
   bulkTaskActions: { staff: false, manager: true, hr: true, director: true, receptionist: false },
-  crossCompanyTasks: { staff: false, manager: false, hr: true, director: true, receptionist: false },
+  crossCompanyTasks: { staff: false, manager: true, hr: true, director: true, receptionist: false },
   recurringTasks: { staff: false, manager: true, hr: true, director: true, receptionist: false },
   messageOnTasks: { staff: false, manager: true, hr: true, director: true, receptionist: false },
-  bulkOutreach: { staff: false, manager: false, hr: false, director: true, receptionist: false },
+  bulkOutreach: { staff: false, manager: true, hr: false, director: true, receptionist: false },
   createEvents: { staff: false, manager: true, hr: true, director: true, receptionist: false },
   navTasks: { staff: false, manager: true, hr: true, director: true, receptionist: false },
   navOutbox: { staff: false, manager: true, hr: true, director: true, receptionist: false },
@@ -156,7 +156,8 @@ export const DEFAULT_CAPS: Record<CapabilityKey, Record<PortalRoleKey, boolean>>
   // HR don't need the cleaning register on their portal (flipped off Jul 2026).
   cleaningOverview: { staff: false, manager: true, hr: false, director: false, receptionist: true },
   // Mirrors today's rule exactly: the brief download was directors-only.
-  directorBrief: { staff: false, manager: false, hr: false, director: true, receptionist: false },
+  // Managers match directors (owner, 26 Sept 2026), over their own companies.
+  directorBrief: { staff: false, manager: true, hr: false, director: true, receptionist: false },
 };
 
 /** The stored (partial) override config — only the cells the owner changed. */

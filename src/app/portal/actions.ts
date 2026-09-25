@@ -79,7 +79,7 @@ export async function portalLogin(
   });
   // Land directors straight on the shared Home — never via the old portal
   // (a second hop showed its frame, and once "the page couldn't load").
-  redirect(person.portal_role === "director" ? "/" : "/portal");
+  redirect(person.portal_role === "director" || person.portal_role === "manager" ? "/" : "/portal");
 }
 
 /* Sign out lands on the unified login screen (/login), NOT /portal/login — so

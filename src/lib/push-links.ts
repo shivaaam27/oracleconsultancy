@@ -10,5 +10,6 @@ export async function isDirectorRecipient(recipient: string): Promise<boolean> {
   const m = /^person:(\d+)$/.exec(recipient);
   if (!m) return false;
   const { data } = await sb.from("people").select("portal_role").eq("id", Number(m[1])).maybeSingle();
-  return data?.portal_role === "director";
+  // Directors and managers use the Studio screens (lib/viewer.ts STUDIO_ROLES).
+  return data?.portal_role === "director" || data?.portal_role === "manager";
 }

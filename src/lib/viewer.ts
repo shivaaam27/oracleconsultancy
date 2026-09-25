@@ -10,7 +10,9 @@ import "server-only";
  *   - A DIRECTOR (portal cookie, role "director"): the same task and home powers
  *     as the owner, over THEIR companies only (a portfolio director = all), and
  *     view-only on companies, people, files and the calendar.
- * Managers and staff come later and will slot in here.
+ *   - A MANAGER (role "manager", 26 Sept 2026): exactly what a director has,
+ *     over the companies they belong to. Same kind ("director"), `role` says which.
+ * Staff come later and will slot in here.
  *
  * ── THE ACTION GUARD ──────────────────────────────────────────────────────────
  * Until now almost every administrator server action trusted the front door
@@ -36,7 +38,13 @@ import { getPortalPerson, companyScope, personCanSeeTask, type PortalPerson } fr
 export type Viewer =
   | { kind: "owner"; person: null; scope: null; actor: "web-ui"; name: string }
   | {
+      /** A portal person on the shared Studio screens — a director OR a manager
+       *  (owner, 26 Sept 2026: "for managers, basically replicate what
+       *  directors have … based on the companies they have access to"). The
+       *  kind keeps its old name because every guard already treats it as
+       *  "restricted, not the owner"; `role` says which. */
       kind: "director";
+      role: "director" | "manager";
       person: PortalPerson;
       /** Company ids this director covers; null = every company (portfolio director). */
       scope: number[] | null;
@@ -45,11 +53,16 @@ export type Viewer =
       name: string;
     };
 
-/** Does this portal person use the shared screens? Directors do — always, no
- *  switch (owner, Sept 2026: "make it a default thing"). Managers and staff
- *  join here when their turn comes. */
+/** The portal roles that use the shared screens: directors (Sept 2026) and
+ *  managers (26 Sept 2026), each over the companies they may see. Staff join
+ *  when their screens are built. */
+export const STUDIO_ROLES = ["director", "manager"] as const;
+export function isStudioRole(role: string | null | undefined): boolean {
+  return (STUDIO_ROLES as readonly string[]).includes(role ?? "");
+}
+
 export async function usesStudio(p: PortalPerson | null): Promise<boolean> {
-  return p?.portalRole === "director";
+  return isStudioRole(p?.portalRole);
 }
 
 /** Who is looking at this request. Owner first: an owner who is ALSO signed in
@@ -58,7 +71,10 @@ export const getViewer = cache(async (): Promise<Viewer | null> => {
   if (await isAdminSession()) return { kind: "owner", person: null, scope: null, actor: "web-ui", name: "You" };
   const p = await getPortalPerson();
   if (!p || !(await usesStudio(p))) return null;
-  return { kind: "director", person: p, scope: await companyScope(p), actor: `portal-dir:${p.name}`, name: p.name };
+  const role = p.portalRole === "manager" ? "manager" : "director";
+  // The stamp on what they change: managers keep "portal-mgr:", which the
+  // portal, the notifications and the timelines already read.
+  return { kind: "director", role, person: p, scope: await companyScope(p), actor: `${role === "manager" ? "portal-mgr" : "portal-dir"}:${p.name}`, name: p.name };
 });
 
 /* ── the guard ─────────────────────────────────────────────────────────────── */

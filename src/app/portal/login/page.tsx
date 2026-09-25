@@ -9,7 +9,7 @@ export const metadata = { title: "Staff sign in — Oracle Consultancy" };
 export default async function PortalLoginPage() {
   // Already signed in? Straight to the portal.
   const me = await getPortalPerson();
-  if (me) redirect(me.portalRole === "director" ? "/" : "/portal");
+  if (me) redirect(me.portalRole === "director" || me.portalRole === "manager" ? "/" : "/portal");
   if (await isAdminSession()) redirect("/");
   const firstRun = (await getAdminHash()) === null;
 
