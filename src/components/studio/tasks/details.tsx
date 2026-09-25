@@ -21,7 +21,7 @@ import { useToast } from "@/components/toast";
 import { DeadlineEditor } from "@/components/deadline-editor";
 import { DatePopover } from "@/components/date-popover";
 import { Combobox } from "@/components/combobox";
-import { PersonPicker } from "@/components/person-picker";
+import { StudioPeoplePick } from "@/components/studio/people-pick";
 import { StudioBlocker } from "./blocker";
 import { StudioStatusCell, StudioPriorityCell, StudioChoiceMenu } from "./cells";
 import { stBtn } from "@/components/studio/kit";
@@ -272,12 +272,12 @@ function Rule({ label, hint, on, onToggle }: { label: string; hint: string; on: 
 }
 
 function PeopleEditor({ people, initial, onSave, onCancel }: { people: { id: number; name: string }[]; initial: string[]; onSave: (names: string[]) => void; onCancel: () => void }) {
-  const [csv, setCsv] = useState(initial.join(", "));
+  const [names, setNames] = useState<string[]>(initial.filter(Boolean));
   return (
-    <div className="space-y-2" onKeyDown={(e) => { if (e.key === "Escape") onCancel(); }}>
-      <PersonPicker people={people} defaultNames={initial} name="__studio_people" onChange={setCsv} placeholder="Search people…" />
+    <div className="space-y-2.5" onKeyDown={(e) => { if (e.key === "Escape") onCancel(); }}>
+      <StudioPeoplePick autoFocus people={people} value={names} onChange={setNames} maxHeight={220} />
       <div className="flex items-center gap-2">
-        <button type="button" onClick={() => onSave(csv.split(",").map((s) => s.trim()).filter(Boolean))} className={cn(stBtn.dark, "h-8 px-3 text-xs")}>Save</button>
+        <button type="button" onClick={() => onSave(names)} className={cn(stBtn.dark, "h-8 px-3 text-xs")}>Save</button>
         <button type="button" onClick={onCancel} className="text-xs text-[var(--st-muted)] hover:text-[var(--st-ink)]">Cancel</button>
       </div>
     </div>

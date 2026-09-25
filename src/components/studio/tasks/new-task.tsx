@@ -18,7 +18,7 @@ import { useToast } from "@/components/toast";
 import { callUndo } from "@/components/undo-banner";
 import { DatePopover } from "@/components/date-popover";
 import { Combobox } from "@/components/combobox";
-import { PersonPicker } from "@/components/person-picker";
+import { StudioPeoplePick } from "@/components/studio/people-pick";
 import { StudioScope, stBtn } from "@/components/studio/kit";
 import { useFitFrame } from "@/components/studio/use-fit-frame";
 import { StudioChoiceMenu } from "./cells";
@@ -318,9 +318,9 @@ export function QuickTaskPane({ options, defaultCompanyId, onDone, registerSubmi
         />
       </div>
       {who && (
-        <div className="rounded-xl border border-[var(--sh-chip-line)] bg-[var(--sh-card)] p-2.5">
-          <PersonPicker key={pickerKey} people={options?.people ?? []} defaultNames={d.people} name="__quick_people" onChange={(csv) => set({ people: csv.split(",").map((s) => s.trim()).filter(Boolean) })} placeholder="Search people, or type a new name…" />
-          <div className="mt-2 flex justify-end"><button type="button" onClick={() => { setWho(false); setPickerKey((k) => k + 1); }} className="text-xs text-[var(--sh-sub)] hover:text-[var(--sh-fg)]">Done</button></div>
+        <div className="flex flex-col gap-2.5 rounded-[16px] border border-[var(--sh-chip-line)] bg-[var(--sh-card)] p-3">
+          <StudioPeoplePick tone="sheet" autoFocus people={options?.people ?? []} value={d.people} onChange={(people) => set({ people })} maxHeight={196} />
+          <div className="flex justify-end"><button type="button" onClick={() => setWho(false)} className={cn(DCHIP, "px-3.5 font-medium")}>Done</button></div>
         </div>
       )}
       <textarea
@@ -331,7 +331,6 @@ export function QuickTaskPane({ options, defaultCompanyId, onDone, registerSubmi
         style={{ color: "var(--sh-fg)", background: "var(--sh-field)", border: "1px solid var(--sh-chip-line)", boxShadow: "none" }}
         className="bare-field w-full resize-none rounded-xl px-3.5 py-2.5 text-[13px] outline-none placeholder:text-[var(--sh-muted)]"
       />
-      <p className="-mt-1.5 text-right text-[11px] text-[var(--sh-muted)]">Enter creates · Ctrl+Enter creates and starts another · Shift+Enter opens the full task</p>
     </div>
   );
 }
@@ -503,7 +502,7 @@ export function StudioNewTaskPage({ options, initial, back }: { options: Options
             )}
             {peopleOpen ? (
               <div className="space-y-2">
-                <PersonPicker key={pickerKey} people={options.people} defaultNames={d.people} name="__new_people" onChange={(csv) => set({ people: csv.split(",").map((s) => s.trim()).filter(Boolean) })} placeholder="Search people, or type a new name…" />
+                <StudioPeoplePick autoFocus showChosen={false} people={options.people} value={d.people} onChange={(people) => set({ people })} />
                 <button type="button" onClick={() => setPeopleOpen(false)} className="text-xs text-[var(--st-sub)] hover:text-[var(--st-ink)]">Done</button>
               </div>
             ) : (
