@@ -19,6 +19,8 @@ import { callUndo } from "@/components/undo-banner";
 import { DatePopover } from "@/components/date-popover";
 import { Combobox } from "@/components/combobox";
 import { StudioPeoplePick } from "@/components/studio/people-pick";
+import { DraftSubtasks } from "@/components/studio/subtasks";
+import { addSubtasks } from "@/app/task/subtask-actions";
 import { StudioScope, stBtn } from "@/components/studio/kit";
 import { useFitFrame } from "@/components/studio/use-fit-frame";
 import { StudioChoiceMenu } from "./cells";
@@ -32,6 +34,8 @@ import { cn } from "@/lib/cn";
 export type RepeatDraft = { cadence: "weekly" | "monthly"; weekdays: number[]; dayOfMonth: number; alsoToday: boolean };
 export type Draft = {
   title: string;
+  /** Subtasks typed before the task exists — saved straight after it is made. */
+  subtasks?: string[];
   companyId: number | null;
   people: string[];
   status: string;
@@ -127,6 +131,9 @@ export function useCreateTask() {
         toast("Saved as a repeating task — the first one appears on its day.", { tone: "success", duration: 6000 });
         after("rule");
         return;
+      }
+      if (d.subtasks?.length) {
+        try { await addSubtasks(res.taskId, d.subtasks); } catch { toast("The task was created, but its subtasks didn't save — add them from the task.", { tone: "warn" }); }
       }
       if (file) {
         const fd = new FormData();
@@ -341,7 +348,7 @@ export function StudioNewTaskPage({ options, initial, back }: { options: Options
   const router = useRouter();
   const [d, setD] = useState<Draft>({ ...EMPTY_DRAFT, ...initial });
   const [file, setFile] = useState<File | null>(null);
-  const [tab, setTab] = useState<"instructions" | "attachments">("instructions");
+  const [tab, setTab] = useState<"instructions" | "subtasks" | "attachments">("instructions");
   const [peopleOpen, setPeopleOpen] = useState(false);
   const [pickerKey, setPickerKey] = useState(0);
   const [repeatOpen, setRepeatOpen] = useState(false);
@@ -458,12 +465,17 @@ export function StudioNewTaskPage({ options, initial, back }: { options: Options
         {/* Instructions — the task's first update. */}
         <div className={cn(panel, "st-scroll order-1 flex min-w-0 flex-col px-5 pt-2 lg:order-2 lg:min-h-0 lg:overflow-y-auto")}>
           <div className="mb-3 flex shrink-0 gap-5 border-b border-[var(--st-line-soft)]" role="tablist">
-            {([["instructions", "Instructions"], ["attachments", file ? "Attachment · 1" : "Attachment"]] as const).map(([k, l]) => (
+            {([["instructions", "Instructions"], ["subtasks", d.subtasks?.length ? `Subtasks · ${d.subtasks.length}` : "Subtasks"], ["attachments", file ? "Attachment · 1" : "Attachment"]] as const).map(([k, l]) => (
               <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)}
                 className={cn("-mb-px inline-flex h-10 items-center border-b-2 text-[13px]", tab === k ? "border-[var(--st-ink)]" : "border-transparent text-[var(--st-muted)] hover:text-[var(--st-ink)]")}>{l}</button>
             ))}
           </div>
-          {tab === "instructions" ? (
+          {tab === "subtasks" ? (
+            <div className="flex flex-col gap-2.5">
+              <p className="m-0 text-xs text-[var(--st-muted)]">The steps inside this task — a to-do list you tick off on the task itself.</p>
+              <DraftSubtasks value={d.subtasks ?? []} onChange={(subtasks) => set({ subtasks })} title={false} />
+            </div>
+          ) : tab === "instructions" ? (
             <div className="flex flex-col gap-2.5 lg:flex-1">
               <p className="m-0 text-xs text-[var(--st-muted)]">Becomes the task’s first update — pin it as the current instruction if you like.</p>
               <textarea value={d.instructions} onChange={(e) => set({ instructions: e.target.value })} placeholder="e.g. Call the TRA office, get the reference and the expected date, and attach the acknowledgement letter."

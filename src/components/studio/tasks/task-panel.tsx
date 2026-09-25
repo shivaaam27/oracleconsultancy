@@ -19,6 +19,7 @@
  * view read, which also stamps the owner's view, so opening a task here marks
  * its updates read exactly as opening the full task does.
  */
+import { TaskSubtasks } from "@/components/studio/subtasks";
 import { PersonFace } from "@/components/studio/face";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
@@ -222,6 +223,11 @@ function Panel({ task, rows, onClose }: { task: TaskRow; rows: TaskRow[]; onClos
             </button>
           </div>
         )}
+      </div>
+
+      {/* Subtasks — tick, add, rename, delete without leaving the list. */}
+      <div className="st-scroll max-h-[34vh] shrink-0 overflow-y-auto border-b border-[var(--sh-line)] px-3 py-3">
+        <TaskSubtasks key={task.id} taskId={task.id} tone="sheet" />
       </div>
 
       {/* the conversation */}

@@ -200,7 +200,7 @@ export function InlineAddTask({
         onClick={() => studio && inputRef.current?.focus()}
       >
         {studio ? (
-          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[10px] bg-[var(--st-ink)] text-[var(--st-surface)]"><Plus size={15} strokeWidth={2.4} /></span>
+          <Plus size={19} strokeWidth={2.4} className="ml-1.5 shrink-0 text-[var(--st-ink)]" />
         ) : (
           <span className="hidden h-6 w-6 shrink-0 place-items-center rounded-md bg-accent/10 text-accent sm:grid">
             <Plus size={14} />
@@ -224,7 +224,7 @@ export function InlineAddTask({
           <span aria-hidden className="pointer-events-none absolute inset-y-0 left-0 right-0 hidden items-center peer-placeholder-shown:flex">
             {studio ? (
               <span className="truncate text-[14px] font-medium text-[var(--st-ink)]">
-                What needs doing?<span className="hidden font-normal text-[var(--st-muted)] md:inline">&nbsp;&nbsp;Enter adds it · Shift+Enter opens the full form · or paste a list</span>
+                Create a quick task<span className="hidden font-normal text-[var(--st-muted)] md:inline">&nbsp;&nbsp;Enter adds it · Shift+Enter opens the full form · or paste a list</span>
               </span>
             ) : (
               <>

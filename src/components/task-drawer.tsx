@@ -34,6 +34,8 @@ import { FormSwitch } from "./form-switch";
 import { Combobox } from "./combobox";
 import { PolishedInput } from "./polished-input";
 import { PersonPicker } from "./person-picker";
+import { TaskSubtasks } from "@/components/studio/subtasks";
+import { listSubtasks } from "@/app/task/subtask-actions";
 import { PortalConversation, type ConvoMessage, type ConvoEvent } from "./portal-conversation";
 import { TaskInlineStatus, TaskInlinePriority } from "./task-inline-edit";
 import { WaitingOnChip } from "./task-meta-line";
@@ -203,6 +205,15 @@ function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: st
   // Phone: the header's other actions live in a sheet (mockup M_Task).
   const [moreOpen, setMoreOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
+  // Subtasks: the count on the tab, read once per task (the tab keeps it live).
+  const [subCount, setSubCount] = useState<{ done: number; total: number } | null>(null);
+  const subTaskId = data?.task?.id ?? null;
+  useEffect(() => {
+    if (subTaskId == null || mode !== "page") return;
+    let live = true;
+    listSubtasks(subTaskId).then((l) => { if (live) setSubCount({ done: l.filter((x) => x.done).length, total: l.length }); }).catch(() => {});
+    return () => { live = false; };
+  }, [subTaskId, mode]);
   const [filter, setFilter] = useState<TimelineFilter>("all");
   const [posting, setPosting] = useState(false);
   const [reminding, setReminding] = useState(false);
@@ -1085,6 +1096,7 @@ function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: st
     // from it ("edit"), and stays the one writer for the fields it owns.
     const studioTabs: { id: string; label: string; n?: number; phone?: boolean }[] = [
       { id: "conversation", label: "Conversation", n: convoCount || undefined },
+      { id: "subtasks", label: "Subtasks", n: subCount?.total || undefined },
       { id: "details", label: "Details", phone: true },
       { id: "history", label: "History", n: counts.all || undefined },
       { id: "notes", label: "Notes" },
@@ -1172,6 +1184,7 @@ function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: st
             </div>
             {activeTab === "details" ? <div className="-mx-5 -mt-2 flex flex-col gap-1">{details}{rail}</div>
               : activeTab === "history" ? <div className="st-scroll -mr-3 min-h-0 flex-1 overflow-y-auto pr-3">{historyContent}</div>
+              : activeTab === "subtasks" ? <div className="st-scroll -mr-3 min-h-0 flex-1 overflow-y-auto pr-3"><TaskSubtasks taskId={t.id} onCount={setSubCount} /></div>
               : activeTab === "notes" ? <div className="st-scroll -mr-3 min-h-0 flex-1 overflow-y-auto pr-3"><LinkedNotesTab type="task" id={t.id} emptyHint={`Write @${t.code} in any note and it will appear here.`} about={{ entity: "task", id: t.id, code: t.code, label: t.code }} /></div>
               : (
                 <div className="flex min-h-0 flex-1 flex-col">

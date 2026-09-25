@@ -796,3 +796,32 @@ Rules that now hold everywhere (read before touching a Studio page's phone view)
   until lg; the owner's footer create button is + only until lg (it has three
   more buttons than a director's and the word was cut off).
 - The Next.js dev badge ("N" circle, top right) is dev-only — ignore it.
+
+## 25 Sept 2026 (night) — emails, launch screen, push, subtasks
+
+- **ONE email template** (`lib/email/layout.ts`): Studio look, a full HTML
+  document (Gmail keeps <style> only in <head>), dark-mode classes (`em-*`),
+  no pre-wrap / 8-digit hex. Event emails build from its blocks (`hero`,
+  `facts`, `callout`, `links`, `fine`); Outbox drafts, the test email and ORI
+  alerts use `renderPlainEmail`. `signature: true` leaves `SIG_SLOT` so send.ts
+  puts the configured signature INSIDE the card.
+- **Launch screen** (`components/studio/studio-splash.tsx`): white logo tile +
+  the sign-in panel's small bars, no words; only where the portal splash is off;
+  fades in after 140ms; gone once `main .studio` exists or `html.st-up`.
+- **Push**: `lib/push-links.ts` `isDirectorRecipient` — directors get no
+  announcement notifications, chat pushes open `/?tab=tasks`, task/meeting links
+  go to Studio pages; TTL 12h (chat 1h); `/api/cron/tick` runs
+  `runTodoReminders`; ORI digests filtered per recipient by `companyScope`.
+  Still open (reported to the owner): push buttons (open/done/snooze) never
+  sent, sign-out does not remove the device, digest queue races, no push toggle
+  for directors in Studio, portal manifest scope `/portal`, mono badge icon.
+- **Subtasks** (migration 0170 `task_subtasks`): `TaskSubtasks` (saves as you
+  go) / `DraftSubtasks` (new-task form, saved after create). Tab on the task
+  page (count on the tab), a section in the side panel. Motion from the owner's
+  reference: dashed ring → green fill + tick, strike drawn through, settles to
+  the bottom after 620ms. MCP does not see subtasks yet (the forward rule's
+  question is open).
+- **People picker**: `components/studio/people-pick.tsx` replaces the Desk
+  PersonPicker on the + sheet, the new-task page and the task's people.
+- Settings: Navigation card removed; General = About/Appearance/Risk/Notifications;
+  "Install Oracle" as three icon tiles.

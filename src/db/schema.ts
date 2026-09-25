@@ -1180,6 +1180,18 @@ export const folders = pgTable("folders", {
   deletedAt: timestamp("deleted_at", { mode: "date", withTimezone: true }),
 }, (t) => [index("folders_parent_idx").on(t.parentId)]);
 
+// Subtasks (migration 0170, 25 Sept 2026): a to-do list inside one task —
+// add, tick, rename, delete, in order. Deleting the task deletes its list.
+export const taskSubtasks = pgTable("task_subtasks", {
+  id: serial("id").primaryKey(),
+  taskId: integer("task_id").notNull().references(() => tasks.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  doneAt: timestamp("done_at", { mode: "date", withTimezone: true }),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
+  createdBy: text("created_by").notNull().default("web-ui"),
+}, (t) => [index("task_subtasks_task_idx").on(t.taskId, t.sortOrder)]);
+
 // Automation reaction log (V3 "the system moves on its own"). When a document is
 // filed, the reaction layer advances the processes it touches — verifies a matching
 // compliance item, completes a linked task, advances a pipeline stage, ticks an
