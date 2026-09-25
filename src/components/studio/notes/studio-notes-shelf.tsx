@@ -135,30 +135,31 @@ export function StudioNotesShelf({ rows, folders, counts, tags, savedViews, toda
         </div>
       )}
 
-      <div className="flex flex-col gap-2 pb-24">
-        <div className="hidden grid-cols-[minmax(0,1.1fr)_minmax(0,1.6fr)_120px_90px_28px] gap-x-5 px-5 text-xs text-[var(--st-muted)] md:grid">
-          <span>Note</span><span>Starts with</span><span>Folder</span><span className="font-medium text-[var(--st-ink)]">Updated</span><span />
-        </div>
+      {/* Cards, not rows (owner, 26 Sept 2026): a note is read by its first
+          lines, so each one shows them. */}
+      <div className="grid grid-cols-1 gap-3 pb-24 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
         {rows.length === 0 && (
-          <div className="st-tex-paper-dots flex min-h-[160px] items-center justify-center rounded-[20px] border border-dashed border-[var(--st-line)]">
+          <div className="st-tex-paper-dots col-span-full flex min-h-[160px] items-center justify-center rounded-[20px] border border-dashed border-[var(--st-line)]">
             <span className="rounded-xl bg-[var(--st-page)] px-4 py-2.5 text-[13px] text-[var(--st-sub)]">{f.values.q ? "No note has those words." : lane === "archived" ? "Nothing archived." : "No notes here yet — write one."}</span>
           </div>
         )}
         {rows.map((r) => {
           const empty = !r.title.trim() && !r.bodyText.trim();
           return (
-            <div key={r.id} className="group grid grid-cols-[minmax(0,1fr)_28px] items-center gap-x-5 rounded-[14px] bg-[var(--st-surface)] px-5 py-3 transition-shadow hover:shadow-[0_4px_14px_rgba(17,18,20,0.06)] md:grid-cols-[minmax(0,1.1fr)_minmax(0,1.6fr)_120px_90px_28px]">
-              <Link href={withReturn(`/notes/${r.id}`, here)} className="min-w-0 md:contents">
-                <span className={cn("block truncate text-[15px] font-medium", empty && "text-[var(--st-muted)]")}>
-                  {noteTitle(r)}{r.kind === "daily" && <span className="ml-2 align-middle text-[11px] font-normal text-[var(--st-muted)]">Daily</span>}{r.kind === "template" && <span className="ml-2 align-middle text-[11px] font-normal text-[var(--st-muted)]">Template</span>}
+            <div key={r.id} className="group relative flex min-h-[168px] flex-col rounded-[18px] bg-[var(--st-surface)] p-4 transition-shadow hover:shadow-[0_6px_18px_rgba(17,18,20,0.08)]">
+              <Link href={withReturn(`/notes/${r.id}`, here)} className="flex min-w-0 flex-1 flex-col after:absolute after:inset-0 after:rounded-[18px] after:content-['']">
+                <span className="flex items-center gap-1.5 pr-8">
+                  <span className="inline-flex h-6 max-w-full items-center truncate rounded-lg bg-[var(--st-page)] px-2 text-[11px]">{r.folderName ?? "Unfiled"}</span>
+                  {r.kind === "daily" && <span className="text-[11px] text-[var(--st-muted)]">Daily</span>}
+                  {r.kind === "template" && <span className="text-[11px] text-[var(--st-muted)]">Template</span>}
                 </span>
-                <span className="block truncate text-[13px] text-[var(--st-muted)] max-md:text-xs">{r.snippet || (empty ? "Empty note" : "")}</span>
-                <span className="hidden md:block"><span className="inline-flex h-6 max-w-full items-center truncate rounded-lg bg-[var(--st-page)] px-2 text-[11px]">{r.folderName ?? "Unfiled"}</span></span>
-                <span className="hidden text-[13px] text-[var(--st-sub)] md:block">{ago(r.updatedAt)}</span>
+                <span className={cn("mt-3 line-clamp-2 text-[16px] font-medium leading-snug tracking-[-0.01em]", empty && "text-[var(--st-muted)]")}>{noteTitle(r)}</span>
+                <span className="mt-1.5 line-clamp-3 text-[13px] leading-relaxed text-[var(--st-muted)]">{r.snippet || (empty ? "Empty note" : "")}</span>
+                <span className="mt-auto pt-3 text-xs text-[var(--st-sub)]">{ago(r.updatedAt)}</span>
               </Link>
               <button type="button" aria-label={r.pinnedAt ? "Unpin" : "Pin"} title={r.pinnedAt ? "Unpin" : "Pin to the top"}
                 onClick={() => start(async () => { await togglePinNote(r.id); router.refresh(); })}
-                className={cn("grid h-7 w-7 place-items-center rounded-lg transition-colors hover:bg-[var(--st-page)]", r.pinnedAt ? "text-[#F5A524]" : "text-[#C4C5C9]")}>
+                className={cn("absolute right-3 top-3 z-[1] grid h-8 w-8 place-items-center rounded-lg transition-colors hover:bg-[var(--st-page)]", r.pinnedAt ? "text-[#F5A524]" : "text-[#C4C5C9]")}>
                 <Star size={16} strokeWidth={1.7} fill={r.pinnedAt ? "currentColor" : "none"} />
               </button>
             </div>

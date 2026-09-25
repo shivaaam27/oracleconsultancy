@@ -95,8 +95,6 @@ export async function GET(req: NextRequest) {
       ? "/?tab=tasks&flag=overdue"
       : !noDocs
       ? "/files"
-      : approvalsWaiting
-      ? "/approvals"
       : "/files";
     // Owner-only: this is an operations alert, never broadcast to staff devices.
     const sent = await sendToRecipient("admin", {

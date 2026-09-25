@@ -68,8 +68,10 @@ export function directorStops(o: { outbox: boolean; cleaning?: boolean }): Studi
     { id: "calendar", label: "Calendar", href: "/calendar", group: "Work", icon: CalendarDays },
     // Briefings and Directory are gone for a director (owner, 25 Sept 2026):
     // meetings live in Calendar, contacts in People. Announcements is closed
-    // until it is rebuilt (StudioRebuilding) — add it back here then. (Chat was
+    // — now back, below. (Chat was
     // removed 26 Sept 2026.)
+    // Announcements is rebuilt for directors and managers (26 Sept 2026).
+    { id: "announcements", label: "Announcements", href: "/announcements", group: "Work", icon: Megaphone },
     ...(o.outbox ? [{ id: "outbox", label: "Outbox", href: "/outbox", group: "Work", icon: Send }] : []),
     { id: "companies", label: "Companies", href: "/companies", group: "Records", icon: Building2 },
     { id: "people", label: "People", href: "/people", group: "Records", icon: Users },

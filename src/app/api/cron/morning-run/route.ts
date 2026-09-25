@@ -208,7 +208,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: true, sent: 0, reason: "unchanged", work, gaps, digest });
     }
 
-    const url = brief.urgent.total > 0 ? "/?tab=tasks&flag=overdue" : brief.waiting > 0 ? "/approvals" : "/";
+    const url = brief.urgent.total > 0 ? "/?tab=tasks&flag=overdue" : "/";
     // Owner-only: the morning brief is operational, never sent to staff devices.
     const sent = await sendToRecipient("admin", {
       title: "Good morning — your overnight run is done",

@@ -77,7 +77,6 @@ export type NavRoute = {
  * listed as a destination.
  */
 export const NAV_ROUTES: NavRoute[] = [
-  { id: "approvals",   href: "/approvals",           label: "Approvals",           icon: ListChecks },
   // Standing repeat rules — the tasks that recreate themselves. The portal had a
   // panel for these from the start; the administrator only had ORI Automation.
   { id: "recurring",   href: "/task/recurring",      label: "Recurring tasks",     icon: Repeat },
@@ -97,7 +96,6 @@ export const NAV_ROUTES: NavRoute[] = [
   // "Brief" while pointing at /calendar, so the sidebar's Brief opened the diary
   // and the real Brief had no entry at all.
   { id: "calendar",    href: "/calendar",            label: "Calendar",            icon: CalendarClock },
-  { id: "brief",       href: "/brief",               label: "Report",              icon: ClipboardList }, // opens the Report panel (was the Director Brief page)
   { id: "cleaning",    href: "/hrms/cleaning",       label: "Cleaning",            icon: Sparkles },
   // See memory/recruitment_module_plan.md.
   { id: "companies",   href: "/companies",           label: "Companies",           icon: Building2 },
@@ -245,9 +243,11 @@ export const MODULES: NavModule[] = [
       { href: "/", label: "Home", icon: Home },
       { href: "/?tab=tasks", label: "Tasks", icon: CheckSquare },
     ],
-    quick: ["approvals", "people", "documents", "calendar"],
+    quick: ["people", "documents", "calendar"],
     groups: [
-      { label: "Work", ids: ["approvals", "recurring", "notes", "outbox", "calendar", "brief", "announcements"] },
+      // Approvals and the Report tab left the menu on 26 Sept 2026 (owner). The
+      // Report still opens from Home, a company and a person (openReport()).
+      { label: "Work", ids: ["recurring", "notes", "outbox", "calendar", "announcements"] },
       { label: "Records", ids: ["people", "companies", "documents", "assets"] },
       // Was "Registers" until Aug 2026 — the word meant three things at once (this
       // group, the commitments page, and the legacy /registry task list). The pages
@@ -376,7 +376,7 @@ export function ungroupedRouteIds(): string[] {
 // "inbox" was pinned here until Aug 2026, when the intake page was removed —
 // a pin for a route that no longer exists just silently vanishes from the rail.
 // "chat" too, until Chat was removed on 26 Sept 2026.
-export const DEFAULT_PINS = ["approvals", "outbox"];
+export const DEFAULT_PINS = ["outbox"];
 
 /**
  * Renamed route ids → their new id.

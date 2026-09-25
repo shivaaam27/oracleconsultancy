@@ -389,12 +389,14 @@ function GoToPanel({
     const g = groups.find((x) => x.label === s.group);
     if (g) g.items.push(s); else groups.push({ label: s.group, items: [s] });
   }
+  const systemGroup = groups.find((g) => g.label === "System") ?? null;
+  const mainGroups = groups.filter((g) => g !== systemGroup);
 
   return (
     <div data-studio-goto className="fixed inset-0 z-[45]" role="dialog" aria-label="Go to a page">
       <button type="button" aria-label="Close" onClick={onClose} className="absolute inset-0 cursor-default bg-[rgba(14,15,16,0.35)]" />
       <div
-        className="st-sheet st-sheet-dots st-pop absolute inset-x-0 bottom-0 mx-auto flex max-h-[calc(100dvh-60px)] max-w-[1080px] flex-col gap-4 overflow-y-auto rounded-t-[26px] bg-[var(--sh-bg)] px-4 pb-[calc(20px+env(safe-area-inset-bottom))] pt-2 text-[var(--sh-fg)] shadow-[0_30px_80px_rgba(0,0,0,0.4)] [font-family:var(--font-geist),var(--font-sans)] sm:inset-x-3 sm:bottom-[calc(var(--foot-h)+env(safe-area-inset-bottom)+8px)] sm:rounded-3xl sm:p-5"
+        className="st-sheet st-sheet-dots st-pop absolute inset-x-0 bottom-0 mx-auto flex max-h-[calc(100dvh-60px)] max-w-[860px] flex-col gap-3.5 overflow-y-auto rounded-t-[26px] bg-[var(--sh-bg)] px-4 pb-[calc(20px+env(safe-area-inset-bottom))] pt-2 text-[var(--sh-fg)] shadow-[0_30px_80px_rgba(0,0,0,0.4)] [font-family:var(--font-geist),var(--font-sans)] sm:inset-x-3 sm:bottom-[calc(var(--foot-h)+env(safe-area-inset-bottom)+8px)] sm:rounded-3xl sm:p-4"
       >
         {/* Phone: the sheet's grabber. Below lg: who you are with Profile and
             Sign out — they left the footer so it fits a thumb and a tablet. */}
@@ -408,7 +410,7 @@ function GoToPanel({
           <ShellThemeButton />
         </div>
         <div className="flex flex-wrap items-center gap-2.5">
-          <label className="flex h-11 min-w-0 flex-1 basis-60 items-center gap-2.5 rounded-xl border border-[var(--sh-chip-line)] bg-[var(--sh-field)] px-3.5 text-[var(--sh-muted)]">
+          <label className="flex h-11 min-w-0 flex-1 basis-60 items-center gap-2.5 rounded-xl border border-[var(--sh-chip-line)] bg-[var(--sh-field)] px-3.5 text-[var(--sh-muted)] sm:h-10">
             <Search size={16} />
             <span className="sr-only">Find a page</span>
             <input
@@ -420,13 +422,13 @@ function GoToPanel({
               className="bare-field w-full border-0 bg-transparent text-sm text-[var(--sh-fg)] outline-none placeholder:text-[var(--sh-muted)]"
             />
           </label>
-          <button type="button" onClick={() => onGo(prev.href)} className="hidden h-11 items-center gap-2 rounded-xl border border-[var(--sh-chip-line)] px-3.5 text-[13px] text-[var(--sh-sub)] hover:text-[var(--sh-fg)] sm:flex">
+          <button type="button" onClick={() => onGo(prev.href)} className="hidden h-10 items-center gap-2 rounded-xl border border-[var(--sh-chip-line)] px-3 text-[13px] text-[var(--sh-sub)] hover:text-[var(--sh-fg)] sm:flex">
             <ChevronLeft size={13} strokeWidth={2.2} />{prev.label}
           </button>
-          <button type="button" onClick={() => onGo(next.href)} className="hidden h-11 items-center gap-2 rounded-xl border border-[var(--sh-chip-line)] px-3.5 text-[13px] text-[var(--sh-sub)] hover:text-[var(--sh-fg)] sm:flex">
+          <button type="button" onClick={() => onGo(next.href)} className="hidden h-10 items-center gap-2 rounded-xl border border-[var(--sh-chip-line)] px-3 text-[13px] text-[var(--sh-sub)] hover:text-[var(--sh-fg)] sm:flex">
             {next.label}<ChevronRight size={13} strokeWidth={2.2} />
           </button>
-          <button type="button" onClick={onClose} aria-label="Close" className="flex h-11 w-11 items-center justify-center rounded-xl border border-[var(--sh-chip-line)] text-[var(--sh-sub)] hover:text-[var(--sh-fg)]">
+          <button type="button" onClick={onClose} aria-label="Close" className="flex h-11 w-11 items-center justify-center rounded-xl border border-[var(--sh-chip-line)] text-[var(--sh-sub)] hover:text-[var(--sh-fg)] sm:h-10 sm:w-10">
             <X size={15} />
           </button>
         </div>
@@ -437,7 +439,7 @@ function GoToPanel({
             const Icon = s.icon;
             return (
               <Link key={s.id} href={s.href} onClick={onClose} aria-current={on ? "page" : undefined}
-                className={cn("flex h-[68px] min-w-0 flex-col items-center justify-center gap-1.5 rounded-[14px] px-1 text-xs",
+                className={cn("flex h-[62px] min-w-0 flex-col items-center justify-center gap-1.5 rounded-[14px] px-1 text-xs",
                   on ? "bg-[var(--sh-on-bg)] text-[var(--sh-on-fg)]" : "bg-[var(--sh-card)] text-[var(--sh-fg)]")}>
                 <Icon size={17} />
                 <span className="w-full truncate text-center">{s.label}</span>
@@ -447,9 +449,12 @@ function GoToPanel({
           {shown.length === 0 && <div className="col-span-full py-6 text-center text-sm text-[var(--sh-muted)]">No page called “{q}”.</div>}
         </div>
         <div className="flex gap-2 lg:hidden">
-          <Link href={me.profile} onClick={onClose} className="flex h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-[var(--sh-chip-line)] text-sm">
-            <UserRound size={15} />{me.profileLabel}
-          </Link>
+          {/* The owner's "profile" IS Settings, already a tile above — don't show it twice. */}
+          {me.profile !== "/settings" && (
+            <Link href={me.profile} onClick={onClose} className="flex h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-[var(--sh-chip-line)] text-sm">
+              <UserRound size={15} />{me.profileLabel}
+            </Link>
+          )}
           <SignOutForm action={me.logout} className="flex flex-1">
             <button type="submit" className="flex h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-[var(--sh-chip-line)] text-sm text-[#E0479E]">
               <LogOut size={15} />Sign out
@@ -457,47 +462,41 @@ function GoToPanel({
           </SignOutForm>
         </div>
 
-        <div className="hidden grid-cols-2 gap-4 sm:grid md:grid-cols-4">
-          {groups.map((g) => (
-            <div key={g.label} className="flex min-w-0 flex-col gap-2">
+        {/* Tablet and desk (owner, 26 Sept 2026: "cleaner and smaller, the
+            negative space gone"): Work — the long group — in two columns, then
+            Records and Operations beside it; System's three pages are small
+            buttons in the bar below instead of a mostly empty fourth column. */}
+        <div className="hidden gap-x-4 gap-y-3.5 sm:grid sm:grid-cols-2 md:grid-cols-[minmax(0,1.8fr)_minmax(0,1.2fr)_minmax(0,1fr)]">
+          {mainGroups.map((g) => (
+            <div key={g.label} className={cn("flex min-w-0 flex-col gap-1.5", g.items.length > 4 && "sm:col-span-2 md:col-span-1")}>
               <div className="px-1 text-[11px] uppercase tracking-[0.08em] text-[var(--sh-muted)]">{g.label}</div>
-              {g.items.map((s) => {
-                const on = s.id === current.id;
-                const Icon = s.icon;
-                return (
-                  <Link
-                    key={s.id}
-                    href={s.href}
-                    onClick={onClose}
-                    aria-current={on ? "page" : undefined}
-                    className={cn(
-                      "flex items-center gap-2.5 rounded-xl px-3 py-2.5 transition-colors",
-                      on ? "bg-[var(--sh-on-bg)] text-[var(--sh-on-fg)]" : "border border-[var(--sh-line)] bg-[var(--sh-card)] text-[var(--sh-fg)] hover:border-[var(--sh-field-line)]",
-                    )}
-                  >
-                    {/* The tile on the selected (inverted) item is a tint of its own
-                        text colour — a light tile there held a white icon in light
-                        mode and a black one in dark, and the icon vanished. */}
-                    <span
-                      className={cn("flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[9px]", !on && "bg-[var(--sh-hover)] text-[var(--sh-sub)]")}
-                      style={on ? { background: "color-mix(in srgb, var(--sh-on-fg) 16%, transparent)", color: "var(--sh-on-fg)" } : undefined}
-                    >
-                      <Icon size={15} />
-                    </span>
-                    <span className="min-w-0 truncate text-[13px] font-medium">{s.label}</span>
-                  </Link>
-                );
-              })}
+              <div className={cn("grid gap-1.5", g.items.length > 4 ? "grid-cols-2" : "grid-cols-1")}>
+                {g.items.map((s) => <GoToItem key={s.id} s={s} on={s.id === current.id} onClose={onClose} />)}
+              </div>
             </div>
           ))}
           {groups.length === 0 && <div className="col-span-full py-6 text-center text-sm text-[var(--sh-muted)]">No page called “{q}”.</div>}
         </div>
 
         <div className="hidden flex-wrap items-center justify-between gap-2 border-t border-[var(--sh-line)] pt-3 text-xs text-[var(--sh-muted)] sm:flex">
-          <span className="flex items-center gap-1.5">
-            <span className={KEY}><ChevronLeft size={11} strokeWidth={2.4} /></span>
-            <span className={KEY}><ChevronRight size={11} strokeWidth={2.4} /></span>
-            <span className="ml-0.5">in the footer step through these pages in order</span>
+          <span className="flex min-w-0 flex-wrap items-center gap-1.5">
+            {systemGroup ? systemGroup.items.map((s) => {
+              const on = s.id === current.id;
+              const Icon = s.icon;
+              return (
+                <Link key={s.id} href={s.href} onClick={onClose} aria-current={on ? "page" : undefined}
+                  className={cn("flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-[12px] transition-colors",
+                    on ? "border-transparent bg-[var(--sh-on-bg)] text-[var(--sh-on-fg)]" : "border-[var(--sh-chip-line)] text-[var(--sh-sub)] hover:text-[var(--sh-fg)]")}>
+                  <Icon size={13} />{s.label}
+                </Link>
+              );
+            }) : (
+              <span className="flex items-center gap-1.5" title="In the footer, ‹ and › step through these pages in order">
+                <span className={KEY}><ChevronLeft size={11} strokeWidth={2.4} /></span>
+                <span className={KEY}><ChevronRight size={11} strokeWidth={2.4} /></span>
+                <span className="ml-0.5">step through the pages in the footer</span>
+              </span>
+            )}
           </span>
           <span className="flex items-center gap-2">
             {onSearch && (
@@ -512,6 +511,26 @@ function GoToPanel({
         </div>
       </div>
     </div>
+  );
+}
+
+/** One page in the Go-to panel (tablet and desk): compact — a 26px icon tile
+ *  and the name on one 36px row. */
+function GoToItem({ s, on, onClose }: { s: StudioStop; on: boolean; onClose: () => void }) {
+  const Icon = s.icon;
+  return (
+    <Link href={s.href} onClick={onClose} aria-current={on ? "page" : undefined}
+      className={cn("flex h-9 min-w-0 items-center gap-2 rounded-[10px] px-1.5 transition-colors",
+        on ? "bg-[var(--sh-on-bg)] text-[var(--sh-on-fg)]" : "bg-[var(--sh-card)] text-[var(--sh-fg)] hover:bg-[var(--sh-hover)]")}>
+      {/* The tile on the selected (inverted) item is a tint of its own text
+          colour — a light tile there held a white icon in light mode and a
+          black one in dark, and the icon vanished. */}
+      <span className={cn("flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-[8px]", !on && "bg-[var(--sh-hover)] text-[var(--sh-sub)]")}
+        style={on ? { background: "color-mix(in srgb, var(--sh-on-fg) 16%, transparent)", color: "var(--sh-on-fg)" } : undefined}>
+        <Icon size={14} />
+      </span>
+      <span className="min-w-0 truncate text-[13px] font-medium">{s.label}</span>
+    </Link>
   );
 }
 

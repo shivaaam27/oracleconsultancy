@@ -266,48 +266,48 @@ export function StudioAssets({ d }: { d: StudioAssetsData }) {
                 <Link href={f.hrefFor({ flag: "" })} scroll={false} className="ml-auto text-xs text-[var(--st-muted)] hover:text-[var(--st-ink)]">Finish</Link>
               </div>
             )}
-            <div className="hidden grid-cols-[minmax(0,1.6fr)_140px_190px_140px_100px_32px] gap-x-[18px] px-5 text-xs text-[var(--st-muted)] md:grid">
-              <span>Asset</span><span>Category</span><span>Held by</span><span>Status</span><span /><span />
-            </div>
             {assets.length === 0 && <Empty>{q ? "No asset matches that." : d.archived ? "Nothing archived." : v.flag === "unchecked" ? "Everything has been seen in the last six months." : "No assets here."}</Empty>}
+            {/* Cards, not rows (owner, 26 Sept 2026). */}
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
             {assets.map((a) => {
               const w = warrantyState(a.warrantyUntil, now);
-              const sub = [a.tag, a.serialNo && `SN ${a.serialNo}`, a.companyName ?? "No company", a.location].filter(Boolean).join(" · ");
+              const sub = [a.tag, a.serialNo && `SN ${a.serialNo}`].filter(Boolean).join(" · ");
               const open = withReturn(`/hrms/assets/${a.id}`, here);
               return (
-                <div key={a.id} className="group grid grid-cols-[minmax(0,1fr)_auto_32px] items-center gap-x-3 rounded-[14px] bg-[var(--st-surface)] px-5 py-3 transition-shadow hover:shadow-[0_4px_14px_rgba(17,18,20,0.06)] md:grid-cols-[minmax(0,1.6fr)_140px_190px_140px_100px_32px] md:gap-x-[18px]">
-                  <Link href={open} className="min-w-0 md:contents">
-                    <span className="min-w-0">
-                      <span className="block truncate text-[15px] font-medium">{a.name}</span>
-                      <span className="mt-0.5 block truncate text-xs text-[var(--st-muted)]">{sub}</span>
-                    </span>
-                    <span className={cn("hidden truncate text-[13px] md:block", !a.category && "text-[var(--st-muted)]")}>{a.category ?? "Not set"}</span>
-                    <span className="hidden min-w-0 items-center gap-2 md:flex">
-                      {a.assignedToName ? <><PersonFace name={a.assignedToName} size={24} /><span className="truncate text-[13px]">{shortName(a.assignedToName)}</span></>
-                        : a.assignedToCompanyName ? <><span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[var(--st-page)]"><Users size={12} /></span><span className="truncate text-[13px]">{a.assignedToCompanyName}{a.custodianName ? <span className="text-[var(--st-muted)]"> · {shortName(a.custodianName).split(" ")[0]}</span> : null}</span></>
-                        : <span className="text-[13px] text-[var(--st-muted)]">Nobody</span>}
-                    </span>
-                    <span className="hidden items-center gap-1.5 md:flex">
-                      <Pill dot={STATUS_DOT[a.status]}>{STATUS_WORD[a.status]}</Pill>
-                      {(w === "soon" || w === "ended") && a.status !== "retired" && <span title={w === "ended" ? "Warranty ended" : "Warranty ending soon"} className="text-[var(--st-late-text)]"><ShieldAlert size={14} /></span>}
-                    </span>
+                <div key={a.id} className="group relative flex min-h-[180px] flex-col rounded-[18px] bg-[var(--st-surface)] p-4 transition-shadow hover:shadow-[0_6px_18px_rgba(17,18,20,0.08)]">
+                  <div className="flex items-center gap-1.5 pr-9">
+                    <Pill dot={STATUS_DOT[a.status]}>{STATUS_WORD[a.status]}</Pill>
+                    {(w === "soon" || w === "ended") && a.status !== "retired" && <span title={w === "ended" ? "Warranty ended" : "Warranty ending soon"} className="text-[var(--st-late-text)]"><ShieldAlert size={14} /></span>}
+                    <span className="ml-auto truncate text-[11px] text-[var(--st-muted)]">{a.category ?? "No category"}</span>
+                  </div>
+                  <Link href={open} className={"mt-3 block min-w-0 " + "after:absolute after:inset-0 after:rounded-[18px] after:content-['']"}>
+                    <span className="line-clamp-2 text-[16px] font-medium leading-snug tracking-[-0.01em]">{a.name}</span>
+                    {sub && <span className="mt-1 block truncate text-xs text-[var(--st-muted)]">{sub}</span>}
                   </Link>
-                  <span className="md:hidden"><Pill dot={STATUS_DOT[a.status]}>{STATUS_WORD[a.status]}</Pill></span>
-                  <span className="hidden md:block">
-                    {v.flag === "unchecked" ? (
-                      <RowBtn onClick={() => act(() => checkAssetAction(a.id), `${a.name} seen.`)} disabled={busy}><Check size={13} />Seen it</RowBtn>
-                    ) : a.status === "in_store" ? (
-                      <RowBtn onClick={() => setSheet({ k: "hand", a })}>Hand over</RowBtn>
-                    ) : a.status === "assigned" ? (
-                      <RowBtn onClick={() => setSheet({ k: "return", a })}>Take back</RowBtn>
-                    ) : a.status === "maintenance" ? (
-                      <RowBtn onClick={() => setSheet({ k: "service", a })}>Log work</RowBtn>
-                    ) : null}
-                  </span>
-                  <AssetMenu a={a} d={d} setSheet={setSheet} act={act} />
+                  <div className="mt-3 flex min-w-0 items-center gap-2 text-[13px]">
+                    {a.assignedToName ? <><PersonFace name={a.assignedToName} size={24} /><span className="truncate">{shortName(a.assignedToName)}</span></>
+                      : a.assignedToCompanyName ? <><span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[var(--st-page)]"><Users size={12} /></span><span className="truncate">{a.assignedToCompanyName}{a.custodianName ? <span className="text-[var(--st-muted)]"> · {shortName(a.custodianName).split(" ")[0]}</span> : null}</span></>
+                      : <span className="text-[var(--st-muted)]">Nobody has it</span>}
+                  </div>
+                  <div className="mt-auto flex items-end gap-2 pt-3">
+                    <span className="min-w-0 flex-1 truncate text-xs text-[var(--st-muted)]">{[a.companyName ?? "No company", a.location].filter(Boolean).join(" · ")}</span>
+                    <span className="relative z-[1] shrink-0">
+                      {v.flag === "unchecked" ? (
+                        <RowBtn onClick={() => act(() => checkAssetAction(a.id), `${a.name} seen.`)} disabled={busy}><Check size={13} />Seen it</RowBtn>
+                      ) : a.status === "in_store" ? (
+                        <RowBtn onClick={() => setSheet({ k: "hand", a })}>Hand over</RowBtn>
+                      ) : a.status === "assigned" ? (
+                        <RowBtn onClick={() => setSheet({ k: "return", a })}>Take back</RowBtn>
+                      ) : a.status === "maintenance" ? (
+                        <RowBtn onClick={() => setSheet({ k: "service", a })}>Log work</RowBtn>
+                      ) : null}
+                    </span>
+                  </div>
+                  <span className="absolute right-3 top-3 z-[1]"><AssetMenu a={a} d={d} setSheet={setSheet} act={act} /></span>
                 </div>
               );
             })}
+            </div>
           </div>
         </>
       )}
@@ -349,31 +349,36 @@ export function StudioAssets({ d }: { d: StudioAssetsData }) {
           </StudioCardRow>
 
           <div className="flex flex-col gap-2 pb-24">
-            <div className="hidden grid-cols-[minmax(0,1.6fr)_150px_130px_130px_120px_32px] gap-x-[18px] px-5 text-xs text-[var(--st-muted)] md:grid">
-              <span>Tool</span><span>Company</span><span>Count</span><span>Condition</span><span /><span />
-            </div>
-            {tools.length === 0 && <Empty>{q ? "No tool matches that." : "No tools here."}</Empty>}
             {toolGroups.map(([site, rows]) => (
               <div key={site} className="flex flex-col gap-2">
                 <div className="flex items-baseline gap-2 px-1 pt-2 text-[13px]"><span className="font-semibold">{site}</span><span className="text-xs text-[var(--st-muted)]">{rows.length} kind{rows.length === 1 ? "" : "s"} · {tzs(rows.reduce((s, t) => s + t.quantity, 0))} units</span></div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
                 {rows.map((t) => {
                   const low = isLowStock(t);
                   return (
-                    <div key={t.id} className="grid grid-cols-[minmax(0,1fr)_auto_32px] items-center gap-x-3 rounded-[14px] bg-[var(--st-surface)] px-5 py-3 md:grid-cols-[minmax(0,1.6fr)_150px_130px_130px_120px_32px] md:gap-x-[18px]">
-                      <button type="button" onClick={() => setSheet({ k: "move", t, start: "count" })} className="min-w-0 text-left">
-                        <span className="block truncate text-[15px] font-medium">{t.name}</span>
-                        <span className="mt-0.5 block truncate text-xs text-[var(--st-muted)]">{[t.specification, t.remark].filter(Boolean).join(" · ") || "No specification"}</span>
+                    <div key={t.id} className="group relative flex min-h-[170px] flex-col rounded-[18px] bg-[var(--st-surface)] p-4 transition-shadow hover:shadow-[0_6px_18px_rgba(17,18,20,0.08)]">
+                      <div className="flex items-center gap-1.5 pr-9">
+                        <Pill dot={CONDITION_DOT[t.condition]}>{TOOL_CONDITION_LABELS[t.condition]}</Pill>
+                        {low && <Pill dot="var(--st-late)">Low</Pill>}
+                      </div>
+                      <button type="button" onClick={() => setSheet({ k: "move", t, start: "count" })} className="mt-3 min-w-0 text-left">
+                        <span className="line-clamp-2 text-[16px] font-medium leading-snug tracking-[-0.01em]">{t.name}</span>
+                        <span className="mt-1 block truncate text-xs text-[var(--st-muted)]">{[t.specification, t.remark].filter(Boolean).join(" · ") || "No specification"}</span>
                       </button>
-                      <span className={cn("hidden truncate text-[13px] md:block", !t.companyName && "text-[var(--st-muted)]")}>{t.companyName ?? "No company"}</span>
-                      <span className="flex items-baseline gap-1.5 max-md:justify-end">
-                        <span className={cn("text-[20px] leading-none tracking-[-0.02em] tabular-nums", low && "text-[var(--st-late-text)]")}>{t.quantity}</span>
-                        {t.minQty > 0 && <span className={cn("text-[11px]", low ? "text-[var(--st-late-text)]" : "text-[var(--st-muted)]")}>{low ? "low" : `min ${t.minQty}`}</span>}
-                      </span>
-                      <span className="hidden md:block"><Pill dot={CONDITION_DOT[t.condition]}>{TOOL_CONDITION_LABELS[t.condition]}</Pill></span>
-                      <span className="hidden items-center gap-1 md:flex">
-                        <Step label="One fewer" disabled={busy || t.quantity <= 0} onClick={() => act(() => setSiteToolQuantityAction(t.id, t.quantity - 1), `${t.name}: ${t.quantity - 1}.`)}><Minus size={13} /></Step>
-                        <Step label="One more" disabled={busy} onClick={() => act(() => setSiteToolQuantityAction(t.id, t.quantity + 1), `${t.name}: ${t.quantity + 1}.`)}><Plus size={13} /></Step>
-                      </span>
+                      <div className="mt-auto flex items-end gap-2 pt-3">
+                        <span className="min-w-0 flex-1">
+                          <span className="flex items-baseline gap-1.5">
+                            <span className={cn("text-[28px] leading-none tracking-[-0.03em] tabular-nums", low && "text-[var(--st-late-text)]")}>{t.quantity}</span>
+                            <span className={cn("text-[11px]", low ? "text-[var(--st-late-text)]" : "text-[var(--st-muted)]")}>{t.minQty > 0 ? (low ? `low · min ${t.minQty}` : `min ${t.minQty}`) : "units"}</span>
+                          </span>
+                          <span className="mt-1 block truncate text-xs text-[var(--st-muted)]">{t.companyName ?? "No company"}</span>
+                        </span>
+                        <span className="flex shrink-0 items-center gap-1">
+                          <Step label="One fewer" disabled={busy || t.quantity <= 0} onClick={() => act(() => setSiteToolQuantityAction(t.id, t.quantity - 1), `${t.name}: ${t.quantity - 1}.`)}><Minus size={13} /></Step>
+                          <Step label="One more" disabled={busy} onClick={() => act(() => setSiteToolQuantityAction(t.id, t.quantity + 1), `${t.name}: ${t.quantity + 1}.`)}><Plus size={13} /></Step>
+                        </span>
+                      </div>
+                      <span className="absolute right-3 top-3">
                       <RowMenu>
                         <MenuItem onSelect={() => setSheet({ k: "move", t, start: "count" })} icon={<Pencil size={14} />}>Count them</MenuItem>
                         <MenuItem onSelect={() => setSheet({ k: "move", t, start: "move" })} icon={<ArrowRightLeft size={14} />}>Move some to a site</MenuItem>
@@ -384,9 +389,11 @@ export function StudioAssets({ d }: { d: StudioAssetsData }) {
                         <MenuItem onSelect={() => setSheet({ k: "tool", t })} icon={<Pencil size={14} />}>Edit details</MenuItem>
                         <MenuItem onSelect={() => act(() => archiveSiteToolAction(t.id, true), "Archived.")} icon={<Archive size={14} />}>Archive</MenuItem>
                       </RowMenu>
+                      </span>
                     </div>
                   );
                 })}
+                </div>
               </div>
             ))}
           </div>
@@ -426,30 +433,29 @@ export function StudioAssets({ d }: { d: StudioAssetsData }) {
           </StudioCardRow>
 
           <div className="flex flex-col gap-2 pb-24">
-            <div className="hidden grid-cols-[minmax(0,1.5fr)_190px_110px_150px_110px_32px] gap-x-[18px] px-5 text-xs text-[var(--st-muted)] md:grid">
-              <span>Supplier</span><span>Contact</span><span>Assets</span><span>Papers</span><span>Spend</span><span />
-            </div>
             {vendors.length === 0 && <Empty>{q ? "No supplier matches that." : "No suppliers yet — add the people you buy from and who fix things."}</Empty>}
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
             {vendors.map((x) => (
-              <div key={x.id} className="grid grid-cols-[minmax(0,1fr)_32px] items-center gap-x-3 rounded-[14px] bg-[var(--st-surface)] px-5 py-3 transition-shadow hover:shadow-[0_4px_14px_rgba(17,18,20,0.06)] md:grid-cols-[minmax(0,1.5fr)_190px_110px_150px_110px_32px] md:gap-x-[18px]">
-                <Link href={withReturn(`/hrms/vendors/${x.id}`, here)} className="min-w-0 md:contents">
-                  <span className="min-w-0">
-                    <span className="block truncate text-[15px] font-medium">{x.name}</span>
-                    <span className="mt-0.5 block truncate text-xs text-[var(--st-muted)]">{[x.category, x.companyName ?? "Every company", x.location].filter(Boolean).join(" · ")}</span>
-                  </span>
-                  <span className="hidden min-w-0 md:block">
-                    <span className={cn("block truncate text-[13px]", !x.contactName && "text-[var(--st-muted)]")}>{x.contactName ?? "No contact"}</span>
-                    <span className="block truncate text-xs text-[var(--st-muted)]">{x.phone ?? x.email ?? ""}</span>
-                  </span>
-                  <span className="hidden text-[13px] tabular-nums md:block">{d.vendorAssets[x.id] ?? 0}</span>
-                  <span className="hidden md:block">
-                    {x.expiredCount ? <Pill dot="var(--st-late)">{x.expiredCount} expired</Pill>
-                      : x.expiringCount ? <Pill dot="#F5A524">{x.expiringCount} due soon</Pill>
-                      : x.docCount ? <Pill dot="#19C37D">{x.docCount} in date</Pill>
-                      : <span className="text-[13px] text-[var(--st-muted)]">None on file</span>}
-                  </span>
-                  <span className="hidden text-[13px] tabular-nums md:block">{d.vendorSpend[x.id] ? `TZS ${tzs(d.vendorSpend[x.id], true)}` : <span className="text-[var(--st-muted)]">—</span>}</span>
+              <div key={x.id} className="group relative flex min-h-[180px] flex-col rounded-[18px] bg-[var(--st-surface)] p-4 transition-shadow hover:shadow-[0_6px_18px_rgba(17,18,20,0.08)]">
+                <div className="flex items-center gap-1.5 pr-9">
+                  {x.expiredCount ? <Pill dot="var(--st-late)">{x.expiredCount} paper{x.expiredCount === 1 ? "" : "s"} expired</Pill>
+                    : x.expiringCount ? <Pill dot="#F5A524">{x.expiringCount} due soon</Pill>
+                    : x.docCount ? <Pill dot="#19C37D">{x.docCount} paper{x.docCount === 1 ? "" : "s"} in date</Pill>
+                    : <Pill>No papers</Pill>}
+                </div>
+                <Link href={withReturn(`/hrms/vendors/${x.id}`, here)} className={"mt-3 block min-w-0 " + "after:absolute after:inset-0 after:rounded-[18px] after:content-['']"}>
+                  <span className="line-clamp-2 text-[16px] font-medium leading-snug tracking-[-0.01em]">{x.name}</span>
+                  <span className="mt-1 block truncate text-xs text-[var(--st-muted)]">{[x.category, x.companyName ?? "Every company", x.location].filter(Boolean).join(" · ")}</span>
                 </Link>
+                <div className="mt-3 min-w-0 text-[13px]">
+                  <span className={cn("block truncate", !x.contactName && "text-[var(--st-muted)]")}>{x.contactName ?? "No contact person"}</span>
+                  <span className="block truncate text-xs text-[var(--st-muted)]">{x.phone ?? x.email ?? ""}</span>
+                </div>
+                <div className="mt-auto flex items-end justify-between gap-2 pt-3 text-xs text-[var(--st-muted)]">
+                  <span>{d.vendorAssets[x.id] ?? 0} asset{(d.vendorAssets[x.id] ?? 0) === 1 ? "" : "s"}</span>
+                  <span className="tabular-nums">{d.vendorSpend[x.id] ? `TZS ${tzs(d.vendorSpend[x.id], true)}` : "No spend yet"}</span>
+                </div>
+                <span className="absolute right-3 top-3 z-[1]">
                 <RowMenu>
                   <MenuItem onSelect={() => router.push(withReturn(`/hrms/vendors/${x.id}`, here))} icon={<FileText size={14} />}>Open</MenuItem>
                   <MenuItem onSelect={() => setSheet({ k: "vendor", v: x })} icon={<Pencil size={14} />}>Edit details</MenuItem>
@@ -458,8 +464,10 @@ export function StudioAssets({ d }: { d: StudioAssetsData }) {
                   <MenuLine />
                   <MenuItem onSelect={() => act(() => archiveVendorAction(x.id), `${x.name} archived.`)} icon={<Archive size={14} />}>Archive</MenuItem>
                 </RowMenu>
+                </span>
               </div>
             ))}
+            </div>
           </div>
         </>
       )}
@@ -544,10 +552,10 @@ function Stat({ label, value, sub, href, on, tone, className }: { label: string;
 }
 
 function RowBtn({ children, onClick, disabled }: { children: ReactNode; onClick: () => void; disabled?: boolean }) {
-  return <button type="button" onClick={onClick} disabled={disabled} className="inline-flex h-[30px] w-full items-center justify-center gap-1 whitespace-nowrap rounded-lg border border-[var(--st-line)] px-2 text-xs transition-colors hover:bg-[var(--st-page)] disabled:opacity-40">{children}</button>;
+  return <button type="button" onClick={onClick} disabled={disabled} className="inline-flex h-8 items-center justify-center gap-1 whitespace-nowrap rounded-lg border border-[var(--st-line)] px-3 text-xs transition-colors hover:bg-[var(--st-page)] disabled:opacity-40">{children}</button>;
 }
 function Step({ children, onClick, disabled, label }: { children: ReactNode; onClick: () => void; disabled?: boolean; label: string }) {
-  return <button type="button" aria-label={label} title={label} onClick={onClick} disabled={disabled} className="grid h-[30px] w-[34px] place-items-center rounded-lg border border-[var(--st-line)] transition-colors hover:bg-[var(--st-page)] disabled:opacity-40">{children}</button>;
+  return <button type="button" aria-label={label} title={label} onClick={onClick} disabled={disabled} className="grid h-8 w-8 place-items-center rounded-lg border border-[var(--st-line)] transition-colors hover:bg-[var(--st-page)] disabled:opacity-40">{children}</button>;
 }
 function Empty({ children }: { children: ReactNode }) {
   return (

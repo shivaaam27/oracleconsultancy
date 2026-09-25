@@ -163,6 +163,8 @@ const nextConfig: NextConfig = {
       home("/hrms/pipeline"), home("/hrms/commitments"), home("/hrms/registers"),
       home("/portal/chat", "/portal"), home("/portal/chat/:path*", "/portal"),
       home("/portal/activity", "/portal"),
+      // Approvals was removed on 26 Sept 2026 (owner).
+      home("/approvals"),
     ];
   },
   async rewrites() {

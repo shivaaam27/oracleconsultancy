@@ -93,7 +93,7 @@ export async function listAutomationHistory(opts: { kind?: string; status?: stri
 }
 
 function revalidateAll() {
-  revalidatePath("/approvals");
+  revalidatePath("/");
   revalidatePath("/files");
   revalidatePath("/");
 }
@@ -154,7 +154,7 @@ export async function dismissAutomationSuggestion(id: number): Promise<{ ok: boo
   await guardOwner();
   if (!(await isAdminSession())) throw new Error("Not signed in.");
   await sb.from("automation_events").update({ status: "dismissed", acted_at: new Date().toISOString() }).eq("id", id);
-  revalidatePath("/approvals");
+  revalidatePath("/");
   return { ok: true };
 }
 
@@ -219,7 +219,7 @@ export async function setAutomationModeAction(kind: string, mode: AutomationMode
     await sb.from("settings").upsert({ key: "automation.time.baseline", value: midnight.toISOString() }, { onConflict: "key" });
   }
   revalidatePath("/settings");
-  revalidatePath("/approvals");
+  revalidatePath("/");
   return { ok: true };
 }
 

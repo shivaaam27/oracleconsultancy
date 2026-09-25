@@ -205,18 +205,17 @@ export function OfflineNoteShelf({
         </div>
       )}
 
-      <div className="flex flex-col gap-2 pb-24">
-        <div className="hidden grid-cols-[minmax(0,1.1fr)_minmax(0,1.6fr)_120px_90px_28px] gap-x-5 px-5 text-xs text-[var(--st-muted)] md:grid">
-          <span>Note</span><span>Starts with</span><span>Folder</span><span className="font-medium text-[var(--st-ink)]">Updated</span><span />
-        </div>
+      {/* Cards, not rows (owner, 26 Sept 2026): a note is read by its first
+          lines, so each one shows them. */}
+      <div className="grid grid-cols-1 gap-3 pb-24 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
 
         {notes === null ? (
-          <p className="m-0 flex items-center gap-2 px-5 py-4 text-[13px] text-[var(--st-muted)]">
+          <p className="col-span-full m-0 flex items-center gap-2 px-5 py-4 text-[13px] text-[var(--st-muted)]">
             <Loader2 size={14} className="animate-spin" /> Looking on this device…
           </p>
         ) : all.length === 0 ? (
           /* Nothing copied yet — say how to get a copy, and that writing works regardless. */
-          <div className="st-tex-paper-dots flex min-h-[180px] flex-col items-center justify-center gap-3 rounded-[20px] border border-dashed border-[var(--st-line)] px-4 py-6 text-center">
+          <div className="st-tex-paper-dots col-span-full flex min-h-[180px] flex-col items-center justify-center gap-3 rounded-[20px] border border-dashed border-[var(--st-line)] px-4 py-6 text-center">
             <div className="max-w-[30rem] rounded-xl bg-[var(--st-page)] px-4 py-3">
               <p className="m-0 text-[14px] font-medium">No notes have been copied to this device yet.</p>
               <p className="m-0 mt-1.5 text-[13px] text-[var(--st-sub)]">
@@ -234,7 +233,7 @@ export function OfflineNoteShelf({
             </div>
           </div>
         ) : rows.length === 0 ? (
-          <div className="st-tex-paper-dots flex min-h-[160px] items-center justify-center rounded-[20px] border border-dashed border-[var(--st-line)]">
+          <div className="st-tex-paper-dots col-span-full flex min-h-[160px] items-center justify-center rounded-[20px] border border-dashed border-[var(--st-line)]">
             <span className="rounded-xl bg-[var(--st-page)] px-4 py-2.5 text-[13px] text-[var(--st-sub)]">
               {q ? "No note on this device has those words." : lane === "archived" ? "Nothing archived." : "Nothing here."}
             </span>
@@ -251,23 +250,21 @@ export function OfflineNoteShelf({
                 key={r.id}
                 type="button"
                 onClick={() => onOpen(r.id)}
-                className="group grid w-full grid-cols-[minmax(0,1fr)_28px] items-center gap-x-5 rounded-[14px] bg-[var(--st-surface)] px-5 py-3 text-left transition-shadow hover:shadow-[0_4px_14px_rgba(17,18,20,0.06)] md:grid-cols-[minmax(0,1.1fr)_minmax(0,1.6fr)_120px_90px_28px]"
+                className="group relative flex min-h-[168px] w-full flex-col rounded-[18px] bg-[var(--st-surface)] p-4 text-left transition-shadow hover:shadow-[0_6px_18px_rgba(17,18,20,0.08)]"
               >
-                <span className="min-w-0 md:contents">
-                  <span className={cn("block truncate text-[15px] font-medium", empty && "text-[var(--st-muted)]")}>
-                    {noteTitle(r)}
-                    {r.kind === "daily" && <span className="ml-2 align-middle text-[11px] font-normal text-[var(--st-muted)]">Daily</span>}
-                    {r.kind === "template" && <span className="ml-2 align-middle text-[11px] font-normal text-[var(--st-muted)]">Template</span>}
-                    {waiting && <span className="ml-2 inline-flex h-5 items-center rounded-md bg-[var(--st-warn-wash)] px-1.5 align-middle text-[11px] font-normal text-[var(--st-soon-text)]">Not sent yet</span>}
-                  </span>
-                  <span className="block truncate text-[13px] text-[var(--st-muted)] max-md:text-xs">{snippet || (empty ? "Empty note" : "")}</span>
-                  <span className="hidden md:block"><span className="inline-flex h-6 max-w-full items-center truncate rounded-lg bg-[var(--st-page)] px-2 text-[11px]">{r.folderName ?? "Unfiled"}</span></span>
-                  <span className="hidden text-[13px] text-[var(--st-sub)] md:block">{ago(r.updatedAt)}</span>
+                <span className="flex items-center gap-1.5 pr-8">
+                  <span className="inline-flex h-6 max-w-full items-center truncate rounded-lg bg-[var(--st-page)] px-2 text-[11px]">{r.folderName ?? "Unfiled"}</span>
+                  {r.kind === "daily" && <span className="text-[11px] text-[var(--st-muted)]">Daily</span>}
+                  {r.kind === "template" && <span className="text-[11px] text-[var(--st-muted)]">Template</span>}
+                  {waiting && <span className="inline-flex h-5 items-center rounded-md bg-[var(--st-warn-wash)] px-1.5 text-[11px] text-[var(--st-soon-text)]">Not sent yet</span>}
                 </span>
+                <span className={cn("mt-3 line-clamp-2 text-[16px] font-medium leading-snug tracking-[-0.01em]", empty && "text-[var(--st-muted)]")}>{noteTitle(r)}</span>
+                <span className="mt-1.5 line-clamp-3 text-[13px] leading-relaxed text-[var(--st-muted)]">{snippet || (empty ? "Empty note" : "")}</span>
+                <span className="mt-auto pt-3 text-xs text-[var(--st-sub)]">{ago(r.updatedAt)}</span>
                 {/* The pin, shown as it stands — changing it needs the server. */}
                 <span
                   title={r.pinnedAt ? `Pinned · changing it ${NEEDS.toLowerCase()}` : `Pinning ${NEEDS.toLowerCase()}`}
-                  className={cn("grid h-7 w-7 place-items-center rounded-lg", r.pinnedAt ? "text-[#F5A524]" : "text-[#C4C5C9] opacity-60")}
+                  className={cn("absolute right-3 top-3 grid h-8 w-8 place-items-center rounded-lg", r.pinnedAt ? "text-[#F5A524]" : "text-[#C4C5C9] opacity-60")}
                 >
                   <Star size={16} strokeWidth={1.7} fill={r.pinnedAt ? "currentColor" : "none"} />
                 </span>

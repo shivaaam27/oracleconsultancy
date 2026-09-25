@@ -329,11 +329,6 @@ function ActionsSlide({ s }: { s: Extract<HomeSlide, { kind: "actions" }> }) {
         <span className="min-w-0 flex-1"><span className="block text-[13px] font-medium">Send the Director Brief</span><span className="block truncate text-[11px] text-[var(--st-muted)]">{armed ? "Tap again to send it now" : "WhatsApp · email · PDF"}</span></span>
         <span className="text-xs font-medium">{armed ? "Send now" : "Send"}</span>
       </button>
-      <Link href="/approvals" className={row}>
-        <span className={icon}><ListChecks size={14} /></span>
-        <span className="min-w-0 flex-1"><span className="block text-[13px] font-medium">Approvals</span><span className="block truncate text-[11px] text-[var(--st-muted)]">{s.approvals ? `${s.approvals} waiting for your yes` : "Nothing waiting for you"}</span></span>
-        <span className="text-xs font-medium">Open</span>
-      </Link>
       <button type="button" onClick={() => openReport()} className="mt-1 shrink-0 self-start text-xs text-[var(--st-sub)] hover:text-[var(--st-ink)]">Open the report first →</button>
     </div>
   );
