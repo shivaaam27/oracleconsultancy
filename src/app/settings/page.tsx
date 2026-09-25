@@ -1,4 +1,5 @@
 import { Button, FieldLabel, Input, Select, Textarea } from "@/components/ui";
+import { SignOutForm } from "@/components/sign-out-form";
 import { ResyncLatestUpdateButton } from "@/components/resync-button";
 import { NotificationSettings } from "@/components/notification-settings";
 import { SettingsCard } from "@/components/settings-card";
@@ -814,11 +815,11 @@ export default async function SettingsPage({
               </div>
               <Button type="submit"><KeyRound size={13} /> Change password</Button>
             </form>
-            <form action={adminLogout}>
+            <SignOutForm action={adminLogout}>
               <button type="submit" className="text-xs font-medium text-danger hover:underline">
                 Sign out on this device
               </button>
-            </form>
+            </SignOutForm>
           </SettingsCard>
 
           {/* Face ID / fingerprint */}

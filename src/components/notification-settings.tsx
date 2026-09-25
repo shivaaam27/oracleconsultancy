@@ -17,7 +17,10 @@ function urlBase64ToUint8Array(base64: string): Uint8Array<ArrayBuffer> {
 
 type State = "loading" | "unsupported" | "off" | "on" | "denied";
 
-export function NotificationSettings() {
+/** This device's alert subscription — shared by the Settings card and the
+ *  switch at the foot of the bell panel (so a director, who has no Settings,
+ *  can turn alerts on too — push audit, 25 Sept 2026). */
+export function useDevicePush() {
   const [state, setState] = useState<State>("loading");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -116,6 +119,11 @@ export function NotificationSettings() {
     }
   }
 
+  return { state, busy, msg, enable, disable, test };
+}
+
+export function NotificationSettings() {
+  const { state, busy, msg, enable, disable, test } = useDevicePush();
   return (
     <div className="space-y-3">
       {state === "loading" && (
@@ -159,6 +167,31 @@ export function NotificationSettings() {
       )}
 
       {msg && <p className="text-xs text-fg-muted">{msg}</p>}
+    </div>
+  );
+}
+
+/** A one-line switch for the Studio bell panel: "Alerts on this phone". */
+export function DeviceAlertsRow() {
+  const { state, busy, msg, enable, disable } = useDevicePush();
+  if (state === "loading" || state === "unsupported") return null;
+  const on = state === "on";
+  return (
+    <div className="flex flex-col gap-1 px-1">
+      <div className="flex items-center gap-2.5">
+        <Bell size={14} className="shrink-0 text-[var(--sh-fg)]" />
+        <span className="min-w-0 flex-1 text-[12.5px] text-[var(--sh-fg)]">
+          {state === "denied" ? "Alerts are blocked for this site in the browser" : "Alerts on this device"}
+        </span>
+        {state !== "denied" && (
+          <button type="button" role="switch" aria-checked={on} aria-label="Alerts on this device" disabled={busy}
+            onClick={() => void (on ? disable() : enable())}
+            className={"relative h-5 w-[34px] shrink-0 rounded-full transition-colors disabled:opacity-60 " + (on ? "bg-[var(--st-ok,#19C37D)]" : "bg-[var(--sh-chip-line)]")}>
+            <span className={"absolute top-0.5 h-4 w-4 rounded-full bg-white transition-[left] " + (on ? "left-4" : "left-0.5")} />
+          </button>
+        )}
+      </div>
+      {msg && <p className="m-0 pl-6 text-[11px] text-[var(--sh-muted)]">{msg}</p>}
     </div>
   );
 }

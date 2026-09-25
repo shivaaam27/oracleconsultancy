@@ -1,5 +1,6 @@
 "use client";
 
+import { SignOutForm } from "@/components/sign-out-form";
 import { useEffect } from "react";
 import { LogOut } from "lucide-react";
 import { portalLogout } from "@/app/portal/actions";
@@ -54,7 +55,7 @@ export function PortalSessionRestore() {
  *  the person straight back in) then runs the server logout. */
 export function PortalSignOut() {
   return (
-    <form action={portalLogout} className="shrink-0">
+    <SignOutForm action={portalLogout} className="shrink-0">
       <button
         type="submit"
         onClick={() => { try { localStorage.removeItem(KEY); } catch { /* */ } }}
@@ -63,6 +64,6 @@ export function PortalSignOut() {
         <LogOut size={13} />
         Sign out
       </button>
-    </form>
+    </SignOutForm>
   );
 }

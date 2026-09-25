@@ -14,6 +14,7 @@
  * notifications") — posted through `replyToTaskByCode` → addTaskUpdateCore,
  * the task's own writer, so it lands on the task's conversation.
  */
+import { DeviceAlertsRow } from "@/components/notification-settings";
 import { PersonFace } from "@/components/studio/face";
 import { useMemo, useState, useTransition } from "react";
 import { replyToTaskByCode } from "@/app/task/actions";
@@ -222,7 +223,8 @@ export function StudioNotificationsPanel({
         })}
       </div>
 
-      <div className="flex items-center justify-between border-t border-[var(--sh-line)] px-1 pt-2.5 text-[11px] text-[var(--sh-muted)]">
+      <div className="border-t border-[var(--sh-line)] pt-2.5"><DeviceAlertsRow /></div>
+      <div className="flex items-center justify-between px-1 pt-1 text-[11px] text-[var(--sh-muted)]">
         <span>Read notifications clear themselves after 14 days</span>
         <Link href="/activity" onClick={onClose} className="text-[var(--sh-sub)] hover:text-[var(--sh-fg)]">See everything in Activity →</Link>
       </div>

@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { SignOutForm } from "@/components/sign-out-form";
 import { Bell, FileCheck2, LogOut, Settings2, UserRound, CalendarDays, Route as RouteIcon, Package, CheckCircle2, Circle } from "lucide-react";
 import { DevicePushToggle } from "@/components/device-push-toggle";
 import { sb } from "@/db/supabase";
@@ -350,14 +351,14 @@ export default async function PortalProfile() {
       </div>
       </div>
 
-      <form action={portalLogout}>
+      <SignOutForm action={portalLogout}>
         <button
           type="submit"
           className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-md bg-bg-elev ring-1 ring-border px-4 text-sm font-medium text-danger hover:bg-danger-soft/40 transition-colors"
         >
           <LogOut size={15} /> Sign out
         </button>
-      </form>
+      </SignOutForm>
     </div>
   );
 }

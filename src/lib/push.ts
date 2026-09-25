@@ -62,6 +62,11 @@ export type PushPayload = {
   tag?: string;
   /** Unread total, used by the SW to badge the installed-app icon accurately. */
   count?: number;
+  /** The bell row this push is for — lets the buttons act on it with no window open. */
+  id?: number;
+  taskCode?: string | null;
+  /** Buttons on the alert (sw.js ACTION_LABELS): "done" = mark read, "snooze" = again in an hour. */
+  actions?: ("done" | "snooze")[];
 };
 
 /** How long the push service keeps trying a phone that is off or asleep. It
@@ -367,6 +372,15 @@ export async function flushRoutineDigests(): Promise<{ recipients: number; pushe
     if (await isQuietHoursNow()) {
       return { recipients: 0, pushed: 0, held: true };
     }
+    // One flush at a time: the 15-minute tick and the morning run can land in
+    // the same minutes (Vercel's daily crons drift up to an hour), and both
+    // draining sent the same digest twice (push audit, 25 Sept 2026). The
+    // stamp is written BEFORE draining, so the second run sees it and stops.
+    const FLUSH_KEY = "push.digestFlushAt";
+    const { data: last } = await sb.from("settings").select("value").eq("key", FLUSH_KEY).maybeSingle();
+    const lastAt = last?.value ? new Date(String(last.value)).getTime() : 0;
+    if (Date.now() - lastAt < 10 * 60_000) return { recipients: 0, pushed: 0 };
+    await sb.from("settings").upsert({ key: FLUSH_KEY, value: new Date().toISOString() }, { onConflict: "key" });
     const { unreadCount } = await import("./notifications");
     const targets = await pendingDigestRecipients();
     for (const recipient of targets) {

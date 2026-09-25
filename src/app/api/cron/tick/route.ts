@@ -65,6 +65,13 @@ async function tick(req: NextRequest) {
     } catch (err) {
       await reportError(err, { route: "cron.tick/event-reminders" });
     }
+    // Alerts snoozed "In an hour" whose hour is up.
+    try {
+      const { resendSnoozedNotifications } = await import("@/lib/notifications");
+      await resendSnoozedNotifications();
+    } catch (err) {
+      await reportError(err, { route: "cron.tick/snoozed" });
+    }
     // Timed "remind me" pushes — daily on Vercel alone, so they rode here late.
     let todos = 0;
     try {

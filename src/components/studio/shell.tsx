@@ -15,6 +15,7 @@
  * Page order comes from `studioStops()`, which is derived from nav.ts — the
  * footer can never list a page the rest of COS does not know about.
  */
+import { SignOutForm } from "@/components/sign-out-form";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -270,7 +271,7 @@ export function StudioShell({ needs, director = null }: { needs: NonNullable<Stu
                 lived only at the foot of Settings, which nobody finds (owner,
                 25 Sept 2026: "how do you expect me to log out"). */}
             {/* Below lg it is in the Go-to sheet, with Profile and the theme. */}
-            <form action={director ? portalLogout : adminLogout} className="hidden lg:block">
+            <SignOutForm action={director ? portalLogout : adminLogout} className="hidden lg:block">
               <button
                 type="submit"
                 aria-label="Sign out"
@@ -279,7 +280,7 @@ export function StudioShell({ needs, director = null }: { needs: NonNullable<Stu
               >
                 <LogOut size={15} />
               </button>
-            </form>
+            </SignOutForm>
             <NotificationBell
               to="/task"
               align="right"
@@ -426,11 +427,11 @@ function GoToPanel({
           <Link href={me.profile} onClick={onClose} className="flex h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-[var(--sh-chip-line)] text-sm">
             <UserRound size={15} />{me.profileLabel}
           </Link>
-          <form action={me.logout} className="flex flex-1">
+          <SignOutForm action={me.logout} className="flex flex-1">
             <button type="submit" className="flex h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-[var(--sh-chip-line)] text-sm text-[#E0479E]">
               <LogOut size={15} />Sign out
             </button>
-          </form>
+          </SignOutForm>
         </div>
 
         <div className="hidden grid-cols-2 gap-4 sm:grid md:grid-cols-4">

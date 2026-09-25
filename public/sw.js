@@ -168,8 +168,8 @@ self.addEventListener("fetch", (event) => {
 // payloads (and the cron operations alert) just open the deep link.
 const ACTION_LABELS = {
   open: "Open",
-  done: "Mark done",
-  snooze: "Snooze",
+  done: "Mark as read",
+  snooze: "In an hour",
 };
 
 self.addEventListener("push", (event) => {

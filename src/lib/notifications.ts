@@ -110,7 +110,7 @@ export async function createNotification(input: {
       // A LIKE when the title carries a varying count ("4 staff quiet…").
       await (supersedes.op === "like" ? q.like("title", supersedes.value) : q.eq("title", supersedes.value));
     }
-    await sb.from("notifications").insert({
+    const { data: row } = await sb.from("notifications").insert({
       recipient: input.recipient,
       kind: input.kind,
       task_id: input.taskId ?? null,
@@ -120,20 +120,11 @@ export async function createNotification(input: {
       body: (input.body ?? "").slice(0, 200) || null,
       actor: input.actor ?? null,
       created_at: new Date().toISOString(),
-    });
+    }).select("id").maybeSingle();
     // Push to the recipient's phone(s) too (T4b). Best-effort, no-op if push
     // isn't configured or they have no devices registered. Task-less notifs
     // open the relevant surface (the owner's leave page / the staff portal).
-    const isAdmin = input.recipient === "admin";
-    // Owner and directors are on the Studio screens; staff on the portal.
-    const studio = isAdmin || director;
-    const url = input.taskCode
-      ? studio ? `/task/${input.taskCode}` : `/portal/task/${input.taskCode}`
-      : input.kind === "meeting"
-        ? studio ? `/calendar` : `/portal/meetings`
-        : input.kind === "announcement"
-          ? isAdmin ? `/announcements` : `/portal/announcements`
-          : studio ? `/` : `/portal`;
+    const url = notificationUrl(input.recipient, director, input.kind, input.taskCode ?? null);
     const tag = input.taskCode
       ? `task-${input.taskCode}`
       : `notif-${input.kind}`;
@@ -169,11 +160,63 @@ export async function createNotification(input: {
         url,
         tag,
         count: await unreadCount(input.recipient),
+        // The alert's buttons (push audit, 25 Sept 2026: they were built in the
+        // service worker and never sent): mark it read, or again in an hour.
+        id: typeof row?.id === "number" ? row.id : undefined,
+        taskCode: input.taskCode ?? null,
+        actions: typeof row?.id === "number" ? ["done", "snooze"] : undefined,
       });
     }
   } catch {
     /* swallow — best effort */
   }
+}
+
+/** Where tapping an alert goes. Owner and directors are on the Studio screens;
+ *  staff on the portal. Shared by the first push and a snoozed one's return. */
+export function notificationUrl(recipient: string, director: boolean, kind: string, taskCode: string | null): string {
+  const isAdmin = recipient === "admin";
+  const studio = isAdmin || director;
+  return taskCode
+    ? studio ? `/task/${taskCode}` : `/portal/task/${taskCode}`
+    : kind === "meeting"
+      ? studio ? `/calendar` : `/portal/meetings`
+      : kind === "announcement"
+        ? isAdmin ? `/announcements` : `/portal/announcements`
+        : studio ? `/` : `/portal`;
+}
+
+/** Snoozed alerts ("In an hour") whose hour is up: push them again if still
+ *  unread. The act route records them; the 15-minute tick calls this. */
+export async function resendSnoozedNotifications(): Promise<number> {
+  const KEY = "notifications.snoozed";
+  const { data } = await sb.from("settings").select("value").eq("key", KEY).maybeSingle();
+  let list: { recipient: string; id: number; until: string }[] = [];
+  try { list = JSON.parse((data?.value as string | null) ?? "[]"); } catch { list = []; }
+  if (!Array.isArray(list) || !list.length) return 0;
+  const now = Date.now();
+  const due = list.filter((e) => e && new Date(e.until).getTime() <= now);
+  if (!due.length) return 0;
+  // Take them off the list first, so an overlapping run cannot send twice.
+  await sb.from("settings").upsert({ key: KEY, value: JSON.stringify(list.filter((e) => !due.includes(e))) }, { onConflict: "key" });
+  const { data: rows } = await sb.from("notifications").select("id,recipient,kind,title,body,task_code,read_at").in("id", due.map((e) => e.id));
+  const { sendToRecipient } = await import("./push");
+  const { isDirectorRecipient } = await import("./push-links");
+  let sent = 0;
+  for (const r of rows ?? []) {
+    if (r.read_at) continue;
+    const director = await isDirectorRecipient(r.recipient as string);
+    sent += await sendToRecipient(r.recipient as string, {
+      title: r.title as string,
+      body: (r.body as string | null) ?? "",
+      url: notificationUrl(r.recipient as string, director, r.kind as string, (r.task_code as string | null) ?? null),
+      tag: r.task_code ? `task-${r.task_code}` : `notif-${r.kind}`,
+      id: r.id as number,
+      taskCode: (r.task_code as string | null) ?? null,
+      actions: ["done", "snooze"],
+    });
+  }
+  return sent;
 }
 
 /** Create the same notification for several recipients (deduped). */
