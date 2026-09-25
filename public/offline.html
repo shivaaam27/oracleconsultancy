@@ -1,40 +1,72 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en-GB">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>COS — Offline</title>
+    <title>Oracle — Offline</title>
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <!-- The offline screen in the Studio look (owner, 25 Sept 2026): the same
+         dark card as the "not found" page, on the grey page. Everything is
+         inline — this file is served from the service worker's cache with no
+         connection, so it can load nothing else. It retries by itself the
+         moment the connection comes back. -->
     <style>
-      :root { color-scheme: dark; }
+      :root { color-scheme: light dark; --page: #F3F3F1; --ink: #111214; }
+      @media (prefers-color-scheme: dark) { :root { --page: #0E0F10; --ink: #F2F2F0; } }
       html, body { height: 100%; margin: 0; }
       body {
         display: flex; align-items: center; justify-content: center;
-        background: #0a0a0a; color: #ededed;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-        text-align: center; padding: env(safe-area-inset-top) 24px env(safe-area-inset-bottom);
+        background: var(--page); color: var(--ink);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
+        box-sizing: border-box;
       }
-      .card { max-width: 320px; }
-      h1 { font-size: 20px; font-weight: 700; margin: 0 0 8px; }
-      p { font-size: 15px; line-height: 1.5; opacity: 0.7; margin: 0 0 20px; }
-      button {
-        appearance: none; border: 0; border-radius: 12px; padding: 12px 20px;
-        background: #ededed; color: #0a0a0a; font-size: 15px; font-weight: 600;
+      .card {
+        position: relative; overflow: hidden; width: 100%; max-width: 520px; box-sizing: border-box;
+        background: #141517; color: #FFFFFF; border-radius: 24px; padding: 28px 26px 26px;
+        background-image: repeating-radial-gradient(circle at 110% -10%, transparent 0 22px, rgba(255,255,255,0.035) 22px 23px);
       }
-      /* The one thing that still works with no connection. A dead end with a
-         Retry button on it is not an answer when there is somewhere to go. */
-      a.notes {
-        display: inline-block; margin-top: 14px; color: #8ab4f8;
-        font-size: 14px; text-decoration: none; border-bottom: 1px solid rgba(138,180,248,0.4);
+      .top { display: flex; align-items: center; gap: 12px; }
+      .logo { width: 40px; height: 40px; border-radius: 12px; background: #FFFFFF; display: grid; place-items: center; }
+      .logo img { width: 28px; height: 28px; }
+      .brand { font-size: 15px; font-weight: 600; }
+      .pill {
+        margin-left: auto; display: inline-flex; align-items: center; gap: 7px; height: 26px; padding: 0 10px;
+        border-radius: 9px; background: #26282C; font-size: 12px; color: #FFFFFF;
       }
+      .dot { width: 7px; height: 7px; border-radius: 50%; background: #F5A524; }
+      h1 { margin: 34px 0 0; font-size: 32px; line-height: 1.1; font-weight: 500; letter-spacing: -0.02em; }
+      p { margin: 12px 0 0; max-width: 42ch; font-size: 15px; line-height: 1.55; color: #FFFFFF; }
+      .row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 26px; }
+      .btn {
+        appearance: none; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+        height: 44px; padding: 0 18px; border-radius: 12px; font-family: inherit; font-size: 14px; font-weight: 600; line-height: 1;
+        text-decoration: none; cursor: pointer;
+      }
+      .primary { border: 0; background: #F2F2F0; color: #111214; }
+      .ghost { border: 1px solid #3A3D42; background: transparent; color: #FFFFFF; }
+      .note { margin-top: 22px; font-size: 12px; color: #FFFFFF; opacity: 0.85; }
+      @media (max-width: 420px) { h1 { font-size: 28px; } .btn { flex: 1 1 auto; } }
     </style>
   </head>
   <body>
-    <div class="card">
+    <main class="card" role="alert">
+      <div class="top">
+        <span class="logo"><img src="/icon-192.png" alt="" /></span>
+        <span class="brand">Oracle Consultancy Limited</span>
+        <span class="pill"><span class="dot"></span>Offline</span>
+      </div>
       <h1>You're offline</h1>
-      <p>COS can't reach the network right now. Check your connection and try again.</p>
-      <button onclick="location.reload()">Retry</button>
-      <div><a class="notes" href="/notes/offline">Read and write your notes anyway</a></div>
-    </div>
+      <p>This device can't reach the internet right now. Your work is safe — it will open again the moment the connection is back.</p>
+      <div class="row">
+        <button class="btn primary" type="button" onclick="location.reload()">Try again</button>
+        <a class="btn ghost" href="/notes/offline">Your notes, offline</a>
+      </div>
+      <div class="note">Notes can still be read and written without a connection.</div>
+    </main>
+    <script>
+      // Back online → straight back to where you were.
+      window.addEventListener("online", function () { location.reload(); });
+    </script>
   </body>
 </html>

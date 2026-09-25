@@ -1,5 +1,5 @@
 // COS service worker — bump CACHE_VERSION to force clients onto new assets.
-const CACHE_VERSION = "cos-v15"; // v15 = a cached page keeps its own JS (one visit is now enough). v14 = the offline screen matches the real one.
+const CACHE_VERSION = "cos-v16"; // v16 = the offline screen in the Studio look. v15 = a cached page keeps its own JS (one visit is now enough). v14 = the offline screen matches the real one.
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const OFFLINE_URL = "/offline.html";
 

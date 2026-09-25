@@ -31,7 +31,6 @@ import { IosResume } from "@/components/ios-resume";
 import { HideOnPortal } from "@/components/hide-on-portal";
 import { NavVisibilityProvider } from "@/components/nav-visibility";
 import { AppSplash, SplashGateScript } from "@/components/app-splash";
-import { StudioSplash, SplashDone } from "@/components/studio/studio-splash";
 import { ActivityPinger } from "@/components/activity-pinger";
 import { getAppSettings } from "@/lib/settings";
 import { getViewer } from "@/lib/viewer";
@@ -116,8 +115,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           rule was lost the same way and is set inline for the same reason. */}
       <body style={{ scrollbarGutter: "stable" }}>
         <AppSplash />
-        <StudioSplash />
-        <SplashDone />
         {!asDirector && <ActivityPinger />}
         <ThemeProvider>
           <MotionConfig reducedMotion="user">
