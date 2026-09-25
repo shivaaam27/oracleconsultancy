@@ -1,5 +1,6 @@
 "use client";
 
+import { PersonFace } from "@/components/studio/face";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
@@ -377,7 +378,10 @@ export function PortalTasksCommand({
     return [
       { key: "overdue", label: "Overdue", dot: "bg-danger", items: overdue },
       { key: "soon", label: "Due soon", dot: "bg-warn", items: soon },
-      { key: "open", label: "In progress", dot: "bg-info", items: open },
+      // "Open", not "In progress": this group is everything open that is neither
+      // late nor due soon, Not Started included — labelled "In progress" it
+      // listed rows that each said "Not Started" (audit, 26 Sept 2026).
+      { key: "open", label: "Open", dot: "bg-info", items: open },
       { key: "done", label: "Done", dot: "bg-fg-subtle", items: done },
     ].filter((g) => g.items.length > 0);
   }, [filtered, groupByCompany, filter, statusFilter]);
@@ -821,10 +825,12 @@ function LeadAvatars({ people }: { people: { name: string; lead: boolean }[] }) 
   const shown = people.slice(0, people.length > 3 ? 2 : 3);
   const extra = people.length - shown.length;
   return (
-    <span className="inline-flex items-center -space-x-1.5">
+    <span className="inline-flex items-center">
+      {/* Faces, as everywhere else (the square initials overlapped and cut
+          each other off — "H! A! JS"). A lead keeps a ring. */}
       {shown.map((p, i) => (
-        <span key={i} title={`${p.name}${p.lead ? " · Lead" : ""}`} className="inline-flex">
-          <Avatar name={p.name} size="sm" lead={p.lead} stacked />
+        <span key={i} title={`${p.name}${p.lead ? " · Lead" : ""}`} className={cn("inline-flex rounded-full ring-2", p.lead ? "ring-accent/60" : "ring-bg-elev")} style={{ marginLeft: i ? -6 : 0 }}>
+          <PersonFace name={p.name} size={22} peek />
         </span>
       ))}
       {extra > 0 && (
