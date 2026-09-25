@@ -1,23 +1,10 @@
-import { PageHeader } from "@/components/ui";
-import { HrmsCrumbs } from "@/components/hrms/hrms-crumbs";
-import { AskOri } from "@/components/ask-ori";
-
-export const dynamic = "force-dynamic";
+import { redirect } from "next/navigation";
 
 /**
- * Ask ORI — routed through the cloud-agent engine (ai_jobs queue), answered by the
- * ORI worker on the Max plan. No external AI service. (The ⌘K "Ask ORI" surface
- * still uses the old synchronous /api/ask; this is the new async path.)
+ * /ask used to queue a question for the ORI cloud worker, which has not
+ * answered since 10 July 2026 — so the page waited for ever. Asking ORI lives
+ * in "Ask or search" (⌘K) now, which answers straight away (26 Sept 2026).
  */
 export default function AskPage() {
-  return (
-    <div className="space-y-5 max-w-2xl mx-auto">
-      <HrmsCrumbs />
-      <PageHeader
-        title="Ask ORI"
-        sub="Ask about your tasks, documents, people, companies and governance. ORI answers grounded in your live data — powered by the cloud agent, no external AI service."
-      />
-      <AskOri />
-    </div>
-  );
+  redirect("/");
 }

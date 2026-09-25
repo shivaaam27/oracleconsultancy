@@ -13,10 +13,16 @@ export type { CockpitItem } from "@/lib/cockpit-shared";
 
 const byNewest = (a: CockpitItem, b: CockpitItem) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0);
 
+// Proposals from features that no longer exist — Applications (removed 26 Sept
+// 2026) and the document-compliance engine (removed Aug 2026). Approving one can
+// do nothing, so they never count as waiting (Home, the morning push, Approvals);
+// the logbook still lists them.
+const RETIRED_KINDS = new Set(["pipeline-advance", "pipeline-create", "compliance-verify"]);
+
 /** Everything awaiting a one-tap decision, both engines, newest first. */
 export async function listApprovals(): Promise<CockpitItem[]> {
   const feed = await listAutomationFeed();
-  const fromProcess: CockpitItem[] = feed.suggestions.map((a) => ({
+  const fromProcess: CockpitItem[] = feed.suggestions.filter((a) => !RETIRED_KINDS.has(a.kind)).map((a) => ({
     key: `ae:${a.id}`, source: "process", kind: a.kind, summary: a.summary, detail: a.detail, createdAt: a.createdAt, canUndo: false,
   }));
   return fromProcess.sort(byNewest);
