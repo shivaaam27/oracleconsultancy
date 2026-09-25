@@ -100,10 +100,10 @@ export function StudioPeople({ people, companies, hints = {}, readOnly = false }
   // workload, no portal levels, no attention queue. The server sends none of it.
   const staff = paths.staff;
   const [busy, start] = useTransition();
-  // Grid (the owner's default) or Columns — one column per group, side by side,
-  // for a director, manager or member of staff who deals with two or three
-  // companies and whose grid looked empty (owner, 26 Sept 2026).
-  const f = useUrlFilters({ co: "all", type: "all", loc: "all", mode: "browse", group: "company", chip: "all", q: "", lay: readOnly ? "cols" : "grid" }, { debounceKeys: ["q"] });
+  // Columns — one column per group, side by side — is everyone's view
+  // (owner, 26 Sept 2026: "system wide … so everyone gets same view"); Grid
+  // stays one click away.
+  const f = useUrlFilters({ co: "all", type: "all", loc: "all", mode: "browse", group: "company", chip: "all", q: "", lay: "cols" }, { debounceKeys: ["q"] });
   const cols = f.values.lay === "cols" && f.values.mode === "browse";
   const [q, setQ] = useState(f.values.q);
   const [sel, setSel] = useState<number | null>(null);
@@ -182,18 +182,18 @@ export function StudioPeople({ people, companies, hints = {}, readOnly = false }
   const groups = useMemo(() => {
     const by = f.values.group;
     if (by === "none") return [{ key: "all", name: "Everyone", items: rows }];
-    // Someone viewing over their OWN companies (a director, manager or member
-    // of staff): a column per company of theirs, and a colleague sits under
-    // every one of those they work for — not under their main company, which
-    // may be one the viewer is not in (owner, 26 Sept 2026).
-    if (by === "company" && readOnly) {
+    // A column per company (the viewer's companies — every company for the
+    // owner), and a person sits under EVERY one they work for, not only their
+    // main one: for a director that main company may be one they are not in
+    // (owner, 26 Sept 2026). The same rule for everyone, so every view matches.
+    if (by === "company") {
       const out = companies
         .map((c) => ({ key: `c${c.id}`, name: c.name, items: rows.filter((p) => p.companyId === c.id || p.associations.some((a) => a.companyId === c.id)) }))
         .filter((g) => g.items.length > 0)
         .sort((x, y) => y.items.length - x.items.length || x.name.localeCompare(y.name));
       const placed = new Set(out.flatMap((g) => g.items.map((p) => p.id)));
       const rest = rows.filter((p) => !placed.has(p.id));
-      return rest.length ? [...out, { key: "none", name: "Also here to help", items: rest }] : out;
+      return rest.length ? [...out, { key: "none", name: readOnly ? "Also here to help" : "No company — outsiders & candidates", items: rest }] : out;
     }
     const m = new Map<string, { key: string; name: string; sort: string; items: PersonRow[] }>();
     for (const p of rows) {
@@ -381,7 +381,11 @@ export function StudioPeople({ people, companies, hints = {}, readOnly = false }
       <div ref={area} className="relative min-h-0">
       {cols && groups.length > 0 && (
         <div className="hidden md:block md:h-[62vh] lg:absolute lg:inset-0 lg:h-auto">
-          <PeopleColumns groups={groups} titled={f.values.group !== "none"}>
+          <PeopleColumns groups={groups} titled={f.values.group !== "none"} note={staff ? undefined : (items) => {
+            const over = items.reduce((n, p) => n + p.workload.overdue, 0);
+            const noCon = items.filter((p) => !p.hasContact).length;
+            return { text: [over ? `${over} overdue` : null, noCon ? `${noCon} no contact` : null].filter(Boolean).join(" · ") || "on track", c: over >= 3 ? "var(--st-late-text)" : over || noCon ? "var(--st-soon-text)" : "var(--st-ok-text)" };
+          }}>
             {(p) => {
               const l = load(p);
               const on = selecting ? picked.has(p.id) : sel === p.id;
@@ -555,7 +559,7 @@ export function StudioPeople({ people, companies, hints = {}, readOnly = false }
 /** Columns: one per group, side by side, sharing the width when there are two
  *  or three and sliding sideways (‹ ›) when there are more. The page never
  *  scrolls — each column scrolls inside itself, as the Home cards do. */
-function PeopleColumns({ groups, titled, children }: { groups: { key: string; name: string; items: PersonRow[] }[]; titled: boolean; children: (p: PersonRow) => React.ReactNode }) {
+function PeopleColumns({ groups, titled, note, children }: { groups: { key: string; name: string; items: PersonRow[] }[]; titled: boolean; note?: (items: PersonRow[]) => { text: string; c: string }; children: (p: PersonRow) => React.ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
   const [edge, setEdge] = useState({ left: false, right: false });
   const measure = () => {
@@ -584,6 +588,7 @@ function PeopleColumns({ groups, titled, children }: { groups: { key: string; na
               <div className="flex shrink-0 items-baseline gap-2 border-b border-[var(--st-line-soft)] px-4 pb-2.5 pt-3.5">
                 <span className="min-w-0 truncate text-[15px] font-semibold">{g.name}</span>
                 <span className="shrink-0 text-xs text-[var(--st-muted)]">{g.items.length}</span>
+                {note && (() => { const n = note(g.items); return <span className="ml-auto shrink-0 text-xs" style={{ color: n.c }}>{n.text}</span>; })()}
               </div>
             )}
             <div className="st-scroll flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto p-1.5">
