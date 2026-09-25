@@ -13,6 +13,9 @@
 import { useRef, type ReactNode } from "react";
 
 async function forgetThisDevice(): Promise<void> {
+  // Drop the remembered portal sign-in too (portal-session.tsx), or the sign-in
+  // screen would quietly sign the same person straight back in.
+  try { localStorage.removeItem("cos_portal_remember"); } catch { /* private mode */ }
   try {
     if (!("serviceWorker" in navigator)) return;
     const reg = await Promise.race([

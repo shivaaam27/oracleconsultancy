@@ -114,6 +114,7 @@ sidebar rule, portal `zoom: 0.8`) and verifiably fixed items were taken out.
   rail — permanently when hydration failed. Fixes that stay: fallbacks are the
   rail's expanded width (`var(--portal-sidebar, 208px)`), the width is
   server-rendered from a rail cookie, and effects never remove it on cleanup.
+  (The portal rail itself was deleted 26 Sept 2026; the lesson stands.)
   **If CSS paints it immediately, CSS (or the server) has to size it immediately.**
   A measurement taken mid-Fast-Refresh is not evidence about production —
   hard-reload first.
@@ -122,19 +123,5 @@ sidebar rule, portal `zoom: 0.8`) and verifiably fixed items were taken out.
 
 ## Found in the Sept 2026 clean-up (not fixed — owner to decide)
 
-- **ORI "compliance due soon" rule condition** checks nothing since the
-  compliance engine went, so it behaves as always-true; ORI still offers it when
-  building a rule by chat (`memory/ori_automations.md`).
-- **The `lifecycle` automation still reads `pendingLeave`**, which is always
-  empty now the leave module is retired.
-- **The staff first-run tour** points at `nav-requests` and `nav-chat`, which no
-  longer exist; the Studio staff screens carry no nav tags, so the tour shrinks
-  to one step (`memory/onboarding_tours.md`).
-- **Filing a document no longer completes linked tasks or ticks onboarding
-  steps** — `reactToFiledDocument` had no caller since document intake was
-  removed, and was deleted.
 - **"Automated paths archive, never hard-delete"** is a convention only: the
   unused `assertReversibleAutoAction` check was deleted in the clean-up.
-- **`/portal/outbox` and `/portal/insights`** are the last old-design portal
-  pages (staff only, when the owner grants the capability) and keep the old
-  portal chrome alive.

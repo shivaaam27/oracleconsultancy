@@ -143,7 +143,6 @@ export const RECIPES: { label: string; hint: string; draft: Partial<Draft> }[] =
   { label: "Waiting-External ager", hint: "Stuck 3+ days waiting → me", draft: { whenMode: "at_hour", hour: 9, condition: "waiting_external_aged", agingDays: 3, scopeType: "everyone", notifyOwner: true } },
   { label: "Missing-deadline auditor", hint: "No deadline or assignee → me", draft: { whenMode: "at_hour", hour: 9, condition: "no_deadline_or_assignee", scopeType: "everyone", notifyOwner: true } },
   { label: "Under-review nudge", hint: "Sat in review 2+ days → me", draft: { whenMode: "at_hour", hour: 9, condition: "under_review_stale", agingDays: 2, scopeType: "everyone", notifyOwner: true } },
-  { label: "Compliance approaching", hint: "Morning compliance check → me", draft: { whenMode: "at_hour", hour: 9, condition: "compliance_due_soon", scopeType: "everyone", notifyOwner: true } },
   { label: "Nag until they reply", hint: "Overdue → every 6h until they update", draft: { whenMode: "on_overdue", condition: "always", scopeType: "task", notifyOwner: false, warnPerson: true, repeatOn: true, repeatEvery: 6, repeatUnit: "hours", stopUntilUpdate: true, activeHoursOn: true } },
   { label: "Deadline crunch", hint: "3h before due → hourly until done", draft: { whenMode: "hours_before", hoursBefore: 3, condition: "always", scopeType: "task", notifyOwner: false, warnPerson: true, repeatOn: true, repeatEvery: 1, repeatUnit: "hours", stopUntilUpdate: true, stopUntilDeadline: true } },
   { label: "Escalation watchdog", hint: "One task — escalate on 3d silence", draft: { whenMode: "days_before", days: 3, condition: "no_update_today", scopeType: "task", notifyOwner: true, preferKind: "escalate_if_no_update" } },
@@ -158,7 +157,6 @@ const COND_OPTIONS: { value: Draft["condition"]; label: string }[] = [
   { value: "waiting_external_aged", label: "Waiting External too long" },
   { value: "under_review_stale", label: "Stuck Under Review" },
   { value: "no_deadline_or_assignee", label: "No deadline or assignee" },
-  { value: "compliance_due_soon", label: "Compliance date approaching" },
 ];
 
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -240,8 +238,7 @@ function sentence(d: Draft): string {
     : d.condition === "due_tomorrow" ? "if tasks are due tomorrow"
     : d.condition === "waiting_external_aged" ? `if Waiting External for ${d.agingDays}+ days`
     : d.condition === "under_review_stale" ? `if Under Review for ${d.agingDays}+ days`
-    : d.condition === "no_deadline_or_assignee" ? "if it has no deadline or nobody assigned"
-    : d.condition === "compliance_due_soon" ? "if a compliance date is approaching" : "";
+    : d.condition === "no_deadline_or_assignee" ? "if it has no deadline or nobody assigned" : "";
   const who: string[] = [];
   if (d.notifyOwner) who.push("me");
   if (d.notifyManagers) who.push("the manager(s)");

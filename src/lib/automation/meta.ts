@@ -68,8 +68,8 @@ export const CATEGORY_META: CategoryMeta[] = [
   },
   {
     key: "lifecycle",
-    label: "Probation & leave reminders (to you)",
-    onDescription: "Auto-sends a daily HR summary — probations ending and leave to approve.",
+    label: "Probation reminders (to you)",
+    onDescription: "Auto-sends a daily HR summary — probations ending.",
     naturalMode: "auto",
     source: "automation-lifecycle",
     schedule: "daily",

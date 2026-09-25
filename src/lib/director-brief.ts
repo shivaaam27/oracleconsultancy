@@ -5,7 +5,7 @@ import { getAllTasks, computeCompanyKpis, type TaskRow, type CompanyKpi } from "
 import { getCompanyLogoMap } from "./company-brand";
 import { isOpen } from "./derive";
 import { listDocuments, type DocumentRow } from "./documents";
-import { leaveMetrics, listLeaveRequests } from "./leave";
+import { leaveMetrics } from "./leave";
 import { deriveDocStatus, expiryLabel } from "./documents-shared";
 import { normalizePersonType, PERSON_TYPE_LABELS, type PersonType } from "./person-types";
 import { listObligations, outstandingDeadlines } from "./recurring";
@@ -146,7 +146,6 @@ export type BriefHr = {
   joiners: number;
   expiringDocs: Array<{ person: string; title: string; status: string; expiryLabel: string | null }>;
   onLeaveToday: number;
-  pendingLeave: Array<{ name: string; type: string; days: number; start: string; end: string }>;
   probationEnding: Array<{ name: string; companyName: string | null; endDate: Date }>;
   birthdays: Array<{ name: string; companyName: string | null; date: Date }>;
 };
@@ -221,13 +220,12 @@ async function buildHrBrief(
   documents: DocumentRow[],
   companyNameById: Map<number, string>
 ): Promise<BriefHr> {
-  const [{ data: pplRows }, leave, pendingReqs] = await Promise.all([
+  const [{ data: pplRows }, leave] = await Promise.all([
     sb.from("people").select("id,name,person_type,company_id,start_date,probation_end_date,date_of_birth").eq("active", true),
     // When the Brief is filtered to companies, the on-leave-today figure scopes to
     // them too (a single company scopes precisely; a multi-company scope keeps the
     // portfolio aggregate — a count only).
     leaveMetrics(scope && scope.length === 1 ? scope[0] : null),
-    listLeaveRequests({ status: "Pending" }),
   ]);
 
   let people = (pplRows ?? []).map((p) => ({
@@ -278,17 +276,6 @@ async function buildHrBrief(
     .slice(0, 12)
     .map(({ person, title, status, expiryLabel }) => ({ person, title, status, expiryLabel }));
 
-  // Leave — pending approvals (names + type), filtered to the company's people.
-  const pendingLeave = pendingReqs
-    .filter((r) => idSet.has(r.personId))
-    .slice(0, 10)
-    .map((r) => ({
-      name: r.personName ?? nameById.get(r.personId) ?? "—",
-      type: r.leaveTypeName ?? "Leave",
-      days: r.days,
-      start: r.startDate.slice(0, 10),
-      end: r.endDate.slice(0, 10),
-    }));
 
   // Probation periods ending within the next 45 days.
   const horizon = new Date(now); horizon.setDate(horizon.getDate() + 45);
@@ -318,7 +305,6 @@ async function buildHrBrief(
     joiners,
     expiringDocs,
     onLeaveToday: leave.onLeaveToday,
-    pendingLeave,
     probationEnding,
     birthdays,
   };
@@ -676,7 +662,7 @@ export function briefShareText(b: BriefData): string {
   if (hr.headcount) {
     L.push("");
     L.push(`*People*`);
-    L.push(`👥 ${hr.headcount} active${hr.joiners ? ` · ${hr.joiners} joined in ${b.monthLabel}` : ""}${hr.onLeaveToday ? ` · ${hr.onLeaveToday} on leave today` : ""}${hr.pendingLeave.length ? ` · ${hr.pendingLeave.length} leave to approve` : ""}`);
+    L.push(`👥 ${hr.headcount} active${hr.joiners ? ` · ${hr.joiners} joined in ${b.monthLabel}` : ""}${hr.onLeaveToday ? ` · ${hr.onLeaveToday} on leave today` : ""}`);
     if (hr.expiringDocs.length) L.push(`• ${hr.expiringDocs.length} staff document${hr.expiringDocs.length === 1 ? "" : "s"} expiring/expired`);
     for (const p of hr.probationEnding.slice(0, 5)) L.push(`• Probation ending: ${p.name}${p.companyName ? ` (${p.companyName})` : ""} — ${fmtDay(p.endDate)}`);
     for (const p of hr.birthdays.slice(0, 5)) L.push(`• 🎂 Birthday: ${p.name}${p.companyName ? ` (${p.companyName})` : ""} — ${fmtDay(p.date)}`);
@@ -759,7 +745,6 @@ export function briefEmailDoc(b: BriefData): EmailDoc {
     const peopleRows: { left: string; right?: string }[] = [
       { left: "Active staff", right: `${hr.headcount}${hr.joiners ? ` · ${hr.joiners} joined` : ""}${hr.onLeaveToday ? ` · ${hr.onLeaveToday} on leave today` : ""}` },
     ];
-    if (hr.pendingLeave.length) peopleRows.push({ left: "Leave to approve", right: `${hr.pendingLeave.length}` });
     blocks.push({ kind: "section", label: "People", rows: peopleRows });
   }
   return {

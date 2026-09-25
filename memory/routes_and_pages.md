@@ -73,23 +73,22 @@ to `/portal`. `rewrites()` serve the OAuth discovery documents at
 Every `(app)` page sends a signed-out visitor to `/portal/login`. The portal
 layout sends a **director or manager** on to the shared screen for any old
 address (`studioPathForDirector`); only `/portal/profile` and `/portal/cleaning`
-stay. For **staff and the receptionist**, `PortalFrame` draws the Studio frame
-on the pages in `isStaffStudioPath`, and the old chrome elsewhere.
+stay. **Every portal page wears the Studio frame** (26 Sept 2026) — the old
+rail, header and pill were deleted with the last pages that used them.
 
 | Route | What |
 |---|---|
 | `/portal/login` | Staff sign-in; already signed in → `/` or `/portal` by role |
 | `/portal` | Staff Studio Home (directors/managers → `/`) |
 | `/portal/tasks`, `/portal/task/[code]` | Staff task list and task page (Studio) |
-| `/portal/task/new` | New task (needs `createTasks`) |
+| `/portal/task/new` | The old new-task form in the Studio frame (needs `createTasks`; nothing links to it) |
 | `/portal/profile` | Profile: documents, attendance, equipment, passkeys, install |
 | `/portal/people`, `/portal/people/[id]` | People (Studio) |
 | `/portal/companies`, `/portal/companies/[id]` | Companies (Studio) |
-| `/portal/meetings` | Briefings: meetings and announcements tabs |
+| `/portal/meetings` | Calendar, read-only (Studio); `?tab=announcements` → `/portal/announcements` |
 | `/portal/announcements` | Announcements |
 | `/portal/cleaning` | Cleaning log (receptionist) / overview (managers with the capability) |
-| `/portal/board`, `/portal/team`, `/portal/directory` | Redirect stubs (old links still land) |
-| `/portal/outbox`, `/portal/insights` | Older portal pages, for staff only if the owner grants `navOutbox` / `navInsights`; directors/managers are redirected away |
+| `/portal/board`, `/portal/team`, `/portal/directory`, `/portal/outbox`, `/portal/insights` | Redirect stubs (old links still land); Outbox and Insights removed 26 Sept 2026 |
 
 ## API routes
 
@@ -160,5 +159,5 @@ Every one starts with its guard (`guardOwner` / `guardViewer` / a portal check).
   `settings/passkey-actions.ts`.
 - **Portal**: `portal/actions.ts`, `portal/attendance-actions.ts`,
   `portal/bulk-task-actions.ts`, `portal/passkey-actions.ts`,
-  `portal/tour-actions.ts`, `portal/trace-actions.ts`,
+  `portal/trace-actions.ts`,
   `portal/(app)/cleaning/actions.ts`, `portal/(app)/tasks/automations-actions.ts`.

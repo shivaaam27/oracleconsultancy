@@ -82,7 +82,7 @@ search, sync), `prefs` (list-views, nav-pins, nav-recents), `pulse`, `push`
 - ~210 loose components: shared kit (`record-list.tsx`, `record-page.tsx` (`RecordBody`),
   `command-palette.tsx`, `task-drawer.tsx` → `TaskRecordPage`,
   `timeline-entry.tsx`, `bottom-sheet.tsx`, `fluid-select.tsx`,
-  `combobox.tsx`, `portal-frame.tsx`, `portal-pill.tsx`, `back-link.tsx`),
+  `combobox.tsx`, `back-link.tsx`),
   plus old-design components still used by pages not yet rebuilt.
 
 ## Key `src/lib/` files
@@ -94,7 +94,7 @@ search, sync), `prefs` (list-views, nav-pins, nav-recents), `pulse`, `push`
 | `admin-auth.ts`, `portal-auth.ts` | Cookies and sessions; `portal-auth.ts` holds the scope helpers (`companyScope`, `seesAllCompanies`, `isScopedDirector`) |
 | `portal-access.ts` | The one writer of portal roles and director scope |
 | `portal-permissions.ts`, `portal-capabilities.ts` | Configurable per-role capabilities |
-| `director-routes.ts` | Sends directors from old portal addresses to shared screens; `isStaffStudioPath` for staff |
+| `director-routes.ts` | Sends directors from old portal addresses to shared screens; `isStaffLikeRole` |
 | `task-write.ts` | `createTaskCore` / `updateTaskCore` / `addTaskUpdateCore` — every task write |
 | `mcp/` | `registry.ts` (tools), `writes.ts`, `records.ts`, `notes.ts`, `auth.ts`, `oauth.ts` |
 | `entity-view.ts` | Declarative list columns, filters, form sections; `CREATE_ORDER` for the New menu |

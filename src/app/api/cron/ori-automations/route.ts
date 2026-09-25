@@ -17,7 +17,7 @@ import { createCalendarEvent } from "@/lib/calendar";
 import { reindexEntity } from "@/lib/index-hooks";
 import { insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
 import { canAutoSend, type SendChannel } from "@/lib/guardrails";
-import { evaluateRule, smartFiredKey, smartFiredKeyFor, darDayStart, type AutomationRuleRow, type RuleConfig, type RuleKind } from "@/lib/ori/automations";
+import { evaluateRule, isKnownCondition, smartFiredKey, smartFiredKeyFor, darDayStart, type AutomationRuleRow, type RuleConfig, type RuleKind } from "@/lib/ori/automations";
 import { managersOf, directorsOfCompany, allDirectors, allManagers } from "@/lib/ori/audiences";
 import { getAppSettings } from "@/lib/settings";
 
@@ -331,6 +331,8 @@ async function resolveSmartDigestTasks(cfg: RuleConfig, now: Date): Promise<Dige
     rows = rows.filter((r) => r.owner_id === scope.personId || assigned.has(r.id));
   }
   const cond = cfg.condition ?? "always";
+  // A removed condition (e.g. the retired `compliance_due_soon`) matches nothing.
+  if (!isKnownCondition(cond)) return [];
   const nowMs = now.getTime();
   const agingDays = Math.max(0, Math.round(cfg.agingDays ?? (cond === "under_review_stale" ? 2 : 3)));
   if (cond === "due_tomorrow") {

@@ -78,7 +78,6 @@ describe("the default capabilities — what each level may DO", () => {
     createEvents: ["manager", "director"],
     navTasks: ["staff", "manager", "director"],
     navOutbox: ["manager", "director"],
-    navInsights: ["manager", "director"],
     oriAsk: ["staff", "manager", "director"],
     oriAct: ["manager", "director"],
     cleaningLog: ["receptionist"],
@@ -98,7 +97,7 @@ describe("the default capabilities — what each level may DO", () => {
     const taskish: CapabilityKey[] = [
       "createTasks", "manageAnyTask", "bulkTaskActions", "crossCompanyTasks",
       "recurringTasks", "messageOnTasks", "bulkOutreach", "createEvents",
-      "navTasks", "navOutbox", "navInsights", "oriAsk", "oriAct", "directorBrief",
+      "navTasks", "navOutbox", "oriAsk", "oriAct", "directorBrief",
     ];
     for (const cap of taskish) expect(DEFAULT_CAPS[cap].receptionist, cap).toBe(false);
   });
@@ -174,6 +173,13 @@ describe("the owner's overrides", () => {
     const cfg = { scope: { wizard: "all" }, caps: { flyAway: { director: true } } } as never;
     expect(scopeLevelFor(cfg, "director")).toBe("all");
     expect(permits(cfg, "director", "createTasks")).toBe(true);
+  });
+
+  it("ignore a stored row still naming the removed navInsights capability", async () => {
+    const { diffFromDefaults } = await import("./portal-permissions");
+    const cfg = { caps: { navInsights: { staff: true, manager: false } } } as never;
+    expect("navInsights" in resolveRolePerms(cfg, "staff").caps).toBe(false);
+    expect(diffFromDefaults(cfg)).toEqual({});
   });
 });
 

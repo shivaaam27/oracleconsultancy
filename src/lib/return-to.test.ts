@@ -66,9 +66,8 @@ describe("withoutReturn", () => {
 
 describe("returnLabel", () => {
   it("names a portal destination", () => {
-    expect(returnLabel("/portal/board")).toBe("Board");
     expect(returnLabel("/portal/tasks?f=overdue")).toBe("Tasks");
-    expect(returnLabel("/portal/meetings")).toBe("Briefings");
+    expect(returnLabel("/portal/meetings")).toBe("Calendar");
     expect(returnLabel("/portal")).toBe("Home");
   });
 

@@ -19,7 +19,7 @@ import { MIN_REPEAT_MINUTES } from "@/lib/ori/automations";
  * set. External send stays gated by canAutoSend() at fire time (fail-closed); the
  * rule never auto-deletes. Undo = delete the rule (ori.automation.create). */
 
-const VALID_CONDITIONS: SmartCondition[] = ["no_update_today", "overdue", "compliance_due_soon", "always"];
+const VALID_CONDITIONS: SmartCondition[] = ["no_update_today", "overdue", "always"];
 const VALID_STATUSES = ["Not Started", "In Progress", "Under Review", "Blocked", "Waiting External", "Escalated", "Completed", "Closed"];
 
 function truthy(v: unknown): boolean {
@@ -82,7 +82,7 @@ export const SMART_TOOLS: ToolDef[] = [
       activeFromHour: { type: "number", required: false, description: "Active-hours start (0–23, Dar es Salaam) — a repeating nudge only fires from this hour, so it never pings overnight. Pair with activeToHour." },
       activeToHour: { type: "number", required: false, description: "Active-hours end (0–23, Dar es Salaam) — a repeating nudge only fires before this hour." },
       message: { type: "string", required: false, description: "The instruction/message wording — used as the notification text (and the posted update when auto-act posts one)." },
-      condition: { type: "string", required: false, description: "IF — no_update_today | overdue | compliance_due_soon | always (default always)." },
+      condition: { type: "string", required: false, description: "IF — no_update_today | overdue | always (default always)." },
       notifyOwner: { type: "string", required: false, description: "WHO — 'yes' to notify you (the owner/admin)." },
       notifyDirectors: { type: "string", required: false, description: "WHO — 'yes' to notify all directors." },
       warnPerson: { type: "string", required: false, description: "WHO — 'yes' to warn the scoped person." },

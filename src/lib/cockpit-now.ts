@@ -4,8 +4,8 @@ import { listCalendarEvents } from "@/lib/calendar";
 import { splitByElapsed, isHappeningNow } from "@/lib/event-time-shared";
 import { leaveMetrics } from "@/lib/leave";
 
-// "Right now" data for the Administrator — today's events, who's on leave, leave to
-// approve, upcoming birthdays, and the live headcount. All cheap reads; reused, not new.
+// "Right now" data for the Administrator — today's events, who's on leave, upcoming
+// birthdays, and the live headcount. All cheap reads; reused, not new.
 
 export type NowEvent = { id: number; title: string; startAt: string; endAt: string | null; allDay: boolean; happeningNow: boolean };
 export type NowBirthday = { name: string; inDays: number };
@@ -16,7 +16,6 @@ export type CockpitNowData = {
    *  saved and on the calendar, they are simply no longer something to do. */
   finishedToday: number;
   onLeaveToday: number;
-  pendingLeave: number;
   birthdays: NowBirthday[];
   headcount: number;
 };
@@ -67,7 +66,6 @@ export async function gatherCockpitNow(): Promise<CockpitNowData> {
     })),
     finishedToday: finished.length,
     onLeaveToday: leave.onLeaveToday,
-    pendingLeave: leave.pending,
     birthdays,
     headcount: countRes.count ?? 0,
   };

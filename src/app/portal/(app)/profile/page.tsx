@@ -17,12 +17,8 @@ import { PortalPassword } from "@/components/portal-password";
 import { listCredentials } from "@/lib/webauthn";
 import { staffBeginPasskey, staffFinishPasskey, staffRemovePasskey } from "@/app/portal/passkey-actions";
 import { Clock, ScanFace, KeyRound, MonitorSmartphone } from "lucide-react";
-import { Sparkles } from "lucide-react";
 import { getPortalPerson } from "@/lib/portal-auth";
 import { getInitials } from "@/lib/names";
-import { audienceForRole, firstRunTourFor, spotlightsFor } from "@/lib/tours";
-import { TourReplay } from "@/components/tour-replay";
-import { portalRestartTour } from "../../tour-actions";
 import { getJourney } from "@/lib/onboarding";
 import { assetsForPerson } from "@/lib/assets";
 import { staffIdFor } from "@/lib/staff-id";
@@ -55,11 +51,9 @@ export default async function PortalProfile() {
   // `listDocuments()` — the entire library, filtered in JavaScript.
   const isDirector = me.portalRole === "director";
 
-  const audience = audienceForRole(me.portalRole);
-
   // Every read on this page needs only `me`, so they go in ONE round rather than
   // a dozen waits one after another.
-  const [companyName, staffId, { data: contactRow }, docItems, [journey, equipment, attendance], passkeys, [welcomeTour, spotlights], briefOptions, allTasks] = await Promise.all([
+  const [companyName, staffId, { data: contactRow }, docItems, [journey, equipment, attendance], passkeys, briefOptions, allTasks] = await Promise.all([
     me.companyId
       ? sb.from("companies").select("name").eq("id", me.companyId).maybeSingle().then(({ data }) => (data?.name as string | null) ?? null)
       : Promise.resolve(null),
@@ -96,8 +90,6 @@ export default async function PortalProfile() {
           personAttendanceWeek(me.id),
         ]),
     listCredentials({ kind: "person", id: me.id, name: me.name }),
-    // Guides the person can replay (welcome walkthrough + past feature spotlights).
-    Promise.all([firstRunTourFor(audience), spotlightsFor(audience)]),
     // Director Brief filters — gated by the owner-configurable `directorBrief`
     // capability, not the role. Both lists are scoped to what this person may see,
     // so a company-locked director never sees other companies' staff names.
@@ -112,12 +104,6 @@ export default async function PortalProfile() {
     emergencyContactName: (contactRow?.emergency_contact_name as string | null) ?? "",
     emergencyContactPhone: (contactRow?.emergency_contact_phone as string | null) ?? "",
   };
-
-  const welcome = welcomeTour
-    ? { key: welcomeTour.key, title: welcomeTour.title, body: welcomeTour.body, route: welcomeTour.route }
-    : null;
-  const spotlightsLite = spotlights.map((s) => ({ key: s.key, title: s.title, body: s.body, route: s.route }));
-  const showGuides = !!welcome || spotlightsLite.length > 0;
 
   const details: Array<{ label: string; value: string }> = [
     { label: "Name", value: me.name },
@@ -202,11 +188,6 @@ export default async function PortalProfile() {
                     ))}
                   </ul>
                   <p className={tick + " mt-3"}>Your administrator ticks these off as they are completed.</p>
-                </PCard>
-              )}
-              {showGuides && (
-                <PCard key="guides" title="Guides & tips">
-                  <TourReplay welcome={welcome} spotlights={spotlightsLite} restart={portalRestartTour} />
                 </PCard>
               )}
             </div>
@@ -440,14 +421,6 @@ export default async function PortalProfile() {
             ))}
           </Panel>
           <p className="px-1 text-xs text-fg-subtle">Company equipment currently assigned to you.</p>
-        </Reveal>
-      )}
-
-      {showGuides && (
-        <Reveal delay={0.125} className="flex flex-col gap-2.5">
-          <SectionLabel icon={<Sparkles size={13} />}>Guides &amp; tips</SectionLabel>
-          <TourReplay welcome={welcome} spotlights={spotlightsLite} restart={portalRestartTour} />
-          <p className="px-1 text-xs text-fg-subtle">Re-watch the welcome tour or catch up on what&apos;s new — any time.</p>
         </Reveal>
       )}
 

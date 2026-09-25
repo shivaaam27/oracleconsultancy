@@ -44,7 +44,7 @@ neither cap is sent to `/portal`:
   Studio screen as the owner's log, with her own actions.
 - **else `cleaningOverview`** → `StudioCleaningOverview`
   (`components/studio/cleaning/`), read-only with 14 days of history (batched,
-  no N+1). This is a manager's page; `PortalFrame studioRole` draws it in the
+  no N+1). This is a manager's page; the portal layout draws it in the
   Studio frame.
 
 "Today" is the **EAT day** on both sides (`Date.now() + 3h`).

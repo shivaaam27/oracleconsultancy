@@ -211,7 +211,10 @@ export const MCP_TOOLS: McpTool[] = [
       "Task counts per company plus a portfolio total — open, overdue, due soon, critical, blocked. " +
       "Use this for 'how are we doing' questions rather than listing every task.",
     schema: z.object({}),
-    capability: "navInsights",
+    // Was `navInsights` (removed with the portal Insights page, 26 Sept 2026).
+    // The Report permission has the same defaults (managers and directors) and
+    // is the same kind of thing: a summary over the companies they may see.
+    capability: "directorBrief",
     run: async (_args, caller) => {
       const rows = await scopedTasks(caller);
       return { portfolio: computeGlobalKpis(rows), companies: computeCompanyKpis(rows) };

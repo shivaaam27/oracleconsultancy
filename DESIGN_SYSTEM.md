@@ -215,9 +215,8 @@ director, manager and staff alike.
   Activity and Open · Reply · Mark read · Dismiss per row.
 - **Who sees what**: `studioStops` (owner), `directorStops` (directors and
   managers — Profile instead of Settings, no everything-search), `staffStops`
-  (staff — pages under `/portal/*`, "+" makes a to-do). Staff frames are chosen
-  **on the client** by `PortalFrame` + `isStaffStudioPath()`
-  (`lib/director-routes.ts`); links inside shared screens go through
+  (staff — pages under `/portal/*`, "+" makes a to-do). Every portal page wears
+  the Studio frame the portal layout draws; links inside shared screens go through
   `useStudioPaths()` so staff land on `/portal/*`.
 
 ## 6. Forms and pick-lists
@@ -381,7 +380,7 @@ Still in use inside Studio, restyled by the redefined tokens (verified imported,
 7. Tag pop-ups `data-st-menu`; portalled ones carry `studio`. Esc one layer.
 8. Columns? `useFitFrame` from `lg`, lists scroll inside themselves.
 9. Add the route to `nav.ts` (the footer and Go-to derive from it), and for
-   staff to `isStaffStudioPath()`; links via `useStudioPaths()`.
+   staff to `staffStops()`; links via `useStudioPaths()`.
 10. Check at 1440×900 against the board, at ~1000px, and at 393px — light and
     dark, reduced motion on. Footer top − floating bar bottom = 12px.
 11. Update this file and `memory/studio_redesign.md` if a rule changed.

@@ -55,7 +55,7 @@ export async function StudioHomeServer({ rows: allRows, viewer }: { rows: TaskRo
   const none = <T,>(v: T) => Promise.resolve(v);
   const [settings, nowData, approvals, autonomy, automation, companiesRes, activityAll, emailCfg, dirRow, docCountRes, soonDocs, expiredDocs] = await Promise.all([
     getAppSettings(),
-    director ? none({ events: [], headcount: 0, onLeaveToday: 0, pendingLeave: 0, birthdays: [] } as unknown as Awaited<ReturnType<typeof gatherCockpitNow>>) : gatherCockpitNow(),
+    director ? none({ events: [], headcount: 0, onLeaveToday: 0, birthdays: [] } as unknown as Awaited<ReturnType<typeof gatherCockpitNow>>) : gatherCockpitNow(),
     director ? none([] as Awaited<ReturnType<typeof listApprovals>>) : listApprovals(),
     director ? none([] as Awaited<ReturnType<typeof listCockpitActivity>>) : listCockpitActivity(8),
     getAutomationConfig(),
@@ -230,7 +230,6 @@ export async function StudioHomeServer({ rows: allRows, viewer }: { rows: TaskRo
         { kind: "list", kicker: "People", title: "Team today", sub: `${nowData.headcount} people · ${nowData.onLeaveToday} on leave`,
           items: [
             { title: "On leave today", sub: nowData.onLeaveToday ? "Marked on the register" : "Everyone is in", right: String(nowData.onLeaveToday), dot: nowData.onLeaveToday ? "#F5A524" : "#19C37D", href: "/hrms/leave" },
-            { title: "Leave to approve", sub: nowData.pendingLeave ? "Waiting for your yes" : "Nothing waiting", right: String(nowData.pendingLeave), dot: nowData.pendingLeave ? "#E0479E" : "#B9BBBF", rightColor: nowData.pendingLeave ? "#C2327F" : undefined, href: "/hrms/leave" },
             ...nowData.birthdays.map((b) => ({ title: `${clean(b.name)}’s birthday`, sub: b.inDays === 0 ? "Today" : b.inDays === 1 ? "Tomorrow" : `In ${b.inDays} days`, right: b.inDays === 0 ? "Today" : `${b.inDays}d`, dot: "#8B5CF6", href: "/people" })),
             { title: "Everyone", sub: "The people directory", right: String(nowData.headcount), dot: "#2490EF", href: "/people" },
           ],

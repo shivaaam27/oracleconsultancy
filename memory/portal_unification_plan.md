@@ -46,9 +46,8 @@ managers, then staff. Current reference for the portal: `memory/portal.md`.
 5. **Routing**: `src/proxy.ts` `DIRECTOR_PATHS` admits a signature-checked
    portal session to the shared routes; the portal layout sends directors and
    managers from old portal addresses to them (`studioPathForDirector`) before
-   drawing anything. Staff pages are framed client-side by `PortalFrame` +
-   `isStaffStudioPath` (both in `src/lib/director-routes.ts` /
-   `components/portal-frame.tsx`).
+   drawing anything. Every staff page wears the one Studio frame the portal
+   layout draws (the old chrome was deleted 26 Sept 2026).
 
 ## Built — the record
 
@@ -84,11 +83,11 @@ managers, then staff. Current reference for the portal: `memory/portal.md`.
 
 ## Left
 
-- `/portal/board`, `/portal/team`, `/portal/directory` are redirect stubs now
-  (done). Left: the old chrome (`portal-sidebar.tsx`, `portal-pill.tsx`,
-  `portal-capabilities.ts`), still used by `/portal/outbox` and `/portal/insights`.
-- `/portal/outbox` and `/portal/insights` are still the old pages, reachable by
-  staff only if the owner grants `navOutbox` / `navInsights`.
+- Done (26 Sept 2026): `/portal/board`, `/portal/team`, `/portal/directory`,
+  `/portal/outbox` and `/portal/insights` are redirect stubs; the old chrome
+  (rail, header, pill, `PortalFrame`, `portal-nav.ts`, the launch splash) is
+  deleted and `navInsights` is gone. `portal-capabilities.ts` survives as two
+  flags. Left: `/portal/task/new` is still the old form (Studio frame).
 - Search (⌘K) for directors/managers on the shared screens, scoped.
 - A company-scoped director has not been walked through live on Studio.
 - MCP task scope uses only `companyScope` — an `own` staff caller sees none.

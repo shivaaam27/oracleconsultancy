@@ -1206,7 +1206,7 @@ export const taskSubtasks = pgTable("task_subtasks", {
 // enough to UNDO it (prev_value), so a self-moving system stays visible + reversible.
 export const automationEvents = pgTable("automation_events", {
   id: serial("id").primaryKey(),
-  // What moved: compliance-verify | task-complete | pipeline-advance | onboarding-tick.
+  // What moved: onboarding-tick (older rows may hold the retired compliance-verify | task-complete | pipeline-advance).
   kind: text("kind").notNull(),
   // applied = done automatically (certain); suggested = pending a one-click Apply.
   // Transitions: suggested → applied | dismissed; applied → undone.

@@ -331,7 +331,7 @@ Commitments, Approvals (redirect home; tables kept).
     (`studioPathForDirector` in `src/lib/director-routes.ts`, tested; the proxy
     passes the address in `x-cos-path`), before the old frame paints.
   - `/portal/profile` (both) and `/portal/cleaning` (managers) stay under the
-    portal but wear Studio via `PortalFrame studioRole`; a manager checks in on
+    portal in the Studio frame the portal layout draws; a manager checks in on
     Profile (`CheckinPanel`).
   - "You" (the owner) reads "Administrator" to them; a director's thread puts
     only THEIR posts on the right. No ⌘K palette for directors.
@@ -340,11 +340,10 @@ Commitments, Approvals (redirect home; tables kept).
   through portal-auth (`visibleTaskIds`, `personCanSeeTask`) and write through
   the portal actions. `isStaffLikeRole()` (staff | receptionist; UI only —
   permissions read the real role and `caps`).
-  - `isStaffStudioPath()` (`src/lib/director-routes.ts`, tested) lists the
-    Studio staff pages: `/portal`, tasks, a task (not `new`), profile, people
-    (+ one), companies (+ one), meetings, announcements, cleaning.
-    `SPLASH_GATE` in `src/components/app-splash.tsx` carries the same list as a
-    string — change both.
+  - Every portal page wears the Studio frame (26 Sept 2026): the old chrome,
+    `PortalFrame`, `isStaffStudioPath()` and the old launch splash were deleted
+    with `/portal/outbox` and `/portal/insights` (now redirect stubs).
+    `/portal/task/new` is still the old form, inside the Studio frame.
   - Footer: `StudioShell` served by `StaffShellServer`, `staffStops()`; "+" =
     New to-do (`/portal?todo=1`).
   - Home = `StudioHome` with slots (check-in top right, to-do card
@@ -386,10 +385,11 @@ Commitments, Approvals (redirect home; tables kept).
   click-through ring with a 100vmax box-shadow paints outside a rounded
   rectangle. Making `main` a scroll box would break every "back to where you
   were" (they read `window.scrollY`).
-- ⚠️ **The staff frame is picked on the CLIENT** (`src/components/portal-frame.tsx`,
-  `usePathname()`). A layout does not re-render between its pages, so deciding
-  from a request header froze the first page's frame. The portal layout renders
-  both chromes.
+- ⚠️ **A layout does not re-render between its pages.** While old and Studio
+  portal pages coexisted, the frame had to be picked on the client from the
+  address (deciding from a request header froze the first page's frame). Every
+  portal page is Studio now, so the layout draws one frame — if two frames ever
+  coexist again, pick on the client.
 - ⚠️ **Tabs and a picked day use `history.replaceState`, not the router.** The
   pages are dynamic; `router.replace` re-read the whole record on every click.
   Next keeps `useSearchParams` in step.
@@ -416,9 +416,9 @@ Commitments, Approvals (redirect home; tables kept).
 - ⚠️ **Cards handed from a server page to a client component as an array need keys.**
 - ⚠️ **Use the company's `code_prefix`** for anything that "sets the code", never
   the name (Furaha Innovation is CC).
-- ⚠️ **`SplashGateScript`** (`<head>`, `src/app/layout.tsx`) sets `data-no-splash`
-  so the old Aurora splash never paints on a Studio page; only non-Studio portal
-  pages keep it. Without it a reload played 1.7s of the old system.
+- The old Aurora launch splash (`app-splash.tsx`, `SplashGateScript`) was
+  deleted 26 Sept 2026 — it only ever played on old-design portal pages, and
+  none are left.
 - ⚠️ **The dev server sometimes misses a file edit** (seen after a production
   build in the same session): check the served stylesheet for your new selector
   before believing a visual; a fresh append to the file woke the watcher.

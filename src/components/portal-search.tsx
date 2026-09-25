@@ -225,22 +225,6 @@ export function PortalSearch() {
   );
 }
 
-/** A small, unobtrusive header affordance that opens the search overlay.
- *  Lives next to the notification bell. Aurora-styled; British aria-label. */
-export function PortalSearchTrigger() {
-  return (
-    <button
-      type="button"
-      onClick={() => window.dispatchEvent(new CustomEvent("cos:portal-search"))}
-      aria-label="Search"
-      title="Search (Ctrl K)"
-      className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-bg-muted hover:text-fg"
-    >
-      <Search size={16} />
-    </button>
-  );
-}
-
 function Section({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="mb-1 last:mb-0">

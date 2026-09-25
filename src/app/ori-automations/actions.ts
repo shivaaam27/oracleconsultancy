@@ -76,7 +76,7 @@ export type BuilderPayload = {
 const OPEN_STATUSES = ["Not Started", "In Progress", "Under Review", "Blocked", "Waiting External", "Escalated"];
 
 const CONDITIONS: SmartCondition[] = [
-  "always", "no_update_today", "overdue", "due_tomorrow", "compliance_due_soon",
+  "always", "no_update_today", "overdue", "due_tomorrow",
   "waiting_external_aged", "no_deadline_or_assignee", "under_review_stale",
 ];
 

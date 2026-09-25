@@ -17,7 +17,7 @@
  */
 
 import { NAV_ROUTES } from "./nav";
-import { PORTAL_NAV } from "./portal-nav";
+import { staffStops } from "./studio-nav";
 
 /** The query parameter that carries the return address. */
 export const BACK_PARAM = "back";
@@ -80,7 +80,8 @@ export function withoutReturn(search: URLSearchParams): URLSearchParams {
  * pure data plus icons, so this stays client-safe. */
 const DESTINATIONS: { href: string; label: string }[] = [
   ...NAV_ROUTES.map((r) => ({ href: r.href, label: r.label })),
-  ...PORTAL_NAV.map((r) => ({ href: r.href, label: r.label })),
+  // The staff portal's Studio footer, every stop included.
+  ...staffStops({ tasks: true, cleaning: true }).map((r) => ({ href: r.href, label: r.label })),
 ].sort((a, b) => b.href.length - a.href.length);
 
 /* The administrator's home is one page with tabs, so the path alone cannot say

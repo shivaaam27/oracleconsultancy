@@ -31,7 +31,6 @@ import { LocationTracker } from "@/components/location-tracker";
 import { IosResume } from "@/components/ios-resume";
 import { HideOnPortal } from "@/components/hide-on-portal";
 import { NavVisibilityProvider } from "@/components/nav-visibility";
-import { AppSplash, SplashGateScript } from "@/components/app-splash";
 import { ActivityPinger } from "@/components/activity-pinger";
 import { getAppSettings } from "@/lib/settings";
 import { getViewer } from "@/lib/viewer";
@@ -81,9 +80,6 @@ export const viewport: Viewport = {
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const { operatorName, voiceLanguage, commandCentrePaused } = await getAppSettings();
   // Studio Phase 2: the footer navigator replaces the sidebar AND the pill.
-  // The rail's width, from its cookie, so <main>'s gutter is correct in the FIRST
-  // paint. Without this the gutter arrived an effect late and content began life
-  // underneath the rail — see the note in `portal-sidebar.tsx`.
   // A director on the shared screens (lib/viewer.ts): the everything-search and
   // the owner's record drawers stay off for them.
   const asDirector = (await getViewer())?.kind === "director";
@@ -95,7 +91,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <PortalPrefsScript />
         <InstallPromptScript />
         <ShellThemeScript />
-        <SplashGateScript />
       </head>
       {/* ⚠️ ALWAYS RESERVE THE SCROLLBAR'S SPACE, OR EVERY PAGE CHANGE JUMPS
           15px SIDEWAYS.
@@ -115,7 +110,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           `scrollbar-gutter` out of the stylesheet entirely; the `.note-scroller`
           rule was lost the same way and is set inline for the same reason. */}
       <body style={{ scrollbarGutter: "stable" }}>
-        <AppSplash />
         {/* The hairline that says "your click registered, the page is coming". */}
         <Suspense fallback={null}><NavProgress /></Suspense>
         {!asDirector && <ActivityPinger />}
@@ -143,10 +137,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 >
                   <div className="mx-auto max-w-[1600px]">
                     {/* ⚠️ `stableUnder`: inside /portal this wrapper must never re-key —
-                        it contains the portal's FIXED sidebar, and re-animating it
-                        breaks `fixed` and remounts the rail on every click. The
-                        portal layout runs its own PageTransition around just the
-                        page. See the note in page-transition.tsx. */}
+                        the portal layout holds the mounted search/ORI surface and
+                        the Studio footer, and re-keying would remount them on
+                        every click. See the note in page-transition.tsx. */}
                     <PageTransition stableUnder={["/portal"]}>{children}</PageTransition>
                   </div>
                 </main>

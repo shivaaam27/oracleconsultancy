@@ -27,7 +27,6 @@ feature is removed, delete its note.
 - [portal_access.md](portal_access.md) — the one writer for roles and director scope
 - [company_scoped_roles.md](company_scoped_roles.md) — directors limited to chosen companies
 - [receptionist_cleaning.md](receptionist_cleaning.md) — the receptionist role and the cleaning log
-- [onboarding_tours.md](onboarding_tours.md) — first-run guided tours
 
 ## Features
 - [calendar.md](calendar.md) — events, Google sync, reminders, invitations

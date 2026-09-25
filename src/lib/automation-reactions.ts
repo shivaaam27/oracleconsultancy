@@ -10,14 +10,15 @@
 
 import { sb } from "@/db/supabase";
 import { toggleTodo } from "@/app/todos/actions";
-import { addTaskUpdate } from "@/app/task/actions";
 import { trusted } from "@/lib/viewer";
 import { DEFAULT_AUTOMATION_MODE, type AutomationMode } from "@/lib/automation-rules";
 
 // "pipeline-advance" / "pipeline-create" went with Applications (removed 26 Sept
-// 2026); old automation_events rows keep those kinds and are simply inert.
-export type AutomationKind = "task-complete" | "onboarding-tick";
-export type AutomationTable = "tasks" | "todos" | "documents";
+// 2026), and "task-complete" (a filed document completing its linked task) was
+// removed as an unwanted feature (Sept 2026); old automation_events rows keep
+// those kinds and are simply inert.
+export type AutomationKind = "onboarding-tick";
+export type AutomationTable = "todos";
 
 type LogInput = {
   kind: AutomationKind;
@@ -137,19 +138,9 @@ async function logEvent(i: LogInput): Promise<void> {
 
 type MoveRow = { kind: string; targetTable: string; targetId: number; newValue: string | null; prevValue: string | null; summary: string };
 
-async function taskCode(taskId: number): Promise<string | null> {
-  const { data } = await sb.from("tasks").select("code").eq("id", taskId).maybeSingle();
-  return (data?.code as string | null) ?? null;
-}
-
 /** Perform an automation move. */
 async function performAutomationMove(row: MoveRow): Promise<void> {
   switch (row.kind) {
-    case "task-complete": {
-      const code = await taskCode(row.targetId);
-      if (code) await trusted(() => addTaskUpdate(row.targetId, code, `Auto-completed — ${row.summary}`, row.newValue || "Completed"));
-      return;
-    }
     case "onboarding-tick":
       await trusted(() => toggleTodo(row.targetId, true));
       return;
@@ -167,8 +158,7 @@ async function performAutomationMove(row: MoveRow): Promise<void> {
  *  removed 26 Sept 2026.)
  *  Called after a task's status is written. Each chain is independently guarded,
  *  deduped, logged, and protected by the recursion guard so a chain
- *  can't re-enter itself. A renewal task completing is intentionally NOT handled
- *  here — filing the renewed document drives that loop instead. */
+ *  can't re-enter itself. */
 export async function reactToTaskStatusChange(taskId: number, wasStatus: string, nowStatus: string): Promise<void> {
   const isClosed = (s: string) => s === "Completed" || s === "Closed";
   if (!isClosed(nowStatus) || isClosed(wasStatus)) return; // only on open → closed

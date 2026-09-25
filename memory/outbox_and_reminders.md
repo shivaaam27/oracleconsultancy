@@ -171,8 +171,8 @@ to `signoffName`). **Change the look here once and every email follows.**
      (events · due today · overdue), then Today's events, Your reminders (to-dos
      with `remind_at`), Overdue tasks, Due today, Documents to renew. Returns
      nothing when there is nothing to say (no empty email).
-  6. **`lifecycle`** — probation endings to the owner (office hr). It also reads
-     `pendingLeave`, which is always empty now the Leave module is retired.
+  6. **`lifecycle`** — probation endings to the owner (office hr). The
+     leave-approval half was removed (Sept 2026) with the retired Leave module.
   (`boardPack` was removed with the board pack; there is no doc-request
   category.)
 - `engine.ts` — `runDueAutomations()`: loop over `REGISTRY` applying pause →

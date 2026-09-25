@@ -715,21 +715,6 @@ function Group({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-/** The trigger button that opens the ORI surface. */
-export function PortalCommandTrigger() {
-  return (
-    <button
-      type="button"
-      onClick={() => window.dispatchEvent(new CustomEvent("cos:portal-ori"))}
-      aria-label="ORI"
-      title="ORI — search & ask (Ctrl K)"
-      className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-bg-muted hover:text-fg"
-    >
-      <Sparkles size={16} />
-    </button>
-  );
-}
-
 function ModeChip({ active, onClick, icon: Icon, label }: { active: boolean; onClick: () => void; icon: typeof Search; label: string }) {
   return (
     <button

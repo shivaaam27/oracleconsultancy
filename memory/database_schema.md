@@ -11,7 +11,8 @@ metadata:
 Source of truth: `src/db/schema.ts` (99 tables). Migrations live in `drizzle/`;
 **the latest is `0172_announcement_delivered.sql`**. Three more tables exist only
 in migrations, not in `schema.ts`: `embeddings` (semantic index, RPC-driven),
-`tours` and `tour_completions` (onboarding tours, read by `src/lib/tours.ts`).
+`tours` and `tour_completions` (the old staff tour — its code was removed Sept 2026;
+the tables are kept, unread, for the next one).
 
 Recent migrations worth knowing:
 

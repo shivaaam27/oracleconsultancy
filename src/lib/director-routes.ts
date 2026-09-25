@@ -8,7 +8,8 @@
  * ran after the old frame and its loading skeleton had already painted, which
  * is exactly the flash he saw.
  *
- * `null` = stay: `/portal/profile` is the one director page not rebuilt yet.
+ * `null` = stay: `/portal/profile` and `/portal/cleaning` are Studio pages
+ * that live under the portal for them too.
  * Pure, so it is tested (director-routes.test.ts).
  */
 export function studioPathForDirector(path: string, search = ""): string | null {
@@ -30,20 +31,9 @@ export function studioPathForDirector(path: string, search = ""): string | null 
   if (p === "/portal/meetings") return q.get("tab") === "announcements" ? "/announcements" : "/calendar";
   if (p === "/portal/announcements") return "/announcements";
   if (p === "/portal/outbox" || p === "/portal/team") return "/outbox";
-  // Insights, Cleaning and anything unknown (Chat and Activity were removed
-  // 26 Sept 2026): not a director screen.
+  // Insights and anything unknown (Chat, Activity and the portal Insights page
+  // were removed 26 Sept 2026): not a director screen.
   return "/";
-}
-
-/**
- * The staff pages rebuilt in Studio (26 Sept 2026) — the portal layout draws
- * the Studio frame and footer on these for a member of staff, and the old
- * chrome everywhere else until each page's turn. Grows as pages are rebuilt.
- */
-export function isStaffStudioPath(path: string): boolean {
-  const p = path.replace(/\/+$/, "") || "/portal";
-  if (["/portal", "/portal/tasks", "/portal/profile", "/portal/people", "/portal/companies", "/portal/meetings", "/portal/announcements", "/portal/cleaning"].includes(p)) return true;
-  return (p.startsWith("/portal/task/") && p !== "/portal/task/new") || /^\/portal\/(people|companies)\/\d+$/.test(p);
 }
 
 /**

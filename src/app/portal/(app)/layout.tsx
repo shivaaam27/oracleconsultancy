@@ -1,28 +1,18 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { cookies, headers } from "next/headers";
+import { headers } from "next/headers";
 import { usesStudio } from "@/lib/viewer";
-import { studioPathForDirector } from "@/lib/director-routes";
-import { PortalFrame } from "@/components/portal-frame";
+import { studioPathForDirector, isStaffLikeRole } from "@/lib/director-routes";
 import { StaffShellServer } from "@/components/studio/staff-shell-server";
 import { StudioShellServer } from "@/components/studio/shell-server";
-import { portalHeaderLabel } from "@/lib/portal-labels";
-import { PortalPill } from "@/components/portal-pill";
-import { PortalSidebar, RAIL_COOKIE } from "@/components/portal-sidebar";
-import { PortalSessionKeeper, PortalSignOut } from "@/components/portal-session";
-import { NotificationBell } from "@/components/notification-bell";
-import { PortalSearch, PortalSearchTrigger } from "@/components/portal-search";
-import { PortalCommand, PortalCommandTrigger } from "@/components/portal-command";
+import { PortalSessionKeeper } from "@/components/portal-session";
+import { PortalSearch } from "@/components/portal-search";
+import { PortalCommand } from "@/components/portal-command";
 import { PortalInstallPrompt } from "@/components/portal-install-prompt";
 import { PortalNotifyPrompt } from "@/components/portal-notify-prompt";
 import { AnnouncementTakeover } from "@/components/announcement-takeover";
-import { getPortalPerson, isScopedDirector } from "@/lib/portal-auth";
-import { sb } from "@/db/supabase";
+import { getPortalPerson } from "@/lib/portal-auth";
 import { takeoverFeedForPersonId } from "@/lib/announcements";
-import { audienceForRole, unseenToursFor } from "@/lib/tours";
-import { TourRunner } from "@/components/tour-guide";
-import { portalMarkTourSeen, portalGetTour } from "../tour-actions";
-import { isStaffLikeRole } from "@/lib/director-routes";
 
 // Staff who install from the portal get a portal-scoped app: portal start_url
 // and portal shortcuts (My tasks / Messages / My profile) instead of the admin
@@ -32,165 +22,55 @@ export const metadata: Metadata = {
   appleWebApp: { capable: true, statusBarStyle: "default", title: "Oracle Staff" },
 };
 
-/* Guarded shell for every staff-portal page. No admin chrome here — the
- * portal has its own minimal header + its own bottom pill (PortalPill);
- * the global admin pill/assistant hide themselves on /portal routes.
+/* Guarded shell for every staff-portal page. Every page under it is Studio
+ * (26 Sept 2026): a member of staff or the receptionist wears the staff Studio
+ * footer (StaffShellServer), a director or manager the shared Studio footer
+ * (StudioShellServer) on the two portal pages they still use, Profile and
+ * Cleaning. The old rail, header and pill were deleted with the last pages
+ * that used them (/portal/outbox and /portal/insights). The owner's own
+ * drawers and assistant hide themselves on /portal routes.
  *
  * The once-a-day attendance check-in lives on the home page only (not here) —
- * so it can't pop over the director board or run a query on every navigation. */
+ * so it cannot run a query on every navigation. */
 
 export default async function PortalLayout({ children }: { children: React.ReactNode }) {
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
-  // A director never sees this frame (bar the one page not rebuilt yet): send
-  // them on HERE, before the old sidebar and skeleton can paint.
+  // A director or manager uses the owner's Studio screens: send them on HERE,
+  // before anything paints, from any portal address that has a Studio twin.
   const at = (await headers()).get("x-cos-path");
   const [atPath, atSearch = ""] = (at ?? "").split("?");
-  const studioRole = await usesStudio(me);
-  if (studioRole) {
+  if (await usesStudio(me)) {
     const to = at ? studioPathForDirector(atPath, atSearch) : null;
     if (to) redirect(to);
   }
 
-  // Urgent "takeover" announcements block the portal until acknowledged, and the
-  // unseen guided tours, are both best-effort and NON-essential — and independent
-  // of each other, so run them together rather than one-after-another. Each sits
-  // ABOVE the page error boundary, so a transient DB hiccup here would blank the
-  // whole portal; guard each one independently so a failed lookup just means
-  // "nothing right now", never a crash.
-  //
-  // The scoped director's company names ride in the same round — they need only
-  // `me` too, and waiting for them afterwards was one more round trip on every
-  // portal navigation.
-  const scopedDirector = isScopedDirector(me);
-  const [takeovers, tours, scopedCompanyName] = await Promise.all([
-    (async (): Promise<Awaited<ReturnType<typeof takeoverFeedForPersonId>>> => {
-      try {
-        // Cached per request — a page underneath that shows the feed reuses it.
-        return await takeoverFeedForPersonId(me.id);
-      } catch {
-        return [];
-      }
-    })(),
-    (async (): Promise<Awaited<ReturnType<typeof unseenToursFor>>> => {
-      try {
-        return await unseenToursFor(audienceForRole(me.portalRole), me.id);
-      } catch {
-        return [];
-      }
-    })(),
-    // A company-scoped director (e.g. MES Ltd) leads THEIR company, not Oracle — so
-    // the header leads with that company (full legal name where set) and credits
-    // Oracle as the platform. Everyone else keeps "Oracle Consultancy · <portal>".
-    (async (): Promise<string | null> => {
-      if (!scopedDirector || me.directorCompanyIds.length === 0) return null;
-      const { data } = await sb
-        .from("companies")
-        .select("name,legal_name")
-        .in("id", me.directorCompanyIds)
-        .order("name");
-      const names = (data ?? []).map((c) => ((c.legal_name as string | null)?.trim() || (c.name as string | null)?.trim())).filter(Boolean) as string[];
-      // One company → its (legal) name; several → the list, so the header reads
-      // "By Oracle Consultancy / DSC Ltd & PES Ltd / Directors Board".
-      return names.length === 0 ? null : names.length === 1 ? names[0] : names.slice(0, -1).join(", ") + " & " + names[names.length - 1];
-    })(),
-  ]);
+  // Urgent "takeover" announcements block the portal until acknowledged. The
+  // lookup is best-effort and NON-essential, and it sits ABOVE the page error
+  // boundary, so a transient DB hiccup here would blank the whole portal; a
+  // failed lookup just means "nothing right now", never a crash.
+  let takeovers: Awaited<ReturnType<typeof takeoverFeedForPersonId>> = [];
+  try {
+    // Cached per request — a page underneath that shows the feed reuses it.
+    takeovers = await takeoverFeedForPersonId(me.id);
+  } catch {
+    takeovers = [];
+  }
 
-  // Everyone gets the room on a large screen (mobile/tablet keep the focused
-  // max-w-3xl). Board-first operators (directors + managers) stay widest for
-  // their two-column board.
-  const wide = me.portalRole === "director" || me.portalRole === "manager";
-
-  // The rail's width, decided HERE rather than after hydration. The gutter in
-  // globals.css reads this custom property, so the very first paint already has
-  // the right amount of room — no page ever starts underneath the rail, and a
-  // slow or failed hydration cannot leave it that way.
-  const railCollapsed = (await cookies()).get(RAIL_COOKIE)?.value === "1";
-
-  const common = (
-    <>
+  return (
+    <div className="flex flex-col">
       {/* Cache a durable remember token so an installed PWA survives app-kill. */}
       <PortalSessionKeeper />
       <PortalInstallPrompt />
       <PortalNotifyPrompt />
       {/* Scoped command surface — mounted once so it persists across navigation.
-          Opens on ⌘K / Ctrl+K / Ctrl+Space or the header/pill trigger. ORI (search
-          + ask + optional act) when the person has oriAsk; otherwise the plain
-          scoped search. Exactly one is mounted so the hotkey never double-fires. */}
+          Opens on ⌘K / Ctrl+K / Ctrl+Space. ORI (search + ask + optional act)
+          when the person has oriAsk; otherwise the plain scoped search. Exactly
+          one is mounted so the hotkey never double-fires. */}
       {me.caps.oriAsk ? <PortalCommand canAct={me.caps.oriAct} /> : <PortalSearch />}
       {takeovers.length > 0 && <AnnouncementTakeover items={takeovers} />}
-      <TourRunner tours={tours} onSeen={portalMarkTourSeen} fetchReplay={portalGetTour} />
-    </>
-  );
-
-  const tabOverrides = { tasks: me.caps.navTasks, outbox: me.caps.navOutbox, insights: me.caps.navInsights, cleaning: me.caps.cleaningLog || me.caps.cleaningOverview };
-  const staff = isStaffLikeRole(me.portalRole);
-
-  return (
-    <PortalFrame
-      staff={staff}
-      studioRole={studioRole}
-      // A member of staff on a page rebuilt in Studio wears the Studio footer
-      // instead of everything below (26 Sept 2026) — PortalFrame picks by address.
-      studioChrome={staff ? <StaffShellServer me={me} /> : studioRole ? <StudioShellServer /> : null}
-      style={{ "--portal-sidebar": railCollapsed ? "56px" : "208px" } as React.CSSProperties}
-      className={`flex flex-col gap-3 pb-28 md:pb-32 mx-auto ${wide ? "max-w-5xl lg:max-w-none" : "max-w-3xl lg:max-w-none"}`}
-      common={common}
-      classicTop={
-        <>
-          {/* The desktop rail. From lg up this replaces the floating pill, which
-              hides itself at the same width — the same arrangement the command
-              centre uses. Below lg nothing changes: the pill is still the
-              navigation, because a fixed rail on a phone is dead weight. */}
-          <PortalSidebar
-            role={me.portalRole}
-            canOri={me.caps.oriAsk}
-            name={scopedDirector && scopedCompanyName ? scopedCompanyName : "Oracle Consultancy"}
-            subtitle={scopedDirector ? "Directors Board" : portalHeaderLabel(me.portalRole, me.portalDesignation)}
-            tabOverrides={tabOverrides}
-            initialCollapsed={railCollapsed}
-          />
-          <header className="flex items-center justify-between gap-3 print-hidden">
-            {/* Bell sits top-LEFT, deliberately far from Sign out (top-right) so it
-                can't be mis-tapped. */}
-            <div className="flex min-w-0 items-center gap-2.5">
-              <NotificationBell to="/portal/task" align="left" />
-              {/* ORI is the richer, capability-gated command surface; when the person
-                  can't use ORI, they still get the plain scoped search. Exactly one is
-                  mounted so the ⌘K / Ctrl+Space hotkey never double-fires. */}
-              {me.caps.oriAsk ? <PortalCommandTrigger /> : <PortalSearchTrigger />}
-              <div className="min-w-0">
-                {scopedDirector && scopedCompanyName ? (
-                  <>
-                    <p className="text-[9px] font-medium uppercase tracking-[0.16em] text-fg-subtle">By Oracle Consultancy</p>
-                    <p className="truncate text-xs font-semibold uppercase tracking-[0.14em] text-fg-muted">{scopedCompanyName}</p>
-                    <p className="text-xs font-medium uppercase tracking-[0.18em] text-fg-subtle">Directors Board</p>
-                    <p className="truncate text-sm font-semibold">{me.name}</p>
-                  </>
-                ) : (
-                  <>
-                    <p className="text-xs font-medium uppercase tracking-[0.18em] text-fg-muted">
-                      Oracle Consultancy · {portalHeaderLabel(me.portalRole, me.portalDesignation)}
-                    </p>
-                    <p className="truncate text-sm font-semibold">{me.name}</p>
-                  </>
-                )}
-              </div>
-            </div>
-            <PortalSignOut />
-          </header>
-        </>
-      }
-      classicBottom={
-        <PortalPill
-          canCreate={me.caps.createTasks || me.caps.createEvents}
-          canOri={me.caps.oriAsk}
-          role={me.portalRole}
-          tabOverrides={tabOverrides}
-        />
-      }
-    >
       {children}
-    </PortalFrame>
+      {isStaffLikeRole(me.portalRole) ? <StaffShellServer me={me} /> : <StudioShellServer />}
+    </div>
   );
 }

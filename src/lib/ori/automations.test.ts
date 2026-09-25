@@ -189,6 +189,12 @@ describe("evaluateRule", () => {
 
   describe("smart_reminder", () => {
     // now = 2026-07-10 (Friday) 11:00 Dar es Salaam.
+    it("never fires on a removed condition (a saved rule still holding compliance_due_soon)", () => {
+      const cfg = { trigger: { byHour: 9 }, condition: "compliance_due_soon" } as unknown as Parameters<typeof rule>[0]["config"];
+      expect(evaluateRule(rule({ kind: "smart_reminder", config: cfg }), openTask(), null, now).fire).toBe(false);
+      const repeating = { ...(cfg as object), repeatEveryMinutes: 60, maxCount: 3 } as typeof cfg;
+      expect(evaluateRule(rule({ kind: "smart_reminder", config: repeating }), openTask(), null, now).fire).toBe(false);
+    });
     it("does not fire before the byHour window is reached", () => {
       // byHour 14 (14:00 Dar) is still ahead of 11:00.
       const r = evaluateRule(rule({ kind: "smart_reminder", config: { trigger: { byHour: 14 }, condition: "always" } }), openTask(), null, now);

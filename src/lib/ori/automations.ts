@@ -34,12 +34,23 @@ export type SmartTrigger = {
 export type SmartCondition =
   | "no_update_today"
   | "overdue"
-  | "compliance_due_soon"
   | "due_tomorrow"
   | "always"
   | "waiting_external_aged"
   | "no_deadline_or_assignee"
   | "under_review_stale";
+
+/** Every condition a rule may carry today. A saved rule can still hold one that
+ *  has since been REMOVED (e.g. `compliance_due_soon`, Sept 2026 — the compliance
+ *  engine it read is gone). Such a rule must never fire: `isKnownCondition` is the
+ *  gate the evaluator and the cron's digest path both use. */
+export const SMART_CONDITIONS: readonly SmartCondition[] = [
+  "always", "no_update_today", "overdue", "due_tomorrow",
+  "waiting_external_aged", "no_deadline_or_assignee", "under_review_stale",
+];
+export function isKnownCondition(c: unknown): c is SmartCondition {
+  return typeof c === "string" && (SMART_CONDITIONS as readonly string[]).includes(c);
+}
 export type SmartScope = { personId?: number; companyId?: number; taskId?: number };
 export type SmartAudience = { notifyOwner?: boolean; notifyDirectors?: boolean; notifyManagers?: boolean; warnPerson?: boolean; notifyPersonIds?: number[] };
 export type SmartActions = { autoAct?: boolean; postUpdate?: boolean; updateText?: string; setStatus?: string; sendChannel?: "email" | "whatsapp" };
@@ -344,6 +355,9 @@ export function evaluateRule(
       const cfg = rule.config;
       const trig = cfg.trigger ?? {};
       const cond = cfg.condition ?? "always";
+      // A removed / unknown condition (e.g. the retired `compliance_due_soon`)
+      // checks nothing, so it must NOT match — never fire on it.
+      if (!isKnownCondition(cond)) return { fire: false, note: `removed condition (${String(cond)})` };
 
       // ── INTERVAL mode — a high-frequency repeating nudge that stops on response.
       // The existing WHEN (byHour / hoursBeforeDeadline / onOverdue) + IF still gate
@@ -384,9 +398,7 @@ export function evaluateRule(
       // No explicit trigger at all → treat as "any time today" (fires once/day).
       if (!windowReached) return { fire: false };
 
-      // IF — the condition. `compliance_due_soon` can't be judged purely (needs the
-      // requirements table); the cron does that check, so the pure layer passes it
-      // through as "window reached" and lets the cron decide.
+      // IF — the condition (unknown ones were already refused above).
       let conditionHolds = true;
       if (cond === "no_update_today") {
         // No update since Dar-local start of today.

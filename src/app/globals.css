@@ -745,19 +745,7 @@ input:disabled, select:disabled, textarea:disabled {
     padding-left: calc(var(--desk-sidebar, 208px) + 1.25rem);
   }
 
-  /* Portal pages opt OUT of the admin gutter, because the shell sets its own
-     below. This is a second rule rather than a `:not(:has(…))` on the one above
-     on purpose: if a browser lacks `:has()` it drops only this override and the
-     admin gutter survives, where a combined selector would have failed shut and
-     left the administrator tucked under its own rail. `body` earns it the
-     specificity to win. The `[data-portal-zoom]` guard above cannot do this job
-     alone — that attribute is written by an effect, so it is absent for the first
-     paint, which is exactly the moment we are fixing. */
-  body main:has([data-portal-shell]) {
-    padding-left: 1.25rem;
-  }
-
-  /* Sign-in screens opt out too, and for a plainer reason: they have NO sidebar.
+  /* Sign-in screens opt out of the admin gutter: they have NO sidebar.
      HideOnPortal drops the rail on /login, and /portal/login never had one — but
      nothing dropped the GUTTER, so <main> went on reserving 228px for a rail
      that was not there and the centred card sat 98px right of centre on a 1440px
@@ -770,20 +758,6 @@ input:disabled, select:disabled, textarea:disabled {
   body main:has([data-auth-shell]) {
     padding-left: 2rem;
     padding-right: 2rem;
-  }
-
-  /* The portal has its own rail now (PortalSidebar), publishing its own width as
-     --portal-sidebar. It is a SEPARATE variable on purpose: the admin gutter
-     above reads --desk-sidebar, and sharing one would let a portal page shove
-     the administrator's layout about. The fallback is 0 so that if the rail is
-     ever not mounted (or the person's role has no destinations) the portal keeps
-     its old centred column exactly as before. */
-  [data-portal-shell] {
-    /* Same rule as the admin gutter above: the fallback MUST be the rail's
-       expanded width. It was 0px, so every portal page began life with 80px of
-       itself hidden under the rail — the overlap the owner reported. */
-    padding-left: calc(var(--portal-sidebar, 208px) + 1.25rem);
-    padding-right: 1.25rem;
   }
 }
 
@@ -821,156 +795,6 @@ input:disabled, select:disabled, textarea:disabled {
   transition-duration: 0.01ms !important;
 }
 
-/* ---------- Aurora Dock — app launch splash ----------
-   A theme-aware liquid-glass loader that paints on first document load
-   (before /login and the app), then resolves INTO the floating nav pill.
-   Pure CSS so it shows pre-hydration with no white flash; a small client
-   controller (app-splash.tsx) removes it once fonts are ready. The rest
-   state IS the visible hero, so reduced-motion users (who skip the keyframes)
-   still see a calm static hero before it's removed. */
-.aurora-splash {
-  position: fixed;
-  inset: 0;
-  z-index: 100;
-  display: grid;
-  place-items: center;
-  background: hsl(var(--bg));
-  overflow: hidden;
-  /* The breathing aurora — one cool-blue radial, low in the field so the eye
-     is led toward where the pill will dock. */
-  --aurora: radial-gradient(110% 80% at 50% 44%, hsl(var(--accent) / 0.26), transparent 60%);
-}
-.aurora-splash::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: var(--aurora);
-  animation: aurora-breathe 4.5s ease-in-out infinite;
-}
-.aurora-splash__stage {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.9rem;
-}
-/* The mark — the single object the eye tracks the whole way down: it is the
-   hero, then it becomes the pill's accent lens. */
-/* Matches the sign-in card's logo tile (auth-shell.tsx): an 80px white tile,
-   ~18px radius, the Oracle mark contained with padding — so when it lands on
-   the login screen it is visually identical and the morph reads as seamless. */
-.aurora-splash__mark {
-  position: relative;
-  width: 80px;
-  height: 80px;
-  border-radius: 18px;
-  display: grid;
-  place-items: center;
-  background: #fff;
-  border: 1px solid hsl(var(--fg) / 0.08);
-  box-shadow: 0 10px 50px -12px hsl(var(--accent) / 0.55), 0 2px 10px -4px hsl(var(--fg) / 0.25);
-  /* the FLIP transform that travels to the login logo uses transform — keep it
-     GPU-friendly and let the controller drive it inline */
-  will-change: transform;
-}
-.aurora-splash__mark img {
-  width: 64px;
-  height: 64px;
-  object-fit: contain;
-  display: block;
-}
-/* The accent ring that sweeps once around the mark, doubling as the progress
-   gesture (no separate hairline). */
-.aurora-splash__ring {
-  position: absolute;
-  inset: -8px;
-  border-radius: 26px;
-  border: 1.5px solid transparent;
-  border-top-color: hsl(var(--accent));
-  border-right-color: hsl(var(--accent) / 0.35);
-  opacity: 0;
-}
-.aurora-splash__name {
-  font-size: 1.05rem;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  color: hsl(var(--fg));
-}
-/* The real nav/portal pill CONSTRUCTS in place as the splash hands off — there
-   is no fake pill. While the app splash plays the real pill is hidden + blurred
-   and its icons are collapsed; at handoff it blurs-up into place and the icons
-   stagger in, so the moment the field finishes fading the pill is fully built.
-   It is one continuous, fluid motion (not a snap). Driven by the controller via
-   :root[data-splash]; the descending mark dissolves into it at the same spot. */
-:root[data-splash] [data-nav-pill] {
-  transition: opacity 0.55s ease, transform 0.6s cubic-bezier(0.2, 0.7, 0.2, 1), filter 0.55s ease;
-}
-:root[data-splash="app"] [data-nav-pill] {
-  opacity: 0 !important;
-  transform: translateY(18px) scale(0.88) !important;
-  filter: blur(7px) !important;
-}
-:root[data-splash] [data-nav-pill] > * {
-  transition: opacity 0.45s ease, transform 0.5s cubic-bezier(0.2, 0.7, 0.2, 1);
-}
-:root[data-splash="app"] [data-nav-pill] > * {
-  opacity: 0;
-  transform: scale(0.5);
-}
-/* Stagger the icons/controls in during the reveal phase — left to right. */
-:root[data-splash="reveal"] [data-nav-pill] > *:nth-child(1) { transition-delay: 0.02s; }
-:root[data-splash="reveal"] [data-nav-pill] > *:nth-child(2) { transition-delay: 0.06s; }
-:root[data-splash="reveal"] [data-nav-pill] > *:nth-child(3) { transition-delay: 0.10s; }
-:root[data-splash="reveal"] [data-nav-pill] > *:nth-child(4) { transition-delay: 0.14s; }
-:root[data-splash="reveal"] [data-nav-pill] > *:nth-child(5) { transition-delay: 0.18s; }
-:root[data-splash="reveal"] [data-nav-pill] > *:nth-child(6) { transition-delay: 0.22s; }
-:root[data-splash="reveal"] [data-nav-pill] > *:nth-child(7) { transition-delay: 0.26s; }
-:root[data-splash="reveal"] [data-nav-pill] > *:nth-child(8) { transition-delay: 0.30s; }
-
-/* Login landing only: the mark FLIPs onto the sign-in card's own logo (the
-   controller measures [data-auth-logo]) while the field fades, slowly revealing
-   the login box. The name fades as the field leaves. */
-.aurora-splash--login.aurora-splash--leaving .aurora-splash__name { animation: splash-text-out 0.5s ease forwards; }
-
-@keyframes splash-text-out { to { opacity: 0; transform: translateY(-4px); } }
-
-/* Fully inert once the handoff is complete — kept in the DOM (React owns the
-   node) but hidden, so we never manually removeChild and break the reconciler. */
-.aurora-splash--done { display: none !important; }
-
-/* ── The sequence (auto-plays on real motion; ~1.7s) ── */
-.aurora-splash--play .aurora-splash__mark { animation: splash-mark 1.7s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
-.aurora-splash--play .aurora-splash__ring { animation: splash-ring 0.9s ease-out 0.35s forwards; }
-.aurora-splash--play .aurora-splash__name { animation: splash-text 1.7s ease forwards; }
-.aurora-splash--play::before              { animation: aurora-breathe 4.5s ease-in-out infinite, splash-fade 1.7s ease forwards; }
-
-/* Leaving — added by the controller once ready; fades the whole field out. */
-.aurora-splash--leaving { animation: splash-out 0.85s ease forwards; pointer-events: none; }
-
-@keyframes aurora-breathe {
-  0%, 100% { opacity: 0.75; transform: scale(1); }
-  50%      { opacity: 1;    transform: scale(1.06); }
-}
-@keyframes splash-mark {
-  0%   { opacity: 0; transform: translateY(0) scale(0.86); filter: blur(8px); }
-  18%  { opacity: 1; transform: translateY(0) scale(1);    filter: blur(0); }
-  58%  { opacity: 1; transform: translateY(0) scale(1); }
-  /* descend toward the dock, shrinking into the lens */
-  100% { opacity: 0; transform: translateY(38vh) scale(0.26); filter: blur(0); }
-}
-@keyframes splash-ring {
-  0%   { opacity: 0; transform: rotate(-120deg); }
-  35%  { opacity: 1; }
-  100% { opacity: 0; transform: rotate(240deg); }
-}
-@keyframes splash-text {
-  0%, 12% { opacity: 0; transform: translateY(6px); }
-  28%     { opacity: 1; transform: translateY(0); }
-  55%     { opacity: 1; }
-  72%,100%{ opacity: 0; }
-}
-@keyframes splash-fade { 0%, 70% { opacity: 1; } 100% { opacity: 0.35; } }
-@keyframes splash-out  { to { opacity: 0; } }
 
 
 
@@ -1303,15 +1127,6 @@ section[data-page-header],
   --tw-ring-shadow: 0 0 #0000;
 }
 
-/* ---------- Launch splash ----------
-   Same choreography, no aurora: a flat page-coloured field behind the mark. */
-.aurora-splash { --aurora: none; }
-.aurora-splash::before { background: none; }
-.aurora-splash__mark {
-  box-shadow: none;
-  border: 1px solid hsl(var(--border));
-}
-.aurora-splash__ring { border-top-color: hsl(var(--accent)); }
 
 
 
@@ -1846,7 +1661,7 @@ html body:has([data-studio-frame]) [data-savebar] { bottom: calc(var(--page-foot
 .studio,
 [data-studio-foot],
 [data-studio-goto],
-body:has(main .studio) > :not(main, .studio-frame, #aurora-splash, script) {
+body:has(main .studio) > :not(main, .studio-frame, script) {
   --bg:         60 7% 95%;     /* #F3F3F1 */
   --bg-elev:    0 0% 100%;
   --bg-subtle:  60 8% 96.5%;
@@ -1870,12 +1685,12 @@ body:has(main .studio) > :not(main, .studio-frame, #aurora-splash, script) {
   --shadow-md: 0 0 0 1px hsl(var(--border)), 0 16px 40px -12px rgb(17 18 20 / 0.18);
   --shadow-lg: 0 0 0 1px hsl(var(--border)), 0 24px 60px -16px rgb(17 18 20 / 0.25);
 }
-body:has(main .studio) > :not(main, .studio-frame, #aurora-splash, script),
+body:has(main .studio) > :not(main, .studio-frame, script),
 [data-studio-foot] .glass-menu { font-family: var(--font-geist), var(--font-sans); }
 html.dark .studio,
 html.dark [data-studio-foot],
 html.dark [data-studio-goto],
-html.dark body:has(main .studio) > :not(main, .studio-frame, #aurora-splash, script) {
+html.dark body:has(main .studio) > :not(main, .studio-frame, script) {
   --bg:         220 6% 6%;     /* #0E0F10 */
   --bg-elev:    225 8% 10%;    /* #17181B */
   --bg-subtle:  225 7% 12%;
@@ -2169,9 +1984,6 @@ body:has(main .studio) > * [data-field-label] {
 .group\/face:hover [data-face-peek] { animation: none; opacity: 1; }
 @media (prefers-reduced-motion: reduce) { [data-face-peek] { animation: none !important; } }
 html[data-motion="reduced"] [data-face-peek] { animation: none !important; }
-
-/* The old launch splash is the staff portal's only (components/app-splash.tsx). */
-html[data-no-splash] #aurora-splash { display: none !important; }
 
 /* Sign-in fields (studio-sign-in.tsx): a real border and a white well. They
    were `bare-field`, which clears the border, and read as flat text on grey

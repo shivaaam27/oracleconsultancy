@@ -260,12 +260,14 @@ export function describeRule(r: RawRule, maps: NameMaps): DescribedRule {
         no_update_today: "if no update was posted today",
         overdue: "if it's overdue",
         due_tomorrow: digest ? "list every task due tomorrow" : "if it's due tomorrow",
-        compliance_due_soon: "if a compliance date is approaching",
         waiting_external_aged: `if it's been Waiting External for ${agingDays ?? 3}+ days`,
         no_deadline_or_assignee: "if it has no deadline or nobody assigned",
         under_review_stale: `if it's sat Under Review for ${agingDays ?? 2}+ days`,
       };
-      const bits = [when.toLowerCase(), condText[cond] ?? ""].filter(Boolean).join(", ");
+      // A condition that has since been removed (e.g. `compliance_due_soon`, Sept
+      // 2026) is shown as such — the evaluator never fires on it.
+      const removedCond = !(cond in condText);
+      const bits = [when.toLowerCase(), removedCond ? "removed condition — never fires" : condText[cond]].filter(Boolean).join(", ");
       const suffixes: string[] = [];
       if (cfg.weekdaysOnly === true) suffixes.push("weekdays only");
       const pausedUntil = str(cfg.pausedUntil);

@@ -62,9 +62,10 @@ The waste is tool-output volume, not thinking.
   `viewerCoversCompany`). Read `memory/portal_unification_plan.md` first.
 - **Staff and the receptionist** are NOT a Viewer. Their Studio pages live under
   `/portal/*`, read through `portal-auth.ts` (`visibleTaskIds`,
-  `personCanSeeTask`) and write through the portal actions. The frame is chosen
-  on the client by `PortalFrame` + `isStaffStudioPath()`
-  (`src/lib/director-routes.ts`) — a layout does not re-render between pages.
+  `personCanSeeTask`) and write through the portal actions. Every portal page
+  wears the one Studio frame the portal layout draws (`StaffShellServer`); the
+  old rail/header/pill were deleted with `/portal/outbox` and `/portal/insights`
+  (26 Sept 2026, now redirect stubs).
 - **Company scope has one home**: `seesAllCompanies` / `companyScope` /
   `isScopedDirector` in `src/lib/portal-auth.ts`. Never test `=== "director"`
   raw for data visibility.
@@ -176,7 +177,7 @@ Rules that bite:
   variant for layout.
 - Motion is reduced-motion safe both ways (`data-motion="reduced"` on `<html>`
   is checked by `Reveal`); reuse `Reveal`/`lib/motion.ts`.
-- When you add a user-facing control, give it a stable `data-tour="<name>"`.
+- The old staff tour was removed (Sept 2026); keep `data-tour` tags on controls for the next one; tables `tours`/`tour_completions` are kept.
 - **Fix it everywhere**: a bug on one screen is a class of bug — check the
   administrator, directors, managers and staff.
 

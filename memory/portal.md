@@ -89,7 +89,7 @@ Capabilities (`CapabilityKey`), with defaults:
 | createTasks, manageAnyTask, bulkTaskActions, crossCompanyTasks, recurringTasks | – | ✓ | ✓ | – |
 | messageOnTasks, bulkOutreach, createEvents | – | ✓ | ✓ | – |
 | navTasks | ✓ | ✓ | ✓ | – |
-| navOutbox, navInsights, directorBrief (the Report panel) | – | ✓ | ✓ | – |
+| navOutbox (the Studio Outbox), directorBrief (the Report panel) | – | ✓ | ✓ | – |
 | oriAsk | ✓ | ✓ | ✓ | – |
 | oriAct | – | ✓ | ✓ | – |
 | cleaningLog | – | – | – | ✓ |
@@ -104,8 +104,13 @@ Capabilities (`CapabilityKey`), with defaults:
   back to "director only"; once the screen and the server read it differently
   and a manager saw greyed controls the server would have accepted.
   `task-permissions.test.ts` pins both halves.
-- `src/lib/portal-capabilities.ts` is the older role-fixed UI registry — still
-  read by the old portal pill/sidebar and a couple of pages. Prefer `caps`.
+- `navInsights` was REMOVED with the portal Insights page (26 Sept 2026). A
+  stored settings row that still names it is ignored — every reader walks the
+  known keys (`ALL_CAP_KEYS`), never the stored ones. MCP `company_kpis` now
+  needs `directorBrief` (same defaults). `navOutbox` stays: it gates a director's
+  or manager's Studio `/outbox` and its footer stop; staff have no Outbox.
+- `src/lib/portal-capabilities.ts` is down to two role-fixed flags
+  (`isManagement`, `canCreate`) read by three portal pages. Prefer `caps`.
 
 **Scope helpers** — every data-visibility decision goes through these
 (`src/lib/portal-auth.ts`), never a raw `=== "director"`:
@@ -158,12 +163,14 @@ the scope. **Nothing a person created is deleted on revoke or archive.**
 - **Staff and the receptionist are NOT a Viewer** — a new kind would fail open in
   every `kind === "director"` check. Their pages stay under `/portal/*`, read
   through portal-auth and write through the portal actions.
-- ⚠️ **The frame is picked ON THE CLIENT** (`components/portal-frame.tsx`,
-  `usePathname()` + `isStaffStudioPath()`), because a layout does not re-render
-  between the pages under it. The layout renders both chromes (Studio footer
-  via `StaffShellServer` / `StudioShellServer`, and the old rail + header + pill)
-  and `PortalFrame` picks one. Add a path to `isStaffStudioPath` as each page
-  is rebuilt; `SPLASH_GATE` (app-splash.tsx) carries the same list as a string.
+- **Every portal page is Studio** (26 Sept 2026). The portal layout draws one
+  frame: the page, then `StaffShellServer` (staff, receptionist) or
+  `StudioShellServer` (a director or manager on Profile / Cleaning). The old
+  rail, header, pill, `PortalFrame`, `isStaffStudioPath`, `portal-nav.ts` and
+  the old launch splash (`app-splash.tsx`, which only ever played on old portal
+  pages) were deleted with `/portal/outbox` and `/portal/insights`, their last
+  users. The frame no longer depends on the address, so nothing needs picking
+  on the client.
 - Staff footer = `staffStops()` (Home, Tasks, Cleaning if permitted, Calendar,
   Announcements, Companies, People, Profile; "+" = new to-do).
 - ⚠️ **Server actions**: administrator actions start with `guardOwner` /
@@ -182,7 +189,6 @@ Every route in `src/app/portal/(app)/` (from disk), plus `/portal/login`:
 | `/portal` | **Studio Home** (`staff-home.tsx` → `StudioHome` slots: check-in card, due card, announcement with Acknowledge, to-do card, "How I did" → Profile) | → `/` |
 | `/portal/tasks` | **Studio Tasks** (`StaffStudioTasks`): their tasks, filters in the address; receptionist has no Tasks stop (`navTasks` off) | → `/?tab=tasks` |
 | `/portal/task/[code]` | **Studio task page** (`staff-task-record.tsx`): send for review, I'm blocked, Complete only if they raised it, conversation, people, subtasks; edit title/description only with `manageAnyTask` | → `/task/<code>` |
-| `/portal/task/new` | needs `createTasks` (off) → `/portal` | → `/task/new` |
 | `/portal/people`, `/people/[id]` | **Studio People**: colleagues sharing a company + the Administrator; private/HR fields blanked on the server (`lib/staff-colleagues.ts`); a person shows only tasks you share | → `/people…` |
 | `/portal/companies`, `/companies/[id]` | **Studio Companies**: their companies, details, people, open/late numbers, their own tasks | → `/companies…` |
 | `/portal/meetings` | **Studio Calendar**, read-only: events they are invited to + holidays | → `/calendar` |
@@ -190,8 +196,8 @@ Every route in `src/app/portal/(app)/` (from disk), plus `/portal/login`:
 | `/portal/profile` | **Studio Profile** (§6) | Studio Profile (director: no KPI/attendance/files/equipment/contact form) |
 | `/portal/cleaning` | receptionist: **the log** (`StudioCleaningToday portal`); needs a cleaning cap | manager: **overview** (`StudioCleaningOverview`, `cleaningOverview`) |
 | `/portal/directory` | → `/portal/people` or `/portal/companies` | → `/people` |
-| `/portal/outbox`, `/portal/insights` | old pages, only if the owner grants `navOutbox` / `navInsights` | → `/outbox` / `/` |
-| `/portal/board`, `/portal/team` | → `/portal` | → `/` / `/outbox` (dead pages; retire) |
+| `/portal/task/new` | the old new-task form, in the Studio frame; needs `createTasks` (off for staff by default) and nothing links to it | → `/task/new` |
+| `/portal/board`, `/portal/team`, `/portal/outbox`, `/portal/insights` | redirect stubs → `/portal` | → `/` / `/outbox` / `/outbox` / `/` |
 
 Rows open the task PAGE (no side panel for staff). Reminders and push links
 point at `/portal`; the old public `/r/` card is gone.
@@ -205,8 +211,8 @@ the component it always was:
 - **Attendance** — staff/receptionist see the week strip (they check in on
   Home); a **manager checks in here** (`CheckinPanel`) because their Home is the
   shared one. None for directors.
-- **Onboarding** journey (todos of `kind` onboarding) and **Guides & tips**
-  (tour replay).
+- **Onboarding** journey (todos of `kind` onboarding). (The "Guides & tips" tour
+  replay went with the staff tour, Sept 2026.)
 - **My details** (read-only HR fields) + **Contact** (`PortalContactDetails`,
   editable by them; not for directors).
 - **My files** (`PortalDocuments` + `portalUploadDocument`: files it under the
@@ -290,9 +296,10 @@ components were deleted.
 
 ## 12. Left to do
 
-- Retire the old portal chrome (`portal-sidebar.tsx`, `portal-pill.tsx`,
-  `portal-capabilities.ts`) once `/portal/outbox` and `/portal/insights` are
-  rebuilt or removed — they are its last users.
-- `/portal/outbox` and `/portal/insights` are old pages, reachable by staff only
-  if the owner grants the capability.
+- `/portal/task/new` is still the old form (now in the Studio frame). Staff
+  only reach it if the owner grants them `createTasks`, and no Studio screen
+  links to it — rebuild it or retire it.
+- The Studio Profile's Sign out does not clear the device's remember token
+  (`cos_portal_remember`); the old header's button did. `/portal/login` could
+  restore the session from it.
 - A company-scoped director has not been walked through live on Studio.

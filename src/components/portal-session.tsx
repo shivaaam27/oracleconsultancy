@@ -1,9 +1,6 @@
 "use client";
 
-import { SignOutForm } from "@/components/sign-out-form";
 import { useEffect } from "react";
-import { LogOut } from "lucide-react";
-import { portalLogout } from "@/app/portal/actions";
 
 /* Durable portal session (PWA app-kill resilience). The httpOnly session cookie
  * can be evicted when an installed PWA is swiped from recents; localStorage is a
@@ -51,19 +48,3 @@ export function PortalSessionRestore() {
   return null;
 }
 
-/** Sign out — clears the durable token FIRST (so PortalSessionRestore won't log
- *  the person straight back in) then runs the server logout. */
-export function PortalSignOut() {
-  return (
-    <SignOutForm action={portalLogout} className="shrink-0">
-      <button
-        type="submit"
-        onClick={() => { try { localStorage.removeItem(KEY); } catch { /* */ } }}
-        className="inline-flex h-7 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md bg-bg-elev px-2.5 text-xs font-medium text-fg-muted ring-1 ring-border transition-colors hover:text-fg"
-      >
-        <LogOut size={13} />
-        Sign out
-      </button>
-    </SignOutForm>
-  );
-}

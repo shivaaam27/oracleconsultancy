@@ -29,13 +29,6 @@ export const AUTOMATION_RULES: AutomationRule[] = [
     retired: true,
   },
   {
-    kind: "task-complete",
-    label: "Complete fulfilled tasks",
-    description: "When a document fulfils a task it’s linked to, mark the task complete.",
-    supportsSuggest: true,
-    retired: true,
-  },
-  {
     kind: "onboarding-tick",
     label: "Tick onboarding & offboarding steps",
     description: "Tick a joining or leaving step when its task is done, probation is confirmed, or equipment comes back.",

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { studioPathForDirector as to, isStaffStudioPath, isStaffLikeRole } from "./director-routes";
+import { studioPathForDirector as to, isStaffLikeRole } from "./director-routes";
 
 describe("studioPathForDirector", () => {
   it("sends the old home, board and tasks to the shared screens", () => {
@@ -23,20 +23,13 @@ describe("studioPathForDirector", () => {
     expect(to("/portal/chat")).toBe("/");
     expect(to("/portal/whatever")).toBe("/");
   });
-  it("leaves the one page not rebuilt yet", () => {
+  it("leaves the two Studio pages that live under the portal", () => {
     expect(to("/portal/profile")).toBeNull();
+    expect(to("/portal/cleaning")).toBeNull();
   });
-});
-
-describe("isStaffStudioPath", () => {
-  it("puts the rebuilt staff pages in the Studio frame", () => {
-    for (const p of ["/portal", "/portal/", "/portal/tasks", "/portal/task/TG-002", "/portal/profile", "/portal/people", "/portal/people/19", "/portal/companies", "/portal/companies/3", "/portal/meetings", "/portal/announcements"]) expect(isStaffStudioPath(p)).toBe(true);
-  });
-  it("leaves the pages not rebuilt yet in the old frame", () => {
-    for (const p of ["/portal/directory", "/portal/task/new", "/portal/people/x"]) expect(isStaffStudioPath(p)).toBe(false);
-  });
-  it("puts the receptionist's cleaning log in Studio", () => {
-    expect(isStaffStudioPath("/portal/cleaning")).toBe(true);
+  it("sends the removed Outbox and Insights pages to their Studio twins", () => {
+    expect(to("/portal/outbox")).toBe("/outbox");
+    expect(to("/portal/insights")).toBe("/");
   });
 });
 

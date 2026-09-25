@@ -16,7 +16,7 @@ export type EmailCategory =
   | "renewals"      // document / permit renewal nudges
   | "directorBrief" // weekly Director Brief to the owner
   | "morningDigest" // daily "here's your day" to the owner
-  | "lifecycle";    // probation + leave-approval reminders to the owner
+  | "lifecycle";    // probation reminders to the owner
 
 export type CategoryRule = { mode: RuleMode };
 

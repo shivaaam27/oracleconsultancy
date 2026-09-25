@@ -53,7 +53,6 @@ export type CapabilityKey =
   | "createEvents"
   | "navTasks"
   | "navOutbox"
-  | "navInsights"
   | "oriAsk"
   | "oriAct"
   | "cleaningLog"
@@ -94,8 +93,7 @@ export const CAPABILITY_GROUPS: { id: string; label: string; caps: CapabilityMet
     label: "Navigation & surfaces",
     caps: [
       { key: "navTasks", label: "Tasks", desc: "The Tasks list, with its filters. Staff always have one — their own tasks only." },
-      { key: "navOutbox", label: "Outbox", desc: "Drafted messages / reminders surface." },
-      { key: "navInsights", label: "Insights", desc: "Glanceable portfolio / team insights." },
+      { key: "navOutbox", label: "Outbox", desc: "The Outbox: reminders drafted from open tasks, for the people in their companies. Directors and managers only — staff have no Outbox." },
       { key: "directorBrief", label: "Report", desc: "The Report panel: company / person / period, then the PDF, email with the PDF attached, WhatsApp or copy. Always limited to the companies they may see." },
     ],
   },
@@ -147,8 +145,11 @@ export const DEFAULT_CAPS: Record<CapabilityKey, Record<PortalRoleKey, boolean>>
   createEvents: { staff: false, manager: true, director: true, receptionist: false },
   // Staff: on since the Studio screens (26 Sept 2026) — their tasks are a page of their own now.
   navTasks: { staff: true, manager: true, director: true, receptionist: false },
+  // Directors' and managers' Studio Outbox (/outbox + its footer stop). The old
+  // staff /portal/outbox page and the Insights page (navInsights) were removed
+  // 26 Sept 2026; a stored row still naming navInsights is simply ignored —
+  // every reader walks ALL_CAP_KEYS, never the stored keys.
   navOutbox: { staff: false, manager: true, director: true, receptionist: false },
-  navInsights: { staff: false, manager: true, director: true, receptionist: false },
   oriAsk: { staff: true, manager: true, director: true, receptionist: false },
   oriAct: { staff: false, manager: true, director: true, receptionist: false },
   cleaningLog: { staff: false, manager: false, director: false, receptionist: true },

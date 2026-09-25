@@ -41,9 +41,16 @@ same actions and payloads). Replaces `ori_automations_engine_jul2026.md` and
   once?, repeatEveryMinutes?, untilUpdate?, untilDeadline?, maxCount?,
   window?:{ fromHour, toHour }, weekdaysOnly?, digest?, pausedUntil?, agingDays? }
 ```
-- **Conditions:** `no_update_today` · `overdue` · `compliance_due_soon` ·
-  `due_tomorrow` · `waiting_external_aged` · `no_deadline_or_assignee` ·
-  `under_review_stale` · `always`.
+- **Conditions:** `no_update_today` · `overdue` · `due_tomorrow` ·
+  `waiting_external_aged` · `no_deadline_or_assignee` · `under_review_stale` ·
+  `always` (the list is `SMART_CONDITIONS` in `lib/ori/automations.ts`).
+- ⚠️ **A removed condition NEVER fires.** `compliance_due_soon` was removed
+  (Sept 2026, owner's decision — the compliance engine it read went in Aug 2026,
+  so it behaved as always-true). A saved rule may still carry it: the evaluator
+  (`isKnownCondition`) refuses any unknown condition, the cron's digest path
+  returns no tasks for one, and the rule list shows "removed condition — never
+  fires". Remove a condition the same way: drop it from `SmartCondition` /
+  `SMART_CONDITIONS` and the old rows go quiet on their own.
 - **One-off** (`once`) retires after it fires. A deadline-relative reminder folds the
   deadline into its dedupe key, so **moving the deadline re-arms it**.
 - ⚠️ **A repeat MUST carry a stop** — `untilUpdate` (default: an update newer than
@@ -120,10 +127,5 @@ An **external scheduler** hits the tick instead — do NOT add it to `vercel.jso
 - Not built: person-scoped repeat nags across all of someone's tasks; a
   "notify me but not managers" split on quiet-staff; auto-retiring a task-scoped
   rule when the task closes (today it retires on update / deadline / count).
-- ⚠️ **`compliance_due_soon` is a dead condition.** The pure layer passes it
-  through as "window reached" for the cron to judge, and since the document
-  compliance engine was removed (Aug 2026) nothing judges it — so it behaves like
-  `always`. ORI's agent prompt still offers it. Don't recommend it; removing it
-  is a small, separate job.
 
 See [[ori_brain]], [[ori_search_and_ai_reliability]].
