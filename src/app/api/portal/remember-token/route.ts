@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { sb } from "@/db/supabase";
-import { getPortalPerson, makeRememberToken } from "@/lib/portal-auth";
+import { getPortalPerson, makeRememberToken } from "@/lib/portal/portal-auth";
 
 export const dynamic = "force-dynamic";
 

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { sendToRecipient, configurePush } from "@/lib/push";
-import { isAdminSession } from "@/lib/admin-auth";
+import { sendToRecipient, configurePush } from "@/lib/messaging/push";
+import { isAdminSession } from "@/lib/auth/admin-auth";
 
 export const dynamic = "force-dynamic";
 

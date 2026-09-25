@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
-import { getPortalPerson } from "@/lib/portal-auth";
-import { getScopedPickerData } from "@/lib/portal-picker";
+import { getPortalPerson } from "@/lib/portal/portal-auth";
+import { getScopedPickerData } from "@/lib/portal/portal-picker";
 import { NewTaskForm } from "./new-task-form";
 
 export const dynamic = "force-dynamic";

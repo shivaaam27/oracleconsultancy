@@ -8,15 +8,15 @@
 // external email/WhatsApp send is layered later behind the send guardrails.
 
 import { NextRequest, NextResponse } from "next/server";
-import { authoriseCron } from "@/lib/cron-auth";
+import { authoriseCron } from "@/lib/auth/cron-auth";
 import { recordEvent } from "@/lib/system-events";
 import { reportError } from "@/lib/sentry";
 import { sb } from "@/db/supabase";
-import { createNotification, personRecipient } from "@/lib/notifications";
-import { createCalendarEvent } from "@/lib/calendar";
-import { reindexEntity } from "@/lib/index-hooks";
+import { createNotification, personRecipient } from "@/lib/messaging/notifications";
+import { createCalendarEvent } from "@/lib/calendar/calendar";
+import { reindexEntity } from "@/lib/search/index-hooks";
 import { insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
-import { canAutoSend, type SendChannel } from "@/lib/guardrails";
+import { canAutoSend, type SendChannel } from "@/lib/automation/guardrails";
 import { evaluateRule, isKnownCondition, smartFiredKey, smartFiredKeyFor, darDayStart, type AutomationRuleRow, type RuleConfig, type RuleKind } from "@/lib/ori/automations";
 import { managersOf, directorsOfCompany, allDirectors, allManagers } from "@/lib/ori/audiences";
 import { getAppSettings } from "@/lib/settings";
@@ -135,7 +135,7 @@ async function externalNotify(config: RuleConfig, personIds: number[], subject: 
       } else {
         // whatsapp / sms both go through the WhatsApp helper's free-form text path.
         if (!c.whatsapp) continue;
-        const { sendWhatsApp } = await import("@/lib/whatsapp");
+        const { sendWhatsApp } = await import("@/lib/messaging/whatsapp");
         const res = await sendWhatsApp({ to: c.whatsapp, text: `${subject}\n\n${body}` });
         if (res.ok) sent++;
       }
@@ -459,7 +459,7 @@ async function fireSmartDigest(cfg: RuleConfig, tasks: DigestTask[], nowIso: str
       let mine = sorted;
       const pid = /^person:(\d+)$/.exec(r)?.[1];
       if (pid) {
-        const { portalPersonById, companyScope } = await import("@/lib/portal-auth");
+        const { portalPersonById, companyScope } = await import("@/lib/portal/portal-auth");
         const person = await portalPersonById(Number(pid));
         const scope = person ? await companyScope(person) : [];
         if (scope) mine = sorted.filter((t) => typeof t.company_id === "number" && scope.includes(t.company_id));
@@ -647,7 +647,7 @@ async function checkQuietStaff(now: Date, quietDaysFallback = 5): Promise<number
     // ONE line per recipient. The title deliberately keeps the same wording
     // whatever the count ("staff" reads as both singular and plural) so the
     // daily supersede in createNotification recognises today's as replacing
-    // yesterday's — see recurringKey in lib/notification-view.
+    // yesterday's — see recurringKey in lib/messaging/notification-view.
     const rollUp = (lines: string[]) =>
       `Quiet ${quietDays}+ days but still holding open tasks:\n${lines.slice(0, 15).join("\n")}`;
 
@@ -790,7 +790,7 @@ export async function runDueRules(
           fired++;
           try {
             const macroName = (cfg.macroName ?? "").trim();
-            const { findMacro } = await import("@/lib/ai-memory");
+            const { findMacro } = await import("@/lib/ai/ai-memory");
             const macro = macroName ? await findMacro("admin", macroName) : null;
             const steps = (macro?.steps ?? "").trim();
             const label = macro?.name || macroName || "Macro";

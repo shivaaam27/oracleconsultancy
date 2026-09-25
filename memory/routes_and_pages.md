@@ -10,12 +10,12 @@ metadata:
 
 Checked against `src/app/**/page.tsx`, `route.ts(x)`, `next.config.ts` and
 `vercel.json`. The page order in the Studio footer and Go-to panel comes from
-`NAV_ROUTES` in `src/lib/nav.ts` via `src/lib/studio-nav.ts`.
+`NAV_ROUTES` in `src/lib/nav/nav.ts` via `src/lib/nav/studio-nav.ts`.
 
 ## Owner screens (also directors and managers, scoped)
 
 Directors and managers sign in on the portal but use these same screens through
-`getViewer()` (`src/lib/viewer.ts`), limited to their companies. `src/proxy.ts`
+`getViewer()` (`src/lib/auth/viewer.ts`), limited to their companies. `src/proxy.ts`
 lets them reach only the paths in `DIRECTOR_PATHS` (Home/Tasks, a task, new
 task, Files, People, Companies, Calendar, Outbox, Announcements). With no
 viewer, most of these pages redirect to `/portal` (`/outbox` and

@@ -16,8 +16,8 @@ import { portalMarkAttendance, portalCreateTodo, portalToggleTodoDone, portalDel
 import { portalAcknowledgeAction, portalMarkSeenAction } from "@/app/announcements/actions";
 import { ListShell } from "@/components/studio/subtasks";
 import { Fold } from "@/components/studio/home/studio-home";
-import { useToast } from "@/components/toast";
-import type { TodoCardItem } from "@/lib/todo-reminders";
+import { useToast } from "@/components/shell/toast";
+import type { TodoCardItem } from "@/lib/tasks/todo-reminders";
 import { cn } from "@/lib/cn";
 
 const SELF = ["Present", "Remote", "Half-day", "Sick"] as const;

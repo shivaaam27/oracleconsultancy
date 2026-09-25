@@ -16,7 +16,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { sb } from "@/db/supabase";
-import type { LinkType } from "@/lib/note-links-shared";
+import type { LinkType } from "@/lib/notes/note-links-shared";
 
 export const dynamic = "force-dynamic";
 

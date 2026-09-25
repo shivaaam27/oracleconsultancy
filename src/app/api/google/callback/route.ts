@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { google } from "googleapis";
-import { oauthClient, saveGoogleConnection, isGoogleConfigured } from "@/lib/google";
+import { oauthClient, saveGoogleConnection, isGoogleConfigured } from "@/lib/calendar/google";
 
 // Google redirects here after consent. We exchange the code for tokens, read the
 // connected account's email, store the refresh token, and bounce back to Settings.

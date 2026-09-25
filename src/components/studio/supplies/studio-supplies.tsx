@@ -3,7 +3,7 @@
 /**
  * Supplies in Studio (26 Sept 2026, mockup board Supplies) — office
  * consumables. Current stock is never stored: it is opening + bought − issued
- * (lib/stock-shared.ts), so the page only ever records movements. The Stock
+ * (lib/operations/stock-shared.ts), so the page only ever records movements. The Stock
  * card and "Needs attention" (lowest first, with Record purchase right there)
  * sit on top; then the Register, Purchases or Issues lane.
  */
@@ -13,12 +13,12 @@ import { useRouter } from "next/navigation";
 import { Archive, ArchiveRestore, ArrowDownToLine, ArrowUpFromLine, Loader2, Package, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { StudioScope, StudioHeader, StudioCardRow, StudioCard, CardHead, Ring, stBtn, stFloatBar } from "@/components/studio/kit";
 import { StudioSheet } from "@/components/studio/sheet";
-import { SelectField } from "@/components/select-field";
-import { FluidSelect } from "@/components/fluid-select";
-import { Combobox } from "@/components/combobox";
-import { DateInput } from "@/components/date-input";
-import { useToast } from "@/components/toast";
-import { useUrlFilters } from "@/lib/use-url-filters";
+import { SelectField } from "@/components/forms/select-field";
+import { FluidSelect } from "@/components/forms/fluid-select";
+import { Combobox } from "@/components/forms/combobox";
+import { DateInput } from "@/components/forms/date-input";
+import { useToast } from "@/components/shell/toast";
+import { useUrlFilters } from "@/lib/hooks/use-url-filters";
 import {
   createStockItemAction, updateStockItemAction, archiveStockItemAction, deleteStockItemAction,
   recordPurchaseAction, deletePurchaseAction, recordIssueAction, deleteIssueAction,
@@ -26,7 +26,7 @@ import {
 import {
   STOCK_CATEGORIES, STOCK_UNITS, currentStock, stockStatus, stockValue, dashboardMetrics,
   type StockItemRow, type PurchaseRow, type IssueRow, type StockStatus,
-} from "@/lib/stock-shared";
+} from "@/lib/operations/stock-shared";
 import { Pill, RowMenu, MenuItem, MenuLine, Field, FIELD, AREA, tzs } from "@/components/studio/assets/bits";
 import { cn } from "@/lib/cn";
 

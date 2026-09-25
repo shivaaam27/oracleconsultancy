@@ -1,8 +1,8 @@
 import { sb } from "@/db/supabase";
-import { getViewer, type Viewer } from "@/lib/viewer";
-import { getAllTasks, type TaskRow } from "@/lib/queries";
-import { gatherCockpitNow } from "@/lib/cockpit-now";
-import { taskHref } from "@/lib/task-href";
+import { getViewer, type Viewer } from "@/lib/auth/viewer";
+import { getAllTasks, type TaskRow } from "@/lib/tasks/queries";
+import { gatherCockpitNow } from "@/lib/automation/cockpit-now";
+import { taskHref } from "@/lib/tasks/task-href";
 import { StudioShell, type StudioFootNote } from "./shell";
 
 /**

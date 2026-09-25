@@ -13,16 +13,16 @@
  */
 import Link from "next/link";
 import { Sparkles } from "lucide-react";
-import type { PortalPerson } from "@/lib/portal-auth";
-import { visibleTaskIds } from "@/lib/portal-auth";
-import { getAllTasks, type TaskRow } from "@/lib/queries";
-import { personAttendanceToday, personAttendanceWeek } from "@/lib/attendance";
-import { listSelfTodos } from "@/lib/todo-reminders";
-import { scopedUpcomingMeetings } from "@/lib/portal-meetings-data";
-import { feedForPersonId } from "@/lib/announcements";
-import { getGivenName } from "@/lib/names";
-import { withReturn } from "@/lib/return-to";
-import { portalTaskHref } from "@/lib/portal-task-href";
+import type { PortalPerson } from "@/lib/portal/portal-auth";
+import { visibleTaskIds } from "@/lib/portal/portal-auth";
+import { getAllTasks, type TaskRow } from "@/lib/tasks/queries";
+import { personAttendanceToday, personAttendanceWeek } from "@/lib/people/attendance";
+import { listSelfTodos } from "@/lib/tasks/todo-reminders";
+import { scopedUpcomingMeetings } from "@/lib/portal/portal-meetings-data";
+import { feedForPersonId } from "@/lib/messaging/announcements";
+import { getGivenName } from "@/lib/people/names";
+import { withReturn } from "@/lib/nav/return-to";
+import { portalTaskHref } from "@/lib/portal/portal-task-href";
 import { StudioHome, type StudioHomeData, type HomeItem } from "@/components/studio/home/studio-home";
 import { StaffCheckinCard, StaffCheckinFold, StaffTodoCard, StaffTodoFold, AnnouncementAck } from "@/components/studio/home/staff-cards";
 

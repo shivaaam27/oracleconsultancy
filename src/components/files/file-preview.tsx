@@ -9,10 +9,10 @@
 import { Fragment, useEffect, useRef, useState, useTransition } from "react";
 import { ChevronLeft, ChevronRight, Download, Link2, Loader2, PenLine, FolderInput, Star, Trash2, X, ExternalLink, CalendarClock, Sparkles } from "lucide-react";
 import { FileIcon, ExpiryPill, addedBy, when } from "./file-bits";
-import { displayName, fmtSize, kindOf, type FileRow, type FolderRow, pathOf } from "@/lib/files-shared";
+import { displayName, fmtSize, kindOf, type FileRow, type FolderRow, pathOf } from "@/lib/documents/files-shared";
 import { saveFileDetailsAction, readFileDetailsAction } from "@/app/files/actions";
 import { renewDocumentAction } from "@/app/documents/actions";
-import { useToast } from "@/components/toast";
+import { useToast } from "@/components/shell/toast";
 import { cn } from "@/lib/cn";
 
 const BTN = "inline-flex h-[34px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[10px] border border-[#2E3035] px-3 text-[13px] text-[#E6E6E3] transition-colors hover:bg-[#1F2023]";

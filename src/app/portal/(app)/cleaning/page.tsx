@@ -1,9 +1,9 @@
 import { redirect } from "next/navigation";
-import { getPortalPerson } from "@/lib/portal-auth";
-import { ensureDefaultAreas, ensureDay, listAreas, listChecks, listDays, dayStatus } from "@/lib/cleaning";
+import { getPortalPerson } from "@/lib/portal/portal-auth";
+import { ensureDefaultAreas, ensureDay, listAreas, listChecks, listDays, dayStatus } from "@/lib/operations/cleaning";
 import { sb } from "@/db/supabase";
 import { StudioCleaningToday, type CleaningHistoryDay } from "@/components/studio/cleaning/studio-cleaning-today";
-import type { CleaningHistoryRow } from "@/components/cleaning-overview";
+import type { CleaningHistoryRow } from "@/components/documents/cleaning-overview";
 import { StudioCleaningOverview } from "@/components/studio/cleaning/studio-cleaning";
 
 export const dynamic = "force-dynamic";

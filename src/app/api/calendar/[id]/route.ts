@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { getCalendarEventByToken, toIcsEvent } from "@/lib/calendar";
-import { eventAttachmentLinks } from "@/lib/event-documents";
-import { buildIcs } from "@/lib/ics";
+import { getCalendarEventByToken, toIcsEvent } from "@/lib/calendar/calendar";
+import { eventAttachmentLinks } from "@/lib/calendar/event-documents";
+import { buildIcs } from "@/lib/calendar/ics";
 
 // Serves a single event as a downloadable .ics file. Linking to or attaching
 // this URL lets any calendar app (Google/Apple/Outlook) save the event

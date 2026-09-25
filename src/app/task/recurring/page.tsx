@@ -1,6 +1,6 @@
 import { StudioRecurring } from "@/components/studio/recurring/studio-recurring";
 import { sb } from "@/db/supabase";
-import type { PickerCompany, PickerPerson } from "@/lib/portal-picker";
+import type { PickerCompany, PickerPerson } from "@/lib/portal/portal-picker";
 import {
   listRecurringTasks,
 } from "../recurring-actions";

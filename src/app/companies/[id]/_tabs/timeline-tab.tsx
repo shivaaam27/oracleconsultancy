@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { sb } from "@/db/supabase";
-import type { TaskRow } from "@/lib/queries";
+import type { TaskRow } from "@/lib/tasks/queries";
 import {
   Activity,
   CheckCircle2,
@@ -13,7 +13,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { EmptyState } from "@/components/ui";
-import { CodeLinkedText } from "@/components/code-linked-text";
+import { CodeLinkedText } from "@/components/tasks/code-linked-text";
 import {
   sortTimeline,
   mergeStatusIntoUpdates,
@@ -26,10 +26,10 @@ import {
   type TimelineUpdate,
   type TimelineAudit,
   type TimelineBulk,
-} from "@/lib/timeline";
-import { UpdateMenu } from "@/components/update-menu";
-import { AuditMenu } from "@/components/audit-menu";
-import { TimelineEditGroupView } from "@/components/timeline-edit-group";
+} from "@/lib/tasks/timeline";
+import { UpdateMenu } from "@/components/tasks/update-menu";
+import { AuditMenu } from "@/components/tasks/audit-menu";
+import { TimelineEditGroupView } from "@/components/tasks/timeline-edit-group";
 import { Pencil } from "lucide-react";
 
 const ITEM_LIMIT = 200;

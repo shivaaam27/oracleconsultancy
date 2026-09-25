@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 /* ------------------------------------------------------------------ *
  * Admin gate. Every request except the staff portal, the /login page,
  * and static assets must carry a valid "cos_admin" cookie (set by
- * src/lib/admin-auth.ts — same secret derivation, same token format
+ * src/lib/auth/admin-auth.ts — same secret derivation, same token format
  * "admin.<expiryMs>.<hmac>"). Runs at the edge, so the signature is
  * checked with WebCrypto; no database access here.
  * ------------------------------------------------------------------ */
@@ -21,7 +21,7 @@ function b64url(bytes: ArrayBuffer): string {
   return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-// Session length must match src/lib/admin-auth.ts (SESSION_DAYS = 60).
+// Session length must match src/lib/auth/admin-auth.ts (SESSION_DAYS = 60).
 const SESSION_DAYS = 60;
 // Re-stamp the cookie once it's past the halfway mark, so an actively-used
 // session slides forward and never hits the hard expiry.
@@ -92,7 +92,7 @@ async function isValidAdminToken(token: string | undefined): Promise<boolean> {
 }
 
 /* Staff-portal sliding refresh. The portal is NOT behind the admin gate — its
- * pages verify the "cos_portal" cookie themselves (src/lib/portal-auth.ts). But
+ * pages verify the "cos_portal" cookie themselves (src/lib/portal/portal-auth.ts). But
  * unlike the admin cookie (re-stamped below), the portal cookie was only set once
  * at login and never refreshed, so an installed PWA's session could go stale and
  * get evicted between launches — staff were silently logged out on resume. Here
@@ -102,7 +102,7 @@ async function isValidAdminToken(token: string | undefined): Promise<boolean> {
  * we NEVER redirect (the portal pages own their own auth). */
 async function refreshPortalSession(req: NextRequest): Promise<NextResponse> {
   // The portal layout needs the address to send a director to the shared
-  // screen BEFORE it draws the old frame (lib/director-routes.ts); a layout is
+  // screen BEFORE it draws the old frame (lib/portal/director-routes.ts); a layout is
   // not told its path, so it travels as a request header.
   const headers = new Headers(req.headers);
   headers.set("x-cos-path", req.nextUrl.pathname + req.nextUrl.search);
@@ -130,7 +130,7 @@ async function refreshPortalSession(req: NextRequest): Promise<NextResponse> {
   };
 
   const payload = fp === null ? `${id}.${exp}` : `${id}.${exp}.${fp}`;
-  // Same HMAC + secret() as src/lib/portal-auth.ts. When this edge runtime shares
+  // Same HMAC + secret() as src/lib/portal/portal-auth.ts. When this edge runtime shares
   // that secret we can VERIFY the cookie and slide its INTERNAL expiry forward, so
   // an actively-used session never hits the 60-day hard wall.
   if ((await signAdmin(payload)) === sig) {
@@ -159,7 +159,7 @@ async function refreshPortalSession(req: NextRequest): Promise<NextResponse> {
  * their companies. So a request with no owner session but a GENUINE portal
  * session (signature and expiry verified here, like the owner's) may reach
  * these paths — and ONLY these. Each page and API on the list checks for itself
- * who is asking (lib/viewer.ts) and sends anyone else to /portal; every other
+ * who is asking (lib/auth/viewer.ts) and sends anyone else to /portal; every other
  * administrator route stays owner-only at this door. ⚠️ Add a path here only
  * once its page, its API and every action it can call are viewer-aware. */
 const DIRECTOR_PATHS: RegExp[] = [
@@ -185,7 +185,7 @@ async function validPortalToken(token: string | undefined): Promise<boolean> {
   else if (segs.length === 3) { payload = `${segs[0]}.${segs[1]}`; exp = segs[1]; sig = segs[2]; }
   else return false;
   if (!(Number(exp) > Date.now())) return false;
-  // Same HMAC and secret as src/lib/portal-auth.ts. If this runtime cannot
+  // Same HMAC and secret as src/lib/portal/portal-auth.ts. If this runtime cannot
   // reproduce the signature, the answer is NO — the door stays shut, never open.
   return (await signAdmin(payload)) === sig;
 }
@@ -245,7 +245,7 @@ export async function proxy(req: NextRequest) {
 export const config = {
   // Everything EXCEPT: the staff portal, the admin login page, Next.js
   // internals, and static files (anything with a dot: sw.js, manifest.json,
-  // icons, fonts). The portal has its own lock in src/lib/portal-auth.ts.
+  // icons, fonts). The portal has its own lock in src/lib/portal/portal-auth.ts.
   // api/portal is excluded too: those routes serve portal users and verify
   // the portal (or admin) cookie themselves. api/wa-card is public (Twilio fetches
   // the link-preview image unauthenticated) but carries its own HMAC signature gate.

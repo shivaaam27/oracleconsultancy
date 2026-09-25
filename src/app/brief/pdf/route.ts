@@ -1,8 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { getBrief, parseBriefPeriod } from "@/lib/director-brief";
-import { renderBriefPdf } from "@/lib/brief-pdf";
-import { briefPdfFilename } from "@/lib/brief-pdf-shared";
-import { parseBriefIdList, parseBriefPersonRole } from "@/lib/brief-links";
+import { getBrief, parseBriefPeriod } from "@/lib/reports/director-brief";
+import { renderBriefPdf } from "@/lib/reports/brief-pdf";
+import { briefPdfFilename } from "@/lib/reports/brief-pdf-shared";
+import { parseBriefIdList, parseBriefPersonRole } from "@/lib/reports/brief-links";
 
 // Owner download of the Director Brief PDF. Reachable only with a valid admin
 // cookie (the edge gate in src/proxy.ts covers /brief/*). Honours the same

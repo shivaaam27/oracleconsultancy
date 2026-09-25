@@ -7,7 +7,7 @@
 // See memory/mcp_stage1_read_only.md.
 
 import { revalidatePath } from "next/cache";
-import { isAdminSession } from "@/lib/admin-auth";
+import { isAdminSession } from "@/lib/auth/admin-auth";
 import { sb } from "@/db/supabase";
 import { generateKey, hashKey } from "@/lib/mcp/auth";
 import { recordEvent } from "@/lib/system-events";

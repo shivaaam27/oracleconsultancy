@@ -16,17 +16,17 @@ import { useEffect, useRef, useState, useTransition, type ReactNode } from "reac
 import { useRouter } from "next/navigation";
 import { Loader2, Repeat } from "lucide-react";
 import { patchTaskField } from "@/app/task/actions";
-import { callUndo } from "@/components/undo-banner";
-import { useToast } from "@/components/toast";
-import { DeadlineEditor } from "@/components/deadline-editor";
-import { DatePopover } from "@/components/date-popover";
-import { Combobox } from "@/components/combobox";
+import { callUndo } from "@/components/shell/undo-banner";
+import { useToast } from "@/components/shell/toast";
+import { DeadlineEditor } from "@/components/tasks/deadline-editor";
+import { DatePopover } from "@/components/forms/date-popover";
+import { Combobox } from "@/components/forms/combobox";
 import { StudioPeoplePick } from "@/components/studio/people-pick";
 import { StudioBlocker } from "./blocker";
 import { StudioStatusCell, StudioPriorityCell, StudioChoiceMenu } from "./cells";
 import { stBtn } from "@/components/studio/kit";
 import { RISKS, CATEGORIES } from "@/lib/constants";
-import { taskHref } from "@/lib/task-href";
+import { taskHref } from "@/lib/tasks/task-href";
 import { cn } from "@/lib/cn";
 
 export type DetailsTask = {

@@ -72,7 +72,7 @@ sidebar rule, portal `zoom: 0.8`) and verifiably fixed items were taken out.
 
 - **Per-write index hooks rely on the nightly reindex as the catch-all.** Add hooks
   on any new write path; don't assume same-second semantic freshness everywhere.
-- **AI spend rate is 0.** `MODEL_RATES` in `lib/ai-spend.ts` carries no real prices
+- **AI spend rate is 0.** `MODEL_RATES` in `lib/ai/ai-spend.ts` carries no real prices
   and `aiMonthlySpendCap` defaults to 0 = unlimited. Before paying for AI (and
   before MCP Stage 4), set real rates and a cap.
 - ORI Ask has no history toggle (current-by-default).
@@ -118,7 +118,7 @@ sidebar rule, portal `zoom: 0.8`) and verifiably fixed items were taken out.
   **If CSS paints it immediately, CSS (or the server) has to size it immediately.**
   A measurement taken mid-Fast-Refresh is not evidence about production —
   hard-reload first.
-- **The portal `zoom: 0.8` is gone**; `lib/zoom.ts` stays with `rootZoom()`
+- **The portal `zoom: 0.8` is gone**; `lib/nav/zoom.ts` stays with `rootZoom()`
   returning 1, so every `layoutRect()` call is the identity. Nothing to unpick.
 
 ## Found in the Sept 2026 clean-up (not fixed — owner to decide)

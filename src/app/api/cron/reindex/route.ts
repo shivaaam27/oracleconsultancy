@@ -3,11 +3,11 @@
 // No-ops when semantic search is off. Scheduled in vercel.json.
 
 import { NextRequest, NextResponse } from "next/server";
-import { authoriseCron } from "@/lib/cron-auth";
+import { authoriseCron } from "@/lib/auth/cron-auth";
 import { recordEvent, lastSuccessfulEvent } from "@/lib/system-events";
 import { reportError } from "@/lib/sentry";
 import { getAppSettings } from "@/lib/settings";
-import { reindexAll } from "@/lib/embeddings-reindex";
+import { reindexAll } from "@/lib/search/embeddings-reindex";
 import { sb } from "@/db/supabase";
 
 export const dynamic = "force-dynamic";

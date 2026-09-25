@@ -9,9 +9,9 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { Archive, Sparkles, CheckSquare, LayoutGrid, LayoutList, Table2, CalendarDays, GitCommitVertical } from "lucide-react";
-import type { TaskRow } from "@/lib/queries";
-import type { FilterChip, FilterOption, IdentityStrip } from "@/components/task-filter-bar";
-import type { RecordFilter } from "@/components/record-list";
+import type { TaskRow } from "@/lib/tasks/queries";
+import type { FilterChip, FilterOption, IdentityStrip } from "@/components/tasks/task-filter-bar";
+import type { RecordFilter } from "@/components/kit/record-list";
 import { StudioScope, StudioHeader, StudioCardRow } from "@/components/studio/kit";
 import { StudioPickProvider } from "./pick";
 import { InsightsCard, type InsightsData } from "./insights-card";

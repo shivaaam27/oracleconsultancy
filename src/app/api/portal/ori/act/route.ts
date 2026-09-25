@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { AI_FAST } from "@/lib/ai-models";
-import { callAIJson } from "@/lib/ai-json";
+import { AI_FAST } from "@/lib/ai/ai-models";
+import { callAIJson } from "@/lib/ai/ai-json";
 import { getAiKey } from "@/lib/settings";
 import {
   getPortalPerson,
@@ -8,7 +8,7 @@ import {
   companyScope,
   seesAllCompanies,
   type PortalPerson,
-} from "@/lib/portal-auth";
+} from "@/lib/portal/portal-auth";
 import {
   portalCreateTask,
   portalDirectorCreateTask,

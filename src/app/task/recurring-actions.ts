@@ -1,13 +1,13 @@
 "use server";
 
-import { guardOwner } from "@/lib/viewer";
+import { guardOwner } from "@/lib/auth/viewer";
 // The Administrator's door for recurring-task rules — EVERY standing
 // `recurring_task` rule, whoever set it up (the owner's own, a director's, a
 // manager's), with add / edit / switch off / remove. The portal's twin
 // (src/app/portal/(app)/tasks/automations-actions.ts) is scoped to what the
 // person created; this one is not, because the administrator is the one place
 // that can see the whole list. Both read and write the same `automation_rules`
-// rows through the same checks in src/lib/recurring-task-rules.ts.
+// rows through the same checks in src/lib/tasks/recurring-task-rules.ts.
 //
 // Auth: this is an admin route, so the edge gate in src/proxy.ts is the check —
 // the same footing as every other action in src/app/task/actions.ts.
@@ -18,7 +18,7 @@ import type { RuleConfig } from "@/lib/ori/automations";
 import {
   buildConfig, cleanAssigneeIds, rowToRule, PAUSED_FOREVER,
   type RecurringRuleRow, type RecurringTaskInput, type RecurringTaskRule, type Result,
-} from "@/lib/recurring-task-rules";
+} from "@/lib/tasks/recurring-task-rules";
 
 function revalidate() {
   revalidatePath("/task/recurring");

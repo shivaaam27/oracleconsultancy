@@ -9,7 +9,7 @@
  */
 import { Check, Download, Monitor, MoreVertical, Share, Smartphone, TabletSmartphone } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useInstall } from "@/components/install-app";
+import { useInstall } from "@/components/shell/install-app";
 import { stBtn } from "@/components/studio/kit";
 import { cn } from "@/lib/cn";
 

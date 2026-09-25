@@ -1,6 +1,6 @@
 "use server";
 
-import { guardOwner } from "@/lib/viewer";
+import { guardOwner } from "@/lib/auth/viewer";
 // Server actions for the Documents library — manual filing only (Aug 2026).
 //
 // The owner adds a document, picks its company or person, its category and type,
@@ -23,7 +23,7 @@ import {
   signDocumentFile,
   linkDocumentTask,
   type DocumentInput,
-} from "@/lib/documents";
+} from "@/lib/documents/documents";
 
 type Result = { ok: true; id?: number; code?: string } | { ok: false; error: string };
 

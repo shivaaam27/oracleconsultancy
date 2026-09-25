@@ -3,7 +3,7 @@
 /**
  * While a task page is on its way from the server, draw THE TASK — from the
  * copy the Tasks page already read (the side panel, the row under the pointer,
- * the step before; lib/task-detail-cache.ts) — instead of a loading screen.
+ * the step before; lib/tasks/task-detail-cache.ts) — instead of a loading screen.
  * The owner: "I shouldn't feel like there's a loading screen at all."
  *
  * It is the very same record component the page renders, so when the page
@@ -16,8 +16,8 @@
  */
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { TaskRecordPage } from "@/components/task-drawer";
-import { cachedTaskDetail } from "@/lib/task-detail-cache";
+import { TaskRecordPage } from "@/components/tasks/task-drawer";
+import { cachedTaskDetail } from "@/lib/tasks/task-detail-cache";
 
 export default function TaskLoading() {
   const pathname = usePathname();

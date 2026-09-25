@@ -2,19 +2,19 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { markPush, withReturn } from "@/lib/return-to";
+import { markPush, withReturn } from "@/lib/nav/return-to";
 import { CalendarOff, Activity, CalendarRange } from "lucide-react";
-import type { TaskRow, TaskSource, RawActivity } from "@/lib/queries";
+import type { TaskRow, TaskSource, RawActivity } from "@/lib/tasks/queries";
 import { Badge, EmptyState } from "@/components/ui";
-import { Panel } from "@/components/surface-kit";
-import { Deadline } from "@/components/deadline";
-import { FluidSelect } from "@/components/fluid-select";
-import { TimelineEntry, type TimelineTask } from "@/components/timeline-entry";
-import { taskHref } from "@/lib/task-href";
+import { Panel } from "@/components/kit/surface-kit";
+import { Deadline } from "@/components/tasks/deadline";
+import { FluidSelect } from "@/components/forms/fluid-select";
+import { TimelineEntry, type TimelineTask } from "@/components/tasks/timeline-entry";
+import { taskHref } from "@/lib/tasks/task-href";
 import {
   sortTimeline, mergeStatusIntoUpdates, suppressUpdateMetaAudits,
   suppressNoReasonAudits, groupFieldEdits, type TimelineItem,
-} from "@/lib/timeline";
+} from "@/lib/tasks/timeline";
 
 type Mode = "activity" | "schedule";
 type GroupBy = "origin" | "deadline" | "activity";

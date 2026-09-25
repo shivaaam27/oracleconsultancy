@@ -12,18 +12,18 @@ Spices" with "not in CONTEXT" — the Ask context was blind to governance.
 ## The three systems, one brain
 
 1. **ORI Ask** (`/api/ask/route.ts`) — the conversation / RAG.
-2. **Deep search** (`/api/search` → `lib/search.ts` `unifiedSearch`) — drawn by
+2. **Deep search** (`/api/search` → `lib/search/search.ts` `unifiedSearch`) — drawn by
    **`components/studio/search.tsx`** (`StudioSearch`, since 24 Sept 2026: one
    ranked list, a quiet row of kinds, "Ask ORI" as the last row — or the first
    when the query reads like a question). It only renders; the data stays in
-   `CommandPaletteProvider` (`components/command-palette.tsx`, mounted once in the
+   `CommandPaletteProvider` (`components/search/command-palette.tsx`, mounted once in the
    root layout). Opens with **⌘K / Ctrl+K** or **Ctrl+Space**.
-3. **Semantic index** (`lib/embeddings.ts` + `embeddings-reindex.ts`,
+3. **Semantic index** (`lib/search/embeddings.ts` + `embeddings-reindex.ts`,
    gte-small / pgvector / `hybrid_search`) — gated by the `semanticSearch` setting.
 
 ## The entity registry — single source of truth
 
-`src/lib/entity-registry.ts`: one `EntityDef` per type (table, id, columns,
+`src/lib/search/entity-registry.ts`: one `EntityDef` per type (table, id, columns,
 `textFor`, `lifecycleFor`, a `search` block, a `trace` mode). Indexing, deep search,
 the palette and trace all derive from it.
 
@@ -38,15 +38,15 @@ the registry when those features were removed.
   search must never read them.
 
 ⚠️ **Adding a type is more than one `EntityDef`.** Three hand-kept lists must
-agree: `SourceType` in `lib/embeddings.ts`, `ENTITY_LABELS_ORDER` in
-`lib/entity-meta.ts` (an exhaustive `Record`, so the compiler insists) and
-**`SearchResultType` in `lib/search.ts`** (NOT checked by the compiler — a type
+agree: `SourceType` in `lib/search/embeddings.ts`, `ENTITY_LABELS_ORDER` in
+`lib/search/entity-meta.ts` (an exhaustive `Record`, so the compiler insists) and
+**`SearchResultType` in `lib/search/search.ts`** (NOT checked by the compiler — a type
 missing there compiles and then never appears). `embeddings.source_type` is plain
 text, so no migration.
 
 ⚠️ **CLIENT/SERVER BOUNDARY (hard rule).** The registry imports the server-only
 `sb`. Client components import labels/order from the client-safe
-**`lib/entity-meta.ts`**, never the registry. A client VALUE-import of the registry
+**`lib/search/entity-meta.ts`**, never the registry. A client VALUE-import of the registry
 drags `@/db/supabase` into the browser bundle and every page dies with
 "SUPABASE_SERVICE_ROLE_KEY is not set". `import type` is fine (erased). This
 regressed once (Wave 2) and **neither tsc nor the tests caught it** — after moving
@@ -54,7 +54,7 @@ imports, always load a page.
 
 ## Indexing
 
-- **Continuous**: `lib/index-hooks.ts` `reindexEntity(type,id)` /
+- **Continuous**: `lib/search/index-hooks.ts` `reindexEntity(type,id)` /
   `removeEntityIndex(type,id)` on write paths; only a HARD delete calls
   `removeEntityIndex`. Convention: on create/update/archive, call `reindexEntity`.
 - **Nightly catch-all**: `/api/cron/reindex` → `reindexAll`, derived from
@@ -63,7 +63,7 @@ imports, always load a page.
   migration **0094**), never deleted; `removeOrphans` deletes only rows whose
   source is gone. `hybrid_search` takes `filter_lifecycle` (default `active`) —
   called with NAMED args, which is what made adding the parameter positionally safe.
-- **Coverage self-audit**: `lib/coverage-audit.ts`, folded into `system-health.ts`;
+- **Coverage self-audit**: `lib/search/coverage-audit.ts`, folded into `system-health.ts`;
   inert while `semanticSearch` is off.
 
 ## Ask
@@ -71,14 +71,14 @@ imports, always load a page.
 - Context covers governance/ownership (cap table, beneficial owners, signatories,
   key persons, current company `facts`, resolutions) plus vendors, assets and
   attendance/leave, alongside tasks. Conversational synonyms from
-  `lib/synonyms.ts` (owner↔shareholder↔director, supplier↔vendor, rent↔lease…),
+  `lib/search/synonyms.ts` (owner↔shareholder↔director, supplier↔vendor, rent↔lease…),
   shared with search.
 - Passage citations; **graph traversal** for relational / multi-hop questions
   (`CONTEXT.graph`); a provenance line ("8 tasks · 2 documents · 1 governance
   record").
-- **ORI memory** — `ai_memory` (migration **0095**), `lib/ai-memory.ts`: QA,
+- **ORI memory** — `ai_memory` (migration **0095**), `lib/ai/ai-memory.ts`: QA,
   preferences, "remember that…" (deterministic, works AI-off); `/api/ai-memory`.
-- **Runs on Gemini** (`src/lib/ai-models.ts`: `gemini-3.1-flash-lite` →
+- **Runs on Gemini** (`src/lib/ai/ai-models.ts`: `gemini-3.1-flash-lite` →
   `gemini-3.5-flash-lite`, env-overridable). Groq is used only for voice
   (`whisper-large-v3-turbo`). Spend lands in `ai_usage` (migration **0096**) and
   honours `aiMonthlySpendCap` (0 = unlimited, fails open).
@@ -89,7 +89,7 @@ imports, always load a page.
 updates + audit log; person → person events + leave requests + asset
 assignments; company → facts ledger + resolutions + audit log; document → its
 links + automation events; generic fallback → row state + automation events.
-`components/trace-panel.tsx` self-mounts inside the palette provider and listens
+`components/search/trace-panel.tsx` self-mounts inside the palette provider and listens
 for `window` event `cos:trace` `{type,id,title}`. Governance has no trace mapping.
 
 ## Open follow-ups

@@ -4,8 +4,8 @@
 // off Drizzle without duplicating logic.
 
 import { sb } from "@/db/supabase";
-import { indexEmbedding } from "@/lib/embeddings";
-import { reindexEntity } from "@/lib/index-hooks";
+import { indexEmbedding } from "@/lib/search/embeddings";
+import { reindexEntity } from "@/lib/search/index-hooks";
 
 function fmtLocalDate(d: Date): string {
   const y = d.getFullYear();

@@ -44,7 +44,7 @@ survivable for anything undoable, and not for anything that isn't.
 
 **Wrap the server action, not the raw database helper.**
 
-`createCalendarEvent()` in `src/lib/calendar.ts` writes a row. `createEventAction()`
+`createCalendarEvent()` in `src/lib/calendar/calendar.ts` writes a row. `createEventAction()`
 in `src/app/calendar/actions.ts` writes the row **and** pushes to Google, spawns
 the meeting task and notifies attendees. Calling the raw helper would produce an
 event that exists in Oracle and nowhere else — exactly the bug that was fixed in
@@ -55,12 +55,12 @@ event that exists in Oracle and nowhere else — exactly the bug that was fixed 
 | Piece | Where |
 |---|---|
 | Write layer | `src/lib/mcp/writes.ts` — resolvers, scope, the executors, undo |
-| Shared task core | `src/lib/task-write.ts` — **new**, see below |
+| Shared task core | `src/lib/tasks/task-write.ts` — **new**, see below |
 | Undo handlers | `src/lib/undo-handlers/mcp.ts` (+ registered in `undo-handlers.ts`) |
 | Tools | 7 new entries in `src/lib/mcp/registry.ts` (6 writes + `undo_last_change`) |
 | Endpoint | `src/app/api/mcp/route.ts` — new instructions, tool annotations, `afterWrite()` |
 
-### `src/lib/task-write.ts` — the refactor this stage required
+### `src/lib/tasks/task-write.ts` — the refactor this stage required
 
 `createTask` and `addTaskUpdate` in `src/app/task/actions.ts` are **FormData in,
 redirect out**. A route handler has neither a form nor a cookie, and a server
@@ -133,7 +133,7 @@ assistant needs to check the guest list before it calls it, not after.
 4. **Undo is not a delete tool.** `undo_last_change` can only consume a token whose
    `undo_tokens.created_by` equals this caller's own `mcp:<Name>` stamp, unconsumed,
    inside ten minutes, once. It cannot reach anything a person did, or another key's
-   changes. (`Actor` in `lib/mutate.ts` was widened to `mcp:${string}` for this — the
+   changes. (`Actor` in `lib/tasks/mutate.ts` was widened to `mcp:${string}` for this — the
    stamp must stay identical to `callerStamp()`.) **Bulk has no undo** — the
    underlying `bulkUpdateTasks` never had one, so the tool caps at 25 and reports
    every code it touched.

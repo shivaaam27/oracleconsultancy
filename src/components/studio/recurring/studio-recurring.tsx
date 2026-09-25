@@ -21,13 +21,13 @@ import { Plus, Pencil, Trash2, Loader2, X, Repeat } from "lucide-react";
 import { StudioScope, StudioHeader, StudioCard, CardHead, BigNumber, StudioPill, stBtn } from "@/components/studio/kit";
 import { StudioMenu } from "@/components/studio/tasks/controls";
 import { StudioFaces } from "@/components/studio/tasks/cells";
-import { RecordList, type RecordColumn } from "@/components/record-list";
-import { RecurringTaskSheet, BLANK, draftFromRule, type Draft } from "@/components/portal-recurring-tasks";
+import { RecordList, type RecordColumn } from "@/components/kit/record-list";
+import { RecurringTaskSheet, BLANK, draftFromRule, type Draft } from "@/components/portal/portal-recurring-tasks";
 import { Switch } from "@/components/ui";
-import { useToast } from "@/components/toast";
-import { useUrlFilters } from "@/lib/use-url-filters";
-import { creatorLabel, nextOccurrences, occursToday, type RecurringTaskRule, type RecurringTaskInput } from "@/lib/recurring-task-rules";
-import type { PickerCompany, PickerPerson } from "@/lib/portal-picker";
+import { useToast } from "@/components/shell/toast";
+import { useUrlFilters } from "@/lib/hooks/use-url-filters";
+import { creatorLabel, nextOccurrences, occursToday, type RecurringTaskRule, type RecurringTaskInput } from "@/lib/tasks/recurring-task-rules";
+import type { PickerCompany, PickerPerson } from "@/lib/portal/portal-picker";
 import {
   createRecurringTask, updateRecurringTask, setRecurringTaskPaused, deleteRecurringTask,
 } from "@/app/task/recurring-actions";

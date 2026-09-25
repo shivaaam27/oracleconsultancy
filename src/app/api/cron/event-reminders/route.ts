@@ -2,7 +2,7 @@
 //
 // Sweeps the calendar and delivers every reminder that has fallen due since the
 // last sweep (push + the person's Reminders chat channel, plus the branded email
-// when that's switched on). See src/lib/event-reminders.ts for the rules.
+// when that's switched on). See src/lib/calendar/event-reminders.ts for the rules.
 //
 // ── HOW OFTEN IT RUNS ─────────────────────────────────────────────────────────
 // Reminders are only as punctual as the sweep. Two schedules drive it:
@@ -18,11 +18,11 @@
 // a pruned ledger in `settings`.
 
 import { NextRequest, NextResponse } from "next/server";
-import { authoriseCron } from "@/lib/cron-auth";
+import { authoriseCron } from "@/lib/auth/cron-auth";
 import { recordEvent } from "@/lib/system-events";
 import { reportError } from "@/lib/sentry";
-import { runEventReminders } from "@/lib/event-reminders";
-import { backfillGoogleEvents } from "@/lib/calendar-google-sync";
+import { runEventReminders } from "@/lib/calendar/event-reminders";
+import { backfillGoogleEvents } from "@/lib/calendar/calendar-google-sync";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;

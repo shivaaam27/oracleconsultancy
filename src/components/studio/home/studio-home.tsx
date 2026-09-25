@@ -18,7 +18,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronDown, ChevronLeft, ChevronRight, FileText, Loader2, Megaphone, Zap } from "lucide-react";
 import { runAutomationsNowAction, sendBriefNowAction, setAutomationPausedAction, setDirectorOutreachPausedAction, setAiEnabledAction, setEmailTestModeAction } from "@/app/_hub/control-actions";
-import { useToast } from "@/components/toast";
+import { useToast } from "@/components/shell/toast";
 import { StudioScope } from "@/components/studio/kit";
 import { useFitFrame } from "@/components/studio/use-fit-frame";
 import { cn } from "@/lib/cn";

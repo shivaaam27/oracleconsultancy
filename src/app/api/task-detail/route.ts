@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getTaskRowFresh } from "@/lib/queries";
+import { getTaskRowFresh } from "@/lib/tasks/queries";
 import { sb } from "@/db/supabase";
-import { recordTaskView, personCanSeeTask } from "@/lib/portal-auth";
-import { getViewer, type Viewer } from "@/lib/viewer";
-import { viewerPeopleIds } from "@/lib/viewer-scope";
+import { recordTaskView, personCanSeeTask } from "@/lib/portal/portal-auth";
+import { getViewer, type Viewer } from "@/lib/auth/viewer";
+import { viewerPeopleIds } from "@/lib/auth/viewer-scope";
 import { STATUSES } from "@/lib/constants";
-import type { ConvoMessage, ConvoEvent } from "@/components/portal-conversation";
+import type { ConvoMessage, ConvoEvent } from "@/components/portal/portal-conversation";
 import { taskRecurrence } from "@/app/task/recurring-actions";
 
 export const dynamic = "force-dynamic";
@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
 
   // Stamp the owner's view so portal users see "Seen by Management" — and so
   // the task's unread dot clears. NOT on a peek: the Tasks page reads the task
-  // under the pointer ahead of time (lib/task-detail-cache.ts), and a task that
+  // under the pointer ahead of time (lib/tasks/task-detail-cache.ts), and a task that
   // was only hovered over has not been read.
   if (viewer.kind === "director" && !(await personCanSeeTask(viewer.person, task.id))) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });

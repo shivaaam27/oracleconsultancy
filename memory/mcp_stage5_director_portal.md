@@ -53,7 +53,7 @@ So switching Pulin on is largely configuration:
 1. Mint an `mcp_keys` row with `person_id = 13` (or let him sign in, once stage 3
    exists — his existing portal password is his credential).
 2. The resolver returns his `scopeLevel` and `caps` from
-   `src/lib/portal-permissions.ts`.
+   `src/lib/portal/portal-permissions.ts`.
 3. The tool list he is offered is filtered to his capabilities — he never sees a
    tool he cannot use.
 4. Every handler re-checks capability and scope before touching data.

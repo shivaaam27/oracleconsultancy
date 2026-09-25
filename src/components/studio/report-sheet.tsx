@@ -21,7 +21,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { Building2, CalendarDays, Check, ChevronDown, Copy, Download, FileText, Loader2, Mail, MessageCircle, Plus, Search, Send, Trash2, UserRound, X } from "lucide-react";
 import { StudioSheet } from "@/components/studio/sheet";
 import { StudioPeoplePick } from "@/components/studio/people-pick";
-import { downloadPdf } from "@/components/brief-pdf-button";
+import { downloadPdf } from "@/components/documents/brief-pdf-button";
 import {
   addReportNote, deleteReportNote, draftReport, emailReport, reportOptions, reportRecipients, reportSummary,
   type ReportInput, type ReportOptions, type ReportSummary,

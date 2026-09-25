@@ -25,7 +25,7 @@ It is what task codes are built from, so it should not change once tasks exist
 Format: `<PREFIX>-NNN` (e.g. `DS-001`). Legacy `COxx-NNN` codes are kept in
 `tasks.legacy_code` so old links still resolve.
 
-Allocation is in `createTaskCore` (`src/lib/task-write.ts`): read the highest
+Allocation is in `createTaskCore` (`src/lib/tasks/task-write.ts`): read the highest
 number for the prefix, insert, and retry up to five times on a collision.
 
 ## Statuses
@@ -52,7 +52,7 @@ Keep parser/AI prompts aligned with this list.
 
 ## Derived Flags
 
-Defined in `src/lib/derive.ts`.
+Defined in `src/lib/tasks/derive.ts`.
 
 Thresholds:
 
@@ -102,4 +102,4 @@ Outbox/reminders use uppercase channel strings:
 - `EMAIL`
 - `SMS`
 
-Email sends through `src/lib/email/send.ts` (Gmail SMTP or Resend). WhatsApp can send for real through Twilio (`src/lib/whatsapp.ts`) when its env vars are set; otherwise it falls back to `wa.me` links. Person-to-person messages from MCP are only ever Outbox drafts.
+Email sends through `src/lib/email/send.ts` (Gmail SMTP or Resend). WhatsApp can send for real through Twilio (`src/lib/messaging/whatsapp.ts`) when its env vars are set; otherwise it falls back to `wa.me` links. Person-to-person messages from MCP are only ever Outbox drafts.

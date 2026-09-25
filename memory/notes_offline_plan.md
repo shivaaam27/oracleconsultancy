@@ -90,7 +90,7 @@ anything. There is nothing to merge.
   Plain text on purpose: the page whose whole job is to work when things are
   already going wrong should be as close to a sheet of paper as possible. What
   you write becomes an ordinary note the moment it syncs, formatting and all.
-- **`src/lib/offline-notes.ts`** — IndexedDB, no library. The device is a
+- **`src/lib/notes/offline-notes.ts`** — IndexedDB, no library. The device is a
   **postbox, never the record**: a draft is deleted only once the server has
   confirmed it, never on a hopeful "it probably got through".
 - **`/api/notes/offline-sync`** — owner-only, checked at the edge AND in the

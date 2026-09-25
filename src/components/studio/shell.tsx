@@ -16,23 +16,23 @@
  * footer can never list a page the rest of Oracle does not know about.
  */
 import { ReportSheet } from "@/components/studio/report-sheet";
-import { SignOutForm } from "@/components/sign-out-form";
+import { SignOutForm } from "@/components/shell/sign-out-form";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronLeft, ChevronRight, ChevronUp, Home, LogOut, Moon, Pencil, Plus, Search, Sun, Settings as SettingsIcon, UserRound, X } from "lucide-react";
 import { adminLogout } from "@/app/login/actions";
 import { portalLogout } from "@/app/portal/actions";
-import { studioStops, stopIndexFor, directorStops, directorStopIndex, staffStops, staffStopIndex, type StudioStop } from "@/lib/studio-nav";
-import { useCommandPalette } from "@/components/command-palette";
-import { NotificationBell } from "@/components/notification-bell";
+import { studioStops, stopIndexFor, directorStops, directorStopIndex, staffStops, staffStopIndex, type StudioStop } from "@/lib/nav/studio-nav";
+import { useCommandPalette } from "@/components/search/command-palette";
+import { NotificationBell } from "@/components/shell/notification-bell";
 import { StudioQuickAdd, preloadQuickAdd } from "./quick-add";
 import { useTheme } from "next-themes";
-import { useNavVisibility, isHiddenNavHref } from "@/components/nav-visibility";
+import { useNavVisibility, isHiddenNavHref } from "@/components/shell/nav-visibility";
 import { cn } from "@/lib/cn";
 import { FOOT_NOTE_EVENT, type PageFootNote } from "./foot-note";
-import { startNavProgress } from "@/components/nav-progress";
-import { useNavOrder, applyNavOrder, moveNavStop } from "@/lib/nav-order";
+import { startNavProgress } from "@/components/shell/nav-progress";
+import { useNavOrder, applyNavOrder, moveNavStop } from "@/lib/nav/nav-order";
 import { PersonFace } from "@/components/studio/face";
 
 export type StudioFootNote = { label: string; text: string; href?: string; tone?: "late" | "soon" | "info" } | null;
@@ -40,7 +40,7 @@ export type StudioFootNote = { label: string; text: string; href?: string; tone?
 const FOOT_BTN =
   "inline-flex h-9 items-center justify-center gap-2 rounded-[10px] border border-[#3A3D42] bg-[#17181A] text-xs text-[#E4E6E9] transition-colors hover:border-[#55585E] hover:text-white";
 
-/** A director on the shared screens (lib/viewer.ts): their own pages in the
+/** A director on the shared screens (lib/auth/viewer.ts): their own pages in the
  *  footer, their profile instead of Settings, no everything-search, and "+ New"
  *  makes a task (the one thing they create here). */
 export type ShellDirector = {

@@ -36,8 +36,8 @@ sends only a VALID token to the portal.)
 
 ## Sessions
 
-- Owner: signed HttpOnly cookie `cos_admin` (`src/lib/admin-auth.ts`).
-- Staff: signed HttpOnly cookie `cos_portal` (`src/lib/portal-auth.ts`).
+- Owner: signed HttpOnly cookie `cos_admin` (`src/lib/auth/admin-auth.ts`).
+- Staff: signed HttpOnly cookie `cos_portal` (`src/lib/portal/portal-auth.ts`).
 - Both sign with `PORTAL_SESSION_SECRET`; the `secret()` derivation must stay
   identical in `src/proxy.ts`, `admin-auth.ts` and `portal-auth.ts`.
 - Passwords are scrypt (`scrypt:<salt>:<hash>`, `hashPassword`/`verifyPassword`
@@ -57,13 +57,13 @@ only, never a lockout. Edited in Settings → Security & Access → Owner sign-i
 - `@simplewebauthn/server` + `@simplewebauthn/browser` (v13). Table
   `webauthn_credentials`: `person_id` null = owner, else staff; stores only the
   PUBLIC key.
-- `src/lib/webauthn.ts`: rpID/origin from request headers (localhost + Vercel);
+- `src/lib/auth/webauthn.ts`: rpID/origin from request headers (localhost + Vercel);
   challenge in the 5-minute HttpOnly cookie `cos_webauthn`; discoverable
   credentials (resident key required).
 - Sign in: `src/app/login/passkey-actions.ts` + `passkey-login-button.tsx`
   (inside `StudioSignIn`). Sets the admin or portal cookie by the credential's
   owner. Also offers conditional-UI autofill (`useBrowserAutofill`).
-- Register (must be signed in), both via `components/passkey-manager.tsx`:
+- Register (must be signed in), both via `components/people/passkey-manager.tsx`:
   - owner — Settings → **Face ID & fingerprint** (`#passkeys`,
     `settings/passkey-actions.ts`);
   - staff, managers, directors — `/portal/profile` → **Sign-in & app** card

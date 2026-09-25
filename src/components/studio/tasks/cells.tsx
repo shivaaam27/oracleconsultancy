@@ -12,9 +12,9 @@ import { useEffect, useLayoutEffect, useRef, useState, useTransition, type React
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { Check } from "lucide-react";
-import { useInlineField } from "@/components/task-inline-edit";
+import { useInlineField } from "@/components/tasks/task-inline-edit";
 import { toggleTaskStar } from "@/app/task/actions";
-import { useToast } from "@/components/toast";
+import { useToast } from "@/components/shell/toast";
 import { STATUS_DOT } from "./task-words";
 import { cn } from "@/lib/cn";
 

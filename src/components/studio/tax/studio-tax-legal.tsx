@@ -11,9 +11,9 @@ import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { CalendarClock, Check, ChevronDown, ListChecks, Loader2, MinusCircle, Plane, Plus, RotateCcw } from "lucide-react";
 import { StudioScope, StudioHeader, StudioCardRow, StudioCard, CardHead, Ring } from "@/components/studio/kit";
-import { useToast } from "@/components/toast";
+import { useToast } from "@/components/shell/toast";
 import { tickHabitAction, toggleObligationCompanyAction, setObligationApplicableAction, createTaskFromObligationAction } from "@/app/hrms/command-centre/actions";
-import { daysLabel, type CcFlag } from "@/lib/command-centre";
+import { daysLabel, type CcFlag } from "@/lib/operations/command-centre";
 import { cn } from "@/lib/cn";
 
 export type TaxHabit = { id: number; label: string; frequency: "daily" | "weekly"; dueRule: string | null; why: string | null; lastDone: string | null; fresh: boolean };

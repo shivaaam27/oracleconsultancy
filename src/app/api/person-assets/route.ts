@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { assetsForPerson, assetsCustodianForPerson, listAssignableAssets } from "@/lib/assets";
+import { assetsForPerson, assetsCustodianForPerson, listAssignableAssets } from "@/lib/operations/assets";
 
 export const dynamic = "force-dynamic";
 

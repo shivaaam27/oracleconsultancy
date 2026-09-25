@@ -36,10 +36,10 @@ hard-code the list.
 | **Staff** | Portal login (`staff`) | `/portal/*` Studio pages: Home, their tasks, a task page, Profile (documents, attendance check-in, equipment, passkeys), People, Companies, Briefings |
 | **Receptionist** | Portal login (`receptionist`) | Staff pages plus the daily cleaning log; no task powers |
 
-Who-sees-what is decided in one place: `src/lib/viewer.ts` (owner, director,
+Who-sees-what is decided in one place: `src/lib/auth/viewer.ts` (owner, director,
 manager on shared screens) and the portal scope helpers in
-`src/lib/portal-auth.ts`. Per-role capabilities are configurable in Settings →
-Portals (`src/lib/portal-permissions.ts`). Every server action is guarded.
+`src/lib/portal/portal-auth.ts`. Per-role capabilities are configurable in Settings →
+Portals (`src/lib/portal/portal-permissions.ts`). Every server action is guarded.
 
 `created_by` stamps: `"web-ui"` (owner), `"ai-command"`, `"portal:<Name>"`, and
 MCP callers.
@@ -74,9 +74,9 @@ MCP callers.
 Next.js 16 + React 19 on Vercel; Supabase Postgres (pooler, RLS locked to the
 service role) via Drizzle and `sb`. **AI runs on Gemini**
 (`gemini-3.1-flash-lite`, falling back to `gemini-3.5-flash-lite`,
-`src/lib/ai-models.ts`); Groq is kept only for voice transcription. Email goes
+`src/lib/ai/ai-models.ts`); Groq is kept only for voice transcription. Email goes
 through Gmail SMTP or Resend (`src/lib/email/send.ts`); **WhatsApp sends for
-real through Twilio** (`src/lib/whatsapp.ts`) when configured, else falls back
+real through Twilio** (`src/lib/messaging/whatsapp.ts`) when configured, else falls back
 to `wa.me` links. Web push for notifications. Installable as a PWA; a C# WebView2
 Windows app (`desktop-win/`) wraps the live site.
 

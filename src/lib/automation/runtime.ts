@@ -4,8 +4,8 @@
 
 import { sb } from "@/db/supabase";
 import type { AutomationConfig, EmailCategory, RuleMode } from "./types";
-import type { TaskRow } from "@/lib/queries";
-import type { BriefData } from "@/lib/director-brief";
+import type { TaskRow } from "@/lib/tasks/queries";
+import type { BriefData } from "@/lib/reports/director-brief";
 import { renderEmail, senderName, type EmailDoc } from "@/lib/email/layout";
 
 /* --------------------------------- clock --------------------------------- */
@@ -83,11 +83,11 @@ export function makeContext(cfg: AutomationConfig, now: Date, force: boolean): R
     now,
     force,
     tasks: lazy(async () => {
-      const { getAllTasks } = await import("@/lib/queries");
+      const { getAllTasks } = await import("@/lib/tasks/queries");
       return getAllTasks();
     }),
     brief: lazy(async () => {
-      const { getBrief } = await import("@/lib/director-brief");
+      const { getBrief } = await import("@/lib/reports/director-brief");
       return getBrief(now, "month", null);
     }),
     async sendToOwner(subject, text, source, opts) {
@@ -98,7 +98,7 @@ export function makeContext(cfg: AutomationConfig, now: Date, force: boolean): R
       // Tier-3 gate: a no-human-in-the-loop SEND must pass the central guardrail
       // (master pause / outreach pause / per-channel auto-send). When it says no,
       // fall through to leaving an Outbox draft so nothing is lost.
-      const { canAutoSend } = await import("@/lib/guardrails");
+      const { canAutoSend } = await import("@/lib/automation/guardrails");
       if (cfg2 && to && (await canAutoSend("email"))) {
         const { sendEmail } = await import("@/lib/email/send");
         const res = await sendEmail({ to, subject, text, html, fromName: senderName(opts?.doc?.office), attachments: opts?.attachments });
@@ -124,7 +124,7 @@ export function makeContext(cfg: AutomationConfig, now: Date, force: boolean): R
       // Tier-3 gate: never auto-email a person when the guardrail is closed
       // (paused / outreach paused / email auto-send off). Skipped, not sent —
       // the category's own PREPARE path is the route for a human-reviewed send.
-      const { canAutoSend } = await import("@/lib/guardrails");
+      const { canAutoSend } = await import("@/lib/automation/guardrails");
       if (!(await canAutoSend("email"))) return { sent: 0, skipped: 1 };
       const { sendEmail } = await import("@/lib/email/send");
       const html = opts?.doc ? renderEmail(opts.doc) : undefined;

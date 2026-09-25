@@ -27,7 +27,7 @@ type Case = { query: string; expect: string[] };
 const K = 10;
 
 async function main() {
-  const { hybridSearch } = await import("@/lib/embeddings");
+  const { hybridSearch } = await import("@/lib/search/embeddings");
   const parsed = JSON.parse(readFileSync("eval/search-golden.json", "utf8")) as { cases: Case[] };
   const cases = parsed.cases ?? [];
   if (!cases.length) { console.log("No cases in eval/search-golden.json — add some."); process.exit(0); }

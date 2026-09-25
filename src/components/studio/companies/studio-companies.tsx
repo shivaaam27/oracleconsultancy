@@ -23,13 +23,13 @@ import { StudioScope, StudioHeader, StudioCardRow, StudioCard, CardHead, BigNumb
 import { StudioChoiceMenu } from "@/components/studio/tasks/cells";
 import { useFitFrame } from "@/components/studio/use-fit-frame";
 import { useStudioFootNote } from "@/components/studio/foot-note";
-import { useToast } from "@/components/toast";
-import { withReturn } from "@/lib/return-to";
+import { useToast } from "@/components/shell/toast";
+import { withReturn } from "@/lib/nav/return-to";
 import { cn } from "@/lib/cn";
 import { useStudioPaths } from "@/components/studio/studio-paths";
-import type { DepartmentAdminRow } from "@/lib/departments";
-import type { SiteAdminRow } from "@/lib/sites";
-import type { RoleAdminRow } from "@/lib/roles";
+import type { DepartmentAdminRow } from "@/lib/people/departments";
+import type { SiteAdminRow } from "@/lib/people/sites";
+import type { RoleAdminRow } from "@/lib/auth/roles";
 import { createDepartment, renameDepartment, mergeDepartments, deleteDepartment } from "@/app/companies/department-actions";
 import { createSite, renameSite, mergeSites, deleteSite, createRole, renameRole, mergeRoles, deleteRole } from "@/app/companies/reference-actions";
 

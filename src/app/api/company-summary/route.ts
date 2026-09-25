@@ -1,9 +1,9 @@
-import { AI_FAST } from "@/lib/ai-models";
-import { callAIText } from "@/lib/ai-json";
+import { AI_FAST } from "@/lib/ai/ai-models";
+import { callAIText } from "@/lib/ai/ai-json";
 import { NextRequest, NextResponse } from "next/server";
 import { sb } from "@/db/supabase";
 import { getAiKey } from "@/lib/settings";
-import { wrapUntrusted } from "@/lib/prompt-safety";
+import { wrapUntrusted } from "@/lib/ai/prompt-safety";
 
 type TaskRow = {
   id: number;

@@ -1,9 +1,9 @@
-import { AI_FAST } from "@/lib/ai-models";
-import { callAIText } from "@/lib/ai-json";
+import { AI_FAST } from "@/lib/ai/ai-models";
+import { callAIText } from "@/lib/ai/ai-json";
 import { NextRequest, NextResponse } from "next/server";
 import { getAiKey } from "@/lib/settings";
-import { polishActionItem } from "@/lib/smart-parse";
-import { loadContext } from "@/lib/ai-context";
+import { polishActionItem } from "@/lib/tasks/smart-parse";
+import { loadContext } from "@/lib/ai/ai-context";
 
 function buildSystemPrompt(companies: string[], people: string[], recent: string[]): string {
   const companyList = companies.length ? companies.join(", ") : "(none yet)";

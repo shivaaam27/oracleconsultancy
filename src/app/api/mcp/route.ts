@@ -18,7 +18,7 @@ import { toolsFor, callerMayUse, companyNamesFor, MCP_TOOLS } from "@/lib/mcp/re
 import { recordEvent } from "@/lib/system-events";
 import { reportError } from "@/lib/sentry";
 import { revalidateTag } from "next/cache";
-import { invalidateAllTasks } from "@/lib/queries";
+import { invalidateAllTasks } from "@/lib/tasks/queries";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;

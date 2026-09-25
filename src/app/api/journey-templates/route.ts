@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { listJourneyTemplates } from "@/lib/onboarding";
+import { listJourneyTemplates } from "@/lib/people/onboarding";
 
 export const dynamic = "force-dynamic";
 

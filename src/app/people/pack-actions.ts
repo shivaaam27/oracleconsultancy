@@ -1,11 +1,11 @@
 "use server";
 
-import { guardOwner } from "@/lib/viewer";
+import { guardOwner } from "@/lib/auth/viewer";
 import { revalidatePath, updateTag } from "next/cache";
 import { sb } from "@/db/supabase";
-import { getPersonDetail } from "@/lib/people-queries";
+import { getPersonDetail } from "@/lib/people/people-queries";
 import { contactForChannel, linkFor, type Channel } from "@/lib/outbox/links";
-import { isPersonPackPurpose, type PersonPackPurpose } from "@/lib/person-pack-shared";
+import { isPersonPackPurpose, type PersonPackPurpose } from "@/lib/people/person-pack-shared";
 
 const CHANNELS: Channel[] = ["WHATSAPP", "EMAIL", "SMS"];
 

@@ -1,9 +1,9 @@
 import { redirect } from "next/navigation";
-import { getPortalPerson } from "@/lib/portal-auth";
+import { getPortalPerson } from "@/lib/portal/portal-auth";
 import { StudioSignIn } from "@/components/studio/auth/studio-sign-in";
-import { ForgetOfflineNotes } from "@/components/forget-offline-notes";
-import { getAdminHash, isAdminSession } from "@/lib/admin-auth";
-import { PortalSessionRestore } from "@/components/portal-session";
+import { ForgetOfflineNotes } from "@/components/notes/forget-offline-notes";
+import { getAdminHash, isAdminSession } from "@/lib/auth/admin-auth";
+import { PortalSessionRestore } from "@/components/portal/portal-session";
 
 export const metadata = { title: "Staff sign in — Oracle Consultancy" };
 

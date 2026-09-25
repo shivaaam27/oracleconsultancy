@@ -51,7 +51,7 @@ cleanly).
 ## What stayed
 
 - **Expiry**: `deriveDocStatus` / `daysToExpiry` / `expiryLabel`
-  (`lib/documents-shared.ts`), the tiered alert cadence, the daily renewal
+  (`lib/documents/documents-shared.ts`), the tiered alert cadence, the daily renewal
   reminder, and "Make a renewal task" in the Files preview. All driven by dates
   the owner types.
 - **Search**: `content_tsv` indexes title, type, reference, issuer, category and
@@ -71,9 +71,9 @@ cleanly).
 
 The owner asked for the *reading* back, not the deciding.
 
-- **`src/lib/doc-read.ts`** — `readDocumentFile(file)` →
+- **`src/lib/documents/doc-read.ts`** — `readDocumentFile(file)` →
   `{ ok, fields, source, confidence, note }`. Extraction is
-  `lib/file-extract.ts` (shared with the event reader): Office and text files
+  `lib/documents/file-extract.ts` (shared with the event reader): Office and text files
   are read directly; a PDF's text layer is used when genuine (`usableTextLayer`
   rejects scanner watermarks such as CamScanner); scans, photos and HEIC go to
   Gemini vision. Returns title,

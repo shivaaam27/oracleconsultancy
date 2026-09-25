@@ -7,7 +7,7 @@ duplicated and wrong". Now there is one writer, one reader and one phrasing.
 ## The four levels
 
 `staff` · `manager` · `director` · `receptionist` — `PORTAL_ROLES` in
-`src/lib/portal-permissions.ts`. The `hr` ("Admin") level was **removed on
+`src/lib/portal/portal-permissions.ts`. The `hr` ("Admin") level was **removed on
 26 Sept 2026** (nobody held it); an unknown stored value is read as `staff`
 (`asPortalRole`). There is no tap-to-cycle anywhere: a level is chosen from a
 list and saved deliberately.
@@ -15,7 +15,7 @@ list and saved deliberately.
 `RANK`: staff 0 · receptionist 0 (lateral, not a step up) · manager 1 ·
 director 2.
 
-## The one door — `src/lib/portal-access.ts`
+## The one door — `src/lib/portal/portal-access.ts`
 
 - `grantPortalAccess(personId, role, password, directorCompanyIds)` — grant, or
   reset a password; sets role and director scope in the same breath.
@@ -60,7 +60,7 @@ access list, the grant form and the matrix all read it).
 - **Settings → Portals** holds, in order: Staff portal access (who) → Roles &
   permissions (what each level may do and see). Security & Access
   keeps only the owner's own sign-in security.
-- **The access list** (`src/components/portal-access-list.tsx`) is grouped by
+- **The access list** (`src/components/portal/portal-access-list.tsx`) is grouped by
   level, each group headed with what that level sees, read from the LIVE
   matrix. Each row: level picker, then **only on a Director** the reach picker
   (`DirectorReachSelect`); every other level states its real scope in words.

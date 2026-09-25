@@ -12,7 +12,7 @@
 
 import { sb } from "@/db/supabase";
 import { registerUndoHandler } from "../undo";
-import { reindexEntity } from "@/lib/index-hooks";
+import { reindexEntity } from "@/lib/search/index-hooks";
 
 // Calendar event — remove it, through the action, so the Google copy and any
 // meeting tasks it spawned go with it. No invitation was ever sent (MCP creates

@@ -7,20 +7,20 @@
  * re-plan tasks. Every filter is in the address (company, status, the lenses,
  * search), so Back and a shared link land on the same list.
  */
-import type { PortalPerson } from "@/lib/portal-auth";
-import { visibleTaskIds } from "@/lib/portal-auth";
+import type { PortalPerson } from "@/lib/portal/portal-auth";
+import { visibleTaskIds } from "@/lib/portal/portal-auth";
 import { sb } from "@/db/supabase";
-import { getAllTasks, type TaskRow } from "@/lib/queries";
+import { getAllTasks, type TaskRow } from "@/lib/tasks/queries";
 import { StudioScope, StudioHeader, StudioCardRow } from "@/components/studio/kit";
 import { StudioMenu, StudioSearchBar } from "@/components/studio/tasks/controls";
 import { InsightsCard, type InsightsData } from "@/components/studio/tasks/insights-card";
 import { UpdateCard } from "@/components/studio/tasks/update-card";
 import { StaffTaskList } from "@/components/studio/tasks/staff-task-list";
-import { portalTaskHref } from "@/lib/portal-task-href";
+import { portalTaskHref } from "@/lib/portal/portal-task-href";
 import { StudioEmpty } from "@/components/studio/tasks/studio-tasks";
-import { AutoRefresh } from "@/components/auto-refresh";
-import { withReturn } from "@/lib/return-to";
-import type { FilterChip, FilterOption } from "@/components/task-filter-bar";
+import { AutoRefresh } from "@/components/shell/auto-refresh";
+import { withReturn } from "@/lib/nav/return-to";
+import type { FilterChip, FilterOption } from "@/components/tasks/task-filter-bar";
 
 export type StaffTaskParams = { flag?: string; done?: string; quiet?: string; q?: string; co?: string; status?: string; filter?: string; unread?: string };
 

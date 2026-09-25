@@ -19,18 +19,18 @@ import {
   Zap,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { useToast } from "@/components/toast";
-import { useSwipeRow } from "@/lib/use-swipe-row";
-import { CompanyAvatar } from "@/components/company-avatar";
-import { AssigneeAvatars } from "@/components/assignee-avatars";
-import { TaskInlineStatus } from "@/components/task-inline-edit";
-import { DeadlineEditor } from "@/components/deadline-editor";
-import { CodeLinkedText } from "@/components/code-linked-text";
-import { getInitials } from "@/lib/names";
-import type { TaskRow } from "@/lib/queries";
+import { useToast } from "@/components/shell/toast";
+import { useSwipeRow } from "@/lib/hooks/use-swipe-row";
+import { CompanyAvatar } from "@/components/companies/company-avatar";
+import { AssigneeAvatars } from "@/components/tasks/assignee-avatars";
+import { TaskInlineStatus } from "@/components/tasks/task-inline-edit";
+import { DeadlineEditor } from "@/components/tasks/deadline-editor";
+import { CodeLinkedText } from "@/components/tasks/code-linked-text";
+import { getInitials } from "@/lib/people/names";
+import type { TaskRow } from "@/lib/tasks/queries";
 import { adminRemindTask, inlineUpdateTask } from "@/app/task/actions";
 import { SelectCheckbox, OrderRegistrar } from "./selection";
-import { taskHref } from "@/lib/task-href";
+import { taskHref } from "@/lib/tasks/task-href";
 
 /* Cards view — the merged Tasks view (Administrator unification, round 2).
  * ONE view with a Comfortable | Compact density toggle. Both skins share:

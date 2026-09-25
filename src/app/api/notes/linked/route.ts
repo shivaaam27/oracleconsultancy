@@ -13,8 +13,8 @@
 // notes about them, which is the exact thing the module is built not to do.
 
 import { NextRequest, NextResponse } from "next/server";
-import { notesLinkedTo } from "@/lib/note-links";
-import { isLinkType } from "@/lib/note-links-shared";
+import { notesLinkedTo } from "@/lib/notes/note-links";
+import { isLinkType } from "@/lib/notes/note-links-shared";
 
 export const dynamic = "force-dynamic";
 

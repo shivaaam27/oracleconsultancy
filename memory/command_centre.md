@@ -24,7 +24,7 @@ Rendered by `ActionsSlide` in `src/components/studio/home/studio-home.tsx`.
 - **Run automations now** → `runAutomationsNowAction` (force-runs the engine:
   recurring tasks, reminders, renewals; still respects the master pause).
 - **Send the Director Brief** → `sendBriefNowAction`, which calls
-  `sendDirectorBriefToOwnerNow()` in `src/lib/director-brief-send.ts` (shared
+  `sendDirectorBriefToOwnerNow()` in `src/lib/reports/director-brief-send.ts` (shared
   with Settings): emails the brief to the owner, or saves an Outbox draft if
   email is not set up. It asks for a second tap before sending.
 
@@ -50,7 +50,7 @@ revalidating `/` and `/settings`. **Keep the `director.outreachPaused` and
 the same settings.
 
 Beside them, **"What ORI did"** lists recent autonomous actions
-(`listCockpitActivity` in `src/lib/cockpit.ts`), each undoable.
+(`listCockpitActivity` in `src/lib/automation/cockpit.ts`), each undoable.
 
 ## Tax & Legal master pause
 
@@ -61,7 +61,7 @@ Legal** (`setCommandCentrePause` in `src/app/settings/actions.ts`; stored as
 When paused:
 
 - `/hrms/command-centre` shows a paused placeholder (`StudioTaxPaused`);
-- it drops out of navigation and ⌘K (`components/nav-visibility.tsx`, provided
+- it drops out of navigation and ⌘K (`components/shell/nav-visibility.tsx`, provided
   from the root layout);
 - `automation-time.ts` skips spawning obligation tasks;
 - the statutory section leaves the Director Brief (`director-brief.ts`).

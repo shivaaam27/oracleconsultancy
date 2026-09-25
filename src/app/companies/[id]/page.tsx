@@ -1,38 +1,38 @@
-import { tasksOfCompany } from "@/lib/company-kpis";
-import { getAllTasks } from "@/lib/queries";
+import { tasksOfCompany } from "@/lib/tasks/company-kpis";
+import { getAllTasks } from "@/lib/tasks/queries";
 import { CompanyActions } from "./_tabs/company-actions";
-import { ViewPublisher } from "@/components/view-publisher";
+import { ViewPublisher } from "@/components/shell/view-publisher";
 import { parseCompanyTab } from "./_tabs/tabs";
-import { notesLinkedTo } from "@/lib/note-links";
-import { LinkedNotesList } from "@/components/linked-notes";
+import { notesLinkedTo } from "@/lib/notes/note-links";
+import { LinkedNotesList } from "@/components/notes/linked-notes";
 import { TimelineTab } from "./_tabs/timeline-tab";
 import { CompanyDocuments } from "./_tabs/company-documents";
-import { getCompanyRelationships } from "@/lib/relationships";
+import { getCompanyRelationships } from "@/lib/people/relationships";
 import { TableView } from "@/app/task/_views/table-view";
 import { SelectionProvider, BulkBar } from "@/app/task/_views/selection";
-import { OrgChart } from "@/components/org-chart";
-import { getAllPeopleWithWorkload } from "@/lib/people-queries";
-import { buildCompanyTree } from "@/lib/org-chart";
-import { getOrgExtras } from "@/lib/org-extras";
-import { getDepartmentHeads } from "@/lib/departments";
-import { ErrorBoundary } from "@/components/error-boundary";
-import { listDocuments } from "@/lib/documents";
-import { deriveDocStatus } from "@/lib/documents-shared";
-import { listAssets } from "@/lib/assets";
-import type { AssetRow } from "@/lib/assets-shared";
-import { listVendors } from "@/lib/vendors";
-import type { VendorRow } from "@/lib/vendors-shared";
+import { OrgChart } from "@/components/people/org-chart";
+import { getAllPeopleWithWorkload } from "@/lib/people/people-queries";
+import { buildCompanyTree } from "@/lib/people/org-chart";
+import { getOrgExtras } from "@/lib/people/org-extras";
+import { getDepartmentHeads } from "@/lib/people/departments";
+import { ErrorBoundary } from "@/components/shell/error-boundary";
+import { listDocuments } from "@/lib/documents/documents";
+import { deriveDocStatus } from "@/lib/documents/documents-shared";
+import { listAssets } from "@/lib/operations/assets";
+import type { AssetRow } from "@/lib/operations/assets-shared";
+import { listVendors } from "@/lib/operations/vendors";
+import type { VendorRow } from "@/lib/operations/vendors-shared";
 import { sb } from "@/db/supabase";
-import { getCompanyLogoUrl } from "@/lib/company-brand";
+import { getCompanyLogoUrl } from "@/lib/companies/company-brand";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { getViewer, viewerCoversCompany } from "@/lib/viewer";
-import { getStaffIdMap } from "@/lib/staff-id";
+import { getViewer, viewerCoversCompany } from "@/lib/auth/viewer";
+import { getStaffIdMap } from "@/lib/people/staff-id";
 import { StudioCompany, type StudioCompanyData } from "@/components/studio/companies/studio-company";
 import { StudioCompanyProfile } from "@/components/studio/companies/company-profile";
 import { StudioPickProvider } from "@/components/studio/tasks/pick";
-import { FactsPanel } from "@/components/facts-panel";
-import { GovernancePanel } from "@/components/governance-panel";
+import { FactsPanel } from "@/components/companies/facts-panel";
+import { GovernancePanel } from "@/components/companies/governance-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -48,7 +48,7 @@ export default async function CompanyPage({
   const [{ id }, sp] = await Promise.all([params, searchParams]);
   const companyId = parseInt(id, 10);
   // The owner, or a director for one of their companies — view-only, apart
-  // from its tasks, where a director has the owner's powers (lib/viewer.ts).
+  // from its tasks, where a director has the owner's powers (lib/auth/viewer.ts).
   const viewer = await getViewer();
   if (!viewer) redirect("/portal");
   if (!viewerCoversCompany(viewer, companyId)) notFound();

@@ -2,26 +2,26 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
-import { markPush, withReturn } from "@/lib/return-to";
+import { markPush, withReturn } from "@/lib/nav/return-to";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronLeft, ChevronRight, ChevronDown, CalendarOff, CalendarClock, X, ExternalLink } from "lucide-react";
-import type { TaskRow } from "@/lib/queries";
+import type { TaskRow } from "@/lib/tasks/queries";
 import { EmptyState, Button, IconButton, LinkButton, Badge } from "@/components/ui";
-import { TONE, type Tone } from "@/components/surface-kit";
-import { CockpitModule } from "@/components/cockpit-module";
-import { Segmented } from "@/components/macos";
-import { Reveal } from "@/components/reveal";
-import { DeadlineEditor } from "@/components/deadline-editor";
-import { PeekPreview, type PeekAction } from "@/components/peek-preview";
-import { TaskContext } from "@/components/task-context";
-import { hasTime } from "@/components/deadline";
+import { TONE, type Tone } from "@/components/kit/surface-kit";
+import { CockpitModule } from "@/components/kit/cockpit-module";
+import { Segmented } from "@/components/forms/macos";
+import { Reveal } from "@/components/kit/reveal";
+import { DeadlineEditor } from "@/components/tasks/deadline-editor";
+import { PeekPreview, type PeekAction } from "@/components/tasks/peek-preview";
+import { TaskContext } from "@/components/tasks/task-context";
+import { hasTime } from "@/components/tasks/deadline";
 import { cn } from "@/lib/cn";
 import { spring } from "@/lib/motion";
-import { triggerHaptic } from "@/lib/use-long-press";
-import { useToast } from "@/components/toast";
-import { callUndo } from "@/components/undo-banner";
+import { triggerHaptic } from "@/lib/hooks/use-long-press";
+import { useToast } from "@/components/shell/toast";
+import { callUndo } from "@/components/shell/undo-banner";
 import { inlineUpdateTask } from "@/app/task/actions";
-import { taskHref } from "@/lib/task-href";
+import { taskHref } from "@/lib/tasks/task-href";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 

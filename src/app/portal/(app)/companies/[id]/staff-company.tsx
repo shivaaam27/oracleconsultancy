@@ -5,13 +5,13 @@
  * notes or org tools — none of that data is read for them.
  */
 import { notFound } from "next/navigation";
-import type { PortalPerson } from "@/lib/portal-auth";
-import { personCanSeeCompany, visibleTaskIds } from "@/lib/portal-auth";
+import type { PortalPerson } from "@/lib/portal/portal-auth";
+import { personCanSeeCompany, visibleTaskIds } from "@/lib/portal/portal-auth";
 import { sb } from "@/db/supabase";
-import { getAllTasks, type TaskRow } from "@/lib/queries";
-import { tasksOfCompany } from "@/lib/company-kpis";
-import { getCompanyLogoUrl } from "@/lib/company-brand";
-import { getStaffIdMap } from "@/lib/staff-id";
+import { getAllTasks, type TaskRow } from "@/lib/tasks/queries";
+import { tasksOfCompany } from "@/lib/tasks/company-kpis";
+import { getCompanyLogoUrl } from "@/lib/companies/company-brand";
+import { getStaffIdMap } from "@/lib/people/staff-id";
 import { StudioCompany, type CompanyTabKey } from "@/components/studio/companies/studio-company";
 import { StudioCompanyProfile } from "@/components/studio/companies/company-profile";
 import { StudioPathsProvider } from "@/components/studio/studio-paths";

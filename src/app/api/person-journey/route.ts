@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getJourney, type JourneyKind } from "@/lib/onboarding";
+import { getJourney, type JourneyKind } from "@/lib/people/onboarding";
 
 export const dynamic = "force-dynamic";
 

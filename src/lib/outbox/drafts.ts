@@ -50,7 +50,7 @@ export async function nudgeDueScheduledDrafts(now = new Date()): Promise<number>
   try { done = JSON.parse((led?.value as string) ?? "[]"); } catch { done = []; }
   const fresh = data.filter((r) => !done.includes(r.id as number));
   if (!fresh.length) return 0;
-  const { sendToRecipient } = await import("@/lib/push");
+  const { sendToRecipient } = await import("@/lib/messaging/push");
   const first = fresh[0];
   await sendToRecipient("admin", {
     title: fresh.length === 1 ? "A scheduled message is ready to send" : `${fresh.length} scheduled messages are ready to send`,

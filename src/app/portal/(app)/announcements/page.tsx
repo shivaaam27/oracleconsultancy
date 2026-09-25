@@ -1,15 +1,15 @@
 import { redirect } from "next/navigation";
 import { Megaphone } from "lucide-react";
 import { sb } from "@/db/supabase";
-import { Hero, SectionLabel } from "@/components/surface-kit";
-import { Reveal } from "@/components/reveal";
-import { AnnouncementComposer, type Opt } from "@/components/announcement-composer";
-import { AnnouncementFeed } from "@/components/announcement-feed";
+import { Hero, SectionLabel } from "@/components/kit/surface-kit";
+import { Reveal } from "@/components/kit/reveal";
+import { AnnouncementComposer, type Opt } from "@/components/announcements/announcement-composer";
+import { AnnouncementFeed } from "@/components/announcements/announcement-feed";
 import { StudioScope, StudioHeader, StudioCardRow, StudioCard, CardHead, BigNumber } from "@/components/studio/kit";
-import { getPortalPerson, directReportIds } from "@/lib/portal-auth";
-import { feedForPersonId } from "@/lib/announcements";
-import type { AudienceKind } from "@/lib/announcements-shared";
-import { isStaffLikeRole } from "@/lib/director-routes";
+import { getPortalPerson, directReportIds } from "@/lib/portal/portal-auth";
+import { feedForPersonId } from "@/lib/messaging/announcements";
+import type { AudienceKind } from "@/lib/messaging/announcements-shared";
+import { isStaffLikeRole } from "@/lib/portal/director-routes";
 
 export const dynamic = "force-dynamic";
 

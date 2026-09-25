@@ -1,10 +1,10 @@
-import { tasksOfCompany } from "@/lib/company-kpis";
+import { tasksOfCompany } from "@/lib/tasks/company-kpis";
 import { NextRequest, NextResponse } from "next/server";
 import { sb } from "@/db/supabase";
-import { getAllTasks } from "@/lib/queries";
-import { listDocuments } from "@/lib/documents";
-import { deriveDocStatus, expiryLabel } from "@/lib/documents-shared";
-import { getCompanyLogoUrl } from "@/lib/company-brand";
+import { getAllTasks } from "@/lib/tasks/queries";
+import { listDocuments } from "@/lib/documents/documents";
+import { deriveDocStatus, expiryLabel } from "@/lib/documents/documents-shared";
+import { getCompanyLogoUrl } from "@/lib/companies/company-brand";
 
 export const dynamic = "force-dynamic";
 

@@ -13,8 +13,8 @@ import { useRouter } from "next/navigation";
 import { Check, Languages, Loader2, Megaphone, Sparkles } from "lucide-react";
 import { StudioSheet } from "@/components/studio/sheet";
 import { stBtn } from "@/components/studio/kit";
-import { useToast } from "@/components/toast";
-import { ANNOUNCEMENT_TYPES, AUDIENCE_KINDS, type AudienceKind } from "@/lib/announcements-shared";
+import { useToast } from "@/components/shell/toast";
+import { ANNOUNCEMENT_TYPES, AUDIENCE_KINDS, type AudienceKind } from "@/lib/messaging/announcements-shared";
 import { saveAnnouncementAction, portalCreateAnnouncement, draftAnnouncementAction, translateAnnouncementAction } from "@/app/announcements/actions";
 import { cn } from "@/lib/cn";
 

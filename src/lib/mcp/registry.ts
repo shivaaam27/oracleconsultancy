@@ -3,7 +3,7 @@
 //
 // FORWARD RULE: to add a tool, add ONE entry here. Name, description, input
 // schema, the capability it needs and the handler live together; the endpoint
-// derives everything else. Same idea as the entity registry (lib/entity-registry.ts)
+// derives everything else. Same idea as the entity registry (lib/search/entity-registry.ts)
 // — one definition, no wiring in three places.
 //
 // STAGE 2 — reads, plus writes (memory/mcp_stage2_safe_writes.md). The two lines
@@ -22,8 +22,8 @@
 
 import { z } from "zod";
 import { sb } from "@/db/supabase";
-import type { CapabilityKey } from "@/lib/portal-permissions";
-import { companyScope } from "@/lib/portal-auth";
+import type { CapabilityKey } from "@/lib/portal/portal-permissions";
+import { companyScope } from "@/lib/portal/portal-auth";
 import { callerMayWrite, type McpCaller } from "@/lib/mcp/auth";
 import {
   mcpCreateTask, mcpAddTaskUpdate, mcpCreateEvent, mcpCreateDocument,
@@ -37,13 +37,13 @@ import {
   mcpListRecords, mcpManageTodo, mcpMarkAttendance, mcpDraftAnnouncement,
   RECORD_TYPES, ATTENDANCE_STATUSES,
 } from "@/lib/mcp/records";
-import { getAllTasks, computeCompanyKpis, computeGlobalKpis, type TaskRow } from "@/lib/queries";
-import { getAllPeopleWithWorkload, getPersonDetail } from "@/lib/people-queries";
-import { teamAttendanceToday } from "@/lib/attendance";
-import { listCalendarEvents } from "@/lib/calendar";
-import { listDocuments } from "@/lib/documents";
-import { getBrief } from "@/lib/director-brief";
-import { unifiedSearch } from "@/lib/search";
+import { getAllTasks, computeCompanyKpis, computeGlobalKpis, type TaskRow } from "@/lib/tasks/queries";
+import { getAllPeopleWithWorkload, getPersonDetail } from "@/lib/people/people-queries";
+import { teamAttendanceToday } from "@/lib/people/attendance";
+import { listCalendarEvents } from "@/lib/calendar/calendar";
+import { listDocuments } from "@/lib/documents/documents";
+import { getBrief } from "@/lib/reports/director-brief";
+import { unifiedSearch } from "@/lib/search/search";
 import { mcpNotes, mcpNoteWrite } from "@/lib/mcp/notes";
 
 /* --------------------------------------------------------------- *

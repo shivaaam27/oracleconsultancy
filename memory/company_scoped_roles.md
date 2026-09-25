@@ -14,8 +14,8 @@ another company's task.
   - `people.director_company_id` (migration **0097**) — a back-compat mirror of
     the FIRST company, kept in step.
   - No rows = a **portfolio** director (every company).
-- **One writer**: `writeDirectorScope()` in `src/lib/portal-access.ts` writes
-  both. **One reader**: `directorScopeOf()` in `src/lib/portal-permissions.ts`
+- **One writer**: `writeDirectorScope()` in `src/lib/portal/portal-access.ts` writes
+  both. **One reader**: `directorScopeOf()` in `src/lib/portal/portal-permissions.ts`
   (falls back to the legacy column only where the join table was never
   written). Only a director carries a scope (`scopeForRole`); demoting clears
   it.
@@ -28,7 +28,7 @@ another company's task.
 
 ## The helpers — every visibility decision goes through these
 
-`src/lib/portal-auth.ts` (`PortalPerson.directorCompanyIds: number[]`, loaded
+`src/lib/portal/portal-auth.ts` (`PortalPerson.directorCompanyIds: number[]`, loaded
 from the join table for directors only):
 
 - `isScopedDirector(p)` — director with a non-empty company list.
@@ -40,9 +40,9 @@ from the join table for directors only):
   `personCanSeeTask` — for a scoped director, strictly tasks whose
   `company_id` is in their set.
 
-On the Studio screens a director is a `Viewer` (`src/lib/viewer.ts`) whose
+On the Studio screens a director is a `Viewer` (`src/lib/auth/viewer.ts`) whose
 `scope` is `companyScope(p)`; `viewerCoversCompany(v, companyId)` and
-`lib/viewer-scope.ts` (`needCompany`) apply it to every shared page and action.
+`lib/auth/viewer-scope.ts` (`needCompany`) apply it to every shared page and action.
 
 **FORWARD RULE**: route every new data-visibility decision through these
 helpers, never a raw `portalRole === "director"`. `isGroupWide(role)` is

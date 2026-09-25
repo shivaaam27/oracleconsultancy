@@ -12,12 +12,12 @@
  * with a history), and deleting the task deletes its list (ON DELETE CASCADE).
  */
 import { sb } from "@/db/supabase";
-import { getViewer, guardViewer } from "@/lib/viewer";
-import { getPortalPerson, personCanSeeTask } from "@/lib/portal-auth";
-import type { Subtask } from "@/lib/subtasks-shared";
+import { getViewer, guardViewer } from "@/lib/auth/viewer";
+import { getPortalPerson, personCanSeeTask } from "@/lib/portal/portal-auth";
+import type { Subtask } from "@/lib/tasks/subtasks-shared";
 
 /** The owner or a director (guardViewer), else a portal person who can see this
- *  task. Staff are deliberately NOT a Viewer (lib/viewer.ts), so they are
+ *  task. Staff are deliberately NOT a Viewer (lib/auth/viewer.ts), so they are
  *  checked here, against the one task, and nowhere wider. */
 async function guard(taskId: number): Promise<{ actor: string }> {
   if (await getViewer()) return guardViewer({ taskId });

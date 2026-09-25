@@ -1,10 +1,10 @@
 "use server";
-import { guardOwner, guardViewer, type Viewer } from "@/lib/viewer";
+import { guardOwner, guardViewer, type Viewer } from "@/lib/auth/viewer";
 import { renderPlainEmail } from "@/lib/email/layout";
-import { needCap, viewerPeopleIds } from "@/lib/viewer-scope";
+import { needCap, viewerPeopleIds } from "@/lib/auth/viewer-scope";
 import { revalidatePath, updateTag } from "next/cache";
 import { markSent } from "@/lib/outbox/gen";
-import { mutate } from "@/lib/mutate";
+import { mutate } from "@/lib/tasks/mutate";
 import { sb } from "@/db/supabase";
 import { sendEmail } from "@/lib/email/send";
 
@@ -118,7 +118,7 @@ export async function sendReminderEmail(
     const { portalSendReminderEmail } = await import("@/app/portal/actions");
     return portalSendReminderEmail(personId, undefined, note);
   }
-  const { sendTaskReminderEmail } = await import("@/lib/reminders");
+  const { sendTaskReminderEmail } = await import("@/lib/messaging/reminders");
   const res = await sendTaskReminderEmail({
     personId,
     note,

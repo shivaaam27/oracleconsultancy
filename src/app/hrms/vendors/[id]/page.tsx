@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
-import { listVendors, vendorDocuments } from "@/lib/vendors";
-import { listAssets, listServicesForVendor } from "@/lib/assets";
+import { listVendors, vendorDocuments } from "@/lib/operations/vendors";
+import { listAssets, listServicesForVendor } from "@/lib/operations/assets";
 import { sb } from "@/db/supabase";
 import { StudioVendor } from "@/components/studio/assets/studio-vendor";
 

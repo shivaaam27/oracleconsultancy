@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { renderPlainEmail } from "@/lib/email/layout";
 import { redirect } from "next/navigation";
-import { isAdminSession } from "@/lib/admin-auth";
+import { isAdminSession } from "@/lib/auth/admin-auth";
 
 import { sb } from "@/db/supabase";
 import { recordEvent } from "@/lib/system-events";
@@ -13,13 +13,13 @@ import {
   companiesOnRecord,
   revokePortalAccess as revokePortalAccessCore,
   parsePortalRole,
-} from "@/lib/portal-access";
-import { directorScopeOf } from "@/lib/portal-permissions";
+} from "@/lib/portal/portal-access";
+import { directorScopeOf } from "@/lib/portal/portal-permissions";
 import { saveAppSettings, type AppSettings } from "@/lib/settings";
-import { disconnectGoogle } from "@/lib/google";
-import { DOCUMENTS_BUCKET } from "@/lib/documents";
+import { disconnectGoogle } from "@/lib/calendar/google";
+import { DOCUMENTS_BUCKET } from "@/lib/documents/documents";
 import { sendEmail } from "@/lib/email/send";
-import { sendWhatsApp } from "@/lib/whatsapp";
+import { sendWhatsApp } from "@/lib/messaging/whatsapp";
 
 /** Every action here changes the whole system, so each one checks for the
  *  owner itself. The /settings page sits behind the admin gate, but a server
@@ -84,7 +84,7 @@ export async function sendTestWhatsApp(
 
   // When testing the rich format, send a formatted card caption + the generated
   // summary image as the header (personId 0 = a sample card with zero counts).
-  const { waCardImageUrl } = await import("@/lib/wa-card");
+  const { waCardImageUrl } = await import("@/lib/messaging/wa-card");
   const text = withCard
     ? [
         "🔔 *Your tasks · Oracle Consultancy*",
@@ -137,16 +137,16 @@ function num(fd: FormData, key: string): number | undefined {
  *  permissions). Stored as one JSON row; merged over defaults at read time. */
 export async function savePortalPermissionsAction(fd: FormData): Promise<void> {
   await ownerOnly();
-  const { savePortalPermissions } = await import("@/lib/portal-permissions-store");
+  const { savePortalPermissions } = await import("@/lib/portal/portal-permissions-store");
   const raw = String(fd.get("config") ?? "").trim();
-  let config: import("@/lib/portal-permissions").PortalPermissionsConfig = {};
+  let config: import("@/lib/portal/portal-permissions").PortalPermissionsConfig = {};
   try {
     const parsed = raw ? JSON.parse(raw) : {};
     if (parsed && typeof parsed === "object") config = parsed;
   } catch {
     redirect("/settings?section=portals"); // parse failure — bail without wiping
   }
-  const { diffFromDefaults } = await import("@/lib/portal-permissions");
+  const { diffFromDefaults } = await import("@/lib/portal/portal-permissions");
   await savePortalPermissions(diffFromDefaults(config));
   revalidatePath("/portal");
   revalidatePath("/portal/board");
@@ -378,7 +378,7 @@ export async function runEmailAutomationNow(): Promise<void> {
 /** Send the Director Brief to the owner right now (one-off, ignores the schedule). */
 export async function sendDirectorBriefNow(): Promise<void> {
   await ownerOnly();
-  const { sendDirectorBriefToOwnerNow } = await import("@/lib/director-brief-send");
+  const { sendDirectorBriefToOwnerNow } = await import("@/lib/reports/director-brief-send");
   const { sent } = await sendDirectorBriefToOwnerNow();
   revalidatePath("/settings");
   // Without a working mailbox it lands in the Outbox as a draft — say which.

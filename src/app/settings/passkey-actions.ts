@@ -2,8 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import type { RegistrationResponseJSON } from "@simplewebauthn/server";
-import { isAdminSession } from "@/lib/admin-auth";
-import { beginRegistration, finishRegistration, deleteCredential } from "@/lib/webauthn";
+import { isAdminSession } from "@/lib/auth/admin-auth";
+import { beginRegistration, finishRegistration, deleteCredential } from "@/lib/auth/webauthn";
 
 export async function adminBeginPasskey() {
   if (!(await isAdminSession())) throw new Error("Not signed in.");

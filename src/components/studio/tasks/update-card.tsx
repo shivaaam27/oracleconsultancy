@@ -12,10 +12,10 @@
  */
 import Link from "next/link";
 import { PersonFace } from "@/components/studio/face";
-import { useMediaQuery } from "@/lib/use-media-query";
+import { useMediaQuery } from "@/lib/hooks/use-media-query";
 import { useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import type { TaskRow } from "@/lib/queries";
+import type { TaskRow } from "@/lib/tasks/queries";
 import { CardHead, Dot } from "@/components/studio/kit";
 import { useStudioPick } from "./pick";
 import { ago } from "./task-words";

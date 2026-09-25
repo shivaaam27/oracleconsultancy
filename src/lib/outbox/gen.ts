@@ -1,9 +1,9 @@
 import { sb } from "@/db/supabase";
-import { getAllTasks, type TaskRow } from "../queries";
-import { isOpen } from "../derive";
+import { getAllTasks, type TaskRow } from "../tasks/queries";
+import { isOpen } from "../tasks/derive";
 import { appBaseUrl } from "../app-url";
-import { waReminderLink, waFromLabel } from "../wa-card";
-import { getGivenName } from "../names";
+import { waReminderLink, waFromLabel } from "../messaging/wa-card";
+import { getGivenName } from "../people/names";
 import type { EmailDoc, EmailTone, EmailOffice } from "../email/layout";
 
 export type Channel = "WHATSAPP" | "EMAIL" | "SMS";

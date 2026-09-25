@@ -1,15 +1,15 @@
 import { redirect } from "next/navigation";
-import { Hero, HeroMetrics } from "@/components/surface-kit";
-import { Reveal } from "@/components/reveal";
-import { AutoRefresh } from "@/components/auto-refresh";
-import { getPortalPerson, visibleTaskIds } from "@/lib/portal-auth";
-import { getScopedPickerData, type PickerCompany, type PickerPerson } from "@/lib/portal-picker";
-import { buildCommandTasks } from "@/lib/portal-command-tasks";
-import { PortalTasksCommand, type Filter } from "@/components/portal-tasks-command";
-import { PortalRecurringTasks } from "@/components/portal-recurring-tasks";
+import { Hero, HeroMetrics } from "@/components/kit/surface-kit";
+import { Reveal } from "@/components/kit/reveal";
+import { AutoRefresh } from "@/components/shell/auto-refresh";
+import { getPortalPerson, visibleTaskIds } from "@/lib/portal/portal-auth";
+import { getScopedPickerData, type PickerCompany, type PickerPerson } from "@/lib/portal/portal-picker";
+import { buildCommandTasks } from "@/lib/portal/portal-command-tasks";
+import { PortalTasksCommand, type Filter } from "@/components/portal/portal-tasks-command";
+import { PortalRecurringTasks } from "@/components/portal/portal-recurring-tasks";
 import { portalListRecurringTasks } from "./automations-actions";
 import { StaffStudioTasks, type StaffTaskParams } from "./staff-tasks";
-import { isStaffLikeRole } from "@/lib/director-routes";
+import { isStaffLikeRole } from "@/lib/portal/director-routes";
 
 const FILTERS: Filter[] = ["all", "inprogress", "overdue", "soon", "fromme", "mine", "done", "notstarted"];
 

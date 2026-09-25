@@ -6,13 +6,13 @@ import { useRouter } from "next/navigation";
 import {
   ArrowLeft, ClipboardCheck, Loader2, CheckCircle2, AlertTriangle, Star,
 } from "lucide-react";
-import { Hero, Panel } from "@/components/surface-kit";
-import { Reveal } from "@/components/reveal";
-import { DirectorTaskForm } from "@/components/director-task-form";
-import { PeoplePicker } from "@/components/people-picker";
-import { CompanyMultiSelect } from "@/components/company-multi-select";
-import { FluidSelect, type FluidOption } from "@/components/fluid-select";
-import { useToast } from "@/components/toast";
+import { Hero, Panel } from "@/components/kit/surface-kit";
+import { Reveal } from "@/components/kit/reveal";
+import { DirectorTaskForm } from "@/components/tasks/director-task-form";
+import { PeoplePicker } from "@/components/people/people-picker";
+import { CompanyMultiSelect } from "@/components/companies/company-multi-select";
+import { FluidSelect, type FluidOption } from "@/components/forms/fluid-select";
+import { useToast } from "@/components/shell/toast";
 import { portalBulkCreateTasks, type PortalBulkFailure } from "@/app/portal/bulk-task-actions";
 
 type Person = { id: number; name: string; companyId?: number | null; companyIds?: number[] };

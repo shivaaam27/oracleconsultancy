@@ -10,10 +10,10 @@
  *   - for a Director, ONE choice: every company, or only the companies they
  *     work for (the list above — never a second list);
  *   - a password when giving access, or to reset it; the portal title.
- * It writes through the people actions → lib/portal-access.ts, the one door. */
+ * It writes through the people actions → lib/portal/portal-access.ts, the one door. */
 import { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
-import { PORTAL_ROLES, ROLE_LABEL, SCOPE_WORDS, type PortalRoleKey, type ScopeLevel } from "@/lib/portal-permissions";
+import { PORTAL_ROLES, ROLE_LABEL, SCOPE_WORDS, type PortalRoleKey, type ScopeLevel } from "@/lib/portal/portal-permissions";
 import {
   setPortalLevelWithReach, grantPortalAccessWithReach, revokePortalAccessQuick, setPortalDesignationQuick, enablePortalAccessQuick,
 } from "@/app/people/actions";

@@ -13,9 +13,9 @@
 // — un-ticking that box withdraws it from the email AND from this link at once.
 
 import { NextResponse } from "next/server";
-import { getCalendarEventByToken } from "@/lib/calendar";
-import { getEventDocument } from "@/lib/event-documents";
-import { DOCUMENTS_BUCKET } from "@/lib/documents";
+import { getCalendarEventByToken } from "@/lib/calendar/calendar";
+import { getEventDocument } from "@/lib/calendar/event-documents";
+import { DOCUMENTS_BUCKET } from "@/lib/documents/documents";
 import { sb } from "@/db/supabase";
 
 export const dynamic = "force-dynamic";

@@ -15,7 +15,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Check, CircleAlert, Loader2, Upload } from "lucide-react";
 import { uploadTicketAction, fileUploadAction } from "@/app/files/actions";
-import { MAX_UPLOAD_BYTES } from "@/lib/documents-shared";
+import { MAX_UPLOAD_BYTES } from "@/lib/documents/documents-shared";
 import { cn } from "@/lib/cn";
 
 type Item = { key: string; name: string; pct: number; state: "up" | "done" | "error"; error?: string; id?: number };

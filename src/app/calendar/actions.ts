@@ -1,8 +1,8 @@
 "use server";
 
-import { guardOwner } from "@/lib/viewer";
+import { guardOwner } from "@/lib/auth/viewer";
 import { revalidatePath } from "next/cache";
-import { getGivenName } from "@/lib/names";
+import { getGivenName } from "@/lib/people/names";
 import {
   createCalendarEvent,
   updateCalendarEvent,
@@ -14,25 +14,25 @@ import {
   toIcsEvent,
   type CalendarAttendee,
   type CalendarEvent,
-} from "@/lib/calendar";
-import { buildIcs } from "@/lib/ics";
-import { buildEventEmail, type EventEmailKind } from "@/lib/event-email";
+} from "@/lib/calendar/calendar";
+import { buildIcs } from "@/lib/calendar/ics";
+import { buildEventEmail, type EventEmailKind } from "@/lib/calendar/event-email";
 import { senderName, type EmailOffice } from "@/lib/email/layout";
-import { createTasksForEvent, shouldCreateMeetingTasks, deleteTasksForEvent, deleteTaskForOccurrence } from "@/lib/meeting-tasks";
-import { notifyMany, personRecipient, recipientForCreatedBy } from "@/lib/notifications";
+import { createTasksForEvent, shouldCreateMeetingTasks, deleteTasksForEvent, deleteTaskForOccurrence } from "@/lib/tasks/meeting-tasks";
+import { notifyMany, personRecipient, recipientForCreatedBy } from "@/lib/messaging/notifications";
 import { sendEmail } from "@/lib/email/send";
 import { getAppSettings } from "@/lib/settings";
-import { addGoogleMeet, cancelGoogleEvent, cancelGoogleInstance, createGoogleEvent, updateGoogleEvent } from "@/lib/google-calendar";
-import { resolveEventCategoryId } from "@/lib/event-categories";
-import { withManagedGuest } from "@/lib/managed-calendar";
+import { addGoogleMeet, cancelGoogleEvent, cancelGoogleInstance, createGoogleEvent, updateGoogleEvent } from "@/lib/calendar/google-calendar";
+import { resolveEventCategoryId } from "@/lib/calendar/event-categories";
+import { withManagedGuest } from "@/lib/calendar/managed-calendar";
 import {
   eventAttachmentLinks,
   linkEventDocument,
   listEventDocuments,
   selectEmailAttachments,
   type EventAttachmentLink,
-} from "@/lib/event-documents";
-import { changeLines, diffEvent, guestFacingChanges } from "@/lib/event-changes";
+} from "@/lib/calendar/event-documents";
+import { changeLines, diffEvent, guestFacingChanges } from "@/lib/calendar/event-changes";
 import { recordEvent } from "@/lib/system-events";
 import { sb } from "@/db/supabase";
 import { db } from "@/db";

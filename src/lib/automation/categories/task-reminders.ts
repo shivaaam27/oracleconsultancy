@@ -15,7 +15,7 @@ export const taskRemindersCategory: CategoryDef = {
   key: "taskReminders",
   scheduledToday: (_cfg, now) => REMINDER_DAYS.has(eatWeekday(now)),
   async run(ctx, mode) {
-    const { isOpen } = await import("@/lib/derive");
+    const { isOpen } = await import("@/lib/tasks/derive");
     const { buildTaskReminderDoc, buildEmailMessage } = await import("@/lib/outbox/gen");
     const { lastChasedByName } = await import("@/lib/outbox/history");
 

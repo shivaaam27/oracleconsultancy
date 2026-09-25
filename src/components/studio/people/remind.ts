@@ -6,7 +6,7 @@
 import { useTransition } from "react";
 import { createPersonPackDraftAction } from "@/app/people/pack-actions";
 import { pickChannel } from "@/lib/outbox/links";
-import { useToast } from "@/components/toast";
+import { useToast } from "@/components/shell/toast";
 
 type Who = { id: number; name: string; email: string | null; phone: string | null; whatsapp: string | null; preferredChannel: string | null };
 type Task = { code: string; actionItem: string };

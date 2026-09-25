@@ -1,7 +1,7 @@
 import { StudioTaxLegal, StudioTaxPaused } from "@/components/studio/tax/studio-tax-legal";
-import { listObligations, splitObligations, buildDeadlinesWithCompanies, loadObligationCompany, type CompanyLite } from "@/lib/recurring";
-import { listDocuments } from "@/lib/documents";
-import { permitFlag, daysUntil, type CcFlag } from "@/lib/command-centre";
+import { listObligations, splitObligations, buildDeadlinesWithCompanies, loadObligationCompany, type CompanyLite } from "@/lib/operations/recurring";
+import { listDocuments } from "@/lib/documents/documents";
+import { permitFlag, daysUntil, type CcFlag } from "@/lib/operations/command-centre";
 import { getAppSettings } from "@/lib/settings";
 import { sb } from "@/db/supabase";
 

@@ -1,17 +1,17 @@
 import { redirect } from "next/navigation";
-import { getPortalPerson } from "@/lib/portal-auth";
-import { portalCapabilities } from "@/lib/portal-capabilities";
-import { getScopedPickerData, type PickerPerson, type PickerCompany } from "@/lib/portal-picker";
-import { scopedUpcomingMeetings } from "@/lib/portal-meetings-data";
-import { listEventCategories } from "@/lib/event-categories";
-import { getPersonAudienceAttrs, feedForPerson } from "@/lib/announcements";
-import { Hero, Panel } from "@/components/surface-kit";
-import { Reveal } from "@/components/reveal";
-import { PortalMeetingsPage } from "@/components/portal-meetings-page";
-import { PortalBriefings } from "@/components/portal-briefings";
-import { AnnouncementFeed } from "@/components/announcement-feed";
+import { getPortalPerson } from "@/lib/portal/portal-auth";
+import { portalCapabilities } from "@/lib/portal/portal-capabilities";
+import { getScopedPickerData, type PickerPerson, type PickerCompany } from "@/lib/portal/portal-picker";
+import { scopedUpcomingMeetings } from "@/lib/portal/portal-meetings-data";
+import { listEventCategories } from "@/lib/calendar/event-categories";
+import { getPersonAudienceAttrs, feedForPerson } from "@/lib/messaging/announcements";
+import { Hero, Panel } from "@/components/kit/surface-kit";
+import { Reveal } from "@/components/kit/reveal";
+import { PortalMeetingsPage } from "@/components/portal/portal-meetings-page";
+import { PortalBriefings } from "@/components/portal/portal-briefings";
+import { AnnouncementFeed } from "@/components/announcements/announcement-feed";
 import { StaffCalendar } from "./staff-calendar";
-import { isStaffLikeRole } from "@/lib/director-routes";
+import { isStaffLikeRole } from "@/lib/portal/director-routes";
 
 export const dynamic = "force-dynamic";
 

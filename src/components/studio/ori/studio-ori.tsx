@@ -24,7 +24,7 @@ import { StudioScope, StudioHeader, StudioCardRow, StudioCard, CardHead, BigNumb
 import { RowMenu, MenuItem, MenuLine } from "@/components/studio/assets/bits";
 import { StudioSheet } from "@/components/studio/sheet";
 import { useFitFrame } from "@/components/studio/use-fit-frame";
-import { useToast } from "@/components/toast";
+import { useToast } from "@/components/shell/toast";
 import { cn } from "@/lib/cn";
 import type { DescribedRule } from "@/app/ori-automations/describe";
 import { toggleAutomationActive, cancelAutomation, testAutomationAction, ruleFiringsAction } from "@/app/ori-automations/actions";

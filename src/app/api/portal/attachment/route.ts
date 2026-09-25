@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sb } from "@/db/supabase";
-import { signDocumentFile } from "@/lib/documents";
-import { isAdminSession } from "@/lib/admin-auth";
-import { getPortalPerson, personCanSeeTask } from "@/lib/portal-auth";
+import { signDocumentFile } from "@/lib/documents/documents";
+import { isAdminSession } from "@/lib/auth/admin-auth";
+import { getPortalPerson, personCanSeeTask } from "@/lib/portal/portal-auth";
 
 /* Securely serve a message attachment: verify the caller may see the task,
  * then redirect to a short-lived signed URL for the stored file. Excluded

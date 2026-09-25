@@ -37,7 +37,7 @@ for (const file of process.argv.slice(2)) {
   let out = src;
   for (const at of inserts.sort((a, b) => b - a)) out = out.slice(0, at) + "\n  await guardOwner();" + out.slice(at);
   if (!/import \{[^}]*\bguardOwner\b[^}]*\} from "@\/lib\/viewer"/.test(out)) {
-    out = out.replace(/^(\s*["']use server["'];?\s*\n)/, `$1import { guardOwner } from "@/lib/viewer";\n`);
+    out = out.replace(/^(\s*["']use server["'];?\s*\n)/, `$1import { guardOwner } from "@/lib/auth/viewer";\n`);
   }
   writeFileSync(file, out);
   console.log(`guarded ${inserts.length}: ${file}`);

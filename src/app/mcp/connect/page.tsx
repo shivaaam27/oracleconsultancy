@@ -13,8 +13,8 @@
 // unvalidated address is how authorization codes reach the wrong hands.
 
 import { StudioConsentFrame, StudioConsentProblem } from "@/components/studio/auth/studio-consent";
-import { isAdminSession } from "@/lib/admin-auth";
-import { getPortalPerson } from "@/lib/portal-auth";
+import { isAdminSession } from "@/lib/auth/admin-auth";
+import { getPortalPerson } from "@/lib/portal/portal-auth";
 import { getClient, redirectAllowed, DEFAULT_SCOPE } from "@/lib/mcp/oauth";
 import { ConnectForm, type ConnectParams } from "./connect-form";
 

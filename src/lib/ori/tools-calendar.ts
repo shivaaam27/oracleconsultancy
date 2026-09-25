@@ -3,7 +3,7 @@ import { sb } from "@/db/supabase";
 import type { ToolDef } from "@/lib/ori/tools";
 import { str, resolveEvent } from "@/lib/ori/tools";
 import { escapeLike } from "@/lib/db-helpers";
-import { canAutoSend } from "@/lib/guardrails";
+import { canAutoSend } from "@/lib/automation/guardrails";
 import {
   deleteEventAction,
   skipEventOccurrence,

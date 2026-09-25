@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sb } from "@/db/supabase";
-import { isAdminSession } from "@/lib/admin-auth";
-import { syncNoteDerived } from "@/lib/note-derived";
+import { isAdminSession } from "@/lib/auth/admin-auth";
+import { syncNoteDerived } from "@/lib/notes/note-derived";
 import {
   textToDoc,
   titleFromText,
@@ -10,7 +10,7 @@ import {
   docIsPlain,
   MAX_TEXT,
   MAX_TITLE,
-} from "@/lib/offline-notes-shared";
+} from "@/lib/notes/offline-notes-shared";
 
 /* ------------------------------------------------------------------ *
  * Writing done offline, arriving.

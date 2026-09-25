@@ -1,7 +1,7 @@
 import { cache } from "react";
 import { sb } from "@/db/supabase";
-import { DUE_SOON_DAYS, AGING_CRITICAL_DAYS, BLOCKED_STALLED_DAYS } from "./derive";
-import { AI_FAST, AI_SMART, type AiProvider } from "./ai-models";
+import { DUE_SOON_DAYS, AGING_CRITICAL_DAYS, BLOCKED_STALLED_DAYS } from "./tasks/derive";
+import { AI_FAST, AI_SMART, type AiProvider } from "./ai/ai-models";
 
 /**
  * Canonical V2 app settings. These are the ONLY settings that drive behaviour.
@@ -86,7 +86,7 @@ export type AppSettings = {
    */
   ledgerFyStartMonth: number;
   /**
-   * Tier-3 "send" guardrails (see lib/guardrails.ts). Whether automated code may
+   * Tier-3 "send" guardrails (see lib/automation/guardrails.ts). Whether automated code may
    * auto-send on each channel WITHOUT a human tap. Defaults preserve today:
    *  - email follows the existing email-automation setup (auto-send stays ON when
    *    email is configured and automations aren't paused) → default true;
@@ -128,7 +128,7 @@ export type AppSettings = {
    * id pins that model as the FIRST candidate — it's tried first, then the normal
    * ladder still runs as fallback (a 429 on the pinned model never dead-ends). This
    * affects ONLY the interactive chat/Ask path — never agent tool-calling,
-   * automations or vision. See CHAT_MODELS in lib/ai-models.ts.
+   * automations or vision. See CHAT_MODELS in lib/ai/ai-models.ts.
    */
   chatModel: string;
   /**
@@ -462,7 +462,7 @@ export async function getAiKey(): Promise<string | undefined> {
   if (!key) return undefined;
   // Local import avoids a settings ⇄ ai-spend cycle at module load; isOverSpendCap
   // is cached (~60s) and only does any work when a cap is set.
-  const { isOverSpendCap } = await import("./ai-spend");
+  const { isOverSpendCap } = await import("./ai/ai-spend");
   if (await isOverSpendCap()) return undefined;
   return key;
 }

@@ -2,7 +2,7 @@
 /* Small shared pieces of the Files page: the file icon, the expiry pill, who
  * added it, relative dates, the pop-up menu. */
 import { useEffect, useRef, type ReactNode } from "react";
-import { kindOf, KIND_BADGE, type FileRow } from "@/lib/files-shared";
+import { kindOf, KIND_BADGE, type FileRow } from "@/lib/documents/files-shared";
 import { cn } from "@/lib/cn";
 
 export function FileIcon({ ext, size = 30 }: { ext: string; size?: number }) {

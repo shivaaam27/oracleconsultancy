@@ -13,11 +13,11 @@ import { useRouter } from "next/navigation";
 import { Check, ChevronLeft, ChevronRight, History, Loader2, Lock, MessageSquare, PenLine, Unlock } from "lucide-react";
 import { StudioScope, StudioHeader, StudioCardRow, StudioCard, CardHead, Ring, stBtn } from "@/components/studio/kit";
 import { StudioSheet } from "@/components/studio/sheet";
-import { FluidSelect } from "@/components/fluid-select";
-import { useToast } from "@/components/toast";
+import { FluidSelect } from "@/components/forms/fluid-select";
+import { useToast } from "@/components/shell/toast";
 import { toggleCheckAction, setCheckCommentAction, setAttendanceAction, setNoteAction, signDayAction } from "@/app/hrms/cleaning/actions";
 import { portalCleaningToggle, portalCleaningComment, portalCleaningNote, portalCleaningSign, portalCleaningUnlock } from "@/app/portal/(app)/cleaning/actions";
-import { completion, dayStatus, type CleaningArea, type CleaningCheck, type CleaningDay, type DayStatus } from "@/lib/cleaning-shared";
+import { completion, dayStatus, type CleaningArea, type CleaningCheck, type CleaningDay, type DayStatus } from "@/lib/operations/cleaning-shared";
 import { cn } from "@/lib/cn";
 
 export type CleaningHistoryDay = { dateIso: string; status: DayStatus; cleanerName: string | null; done: number; total: number };

@@ -9,8 +9,8 @@
 import { useState } from "react";
 import { Plus, Sparkles } from "lucide-react";
 import { StudioScope, StudioHeader, StudioCardRow, StudioCard, CardHead, BigNumber, stBtn } from "@/components/studio/kit";
-import { AnnouncementFeed } from "@/components/announcement-feed";
-import type { FeedAnnouncement, AudienceKind } from "@/lib/announcements-shared";
+import { AnnouncementFeed } from "@/components/announcements/announcement-feed";
+import type { FeedAnnouncement, AudienceKind } from "@/lib/messaging/announcements-shared";
 import { AnnounceComposer, type ComposerLists } from "./announce-composer";
 
 export function AuthorAnnouncements({ feed, lists, allowedKinds, reach }: { feed: FeedAnnouncement[]; lists: ComposerLists; allowedKinds: AudienceKind[]; reach: string }) {

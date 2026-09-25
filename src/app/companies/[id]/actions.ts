@@ -1,11 +1,11 @@
 "use server";
 
-import { guardOwner } from "@/lib/viewer";
+import { guardOwner } from "@/lib/auth/viewer";
 import { revalidatePath } from "next/cache";
-import { isAdminSession } from "@/lib/admin-auth"; // every action checks for the owner itself (audit 24 Sept 2026)
+import { isAdminSession } from "@/lib/auth/admin-auth"; // every action checks for the owner itself (audit 24 Sept 2026)
 import { sb } from "@/db/supabase";
-import { DOCUMENTS_BUCKET } from "@/lib/documents";
-import { reindexEntity } from "@/lib/index-hooks";
+import { DOCUMENTS_BUCKET } from "@/lib/documents/documents";
+import { reindexEntity } from "@/lib/search/index-hooks";
 
 type Result = { ok: true } | { ok: false; error: string };
 

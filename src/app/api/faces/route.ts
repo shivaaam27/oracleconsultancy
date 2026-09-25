@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { sb } from "@/db/supabase";
-import { getViewer } from "@/lib/viewer";
-import { getPortalPerson, colleagueCompanyScope } from "@/lib/portal-auth";
-import { viewerPeopleIds } from "@/lib/viewer-scope";
-import { getAllTasks } from "@/lib/queries";
-import { faceKey, moodFor, type FaceMood, type FaceRole, type FaceStats } from "@/lib/face-mood";
+import { getViewer } from "@/lib/auth/viewer";
+import { getPortalPerson, colleagueCompanyScope } from "@/lib/portal/portal-auth";
+import { viewerPeopleIds } from "@/lib/auth/viewer-scope";
+import { getAllTasks } from "@/lib/tasks/queries";
+import { faceKey, moodFor, type FaceMood, type FaceRole, type FaceStats } from "@/lib/people/face-mood";
 
 export const dynamic = "force-dynamic";
 

@@ -1,13 +1,13 @@
-import { listCalendarEvents, toIcsEvent } from "@/lib/calendar";
-import { countEventDocuments } from "@/lib/event-documents";
-import { advanceDueMeetingTasks, postMeetingFollowups } from "@/lib/meeting-tasks";
-import { listOverlayItems } from "@/lib/calendar-overlays";
-import { listEventCategories } from "@/lib/event-categories";
-import { googleCalendarUrl } from "@/lib/ics";
+import { listCalendarEvents, toIcsEvent } from "@/lib/calendar/calendar";
+import { countEventDocuments } from "@/lib/calendar/event-documents";
+import { advanceDueMeetingTasks, postMeetingFollowups } from "@/lib/tasks/meeting-tasks";
+import { listOverlayItems } from "@/lib/calendar/calendar-overlays";
+import { listEventCategories } from "@/lib/calendar/event-categories";
+import { googleCalendarUrl } from "@/lib/calendar/ics";
 import { sb } from "@/db/supabase";
 import { redirect } from "next/navigation";
-import { getViewer } from "@/lib/viewer";
-import { listAnnouncements, receiptStats, isLive, isScheduled } from "@/lib/announcements";
+import { getViewer } from "@/lib/auth/viewer";
+import { listAnnouncements, receiptStats, isLive, isScheduled } from "@/lib/messaging/announcements";
 import { CalendarBoard, type CalendarEventView, type BriefAnnouncement } from "./calendar-board";
 
 export const dynamic = "force-dynamic";
@@ -22,7 +22,7 @@ function shiftKey(days: number): string {
 
 export default async function CalendarPage() {
   // The owner, or a director — who reads the events of their companies and
-  // the ones they are invited to (lib/viewer.ts).
+  // the ones they are invited to (lib/auth/viewer.ts).
   const viewer = await getViewer();
   if (!viewer) redirect("/portal");
   const director = viewer.kind === "director" ? viewer : null;

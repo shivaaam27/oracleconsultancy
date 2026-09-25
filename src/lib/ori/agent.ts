@@ -1,6 +1,6 @@
 import "server-only";
-import { AI_FAST } from "@/lib/ai-models";
-import { callAIJson } from "@/lib/ai-json";
+import { AI_FAST } from "@/lib/ai/ai-models";
+import { callAIJson } from "@/lib/ai/ai-json";
 import { getAiKey } from "@/lib/settings";
 import { toolCatalogue, TOOL_BY_NAME } from "@/lib/ori/tools";
 

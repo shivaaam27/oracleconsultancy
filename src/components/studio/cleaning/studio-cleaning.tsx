@@ -6,8 +6,8 @@
  */
 import { Check, Clock, Lock, MessageSquare } from "lucide-react";
 import { StudioScope, StudioHeader, StudioCardRow, StudioCard, CardHead, Ring } from "@/components/studio/kit";
-import { completion, dayStatus, type CleaningArea, type CleaningCheck, type CleaningDay, type DayStatus } from "@/lib/cleaning-shared";
-import type { CleaningHistoryRow } from "@/components/cleaning-overview";
+import { completion, dayStatus, type CleaningArea, type CleaningCheck, type CleaningDay, type DayStatus } from "@/lib/operations/cleaning-shared";
+import type { CleaningHistoryRow } from "@/components/documents/cleaning-overview";
 import { cn } from "@/lib/cn";
 
 const TONE: Record<DayStatus, { dot: string; text: string; onCard: string }> = {

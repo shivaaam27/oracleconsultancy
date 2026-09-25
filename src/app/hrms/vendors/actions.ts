@@ -1,8 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { guardOwner } from "@/lib/viewer";
-import { createVendor, updateVendor, archiveVendor, type VendorInput } from "@/lib/vendors";
+import { guardOwner } from "@/lib/auth/viewer";
+import { createVendor, updateVendor, archiveVendor, type VendorInput } from "@/lib/operations/vendors";
 
 type Result = { ok: true; id?: number } | { ok: false; error: string };
 

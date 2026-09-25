@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { CheckCircle2, Loader2, Send, XCircle, MailWarning } from "lucide-react";
 import { Button, Input } from "@/components/ui";
-import { useToast } from "@/components/toast";
+import { useToast } from "@/components/shell/toast";
 import { sendTestEmail } from "./actions";
 
 /**

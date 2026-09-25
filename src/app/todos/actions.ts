@@ -1,6 +1,6 @@
 "use server";
 
-import { guardOwner } from "@/lib/viewer";
+import { guardOwner } from "@/lib/auth/viewer";
 import { sb } from "@/db/supabase";
 import { revalidatePath } from "next/cache";
 
@@ -100,7 +100,7 @@ export async function toggleTodo(id: number, done: boolean): Promise<void> {
     try {
       const { data: td } = await sb.from("todos").select("person_id,kind").eq("id", id).maybeSingle();
       if (td?.kind === "onboarding" && td.person_id) {
-        const m = await import("@/lib/automation-time");
+        const m = await import("@/lib/automation/automation-time");
         await m.cascadeOnboardingComplete(td.person_id as number);
       }
     } catch { /* cascade is best-effort */ }

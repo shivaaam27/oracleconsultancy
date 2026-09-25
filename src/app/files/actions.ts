@@ -1,20 +1,20 @@
 "use server";
-import { guardOwner } from "@/lib/viewer";
+import { guardOwner } from "@/lib/auth/viewer";
 /**
  * Files Management — every change. Each action checks for the owner itself (a
  * server action is reachable from any page that imports it).
  *
  * Deleting is never immediate: a file or folder goes to Deleted (archived +
  * deleted_at) and is removed for good 30 days later by `purgeExpiredDeleted`
- * in lib/files.ts (run from the morning cron — NOT here, where it would be a
+ * in lib/documents/files.ts (run from the morning cron — NOT here, where it would be a
  * server action anyone could call) — or sooner, only if the owner empties it.
  */
 import { revalidatePath } from "next/cache";
 import { sb } from "@/db/supabase";
-import { isAdminSession } from "@/lib/admin-auth";
-import { attachUploadedFile, deleteDocumentForever, DOCUMENTS_BUCKET, safeFileName } from "@/lib/documents";
-import { folderOwners } from "@/lib/files";
-import { descendantIds, extOf, FOLDER_COLORS, type FolderColor, type FolderRow } from "@/lib/files-shared";
+import { isAdminSession } from "@/lib/auth/admin-auth";
+import { attachUploadedFile, deleteDocumentForever, DOCUMENTS_BUCKET, safeFileName } from "@/lib/documents/documents";
+import { folderOwners } from "@/lib/documents/files";
+import { descendantIds, extOf, FOLDER_COLORS, type FolderColor, type FolderRow } from "@/lib/documents/files-shared";
 import { recordEvent } from "@/lib/system-events";
 
 type Res = { ok: true } | { ok: false; error: string };
@@ -271,13 +271,13 @@ export async function saveFileDetailsAction(id: number, d: {
 /** Read a stored file and SUGGEST its details (type, issuer, reference, dates,
  *  a note). It writes nothing — the preview fills its boxes and the owner saves
  *  (the August rule: intelligence may read and suggest, never file). */
-export async function readFileDetailsAction(id: number): Promise<{ ok: boolean; fields: import("@/lib/doc-read").ReadFields; note?: string; source?: string }> {
+export async function readFileDetailsAction(id: number): Promise<{ ok: boolean; fields: import("@/lib/documents/doc-read").ReadFields; note?: string; source?: string }> {
   await guardOwner();
   if (!(await isAdminSession())) return { ok: false, fields: {}, note: "Not signed in." };
   const { data: row } = await sb.from("documents").select("title,file_name,storage_path").eq("id", id).maybeSingle();
   if (!row?.storage_path) return { ok: false, fields: {}, note: "No file is stored for this one." };
-  const { downloadStoredFile } = await import("@/lib/documents");
-  const { readDocumentFile } = await import("@/lib/doc-read");
+  const { downloadStoredFile } = await import("@/lib/documents/documents");
+  const { readDocumentFile } = await import("@/lib/documents/doc-read");
   const file = await downloadStoredFile(row.storage_path as string, (row.file_name as string | null) ?? (row.title as string));
   if (!file) return { ok: false, fields: {}, note: "Couldn't fetch the file to read it." };
   const r = await readDocumentFile(file);

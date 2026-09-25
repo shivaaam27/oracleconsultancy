@@ -21,11 +21,11 @@ which pushes) and email.
 | Portal Outbox | `src/app/portal/(app)/outbox/page.tsx` + `portal-outbox-list.tsx` |
 | Email | `src/lib/email/send.ts` (transport + signature), `src/lib/email/layout.ts` (the one branded template, `renderEmail`) |
 | Automation engine | `src/lib/automation/` (below) |
-| Manual reminders | `src/lib/reminders.ts` (`sendTaskReminderEmail`, `sendTaskReminderWhatsApp`) |
-| WhatsApp | `src/lib/outbox/links.ts` (wa.me), `src/lib/whatsapp.ts` (Twilio, dormant), `src/lib/wa-card.ts` + `src/app/api/wa-card/route.tsx` (summary image) |
-| To-do reminders | `src/lib/todo-reminders.ts`, `src/app/api/cron/reminders/route.ts` |
-| Report / Director Brief | `components/studio/report-sheet.tsx`, `src/app/report/actions.ts`, `src/lib/director-brief.ts`, `brief-pdf.tsx`, `brief-links.ts`, `brief-notes.ts`, `portal-brief-scope.ts`, `director-brief-send.ts` |
-| Bell | `src/lib/notifications.ts`, `src/lib/notification-view.ts` (pure, tested), `components/studio/notifications-panel.tsx` |
+| Manual reminders | `src/lib/messaging/reminders.ts` (`sendTaskReminderEmail`, `sendTaskReminderWhatsApp`) |
+| WhatsApp | `src/lib/outbox/links.ts` (wa.me), `src/lib/messaging/whatsapp.ts` (Twilio, dormant), `src/lib/messaging/wa-card.ts` + `src/app/api/wa-card/route.tsx` (summary image) |
+| To-do reminders | `src/lib/tasks/todo-reminders.ts`, `src/app/api/cron/reminders/route.ts` |
+| Report / Director Brief | `components/studio/report-sheet.tsx`, `src/app/report/actions.ts`, `src/lib/reports/director-brief.ts`, `brief-pdf.tsx`, `brief-links.ts`, `brief-notes.ts`, `portal-brief-scope.ts`, `director-brief-send.ts` |
+| Bell | `src/lib/messaging/notifications.ts`, `src/lib/messaging/notification-view.ts` (pure, tested), `components/studio/notifications-panel.tsx` |
 
 ## The Outbox (`/outbox`, Studio)
 
@@ -190,7 +190,7 @@ to `signoffName`). **Change the look here once and every email follows.**
   daily cap, cooldown and brief weekday. Automation-origin drafts carry their
   category label in the Outbox; Sent rows are `message_type='AUTOMATION'`.
 - Every automated external send is gated by `canAutoSend()`
-  (`src/lib/guardrails.ts`), which AND-combines the automation pause, the
+  (`src/lib/automation/guardrails.ts`), which AND-combines the automation pause, the
   `director.outreachPaused` kill switch and the per-channel auto-send setting,
   and fails closed on error.
 
@@ -198,7 +198,7 @@ to `signoffName`). **Change the look here once and every email follows.**
 
 - **The one engine**: `sendTaskReminderEmail({ personId, taskId?, note?, sender:
   {office, name, title, replyTo, fromAddress, sourceTag} })` in
-  `lib/reminders.ts` — loads the person + open tasks, builds
+  `lib/messaging/reminders.ts` — loads the person + open tasks, builds
   `buildTaskReminderDoc`, sends, logs a Sent `outbox` row ("TASK REMINDER") that
   feeds the sent log and cooldown. Reasons: no-email / no-tasks /
   not-configured / not-found. Admin Outbox and portal both call it.
@@ -211,7 +211,7 @@ to `signoffName`). **Change the look here once and every email follows.**
   **Reply-To = the sender's own email** so a staff reply reaches them.
   `portalSendTaskSummaryWhatsApp` returns a wa.me link and logs a "TASK
   SUMMARY" draft. `waFromLabel()` gives "<name> · Director/Manager".
-- **`components/notify-person.tsx`** (`<NotifyPerson>` — WhatsApp summary +
+- **`components/people/notify-person.tsx`** (`<NotifyPerson>` — WhatsApp summary +
   Email summary): after creating a task in `director-task-form.tsx`, on the
   task quick actions, and in the portal Outbox list.
 - **`/portal/team`** (`team/page.tsx`, `team-view.tsx`, `person-card.tsx`,
@@ -223,7 +223,7 @@ to `signoffName`). **Change the look here once and every email follows.**
   gone).
 
 ## WhatsApp
-Manual wa.me deep-links are the live lane. **Twilio** (`lib/whatsapp.ts`,
+Manual wa.me deep-links are the live lane. **Twilio** (`lib/messaging/whatsapp.ts`,
 `sendTaskReminderWhatsApp`) is wired but dormant: without `TWILIO_*` env it
 returns `not-configured` and callers fall back to wa.me. Proactive messages
 outside Meta's 24-hour window need a pre-approved template (Content SID).
@@ -239,7 +239,7 @@ dropped in migration 0080; `todos` gained `remind_at` + `pushed`.)
   `admin`; a note's reminder opens that note — and marks them `pushed`
   regardless of device reach (no re-fire loop). Needs VAPID env + a device
   subscription.
-- `src/lib/todo-reminders.ts`: `listOwnerTodos`, `listSelfTodos`,
+- `src/lib/tasks/todo-reminders.ts`: `listOwnerTodos`, `listSelfTodos`,
   `dueTodoRemindersForPush`, `markTodosPushed`, `ownerReminderTodosDueBy`,
   `todoOwner` (ownership guard for the portal actions).
 - ⚠️ **Client components may only `import type` from a lib that imports
@@ -268,20 +268,20 @@ personIds } }))` — Home's header, a company page and a person page do.
   `briefPdfFilename(b)`), `draftReport`, `reportRecipients`, and owner-only
   `addReportNote` / `deleteReportNote`. Owner = everything; a director is held
   to `resolvePortalBriefFilters` scope.
-- **Notes** (`brief_notes`, `lib/brief-notes.ts`, owner only): hand-written
+- **Notes** (`brief_notes`, `lib/reports/brief-notes.ts`, owner only): hand-written
   "Admin & HR updates" that fall in the report window, company-tagged or
   portfolio-wide; they go into the text, the email and the PDF.
 - **Portal**: the `directorBrief` capability (label "Report"; default manager +
-  director) gates it. `components/portal-brief-filters.tsx` on the portal
+  director) gates it. `components/portal/portal-brief-filters.tsx` on the portal
   Profile builds the download URL for `/api/portal/brief-pdf`. **Scope is
-  enforced in `src/lib/portal-brief-scope.ts`**: `portalBriefOptions(me)` builds
+  enforced in `src/lib/portal/portal-brief-scope.ts`**: `portalBriefOptions(me)` builds
   the company + people lists from `companyScope(me)` (people via both
   `person_companies` and `people.company_id`), so a company-locked director
   never sees other companies' staff names; `resolvePortalBriefFilters(me,
   params)` re-resolves every query value and **drops** anything out of scope
   (falls back to their full scope — never honoured, never a 500), so a
   hand-edited link cannot widen the report.
-- **The PDF** — `src/lib/brief-pdf.tsx` (@react-pdf/renderer), two routes one
+- **The PDF** — `src/lib/reports/brief-pdf.tsx` (@react-pdf/renderer), two routes one
   renderer: `/brief/pdf` and `/api/portal/brief-pdf`. Its traps (no shadows or
   gradients, `wrap={false}` clipping, tables flowing under the panel head) are
   in `CLAUDE.md`.
@@ -291,11 +291,11 @@ personIds } }))` — Home's header, a company page and a person page do.
   `sendDirectorBriefNow` (Settings) and `sendDirectorBriefToOwnerNow`
   (`director-brief-send.ts`) render the same doc.
 
-### Filters (`src/lib/brief-links.ts` builds every link — keep it that way)
+### Filters (`src/lib/reports/brief-links.ts` builds every link — keep it that way)
 - **`?co=`** company, **`?who=`** person, **`?role=lead|working`** (only with
   `who`), **`?period=`** presets or `on:YYYY-MM[,YYYY-MM…]`.
 - ⚠️ **`?company=` is RESERVED app-wide** for the global `CompanyDrawer`
-  preview (`components/company-drawer.tsx` opens on it and deletes it on close).
+  preview (`components/companies/company-drawer.tsx` opens on it and deletes it on close).
   Never use it as a page's own filter — that is exactly what made the brief's
   company filter unusable. Files uses `?co=` / `?pe=` for the same reason.
 - **Person = owns OR leads (accountable) OR is assigned.** Per-company KPIs are
@@ -327,9 +327,9 @@ personIds } }))` — Home's header, a company page and a person page do.
 
 ## The notification bell
 
-`createNotification` (`src/lib/notifications.ts`) writes the row and pushes;
+`createNotification` (`src/lib/messaging/notifications.ts`) writes the row and pushes;
 it is also how event/meeting pings now reach people (kind `meeting`). The view
-logic is **`src/lib/notification-view.ts`** — pure, client-safe, unit-tested,
+logic is **`src/lib/messaging/notification-view.ts`** — pure, client-safe, unit-tested,
 and applied at READ time so old rows file correctly with no migration.
 - Two lanes on the administrator (`needs-you` vs `activity`); portals render
   ONE plain list (activity would be ~94% of a staff bell). `notifSubject`

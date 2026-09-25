@@ -26,7 +26,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { runDueRules } from "@/app/api/cron/ori-automations/route";
-import { runEventReminders } from "@/lib/event-reminders";
+import { runEventReminders } from "@/lib/calendar/event-reminders";
 import { recordEvent } from "@/lib/system-events";
 import { reportError } from "@/lib/sentry";
 
@@ -67,7 +67,7 @@ async function tick(req: NextRequest) {
     }
     // Alerts snoozed "In an hour" whose hour is up.
     try {
-      const { resendSnoozedNotifications } = await import("@/lib/notifications");
+      const { resendSnoozedNotifications } = await import("@/lib/messaging/notifications");
       await resendSnoozedNotifications();
     } catch (err) {
       await reportError(err, { route: "cron.tick/snoozed" });
@@ -85,7 +85,7 @@ async function tick(req: NextRequest) {
     // run or for somebody to open the calendar (audit 24 Sept 2026).
     let meetings = 0;
     try {
-      const { advanceDueMeetingTasks, postMeetingFollowups } = await import("@/lib/meeting-tasks");
+      const { advanceDueMeetingTasks, postMeetingFollowups } = await import("@/lib/tasks/meeting-tasks");
       meetings = (await advanceDueMeetingTasks({ force: true })) + (await postMeetingFollowups({ force: true }));
     } catch (err) {
       await reportError(err, { route: "cron.tick/meetings" });
@@ -94,7 +94,7 @@ async function tick(req: NextRequest) {
     // pressed (0172). Claimed per post, so a race with the morning run is safe.
     let announced = 0;
     try {
-      const { deliverDueAnnouncements } = await import("@/lib/announcements");
+      const { deliverDueAnnouncements } = await import("@/lib/messaging/announcements");
       announced = await deliverDueAnnouncements();
     } catch (err) {
       await reportError(err, { route: "cron.tick/announcements" });
@@ -114,7 +114,7 @@ async function tick(req: NextRequest) {
     let digest = 0;
     if (new Date().getUTCMinutes() < 15) {
       try {
-        const { flushRoutineDigests } = await import("@/lib/push");
+        const { flushRoutineDigests } = await import("@/lib/messaging/push");
         digest = (await flushRoutineDigests()).pushed;
       } catch (err) {
         await reportError(err, { route: "cron.tick/digest" });

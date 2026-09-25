@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { sb } from "@/db/supabase";
-import { getViewer } from "@/lib/viewer";
-import { viewerCanSeeDocument } from "@/lib/files";
-import { DOCUMENTS_BUCKET } from "@/lib/documents";
-import { extOf } from "@/lib/files-shared";
+import { getViewer } from "@/lib/auth/viewer";
+import { viewerCanSeeDocument } from "@/lib/documents/files";
+import { DOCUMENTS_BUCKET } from "@/lib/documents/documents";
+import { extOf } from "@/lib/documents/files-shared";
 
 export const dynamic = "force-dynamic";
 

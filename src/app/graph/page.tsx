@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Building2, User, FileText, Hash } from "lucide-react";
-import { getEntityGraph, type GraphNode } from "@/lib/entity-graph";
+import { getEntityGraph, type GraphNode } from "@/lib/search/entity-graph";
 import { StudioScope, StudioCard, CardHead, stBtn } from "@/components/studio/kit";
-import { BackLink } from "@/components/back-link";
+import { BackLink } from "@/components/shell/back-link";
 import { cn } from "@/lib/cn";
 
 export const dynamic = "force-dynamic";

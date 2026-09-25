@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
-import { getAdminHash, isAdminSession } from "@/lib/admin-auth";
+import { getAdminHash, isAdminSession } from "@/lib/auth/admin-auth";
 import { StudioSignIn } from "@/components/studio/auth/studio-sign-in";
-import { getPortalPerson } from "@/lib/portal-auth";
-import { ForgetOfflineNotes } from "@/components/forget-offline-notes";
+import { getPortalPerson } from "@/lib/portal/portal-auth";
+import { ForgetOfflineNotes } from "@/components/notes/forget-offline-notes";
 
 export const metadata = { title: "Sign in — Oracle Consultancy" };
 export const dynamic = "force-dynamic";

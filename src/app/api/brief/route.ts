@@ -3,8 +3,8 @@
 // few most urgent items, computed from the live task data.
 
 import { NextResponse } from "next/server";
-import { getAllTasks } from "@/lib/queries";
-import { isOpen } from "@/lib/derive";
+import { getAllTasks } from "@/lib/tasks/queries";
+import { isOpen } from "@/lib/tasks/derive";
 
 export const dynamic = "force-dynamic";
 

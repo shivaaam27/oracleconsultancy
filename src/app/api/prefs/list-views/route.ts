@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSavedViewsFor, setSavedViewsFor, type SavedView } from "@/lib/saved-views";
+import { getSavedViewsFor, setSavedViewsFor, type SavedView } from "@/lib/nav/saved-views";
 
 /**
  * Saved views for ANY list — `?list=task` | `document` | `asset` | `vendor` |

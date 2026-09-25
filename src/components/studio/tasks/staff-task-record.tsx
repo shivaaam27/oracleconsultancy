@@ -23,12 +23,12 @@ import { useFitFrame } from "@/components/studio/use-fit-frame";
 import { TaskSubtasks, fetchSubtasks } from "@/components/studio/subtasks";
 import { StudioBlocker } from "./blocker";
 import { STATUS_DOT } from "./task-words";
-import { BackLink } from "@/components/back-link";
-import { CompleteTaskSheet } from "@/components/complete-task-sheet";
-import { PortalConversation, type ConvoMessage, type ConvoEvent } from "@/components/portal-conversation";
+import { BackLink } from "@/components/shell/back-link";
+import { CompleteTaskSheet } from "@/components/tasks/complete-task-sheet";
+import { PortalConversation, type ConvoMessage, type ConvoEvent } from "@/components/portal/portal-conversation";
 import { portalAddUpdate, portalTogglePin, portalAcknowledge, portalEditUpdate, portalDeleteUpdate, portalEditTask } from "@/app/portal/actions";
-import { useToast } from "@/components/toast";
-import { getGivenName } from "@/lib/names";
+import { useToast } from "@/components/shell/toast";
+import { getGivenName } from "@/lib/people/names";
 import { cn } from "@/lib/cn";
 
 export type StaffTaskData = {

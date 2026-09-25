@@ -13,7 +13,7 @@ export const overdueCategory: CategoryDef = {
     let prepared = 0, sent = 0, skipped = 0;
 
     if (mode === "auto") {
-      const { getOverdueReminderCandidates } = await import("@/lib/automation-suggestions");
+      const { getOverdueReminderCandidates } = await import("@/lib/automation/automation-suggestions");
       const { lastChasedByName } = await import("@/lib/outbox/history");
       const cands = getOverdueReminderCandidates(rows);
       const byPerson = new Map<number, typeof cands>();
@@ -66,7 +66,7 @@ export const overdueCategory: CategoryDef = {
         }
       }
     } else {
-      const { createOverdueReminderDrafts } = await import("@/lib/automation-suggestions");
+      const { createOverdueReminderDrafts } = await import("@/lib/automation/automation-suggestions");
       const res = await createOverdueReminderDrafts(rows, { cooldownDays: ctx.cfg.cooldownDays });
       prepared = res.created; skipped = res.skipped;
     }

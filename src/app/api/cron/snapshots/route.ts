@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { authoriseCron } from "@/lib/cron-auth";
+import { authoriseCron } from "@/lib/auth/cron-auth";
 import { recordEvent } from "@/lib/system-events";
 import { reportError } from "@/lib/sentry";
-import { runSnapshots } from "@/lib/cron-jobs";
+import { runSnapshots } from "@/lib/automation/cron-jobs";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;

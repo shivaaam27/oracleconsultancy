@@ -1,6 +1,6 @@
 "use server";
 
-import { guardOwner } from "@/lib/viewer";
+import { guardOwner } from "@/lib/auth/viewer";
 // Server actions for Notes — Phase 1 (memory/notes_module_plan.md).
 //
 // Everything here runs behind the owner gate in `src/proxy.ts`; notes are
@@ -14,12 +14,12 @@ import { guardOwner } from "@/lib/viewer";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { sb } from "@/db/supabase";
-import { syncNoteLinks } from "@/lib/note-links";
-import type { LinkType } from "@/lib/note-links-shared";
-import { syncNoteTags, syncNoteDerived } from "@/lib/note-derived";
-import { createNoteTodo, deleteNoteTodo, setNoteTodoDone, todoStates } from "@/lib/note-todos";
-import { reindexEntity } from "@/lib/index-hooks";
-import { restoreNoteRevision, snapshotNote, templateBody } from "@/lib/note-versions";
+import { syncNoteLinks } from "@/lib/notes/note-links";
+import type { LinkType } from "@/lib/notes/note-links-shared";
+import { syncNoteTags, syncNoteDerived } from "@/lib/notes/note-derived";
+import { createNoteTodo, deleteNoteTodo, setNoteTodoDone, todoStates } from "@/lib/notes/note-todos";
+import { reindexEntity } from "@/lib/search/index-hooks";
+import { restoreNoteRevision, snapshotNote, templateBody } from "@/lib/notes/note-versions";
 
 const NOW = () => new Date().toISOString();
 
@@ -437,7 +437,7 @@ export async function applyTemplateToNote(
 /** Rewrite a note's tag rows to match its text. Cheap: a note has a handful of tags,
  *  so replace-all beats working out a diff. */
 /* Kept as a name because it reads well at the call site; the work now lives in
- * `lib/note-derived.ts`, so the editor's autosave and writing that arrives from
+ * `lib/notes/note-derived.ts`, so the editor's autosave and writing that arrives from
  * an offline device derive tags exactly the same way. */
 const syncTags = syncNoteTags;
 

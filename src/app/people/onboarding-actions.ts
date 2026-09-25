@@ -1,6 +1,6 @@
 "use server";
 
-import { guardOwner } from "@/lib/viewer";
+import { guardOwner } from "@/lib/auth/viewer";
 import { revalidatePath } from "next/cache";
 import { sb } from "@/db/supabase";
 import {
@@ -11,7 +11,7 @@ import {
   deleteJourneyStep,
   syncJourneyToTemplate,
   type JourneyKind,
-} from "@/lib/onboarding";
+} from "@/lib/people/onboarding";
 
 type StepInput = { label: string; dueAt: string | null };
 

@@ -17,10 +17,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ImagePlus, Loader2, Save, Trash2, Network } from "lucide-react";
 import { saveCompanyProfileAction } from "@/app/companies/[id]/actions";
-import { CompanyAvatar } from "@/components/company-avatar";
-import { useToast } from "@/components/toast";
+import { CompanyAvatar } from "@/components/companies/company-avatar";
+import { useToast } from "@/components/shell/toast";
 import type { CompanyProfile } from "@/app/companies/[id]/_tabs/company-profile";
-import type { CompanyRelationship } from "@/lib/relationships";
+import type { CompanyRelationship } from "@/lib/people/relationships";
 import { cn } from "@/lib/cn";
 
 const FIELD = "h-9 w-full rounded-[10px] border border-[var(--st-line)] bg-[var(--st-surface)] px-3 text-[13px] text-[var(--st-ink)] outline-none transition-colors focus:border-[var(--st-ink)]";

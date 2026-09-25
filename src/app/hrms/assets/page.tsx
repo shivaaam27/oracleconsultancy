@@ -1,6 +1,6 @@
-import { listAssets, listArchivedAssets, assetCountByVendor, listServicesSince } from "@/lib/assets";
-import { listSiteTools } from "@/lib/site-tools";
-import { listVendors } from "@/lib/vendors";
+import { listAssets, listArchivedAssets, assetCountByVendor, listServicesSince } from "@/lib/operations/assets";
+import { listSiteTools } from "@/lib/operations/site-tools";
+import { listVendors } from "@/lib/operations/vendors";
 import { sb } from "@/db/supabase";
 import { StudioAssets, type StudioAssetsData, type View } from "@/components/studio/assets/studio-assets";
 

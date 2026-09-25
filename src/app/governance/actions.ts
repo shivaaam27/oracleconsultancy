@@ -1,13 +1,13 @@
 "use server";
 
-import { guardOwner, guardViewer } from "@/lib/viewer";
-import { needCompany } from "@/lib/viewer-scope";
+import { guardOwner, guardViewer } from "@/lib/auth/viewer";
+import { needCompany } from "@/lib/auth/viewer-scope";
 import { revalidatePath } from "next/cache";
 import {
   getCompanyGovernance, type CompanyGovernance,
   addCapHolder, deleteCapHolder, addSignatory, deleteSignatory, addResolution, deleteResolution,
   addRisk, setRiskStatus, addDecision, decideDecision,
-} from "@/lib/governance";
+} from "@/lib/companies/governance";
 
 /** Load one company's governance (cap table / signatories / resolutions). */
 export async function loadCompanyGovernance(companyId: number): Promise<CompanyGovernance> {

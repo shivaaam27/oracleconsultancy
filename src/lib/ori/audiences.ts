@@ -7,7 +7,7 @@
 // Kept server-only (imports `sb`); never import this from a client component.
 
 import { sb } from "@/db/supabase";
-import { directorScopeOf } from "@/lib/portal-permissions";
+import { directorScopeOf } from "@/lib/portal/portal-permissions";
 
 const uniq = (ids: (number | null | undefined)[]): number[] =>
   Array.from(new Set(ids.filter((n): n is number => typeof n === "number")));

@@ -11,11 +11,11 @@ async function buildMorningDigest(ctx: RunContext): Promise<{ subject: string; t
   const now = ctx.now;
   const [{ isOpen }, { listDocuments }, { isReminderDueToday }, { ownerReminderTodosDueBy }, { listCalendarEvents }] =
     await Promise.all([
-      import("@/lib/derive"),
-      import("@/lib/documents"),
-      import("@/lib/documents-shared"),
-      import("@/lib/todo-reminders"),
-      import("@/lib/calendar"),
+      import("@/lib/tasks/derive"),
+      import("@/lib/documents/documents"),
+      import("@/lib/documents/documents-shared"),
+      import("@/lib/tasks/todo-reminders"),
+      import("@/lib/calendar/calendar"),
     ]);
 
   // "Today" is Dar es Salaam's day (UTC+3), not the server's — setHours on the
@@ -35,7 +35,7 @@ async function buildMorningDigest(ctx: RunContext): Promise<{ subject: string; t
     // weeks ago was missed, and a cancelled one was listed.
     listCalendarEvents(),
   ]);
-  const { expandRecurrence } = await import("@/lib/ics");
+  const { expandRecurrence } = await import("@/lib/calendar/ics");
   const events = allEvents
     .filter((e) => e.status !== "cancelled")
     .flatMap((e) => expandRecurrence({

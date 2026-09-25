@@ -283,7 +283,7 @@ bug.
   was written by the version being upgraded FROM; a required member throws and
   every first launch after an update loses its size.
 - **The title bar is the one part the website cannot paint.**
-  `ShellThemeScript` (`src/components/shell-theme.tsx`, an inline head script so
+  `ShellThemeScript` (`src/components/shell/shell-theme.tsx`, an inline head script so
   it runs before hydration) posts `theme:dark`/`theme:light`; the shell paints it
   with `DwmSetWindowAttribute`. **A COLORREF is `0x00BBGGRR` — blue first.**
 - **The tray icon is created at start-up** — it carries the only menu (About and

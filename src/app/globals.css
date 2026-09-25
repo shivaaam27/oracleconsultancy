@@ -767,7 +767,7 @@ input:disabled, select:disabled, textarea:disabled {
    — 13px body, 32px controls — so shrinking it another fifth just made it small,
    and it did not match the administrator sitting at 100% next to it.
 
-   `lib/zoom.ts` stays: rootZoom() now returns 1 everywhere, so every measurement
+   `lib/nav/zoom.ts` stays: rootZoom() now returns 1 everywhere, so every measurement
    that divides by it is the identity, and nothing has to be unpicked. */
 
 /* Density lives in one place now — see "Density" at the foot of this file.

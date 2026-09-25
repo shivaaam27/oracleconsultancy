@@ -44,7 +44,7 @@ and when the invitation goes out, **the file goes with it**.
 ### 1. `event_documents` — the link table (migration 0117)
 Deliberately the same shape as `document_links` (document↔task): a file is always
 a `documents` row, and a link row says where it is used. No event-only blobs, one
-filing rule. The row is made by `createDocument()` (`src/lib/documents.ts`),
+filing rule. The row is made by `createDocument()` (`src/lib/documents/documents.ts`),
 whose `fileIntoFolder()` drops it into its company's top folder in Files (or
 that company's "Attachment" sub-folder if one exists) — best-effort; on failure
 it stays at the top of Files, still findable. Many-to-many, so an outbound ticket and its return can hang off two
@@ -109,7 +109,7 @@ mints a fresh storage URL on each visit. It uses `emailAssetBaseUrl()` (not
 reference is ambiguous — it documents the Drive format but describes the field as
 "URL link to the attachment". Rather than depend on the answer,
 `createGoogleEvent`/`updateGoogleEvent` **retry without attachments** if Google
-objects (`looksLikeAttachmentRejection` in `src/lib/google-calendar.ts`). The
+objects (`looksLikeAttachmentRejection` in `src/lib/calendar/google-calendar.ts`). The
 calendar entry is what matters; a refused paperclip must never cost the event.
 The .ics ATTACH and the emailed file are unaffected either way. **Still to be
 settled with one live create.**
@@ -152,9 +152,9 @@ in `calendar/attachment-actions.ts` therefore checks for itself:
   its `EventForm`) → new/edit event → **Attachments**: drop a file, or pick one
   already filed. Per-file **"Send to guests" / "Reference only"**. Server actions
   in `app/calendar/attachment-actions.ts`.
-- **Portal** (`components/director-event-form.tsx`, used by the portal meetings
+- **Portal** (`components/calendar/director-event-form.tsx`, used by the portal meetings
   page and the smart capture bar) → same control, upload only.
-- Both share `components/event-attachments.tsx` (the calendar passes `studio`
+- Both share `components/calendar/event-attachments.tsx` (the calendar passes `studio`
   and uses its `StudioReadCard` for the read summary).
 
 ## The rule this respects
@@ -267,7 +267,7 @@ Checked, and the answer was yes — with a better reason than tidiness.
 
 **Checked before removing, all verified:**
 - No test depended on any of them.
-- The builders stay in `src/lib/ics.ts`: `googleCalendarUrl` is still used by the
+- The builders stay in `src/lib/calendar/ics.ts`: `googleCalendarUrl` is still used by the
   calendar page, portal meetings (`portal-meetings-data.ts`, `staff-calendar.tsx`)
   and `/api/action`; only the email stopped calling them.
 - The **reminder email carries no `.ics` at all** (that send has no `calendar:`), so

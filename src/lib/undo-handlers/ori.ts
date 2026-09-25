@@ -1,6 +1,6 @@
 import { sb } from "@/db/supabase";
 import { registerUndoHandler } from "../undo";
-import { reindexEntity } from "@/lib/index-hooks";
+import { reindexEntity } from "@/lib/search/index-hooks";
 
 /* Undo handlers for ORI-agent tool actions that the shared task handlers don't
  * cover: reassign (needs owner_id restored), calendar events, draft announcements.
@@ -168,7 +168,7 @@ registerUndoHandler("ori.portal.access", async (raw) => {
 // (written back as an explicit override, which reproduces the same behaviour).
 registerUndoHandler("ori.portal.capability", async (raw) => {
   const p = raw as { role: string; capability: string; before: boolean };
-  const { getPortalPermissions, savePortalPermissions } = await import("@/lib/portal-permissions-store");
+  const { getPortalPermissions, savePortalPermissions } = await import("@/lib/portal/portal-permissions-store");
   const config = await getPortalPermissions();
   const caps = { ...(config.caps ?? {}) };
   caps[p.capability as keyof typeof caps] = {
@@ -181,7 +181,7 @@ registerUndoHandler("ori.portal.capability", async (raw) => {
 // Department head — restore the prior head (or clear it).
 registerUndoHandler("ori.department.head", async (raw) => {
   const p = raw as { companyId: number; departmentId: number; before: number | null };
-  const { setDepartmentHead } = await import("@/lib/org-actions");
+  const { setDepartmentHead } = await import("@/lib/people/org-actions");
   await setDepartmentHead(p.companyId, p.departmentId, p.before);
 });
 

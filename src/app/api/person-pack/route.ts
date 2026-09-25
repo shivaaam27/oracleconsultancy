@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getPersonPack, type PersonPackPurpose } from "@/lib/person-pack";
-import { isPersonPackPurpose } from "@/lib/person-pack-shared";
-import { getPackPrefs } from "@/lib/person-pack-prefs";
+import { getPersonPack, type PersonPackPurpose } from "@/lib/people/person-pack";
+import { isPersonPackPurpose } from "@/lib/people/person-pack-shared";
+import { getPackPrefs } from "@/lib/people/person-pack-prefs";
 
 export const dynamic = "force-dynamic";
 

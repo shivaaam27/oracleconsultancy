@@ -1,28 +1,28 @@
 import { notFound, redirect } from "next/navigation";
 import { CalendarDays, Crown, MessageSquare, Users } from "lucide-react";
-import { BackLink } from "@/components/back-link";
+import { BackLink } from "@/components/shell/back-link";
 import { sb } from "@/db/supabase";
-import { TONE } from "@/components/surface-kit";
+import { TONE } from "@/components/kit/surface-kit";
 import { Badge } from "@/components/ui";
-import { Reveal } from "@/components/reveal";
-import { LiveSync } from "@/components/live-sync";
-import { PortalConversation, type ConvoMessage, type ConvoEvent } from "@/components/portal-conversation";
-import { PinnedMarker, WaitingOnChip } from "@/components/task-meta-line";
-import { TaskQuickActions } from "@/components/task-quick-actions";
-import { PortalTrace, PortalTraceButton } from "@/components/portal-trace";
-import { getPortalPerson, personCanSeeTask, recordTaskView, seesAllCompanies, isScopedDirector, directReportIds } from "@/lib/portal-auth";
-import { canEditTask, canCompleteTask } from "@/lib/task-permissions";
-import { PortalTaskEdit } from "@/components/portal-task-edit";
-import { PortalTaskManage } from "@/components/portal-task-manage";
-import { buildCommandTasks } from "@/lib/portal-command-tasks";
-import { getPersonCompaniesMap } from "@/lib/people-queries";
-import { portalUpdateAuthor } from "@/lib/update-author";
+import { Reveal } from "@/components/kit/reveal";
+import { LiveSync } from "@/components/shell/live-sync";
+import { PortalConversation, type ConvoMessage, type ConvoEvent } from "@/components/portal/portal-conversation";
+import { PinnedMarker, WaitingOnChip } from "@/components/tasks/task-meta-line";
+import { TaskQuickActions } from "@/components/tasks/task-quick-actions";
+import { PortalTrace, PortalTraceButton } from "@/components/portal/portal-trace";
+import { getPortalPerson, personCanSeeTask, recordTaskView, seesAllCompanies, isScopedDirector, directReportIds } from "@/lib/portal/portal-auth";
+import { canEditTask, canCompleteTask } from "@/lib/tasks/task-permissions";
+import { PortalTaskEdit } from "@/components/portal/portal-task-edit";
+import { PortalTaskManage } from "@/components/portal/portal-task-manage";
+import { buildCommandTasks } from "@/lib/portal/portal-command-tasks";
+import { getPersonCompaniesMap } from "@/lib/people/people-queries";
+import { portalUpdateAuthor } from "@/lib/tasks/update-author";
 import { portalAddUpdate, portalTogglePin, portalAcknowledge, portalEditUpdate, portalDeleteUpdate, portalRestoreUpdate } from "../../../actions";
 import { taskStatusTone as statusTone, priorityTone } from "@/lib/badge-tones";
-import type { TaskRow } from "@/lib/queries";
+import type { TaskRow } from "@/lib/tasks/queries";
 import { StaffTaskRecord } from "@/components/studio/tasks/staff-task-record";
 import { deadlineWords } from "@/components/studio/tasks/task-words";
-import { isStaffLikeRole } from "@/lib/director-routes";
+import { isStaffLikeRole } from "@/lib/portal/director-routes";
 
 export const dynamic = "force-dynamic";
 
@@ -385,7 +385,7 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
             the board (a tap and a swipe), home, the activity feed, a company,
             a person, the outbox, and search — and every one of them used to
             return you to `/portal/tasks`, unfiltered and at the top. See
-            `components/back-link.tsx`. The fallback below is what it always
+            `components/shell/back-link.tsx`. The fallback below is what it always
             did, for a task opened from a bookmark or a notification. */}
         <BackLink
           fallbackHref={isManagement ? "/portal/tasks" : "/portal"}

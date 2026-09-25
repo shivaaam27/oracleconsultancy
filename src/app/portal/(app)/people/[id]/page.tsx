@@ -1,16 +1,16 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
-import { ReturnLink } from "@/components/back-link";
+import { ReturnLink } from "@/components/shell/back-link";
 import { ArrowLeft, Mail, Briefcase, Building2, CalendarDays, User } from "lucide-react";
-import { getPortalPerson, personCanSeePerson } from "@/lib/portal-auth";
-import { getAllTasks } from "@/lib/queries";
-import { isOpen } from "@/lib/derive";
+import { getPortalPerson, personCanSeePerson } from "@/lib/portal/portal-auth";
+import { getAllTasks } from "@/lib/tasks/queries";
+import { isOpen } from "@/lib/tasks/derive";
 import { sb } from "@/db/supabase";
-import { Hero, Panel, SectionLabel } from "@/components/surface-kit";
-import { Reveal } from "@/components/reveal";
-import { PortalTrace, PortalTraceButton } from "@/components/portal-trace";
+import { Hero, Panel, SectionLabel } from "@/components/kit/surface-kit";
+import { Reveal } from "@/components/kit/reveal";
+import { PortalTrace, PortalTraceButton } from "@/components/portal/portal-trace";
 import { StaffPersonPage } from "./staff-person";
-import { isStaffLikeRole } from "@/lib/director-routes";
+import { isStaffLikeRole } from "@/lib/portal/director-routes";
 
 export const dynamic = "force-dynamic";
 

@@ -1,7 +1,7 @@
-import type { PortalPerson } from "@/lib/portal-auth";
-import { visibleTaskIds } from "@/lib/portal-auth";
-import { getAllTasks, type TaskRow } from "@/lib/queries";
-import { portalRoleBadge } from "@/lib/portal-labels";
+import type { PortalPerson } from "@/lib/portal/portal-auth";
+import { visibleTaskIds } from "@/lib/portal/portal-auth";
+import { getAllTasks, type TaskRow } from "@/lib/tasks/queries";
+import { portalRoleBadge } from "@/lib/portal/portal-labels";
 import { StudioShell, type StudioFootNote } from "./shell";
 
 /**

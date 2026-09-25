@@ -1,6 +1,6 @@
 "use server";
 
-import { guardOwner } from "@/lib/viewer";
+import { guardOwner } from "@/lib/auth/viewer";
 // The door between the event form and the papers attached to an event.
 //
 // Two jobs, kept apart on purpose:
@@ -27,7 +27,7 @@ import { guardOwner } from "@/lib/viewer";
 //     page. The portal form deliberately offers upload only.
 
 import { revalidatePath } from "next/cache";
-import { readEventFile, type EventReadResult } from "@/lib/event-read";
+import { readEventFile, type EventReadResult } from "@/lib/calendar/event-read";
 import {
   createDocument,
   attachUploadedFile,
@@ -36,7 +36,7 @@ import {
   getDocument,
   listDocuments,
   type DocumentRow,
-} from "@/lib/documents";
+} from "@/lib/documents/documents";
 import { sb } from "@/db/supabase";
 import {
   eventAttachmentLinks,
@@ -45,11 +45,11 @@ import {
   setEventDocumentSendFlag,
   listEventDocuments,
   type EventDocument,
-} from "@/lib/event-documents";
-import { getCalendarEvent } from "@/lib/calendar";
-import { updateGoogleEvent } from "@/lib/google-calendar";
-import { isAdminSession } from "@/lib/admin-auth";
-import { getPortalPerson } from "@/lib/portal-auth";
+} from "@/lib/calendar/event-documents";
+import { getCalendarEvent } from "@/lib/calendar/calendar";
+import { updateGoogleEvent } from "@/lib/calendar/google-calendar";
+import { isAdminSession } from "@/lib/auth/admin-auth";
+import { getPortalPerson } from "@/lib/portal/portal-auth";
 import { recordEvent } from "@/lib/system-events";
 
 /** Where a browser upload lands before it belongs to anything. Mirrors the

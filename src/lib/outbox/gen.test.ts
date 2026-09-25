@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { buildWhatsAppMessage, buildWhatsAppManualMessage } from "./gen";
-import type { TaskRow } from "../queries";
+import type { TaskRow } from "../tasks/queries";
 
 // Minimal TaskRow factory — only the fields buildWhatsAppMessage reads.
 function task(p: Partial<TaskRow>): TaskRow {

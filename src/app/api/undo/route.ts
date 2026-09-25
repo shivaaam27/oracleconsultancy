@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
 import { consumeUndo } from "@/lib/undo";
-import { invalidateAllTasks } from "@/lib/queries";
+import { invalidateAllTasks } from "@/lib/tasks/queries";
 import "@/lib/undo-handlers";
 
 export async function POST(req: NextRequest) {

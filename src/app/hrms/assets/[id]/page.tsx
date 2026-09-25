@@ -1,8 +1,8 @@
 import { cache } from "react";
 import { notFound } from "next/navigation";
-import { getAsset, listAssetHistory, listAssetServices } from "@/lib/assets";
-import { listVendorsLite } from "@/lib/vendors";
-import { listSiteTools } from "@/lib/site-tools";
+import { getAsset, listAssetHistory, listAssetServices } from "@/lib/operations/assets";
+import { listVendorsLite } from "@/lib/operations/vendors";
+import { listSiteTools } from "@/lib/operations/site-tools";
 import { sb } from "@/db/supabase";
 import { StudioAsset } from "@/components/studio/assets/studio-asset";
 

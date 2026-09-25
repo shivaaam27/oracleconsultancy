@@ -1,6 +1,6 @@
 "use server";
 
-import { guardOwner } from "@/lib/viewer";
+import { guardOwner } from "@/lib/auth/viewer";
 import { revalidatePath } from "next/cache";
 import {
   listFacts,
@@ -9,8 +9,8 @@ import {
   setFactVerified,
   deleteFact,
   type EntityRef,
-} from "@/lib/facts";
-import { coerceFactValue, type Fact, type FactEntityType } from "@/lib/facts-shared";
+} from "@/lib/companies/facts";
+import { coerceFactValue, type Fact, type FactEntityType } from "@/lib/companies/facts-shared";
 
 function refFor(entityType: FactEntityType, entityId: number): EntityRef {
   return { type: entityType, id: entityId };

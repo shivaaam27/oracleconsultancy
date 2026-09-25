@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sb } from "@/db/supabase";
-import { isAdminSession } from "@/lib/admin-auth";
-import { getPortalPerson } from "@/lib/portal-auth";
-import { personRecipient } from "@/lib/notifications";
+import { isAdminSession } from "@/lib/auth/admin-auth";
+import { getPortalPerson } from "@/lib/portal/portal-auth";
+import { personRecipient } from "@/lib/messaging/notifications";
 
 /* ------------------------------------------------------------------ *
  * Actionable push-notification endpoint.

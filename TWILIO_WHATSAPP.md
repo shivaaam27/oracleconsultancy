@@ -108,7 +108,7 @@ Once you have an approved sender number and templates:
 - **Stage 1 proves it works** with almost no friction. Do this first.
 - **Stage 2 is the real paperwork** — and that paperwork (business verification + templates)
   is **Meta's**, not Twilio's, so it's unavoidable on any route that sends WhatsApp automatically.
-- The code side is small on both stages — `lib/whatsapp.ts` is already shaped for it; I just
+- The code side is small on both stages — `lib/messaging/whatsapp.ts` is already shaped for it; I just
   point it at Twilio and add your credentials.
 
 ---

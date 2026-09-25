@@ -1,6 +1,6 @@
 "use server";
 
-import { guardOwner } from "@/lib/viewer";
+import { guardOwner } from "@/lib/auth/viewer";
 import { revalidatePath } from "next/cache";
 import {
   createAsset,
@@ -15,8 +15,8 @@ import {
   addAssetService,
   removeAssetService,
   type AssetInput,
-} from "@/lib/assets";
-import type { AssetStatus, AssetServiceKind } from "@/lib/assets-shared";
+} from "@/lib/operations/assets";
+import type { AssetStatus, AssetServiceKind } from "@/lib/operations/assets-shared";
 
 type Result = { ok: true; id?: number } | { ok: false; error: string };
 

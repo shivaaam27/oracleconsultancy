@@ -1,7 +1,7 @@
 import { sb } from "@/db/supabase";
 import { redirect } from "next/navigation";
-import { getLibrary, viewerLibrary } from "@/lib/files";
-import { getViewer } from "@/lib/viewer";
+import { getLibrary, viewerLibrary } from "@/lib/documents/files";
+import { getViewer } from "@/lib/auth/viewer";
 import { FilesApp, type FilesCompany } from "@/components/files/files-app";
 
 export const dynamic = "force-dynamic";
@@ -18,7 +18,7 @@ const TILES: [string, string][] = [["#FEF3E0", "#8A5A06"], ["#E4F7EE", "#0E7A4F"
 export default async function FilesPage({ searchParams }: { searchParams: Promise<{ co?: string; pe?: string; open?: string }> }) {
   const sp = await searchParams;
   // The owner, or a director — who sees their companies' files, view-only
-  // (download yes, change nothing). lib/viewer.ts.
+  // (download yes, change nothing). lib/auth/viewer.ts.
   const viewer = await getViewer();
   if (!viewer) redirect("/portal");
   const [library, { data: cosRaw }] = await Promise.all([

@@ -1,20 +1,20 @@
 import { notFound, redirect } from "next/navigation";
 import { StaffCompanyPage } from "./staff-company";
 import Link from "next/link";
-import { ReturnLink } from "@/components/back-link";
+import { ReturnLink } from "@/components/shell/back-link";
 import { ArrowLeft, ClipboardCheck, AlertTriangle, FileText } from "lucide-react";
-import { getPortalPerson, personCanSeeCompany } from "@/lib/portal-auth";
-import { portalCapabilities } from "@/lib/portal-capabilities";
-import { getAllTasks } from "@/lib/queries";
-import { isOpen } from "@/lib/derive";
+import { getPortalPerson, personCanSeeCompany } from "@/lib/portal/portal-auth";
+import { portalCapabilities } from "@/lib/portal/portal-capabilities";
+import { getAllTasks } from "@/lib/tasks/queries";
+import { isOpen } from "@/lib/tasks/derive";
 import { sb } from "@/db/supabase";
-import { HeroMetrics, Hero, Panel, SectionLabel } from "@/components/surface-kit";
-import { Reveal } from "@/components/reveal";
-import { CompanyAvatar } from "@/components/company-avatar";
-import { getCompanyLogoUrl } from "@/lib/company-brand";
-import { listCompanyDocuments } from "@/lib/portal-documents";
-import { PortalDocumentsLibrary } from "@/components/portal-documents-library";
-import { isStaffLikeRole } from "@/lib/director-routes";
+import { HeroMetrics, Hero, Panel, SectionLabel } from "@/components/kit/surface-kit";
+import { Reveal } from "@/components/kit/reveal";
+import { CompanyAvatar } from "@/components/companies/company-avatar";
+import { getCompanyLogoUrl } from "@/lib/companies/company-brand";
+import { listCompanyDocuments } from "@/lib/portal/portal-documents";
+import { PortalDocumentsLibrary } from "@/components/portal/portal-documents-library";
+import { isStaffLikeRole } from "@/lib/portal/director-routes";
 
 export const dynamic = "force-dynamic";
 

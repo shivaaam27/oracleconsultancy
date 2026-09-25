@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { sb } from "@/db/supabase";
-import { isAdminSession } from "@/lib/admin-auth";
+import { isAdminSession } from "@/lib/auth/admin-auth";
 
 /* ------------------------------------------------------------------ *
  * The collection, for a device to keep — Stage 2 of memory/notes_offline_plan.md.

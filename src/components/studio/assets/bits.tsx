@@ -8,8 +8,8 @@
 import type { ReactNode } from "react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { MoreHorizontal } from "lucide-react";
-import type { AssetStatus } from "@/lib/assets-shared";
-import type { ToolCondition } from "@/lib/site-tools-shared";
+import type { AssetStatus } from "@/lib/operations/assets-shared";
+import type { ToolCondition } from "@/lib/operations/site-tools-shared";
 import { cn } from "@/lib/cn";
 
 export const FIELD = "st-field h-10 w-full rounded-[10px] px-3 text-[13px] outline-none";

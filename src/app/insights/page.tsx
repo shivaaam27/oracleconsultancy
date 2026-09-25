@@ -1,7 +1,7 @@
-import { getAllTasks, type TaskRow } from "@/lib/queries";
+import { getAllTasks, type TaskRow } from "@/lib/tasks/queries";
 import { sb } from "@/db/supabase";
-import { computePersonKpi } from "@/lib/kpi";
-import { computeWorkload } from "@/lib/workload";
+import { computePersonKpi } from "@/lib/tasks/kpi";
+import { computeWorkload } from "@/lib/tasks/workload";
 import { StudioInsights, type StudioInsightsData, type InsightsSlice } from "@/components/studio/insights/studio-insights";
 
 export const dynamic = "force-dynamic";

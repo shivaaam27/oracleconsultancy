@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sb } from "@/db/supabase";
-import { signDocumentFile } from "@/lib/documents";
-import { isAdminSession } from "@/lib/admin-auth";
-import { getPortalPerson } from "@/lib/portal-auth";
-import { portalCapabilities } from "@/lib/portal-capabilities";
-import { canPortalSeeDocument } from "@/lib/portal-documents";
+import { signDocumentFile } from "@/lib/documents/documents";
+import { isAdminSession } from "@/lib/auth/admin-auth";
+import { getPortalPerson } from "@/lib/portal/portal-auth";
+import { portalCapabilities } from "@/lib/portal/portal-capabilities";
+import { canPortalSeeDocument } from "@/lib/portal/portal-documents";
 
 /* Securely serve a company-library document to a portal manager/director:
  * verify the caller is management AND the document is inside their company

@@ -37,10 +37,10 @@
 // Server-only.
 
 import { sb } from "@/db/supabase";
-import { companyScope, personCanSeeTask } from "@/lib/portal-auth";
+import { companyScope, personCanSeeTask } from "@/lib/portal/portal-auth";
 import { callerStamp, type McpCaller } from "@/lib/mcp/auth";
-import { createTaskCore, updateTaskCore, addTaskUpdateCore, type TaskRepeatRecipe } from "@/lib/task-write";
-import { mutate, type Actor } from "@/lib/mutate";
+import { createTaskCore, updateTaskCore, addTaskUpdateCore, type TaskRepeatRecipe } from "@/lib/tasks/task-write";
+import { mutate, type Actor } from "@/lib/tasks/mutate";
 import { consumeUndo } from "@/lib/undo";
 import "@/lib/undo-handlers";
 

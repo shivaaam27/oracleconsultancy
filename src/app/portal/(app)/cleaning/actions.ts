@@ -1,15 +1,15 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getPortalPerson } from "@/lib/portal-auth";
-import { setCheck, updateDay, signDay } from "@/lib/cleaning";
+import { getPortalPerson } from "@/lib/portal/portal-auth";
+import { setCheck, updateDay, signDay } from "@/lib/operations/cleaning";
 
 /**
  * Portal cleaning actions — the receptionist's data-entry writes for the Office
  * Cleaning Registry. UNLIKE the admin `/hrms/cleaning` actions (which have no internal
  * auth and rely on the admin edge gate), every action here re-verifies the caller
  * with getPortalPerson() + the `cleaningLog` capability, because portal routes are
- * NOT admin-gated. It then reuses the same pure DB helpers from lib/cleaning.
+ * NOT admin-gated. It then reuses the same pure DB helpers from lib/operations/cleaning.
  *
  * Two ties to "she is the cleaner": every write stamps `attendance_person_id = me.id`
  * (so the register shows who cleaned), and signing off the day marks her Present for

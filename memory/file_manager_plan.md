@@ -76,7 +76,7 @@ app logos). The hover tile behind a folder is a soft grey rounded square.
   rows, so a deleted file vanishes from the company page, person page, search and
   reminders with no change to them. `setDocumentArchived` now stamps/clears
   `deleted_at`, so Claude's and ORI's "archive" land in Deleted on the same clock.
-  `purgeExpiredDeleted` (lib/files.ts — NOT a server action) runs in the morning
+  `purgeExpiredDeleted` (lib/documents/files.ts — NOT a server action) runs in the morning
   cron (step 1e) and removes rows + stored files after 30 days.
 - **Page** `/files` (`components/files/*`): rail · path · summary cards · animated
   folders (`folder-icon.tsx`, framer-motion, the owner's springs; black flap 0.82

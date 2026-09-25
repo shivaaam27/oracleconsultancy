@@ -3,9 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { sb } from "@/db/supabase";
 import { insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
-import { notifyMany, personRecipient } from "@/lib/notifications";
-import { getPortalPerson, companyScope, isScopedDirector } from "@/lib/portal-auth";
-import { reindexEntity } from "@/lib/index-hooks";
+import { notifyMany, personRecipient } from "@/lib/messaging/notifications";
+import { getPortalPerson, companyScope, isScopedDirector } from "@/lib/portal/portal-auth";
+import { reindexEntity } from "@/lib/search/index-hooks";
 
 /* Staff-portal BULK task creation — "paste multiple", one task per line.
  *

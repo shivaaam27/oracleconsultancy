@@ -22,7 +22,7 @@ the Resend provider** (ignored on Gmail SMTP, so nothing changes today):
 - `src/lib/email/send.ts` — `SendEmailInput.fromAddress`; `sendViaResend` uses
   `input.fromAddress?.trim() || cfg.fromAddress`. The SMTP path keeps the admin
   address.
-- `src/lib/reminders.ts` — `ReminderSender.fromAddress` passed into `sendEmail`.
+- `src/lib/messaging/reminders.ts` — `ReminderSender.fromAddress` passed into `sendEmail`.
 - `src/app/portal/actions.ts` — `portalSendReminderEmail` passes
   `sender: { replyTo: me.email, fromAddress: me.email, … }`.
 - Display name stays the office label (e.g. "OC Director's Office"); only the
@@ -71,7 +71,7 @@ Settings master switch "Allow staff to send from their own mailbox" (a governanc
 kill switch, like `outreachPaused`) with a list of who is connected.
 
 **Lifecycle rules** (owner's questions):
-- **Revoke portal access** (`revokePortalAccess` in `src/lib/portal-access.ts`):
+- **Revoke portal access** (`revokePortalAccess` in `src/lib/portal/portal-access.ts`):
   also clear the credential and reset `mail_send_as_self`.
 - **Delete then re-add**: revoke wiped the credential, so he must reconnect.
   Deleting the person row removes everything.

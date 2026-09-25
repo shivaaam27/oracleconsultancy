@@ -9,19 +9,19 @@ import {
   FileWarning,
 } from "lucide-react";
 import { Badge, Card, Stat } from "@/components/ui";
-import { PersonPackPrintButton } from "@/components/person-pack-print-button";
+import { PersonPackPrintButton } from "@/components/people/person-pack-print-button";
 import {
   getPersonPack,
   parsePersonPackSections,
   defaultPersonPackSelection,
   type PersonPackDocument,
   type PersonPackPurpose,
-} from "@/lib/person-pack";
-import type { PersonPackSectionSelection } from "@/lib/person-pack-shared";
-import { isPersonPackPurpose } from "@/lib/person-pack-shared";
-import { personTypeLabel } from "@/lib/person-types";
-import { BRAND_NAME } from "@/lib/brand";
-import { getPackPrefs } from "@/lib/person-pack-prefs";
+} from "@/lib/people/person-pack";
+import type { PersonPackSectionSelection } from "@/lib/people/person-pack-shared";
+import { isPersonPackPurpose } from "@/lib/people/person-pack-shared";
+import { personTypeLabel } from "@/lib/people/person-types";
+import { BRAND_NAME } from "@/lib/companies/brand";
+import { getPackPrefs } from "@/lib/people/person-pack-prefs";
 
 export const dynamic = "force-dynamic";
 

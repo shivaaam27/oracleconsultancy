@@ -12,7 +12,7 @@
 // read-only counts it sums.
 
 import { sb } from "@/db/supabase";
-import { monthlySpend } from "@/lib/ai-spend";
+import { monthlySpend } from "@/lib/ai/ai-spend";
 
 /** One head-count query (no rows pulled). Returns 0 on any error. */
 async function countOf(

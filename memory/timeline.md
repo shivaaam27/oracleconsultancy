@@ -19,25 +19,25 @@ state) and the board (workflow). Every scope is built on the same event model.
        first, with an "All companies" filter.
      - **Schedule**: tasks on a date axis (origin / deadline / last activity),
        grouped by month.
-   - Data: `getRecentActivity(limit)` in `src/lib/queries.ts` (recent
+   - Data: `getRecentActivity(limit)` in `src/lib/tasks/queries.ts` (recent
      `task_updates` + `audit_log`, `deleted_at` null). `tasks-section.tsx` loads
      it only when `view=timeline`, with a `taskMeta` map (id → code, legacy code,
      company, title) so rows get task chips; unresolved rows fall back to a
      code-only chip.
 2. **Per-task** — the task record page `/task/[code]` (`TaskRecordPage` in
-   `src/components/task-drawer.tsx`, Studio details and update cards). The
+   `src/components/tasks/task-drawer.tsx`, Studio details and update cards). The
    legacy drawer (`?task=CODE`) uses the same code.
 3. **Per-company** — company record → Timeline tab
    (`src/app/companies/[id]/_tabs/timeline-tab.tsx`, with `audit-menu.tsx`).
    Still has its own row rendering, not `TimelineEntry`.
 
 Home's **"Latest activity"** card is separate and simpler: `listRecentActivity()`
-in `src/lib/activity.ts` reads only recent `task_updates` (see
+in `src/lib/tasks/activity.ts` reads only recent `task_updates` (see
 `audit_trail.md`).
 
 ## Event model
 
-Two tables, merged by `src/lib/timeline.ts`:
+Two tables, merged by `src/lib/tasks/timeline.ts`:
 
 - `task_updates` → `update` items (body, edited/pinned metadata).
 - `audit_log` → `audit` items (CREATE, CHANGE, UNDO, CORRECTION…).
@@ -62,7 +62,7 @@ The task page runs
 
 ## `TimelineEntry`
 
-`src/components/timeline-entry.tsx` renders one row for the task page and the
+`src/components/tasks/timeline-entry.tsx` renders one row for the task page and the
 Tasks Timeline view: a coloured node by event type, the actor (`created_by` →
 "You", "AI", "Meeting" for old rows, or the name), relative time (exact on
 hover), and an optional task chip. Its ⋯ menu removes a row

@@ -21,7 +21,7 @@
 // column list, the sorting, the field grid and the density for free.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import type { EntityType } from "@/lib/entity-meta";
+import type { EntityType } from "@/lib/search/entity-meta";
 
 /** How a value is drawn. The client holds one renderer per name. */
 export type CellFormat =

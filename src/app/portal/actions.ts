@@ -5,16 +5,16 @@ import { after } from "next/server";
 import { redirect } from "next/navigation";
 import { sb } from "@/db/supabase";
 import { logChangeSb, insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
-import { parseMentionIds } from "@/lib/mentions";
-import { createDocument, attachUploadedFile } from "@/lib/documents";
+import { parseMentionIds } from "@/lib/tasks/mentions";
+import { createDocument, attachUploadedFile } from "@/lib/documents/documents";
 import { ingestAttachmentDocument } from "@/app/documents/actions";
-import { trusted } from "@/lib/viewer";
-import { ATTENDANCE_SELF_STATUSES } from "@/lib/leave-shared";
+import { trusted } from "@/lib/auth/viewer";
+import { ATTENDANCE_SELF_STATUSES } from "@/lib/people/leave-shared";
 import { createEventAction, sendEventInviteAction, ensureEventMeetLink } from "@/app/calendar/actions";
 import { recordEvent } from "@/lib/system-events";
-import { createNotification, notifyMany, notifyPinned, personRecipient, recipientForCreatedBy } from "@/lib/notifications";
-import type { NotifKind } from "@/lib/notifications";
-import { broadcastPulse } from "@/lib/cos-pulse";
+import { createNotification, notifyMany, notifyPinned, personRecipient, recipientForCreatedBy } from "@/lib/messaging/notifications";
+import type { NotifKind } from "@/lib/messaging/notifications";
+import { broadcastPulse } from "@/lib/messaging/cos-pulse";
 import {
   clearSessionCookie,
   companyScope,
@@ -27,12 +27,12 @@ import {
   setSessionCookie,
   verifyPassword,
   type PortalPerson,
-} from "@/lib/portal-auth";
-import { computeClosedDate, isClosedStatus } from "@/lib/task-status";
-import { canManageTask } from "@/lib/task-permissions";
-import { reindexEntity } from "@/lib/index-hooks";
-import { occursToday, shouldCreateTodaysCopy, todaysOccurrenceInstant } from "@/lib/recurring-task-rules";
-import { callerIp, lockMessage, loginLockState, recordLoginFailure, recordLoginSuccess } from "@/lib/login-throttle";
+} from "@/lib/portal/portal-auth";
+import { computeClosedDate, isClosedStatus } from "@/lib/tasks/task-status";
+import { canManageTask } from "@/lib/tasks/task-permissions";
+import { reindexEntity } from "@/lib/search/index-hooks";
+import { occursToday, shouldCreateTodaysCopy, todaysOccurrenceInstant } from "@/lib/tasks/recurring-task-rules";
+import { callerIp, lockMessage, loginLockState, recordLoginFailure, recordLoginSuccess } from "@/lib/auth/login-throttle";
 
 /* Staff portal actions. Every mutation re-verifies the session AND that
  * the person is actually allowed on the task — never trust the URL/form. */
@@ -121,7 +121,7 @@ export async function portalChangePassword(
     return { error: "Choose a password different from your current one." };
   }
 
-  const { hashPassword } = await import("@/lib/portal-auth");
+  const { hashPassword } = await import("@/lib/portal/portal-auth");
   const { error } = await sb
     .from("people")
     .update({ portal_password_hash: hashPassword(next) })
@@ -190,7 +190,7 @@ export async function portalStaffUpdateContact(input: {
   if (error) return { ok: false, error: "Could not save your details. Try again." };
 
   // Append-only audit (best-effort, never blocks the save).
-  const { logPersonFieldChanges } = await import("@/lib/person-audit");
+  const { logPersonFieldChanges } = await import("@/lib/people/person-audit");
   await logPersonFieldChanges(me.id, changes, `portal:${me.name}`);
 
   revalidatePath("/portal/profile");
@@ -386,7 +386,7 @@ export async function portalSendReminderEmail(
     }
     title = `${office === "director" ? "Director" : "Manager"} - ${companyName}`;
   }
-  const { sendTaskReminderEmail } = await import("@/lib/reminders");
+  const { sendTaskReminderEmail } = await import("@/lib/messaging/reminders");
   const res = await sendTaskReminderEmail({
     personId,
     taskId,
@@ -440,8 +440,8 @@ export async function portalSendTaskSummaryWhatsApp(
   const { data: person } = await sb.from("people").select("id,name,whatsapp,phone,company_id").eq("id", personId).maybeSingle();
   if (!person) return { ok: false, error: "Person not found." };
 
-  const { getAllTasks } = await import("@/lib/queries");
-  const { isOpen } = await import("@/lib/derive");
+  const { getAllTasks } = await import("@/lib/tasks/queries");
+  const { isOpen } = await import("@/lib/tasks/derive");
   let rows = (await getAllTasks()).filter((t) => isOpen(t.status) && t.assigneeIds.includes(personId));
   // Per-task scope: when a taskId is supplied, remind about that ONE task only.
   if (taskId != null) rows = rows.filter((t) => t.id === taskId);
@@ -844,7 +844,7 @@ export async function portalDirectorCreateTask(
       if (rule?.id) {
         await sb.from("tasks").update({ recurring_rule_id: rule.id as number }).eq("id", task.id);
         // We have just made today's copy; stop the 09:00 job making a second
-        // one. (See the same guard in lib/task-write.ts.)
+        // one. (See the same guard in lib/tasks/task-write.ts.)
         if (occursToday(repeatRecipe, now)) {
           await sb.from("automation_rules")
             .update({ last_fired_at: new Date(todaysOccurrenceInstant(now)).toISOString() })
@@ -1885,7 +1885,7 @@ export async function portalCompleteTask(
   await logChangeSb(taskId, t.code as string, t.company_id as number, "status", current, "Completed", "Completed from portal (with note)", createdBy);
   void reindexEntity("task", taskId); // Completed → lifecycle="history" (best-effort)
   // Cross-process cascade (e.g. a probation review ticks its onboarding step). Guarded.
-  try { const m = await import("@/lib/automation-reactions"); await m.reactToTaskStatusChange(taskId, current, "Completed"); } catch { /* best-effort */ }
+  try { const m = await import("@/lib/automation/automation-reactions"); await m.reactToTaskStatusChange(taskId, current, "Completed"); } catch { /* best-effort */ }
 
   revalidatePath(`/portal/task/${code}`);
   revalidatePath(`/task/${code}`);
@@ -1911,7 +1911,7 @@ export async function portalUploadDocument(
   const { path, fileName } = input;
   if (!path) return { ok: false, error: "Choose a file to upload." };
 
-  // The browser already put the file in storage (see lib/upload-direct.ts), so a
+  // The browser already put the file in storage (see lib/documents/upload-direct.ts), so a
   // big scan from a phone works — sending the bytes through this action capped
   // staff at Vercel's 4.5 MB request-body limit. Filed against the person under
   // its own file name; the administrator titles and categorises it on /documents.
@@ -1982,7 +1982,7 @@ export async function portalMarkAttendance(status: string): Promise<{ ok: true }
 export async function portalCreateTodo(input: {
   title: string;
   remindAt: string | null;
-}): Promise<{ ok: boolean; error?: string; todo?: import("@/lib/todo-reminders").TodoCardItem }> {
+}): Promise<{ ok: boolean; error?: string; todo?: import("@/lib/tasks/todo-reminders").TodoCardItem }> {
   const me = await getPortalPerson();
   if (!me) return { ok: false, error: "Please sign in again." };
   const title = input.title?.trim();
@@ -2000,7 +2000,7 @@ export async function portalCreateTodo(input: {
 export async function portalToggleTodoDone(id: number, done: boolean): Promise<{ ok: boolean; error?: string }> {
   const me = await getPortalPerson();
   if (!me) return { ok: false, error: "Please sign in again." };
-  const { todoOwner } = await import("@/lib/todo-reminders");
+  const { todoOwner } = await import("@/lib/tasks/todo-reminders");
   const o = await todoOwner(id);
   if (!o || o.kind !== "self" || o.personId !== me.id) return { ok: false, error: "That isn't your to-do." };
   const { toggleTodo } = await import("@/app/todos/actions");
@@ -2013,7 +2013,7 @@ export async function portalToggleTodoDone(id: number, done: boolean): Promise<{
 export async function portalDeleteTodo(id: number): Promise<{ ok: boolean; error?: string }> {
   const me = await getPortalPerson();
   if (!me) return { ok: false, error: "Please sign in again." };
-  const { todoOwner } = await import("@/lib/todo-reminders");
+  const { todoOwner } = await import("@/lib/tasks/todo-reminders");
   const o = await todoOwner(id);
   if (!o || o.kind !== "self" || o.personId !== me.id) return { ok: false, error: "That isn't your to-do." };
   const { deleteTodo } = await import("@/app/todos/actions");
@@ -2025,10 +2025,10 @@ export async function portalDeleteTodo(id: number): Promise<{ ok: boolean; error
 
 /** Edit a personal to-do — its title and/or reminder time. Changing the reminder
  *  re-arms the push (clears `pushed`) so the new time can fire. */
-export async function portalUpdateTodo(input: { id: number; title?: string; remindAt?: string | null }): Promise<{ ok: boolean; error?: string; todo?: import("@/lib/todo-reminders").TodoCardItem }> {
+export async function portalUpdateTodo(input: { id: number; title?: string; remindAt?: string | null }): Promise<{ ok: boolean; error?: string; todo?: import("@/lib/tasks/todo-reminders").TodoCardItem }> {
   const me = await getPortalPerson();
   if (!me) return { ok: false, error: "Please sign in again." };
-  const { todoOwner } = await import("@/lib/todo-reminders");
+  const { todoOwner } = await import("@/lib/tasks/todo-reminders");
   const o = await todoOwner(input.id);
   if (!o || o.kind !== "self" || o.personId !== me.id) return { ok: false, error: "That isn't your to-do." };
   const title = input.title?.trim();

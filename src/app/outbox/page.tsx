@@ -4,8 +4,8 @@ import { appBaseUrl } from "@/lib/app-url";
 import { listOutboxDrafts } from "@/lib/outbox/drafts";
 import { todaysSentChannelsByName, historyByDay, formatDayLabel, snoozedToday, todaysSentRecords, lastChasedByName } from "@/lib/outbox/history";
 import { getAutomationSnapshot } from "@/lib/outbox/snapshot";
-import { getViewer } from "@/lib/viewer";
-import { viewerPeopleIds } from "@/lib/viewer-scope";
+import { getViewer } from "@/lib/auth/viewer";
+import { viewerPeopleIds } from "@/lib/auth/viewer-scope";
 import { sb } from "@/db/supabase";
 import { StudioOutbox, type SentRow } from "@/components/studio/outbox/studio-outbox";
 

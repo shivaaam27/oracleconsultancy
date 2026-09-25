@@ -1,15 +1,15 @@
 import { sb } from "@/db/supabase";
-import { safeReturn } from "@/lib/return-to";
+import { safeReturn } from "@/lib/nav/return-to";
 import { StudioNewTaskPage } from "@/components/studio/tasks/new-task";
 import { redirect } from "next/navigation";
-import { getViewer } from "@/lib/viewer";
-import { viewerPeopleIds } from "@/lib/viewer-scope";
+import { getViewer } from "@/lib/auth/viewer";
+import { viewerPeopleIds } from "@/lib/auth/viewer-scope";
 
 export const dynamic = "force-dynamic";
 
 export default async function NewTaskPage({ searchParams }: { searchParams: Promise<{ companyId?: string; returnTo?: string; title?: string; deadline?: string; assignees?: string; priority?: string; instructions?: string }> }) {
   const sp = await searchParams;
-  // The owner, or a director allowed to create tasks (lib/viewer.ts): they pick
+  // The owner, or a director allowed to create tasks (lib/auth/viewer.ts): they pick
   // from their own companies and the people in them.
   const viewer = await getViewer();
   if (!viewer || (viewer.kind === "director" && !viewer.person.caps.createTasks)) redirect("/portal");

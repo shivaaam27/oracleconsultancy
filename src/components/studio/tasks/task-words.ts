@@ -2,7 +2,7 @@
  * Small, pure helpers the Studio task screens share: how a status, a deadline,
  * a person and a time read. Client-safe.
  */
-import type { TaskRow } from "@/lib/queries";
+import type { TaskRow } from "@/lib/tasks/queries";
 
 export const STATUS_DOT: Record<string, string> = {
   "Not Started": "#B9BBBF",

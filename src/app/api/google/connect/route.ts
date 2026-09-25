@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { isGoogleConfigured, buildAuthUrl } from "@/lib/google";
+import { isGoogleConfigured, buildAuthUrl } from "@/lib/calendar/google";
 
 // Kicks off the Google consent flow. Redirects the operator to Google to grant
 // Calendar access; Google returns to /api/google/callback with a code.

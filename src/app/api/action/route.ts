@@ -4,22 +4,22 @@
 //   POST { command: "..." }              → parses, returns intent JSON for confirmation
 //   POST { command, confirm: true }      → parses AND executes
 
-import { AI_FAST } from "@/lib/ai-models";
-import { callAIJson } from "@/lib/ai-json";
+import { AI_FAST } from "@/lib/ai/ai-models";
+import { callAIJson } from "@/lib/ai/ai-json";
 import { NextRequest, NextResponse } from "next/server";
 import { sb } from "@/db/supabase";
 import { getAiKey } from "@/lib/settings";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { insertTaskWithUniqueCodeSb, escapeLike } from "@/lib/db-helpers";
-import { reindexEntity } from "@/lib/index-hooks";
-import { invalidateAllTasks } from "@/lib/queries";
-import type { PersonPackPurpose } from "@/lib/person-pack-shared";
+import { reindexEntity } from "@/lib/search/index-hooks";
+import { invalidateAllTasks } from "@/lib/tasks/queries";
+import type { PersonPackPurpose } from "@/lib/people/person-pack-shared";
 import { pickChannel, contactForChannel, linkFor } from "@/lib/outbox/links";
-import { getBrief, briefEmail, parseBriefPeriod } from "@/lib/director-brief";
-import { createCalendarEvent, toIcsEvent } from "@/lib/calendar";
-import { googleCalendarUrl } from "@/lib/ics";
-import { listLeaveRequests } from "@/lib/leave";
-import { rememberPreference, recallMemories, listMemories, forgetMemory } from "@/lib/ai-memory";
+import { getBrief, briefEmail, parseBriefPeriod } from "@/lib/reports/director-brief";
+import { createCalendarEvent, toIcsEvent } from "@/lib/calendar/calendar";
+import { googleCalendarUrl } from "@/lib/calendar/ics";
+import { listLeaveRequests } from "@/lib/people/leave";
+import { rememberPreference, recallMemories, listMemories, forgetMemory } from "@/lib/ai/ai-memory";
 
 export const maxDuration = 60;
 

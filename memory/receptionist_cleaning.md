@@ -13,12 +13,12 @@ owner and the oversight roles view it and can step in.
 ## The role
 
 - `receptionist` is one of the four portal levels (`PORTAL_ROLES` in
-  `src/lib/portal-permissions.ts`). `portal_role` is free text, so it needed no
-  migration. Granted like any level, through `src/lib/portal-access.ts`.
+  `src/lib/portal/portal-permissions.ts`). `portal_role` is free text, so it needed no
+  migration. Granted like any level, through `src/lib/portal/portal-access.ts`.
 - Data-entry only: every task, communication and navigation capability is OFF by
   default; default scope `own`.
 - **She is staff-like on screen** — `isStaffLikeRole()`
-  (`src/lib/director-routes.ts`) puts her on the staff Studio pages (Home,
+  (`src/lib/portal/director-routes.ts`) puts her on the staff Studio pages (Home,
   Calendar, Announcements, Companies, People, Profile). **UI only**: permission
   checks read her real role and `caps`. Her footer (`staffStops`) has no Tasks
   stop (`navTasks` off) and gains **Cleaning** because she has `cleaningLog`.
@@ -51,7 +51,7 @@ neither cap is sent to `/portal`:
 
 `src/app/portal/(app)/cleaning/actions.ts` — every write re-checks
 `getPortalPerson()` + `cleaningLog` (portal routes are not behind the admin
-gate), then reuses `lib/cleaning.ts`. Every write stamps
+gate), then reuses `lib/operations/cleaning.ts`. Every write stamps
 `attendance_person_id = me.id`; **signing off the day calls
 `portalMarkAttendance("Present")`**, so her cleaning submission is her
 attendance. Unlock reopens a signed day.
@@ -69,7 +69,7 @@ edit. Its actions (`src/app/hrms/cleaning/actions.ts`) start with
 
 ## Traps
 
-- `ensureDay` (`lib/cleaning.ts`) retries its read after a duplicate-key race —
+- `ensureDay` (`lib/operations/cleaning.ts`) retries its read after a duplicate-key race —
   two first visits of the day used to throw.
 - Attribution is day-level (`attendance_person_id` = who cleaned); there is no
   per-check attribution.

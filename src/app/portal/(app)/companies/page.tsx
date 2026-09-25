@@ -1,13 +1,13 @@
 import { redirect } from "next/navigation";
 import { sb } from "@/db/supabase";
-import { getPortalPerson, colleagueCompanyScope } from "@/lib/portal-auth";
-import { getAllTasks } from "@/lib/queries";
-import { getCompanyLogoMap } from "@/lib/company-brand";
-import { computeCompanyKpisForCompanies } from "@/lib/company-kpis";
-import { getPersonCompaniesMap } from "@/lib/people-queries";
+import { getPortalPerson, colleagueCompanyScope } from "@/lib/portal/portal-auth";
+import { getAllTasks } from "@/lib/tasks/queries";
+import { getCompanyLogoMap } from "@/lib/companies/company-brand";
+import { computeCompanyKpisForCompanies } from "@/lib/tasks/company-kpis";
+import { getPersonCompaniesMap } from "@/lib/people/people-queries";
 import { StudioCompanies } from "@/components/studio/companies/studio-companies";
 import { StudioPathsProvider } from "@/components/studio/studio-paths";
-import { isStaffLikeRole } from "@/lib/director-routes";
+import { isStaffLikeRole } from "@/lib/portal/director-routes";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Companies — Oracle Consultancy" };

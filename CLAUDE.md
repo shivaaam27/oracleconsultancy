@@ -58,7 +58,7 @@ The waste is tool-output volume, not thinking.
   role was removed Sept 2026).
 - **Directors and managers use the owner's own screens** (Home, Tasks, task
   page …) limited to their companies — through **the Viewer**
-  (`src/lib/viewer.ts`: `getViewer`, `guardOwner`, `guardViewer`,
+  (`src/lib/auth/viewer.ts`: `getViewer`, `guardOwner`, `guardViewer`,
   `viewerCoversCompany`). Read `memory/portal_unification_plan.md` first.
 - **Staff and the receptionist** are NOT a Viewer. Their Studio pages live under
   `/portal/*`, read through `portal-auth.ts` (`visibleTaskIds`,
@@ -67,13 +67,13 @@ The waste is tool-output volume, not thinking.
   old rail/header/pill were deleted with `/portal/outbox` and `/portal/insights`
   (26 Sept 2026, now redirect stubs).
 - **Company scope has one home**: `seesAllCompanies` / `companyScope` /
-  `isScopedDirector` in `src/lib/portal-auth.ts`. Never test `=== "director"`
+  `isScopedDirector` in `src/lib/portal/portal-auth.ts`. Never test `=== "director"`
   raw for data visibility.
 - **Portal permissions are owner-configurable** (Settings → Portals → Roles &
-  permissions; `src/lib/portal-permissions.ts`), resolved once onto
+  permissions; `src/lib/portal/portal-permissions.ts`), resolved once onto
   `PortalPerson` as `scopeLevel` + `caps`. To gate a new ability, add a
   `CapabilityKey` + default and read `me.caps.<key>`.
-- **Portal access has ONE writer**: `src/lib/portal-access.ts`
+- **Portal access has ONE writer**: `src/lib/portal/portal-access.ts`
   (`grantPortalAccess` / `changePortalRole` / `revokePortalAccess` /
   `writeDirectorScope`). Nothing else may write `portal_role`,
   `director_companies` or `director_company_id`. See
@@ -100,7 +100,7 @@ Next.js 16 App Router · React 19 · TypeScript 5 · Drizzle ORM 0.45 + postgres
 
 **AI runs on Gemini**: one pair for every lane — `gemini-3.1-flash-lite` →
 `gemini-3.5-flash-lite` fallback (fast, smart, vision). Env-overridable ladders
-in `src/lib/ai-models.ts` (`GEMINI_FAST_MODELS` / `GEMINI_SMART_MODELS` /
+in `src/lib/ai/ai-models.ts` (`GEMINI_FAST_MODELS` / `GEMINI_SMART_MODELS` /
 `GEMINI_VISION_MODELS`); `getActiveProvider()` is hard-coded `"gemini"`. **Groq
 is kept only for voice** (`whisper-large-v3-turbo`, `/api/transcribe`). AI-off
 must degrade gracefully; prompts in British English; never invent data; cite
@@ -120,7 +120,7 @@ task codes. See `memory/ai_integration.md`.
   grant table). No SECURITY DEFINER functions; keep it that way. A table created
   in the Supabase dashboard is owned by `supabase_admin` and reopens the hole —
   **create tables via migrations only**. The app no longer reads the anon key at
-  all; server-side Realtime **broadcast** (`src/lib/cos-pulse.ts`) uses the
+  all; server-side Realtime **broadcast** (`src/lib/messaging/cos-pulse.ts`) uses the
   service key (`postgres_changes` no longer works — use broadcast).
   **Run `npm run db:check-security` after any schema work.**
 - **Security headers** in `next.config.ts` (`securityHeaders`). The CSP ships as
@@ -128,11 +128,11 @@ task codes. See `memory/ai_integration.md`.
   redeploy). `connect-src` is an allowlist — **add any origin the browser calls**.
   Violations go to `/api/csp-report` (public on purpose, excluded in
   `src/proxy.ts`, rate-limited). Settings → Security & Access → "Security check"
-  (`src/lib/security-status.ts`) reports the live state.
+  (`src/lib/auth/security-status.ts`) reports the live state.
 - **`src/proxy.ts` must keep excluding** `api/mcp`, `mcp/connect`,
   `api/csp-report`, and must keep `/notes*`, `/api/notes/*`, `/api/note-mentions`
-  INSIDE the gate. Its `secret()` derivation must match `src/lib/admin-auth.ts`
-  and `src/lib/portal-auth.ts`.
+  INSIDE the gate. Its `secret()` derivation must match `src/lib/auth/admin-auth.ts`
+  and `src/lib/portal/portal-auth.ts`.
 - **Sentry**: `src/instrumentation*.ts`, `src/sentry.*.config.ts`,
   `src/app/global-error.tsx`; inert without `SENTRY_DSN`/`NEXT_PUBLIC_SENTRY_DSN`.
 - **Crons** live in `vercel.json` (8 scheduled). **Delete a route → delete its
@@ -162,7 +162,7 @@ Rules that bite:
 - **Use the kit** (`src/components/studio/kit.tsx`, `StudioChoiceMenu`, the
   sheets) — never a one-off when a kit piece exists.
 - **No native `<select>`/`<datalist>`** — use `FluidSelect`/`Combobox`; in a
-  server-action form use `src/components/select-field.tsx`.
+  server-action form use `src/components/forms/select-field.tsx`.
 - **Type sizes**: Studio uses its own fixed 12/13/14px scale (see
   `DESIGN_SYSTEM.md`); Desk parts use `text-xs`/`text-sm`/`text-base`, which
   follow the density tokens. Studio's action colour is ink; blue is for
@@ -173,7 +173,7 @@ Rules that bite:
 - **Don't put a fixed height on `html`/`body`** — it makes `body` the scroll box,
   `window.scrollY` reads 0 and every scroll restoration breaks. Keep
   `overflow-x: clip` (not `hidden`), or `position: sticky` dies.
-- `src/lib/use-media-query.ts` is the one `matchMedia` hook; prefer a Tailwind
+- `src/lib/hooks/use-media-query.ts` is the one `matchMedia` hook; prefer a Tailwind
   variant for layout.
 - Motion is reduced-motion safe both ways (`data-motion="reduced"` on `<html>`
   is checked by `Reveal`); reuse `Reveal`/`lib/motion.ts`.
@@ -187,7 +187,7 @@ Owner (behind `/login`):
 - `/` — **Home** (Studio). `/?tab=tasks` — **Tasks** list; a row opens the
   **side panel** (`task-panel.tsx`); the title opens the full page.
 - `/task/[code]` — the task record (a page with its own URL; link through
-  `taskHref()` in `src/lib/task-href.ts`, never `?task=`). `/task/new`,
+  `taskHref()` in `src/lib/tasks/task-href.ts`, never `?task=`). `/task/new`,
   `/task/recurring`. `/registry` redirects to Tasks.
 - `/calendar`, `/people`, `/people/[id]`, `/companies`, `/companies/[id]`,
   `/files` (`/documents` redirects there — links use `?co=`/`?pe=`/`?open=`,
@@ -207,13 +207,13 @@ insights, outbox, team.
 
 Navigation: the Studio **footer** (`components/studio/shell.tsx`) with the Go-to
 panel (every page, type to filter) and ⌘K search. Page order comes from
-`src/lib/nav.ts` via `src/lib/studio-nav.ts` — **add a route, add its id to a
+`src/lib/nav/nav.ts` via `src/lib/nav/studio-nav.ts` — **add a route, add its id to a
 group** or `nav.test.ts` fails. Renamed nav ids map through `LEGACY_ROUTE_IDS` +
 `resolveRouteId()` (pinned shortcuts drop unknown ids).
 
 ## Writing tasks
 
-- **All task writes go through `src/lib/task-write.ts`** (`createTaskCore`,
+- **All task writes go through `src/lib/tasks/task-write.ts`** (`createTaskCore`,
   `updateTaskCore`, `addTaskUpdateCore`). Web actions (`src/app/task/actions.ts`)
   and MCP are thin wrappers — a second insert drifts out of audit. One-field edits
   use `patchTaskField` → `updateTaskCore`.
@@ -226,10 +226,10 @@ group** or `nav.test.ts` fails. Renamed nav ids map through `LEGACY_ROUTE_IDS` +
   from the client returns its undo token and must NOT set the cookie, or a second
   "Undo" toast appears on the next full page load.
 - **Recurring tasks**: `tasks.recurring_rule_id` links a task to its rule (SET
-  NULL on delete); shapes and checks in `src/lib/recurring-task-rules.ts`.
+  NULL on delete); shapes and checks in `src/lib/tasks/recurring-task-rules.ts`.
   Whenever a form creates today's copy, the rule is stamped `last_fired_at`, so
   the cron doesn't make a second one.
-- **When an event is over**: `src/lib/event-time-shared.ts` (`eventEndsAt`,
+- **When an event is over**: `src/lib/calendar/event-time-shared.ts` (`eventEndsAt`,
   `hasElapsed`, `isHappeningNow`) is the one answer — an event runs to its END;
   no end time = one hour; all-day = the whole Dar day.
 - Subtasks: `task_subtasks` (0170), `src/app/task/subtask-actions.ts`,
@@ -243,20 +243,20 @@ group** or `nav.test.ts` fails. Renamed nav ids map through `LEGACY_ROUTE_IDS` +
 
 ## Lists, URLs and "going back"
 
-- Lists are `RecordList` (`src/components/record-list.tsx`) fed from
+- Lists are `RecordList` (`src/components/kit/record-list.tsx`) fed from
   `ENTITY_VIEWS` in `src/lib/entity-view.ts` (`variant="studio"` for the look).
-  Filters and sorting live **in the URL** (`src/lib/use-url-filters.ts`,
+  Filters and sorting live **in the URL** (`src/lib/hooks/use-url-filters.ts`,
   `src/lib/use-list-sort.ts`), never component state — saved views
-  (`src/lib/saved-views.ts`, `/api/prefs/list-views?list=<key>`) depend on it.
+  (`src/lib/nav/saved-views.ts`, `/api/prefs/list-views?list=<key>`) depend on it.
   A column marked `sortable` must get a sort href.
 - Search boxes filter as you type (300ms), **replace, never push**, and use a
   `typing` ref so the URL doesn't clobber the box.
 - **Going back**: `RecordList` appends `?back=`; `BackLink`/`ReturnLink` read it;
   **`safeReturn` is the gate** (open-redirect guard); it replaces, never pushes.
-  `src/lib/use-list-place.ts` scrolls the remembered ROW back into view.
+  `src/lib/hooks/use-list-place.ts` scrolls the remembered ROW back into view.
 - A `?new=1` flag that CREATES a record must be consumed (`replaceState`) before
   the record is made, or Back makes another.
-- `src/lib/use-fill-viewport.ts` is the one place that sizes a panel to the
+- `src/lib/hooks/use-fill-viewport.ts` is the one place that sizes a panel to the
   window — never a `calc(100dvh − …)` guess.
 
 ## MCP — Claude reaches into Oracle (`/api/mcp`)
@@ -292,11 +292,11 @@ be JSON-cloned before crossing a server action (`plainDoc()`). Every
 
 Folders (0169), list/grid, drag-drop upload straight to storage on a signed URL,
 preview, Deleted kept 30 days. Filing is manual: intelligence may READ and
-SUGGEST (`src/lib/doc-read.ts`) but never moves, renames, archives or files a
+SUGGEST (`src/lib/documents/doc-read.ts`) but never moves, renames, archives or files a
 document on its own. Event attachments: `memory/event_attachments.md`
 (a time is never accepted without its IANA zone).
 
-## Director Brief PDF (`src/lib/brief-pdf.tsx`)
+## Director Brief PDF (`src/lib/reports/brief-pdf.tsx`)
 
 One renderer, two routes (`/brief/pdf`, `/api/portal/brief-pdf`); the email
 attaches it. ⚠️ @react-pdf prints **neither shadows nor gradients** (silently);
@@ -306,7 +306,7 @@ handles long rows; never clamp prose to dodge it. `briefPdfFilename()` names it.
 ## The Windows app and the PWA
 
 - **PWA** is the primary install route (`InstallApp`, `InstallPromptScript` in
-  `src/components/install-app.tsx` — the inline head script is required because
+  `src/components/shell/install-app.tsx` — the inline head script is required because
   `beforeinstallprompt` fires before hydration). The service worker
   (`public/sw.js`) is production-only.
 - **`desktop-win/`** — C# WPF + WebView2 around the live site. **Read
@@ -316,15 +316,15 @@ handles long rows; never clamp prose to dodge it. `briefPdfFilename()` names it.
 
 ## Search, automations and safety
 
-- `src/lib/entity-registry.ts` is the single source for search/index/trace — add
+- `src/lib/search/entity-registry.ts` is the single source for search/index/trace — add
   ONE `EntityDef` to make a type searchable. Client code imports
-  `src/lib/entity-meta.ts`, **never the registry** (it pulls in the server-only
+  `src/lib/search/entity-meta.ts`, **never the registry** (it pulls in the server-only
   `sb` and crashes every page). `SearchResultType` in `search.ts` is a separate
   union. Files are found by SQL, not embedded.
-- Autonomy tiers (`src/lib/guardrails.ts`): send/spend/delete never happen
+- Autonomy tiers (`src/lib/automation/guardrails.ts`): send/spend/delete never happen
   automatically without explicit opt-in; automated paths archive, never delete.
-  AI spend: `src/lib/ai-spend.ts` (cap 0 = unlimited, fails open).
-- Push/notifications: `src/lib/push.ts`, `createNotification` (bell + push);
+  AI spend: `src/lib/ai/ai-spend.ts` (cap 0 = unlimited, fails open).
+- Push/notifications: `src/lib/messaging/push.ts`, `createNotification` (bell + push);
   quiet hours and digests.
 
 ## Schema and migrations

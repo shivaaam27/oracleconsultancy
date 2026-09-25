@@ -1,11 +1,11 @@
 "use server";
 
-import { guardOwner, guardSignedIn } from "@/lib/viewer";
-import { isAdminSession } from "@/lib/admin-auth";
+import { guardOwner, guardSignedIn } from "@/lib/auth/viewer";
+import { isAdminSession } from "@/lib/auth/admin-auth";
 import { revalidatePath } from "next/cache";
 import { sb } from "@/db/supabase";
-import { getPortalPerson, directReportIds, isScopedDirector } from "@/lib/portal-auth";
-import { personRecipient, notifyMany } from "@/lib/notifications";
+import { getPortalPerson, directReportIds, isScopedDirector } from "@/lib/portal/portal-auth";
+import { personRecipient, notifyMany } from "@/lib/messaging/notifications";
 import {
   getAnnouncement,
   resolveAudiencePersonIds,
@@ -17,11 +17,11 @@ import {
   unseenPersonIds,
   type AudienceKind,
   type AnnouncementType,
-} from "@/lib/announcements";
-import { recipientForCreatedBy, createNotification } from "@/lib/notifications";
-import type { AnnouncementComment } from "@/lib/announcements-shared";
+} from "@/lib/messaging/announcements";
+import { recipientForCreatedBy, createNotification } from "@/lib/messaging/notifications";
+import type { AnnouncementComment } from "@/lib/messaging/announcements-shared";
 
-import { callAIJson, LOW_CONFIDENCE } from "@/lib/ai-json";
+import { callAIJson, LOW_CONFIDENCE } from "@/lib/ai/ai-json";
 import { getAiKey } from "@/lib/settings";
 
 type Result = { ok: true; id: number } | { ok: false; error: string };
@@ -119,7 +119,7 @@ async function buildPayload(fd: FormData, author: { createdBy: string; authorPer
 /** Notify the audience — now if the post is live, or at its go-live (the tick
  *  and the morning run deliver scheduled posts). Exactly once either way. */
 async function notifyAudience(id: number) {
-  const { deliverAnnouncement } = await import("@/lib/announcements");
+  const { deliverAnnouncement } = await import("@/lib/messaging/announcements");
   await deliverAnnouncement(id);
 }
 

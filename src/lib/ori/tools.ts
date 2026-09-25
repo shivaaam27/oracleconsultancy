@@ -1,8 +1,8 @@
 import "server-only";
 import { sb } from "@/db/supabase";
 import { escapeLike, insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
-import { reindexEntity } from "@/lib/index-hooks";
-import { createCalendarEvent, updateCalendarEvent } from "@/lib/calendar";
+import { reindexEntity } from "@/lib/search/index-hooks";
+import { createCalendarEvent, updateCalendarEvent } from "@/lib/calendar/calendar";
 import { setTaskBlocker, clearTaskBlocker, adminTogglePin } from "@/app/task/actions";
 import { setProbationDateAction } from "@/app/people/actions";
 import { recordAttendanceAction } from "@/app/hrms/leave/actions";
@@ -11,7 +11,7 @@ import { cancelEventAction } from "@/app/calendar/actions";
 import { publishAnnouncementAction } from "@/app/announcements/actions";
 import { adminRemindTask, deleteTaskQuick } from "@/app/task/actions";
 import { sendDraftEmail } from "@/app/outbox/actions";
-import { canAutoSend, type SendChannel } from "@/lib/guardrails";
+import { canAutoSend, type SendChannel } from "@/lib/automation/guardrails";
 // Domain tool arrays — each REUSES existing server actions/helpers and mirrors the
 // ToolDef shape; spread into TOOLS below so they auto-register into TOOL_BY_NAME.
 import { PEOPLE_TOOLS } from "@/lib/ori/tools-people";

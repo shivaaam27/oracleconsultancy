@@ -11,7 +11,7 @@
 
 import { createHash, randomBytes, timingSafeEqual } from "crypto";
 import { sb } from "@/db/supabase";
-import { portalPersonById, type PortalPerson } from "@/lib/portal-auth";
+import { portalPersonById, type PortalPerson } from "@/lib/portal/portal-auth";
 
 /**
  * OAuth scopes granted to this caller, or undefined for a bearer key.

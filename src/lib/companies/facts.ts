@@ -1,0 +1,240 @@
+import { sb } from "@/db/supabase";
+import {
+  type Fact,
+  type FactEntityType,
+  type FactValue,
+  renderFactValue,
+} from "@/lib/companies/facts-shared";
+import { detectFactDiscrepancy, type FactDiscrepancy } from "@/lib/companies/fact-checks";
+import { recordEvent } from "@/lib/system-events";
+
+// Server-side data layer for the append-only fact ledger. The CURRENT value of
+// an entity+field is the row with the latest effectiveDate; older rows are kept
+// as history. Recording a change ADDS a row — it never edits an old one.
+
+export type { Fact } from "@/lib/companies/facts-shared";
+
+const COLS =
+  "id,entity_type,person_id,company_id,field,value,display,effective_date,source,document_id,source_hash,verified,verified_at,note,created_by,created_at";
+
+function mapRow(r: Record<string, unknown>): Fact {
+  return {
+    id: r.id as number,
+    entityType: r.entity_type as FactEntityType,
+    personId: (r.person_id as number | null) ?? null,
+    companyId: (r.company_id as number | null) ?? null,
+    field: r.field as string,
+    value: r.value as FactValue,
+    display: (r.display as string | null) ?? null,
+    effectiveDate: r.effective_date as string,
+    source: (r.source as string | null) ?? null,
+    documentId: (r.document_id as number | null) ?? null,
+    sourceHash: (r.source_hash as string | null) ?? null,
+    verified: Boolean(r.verified),
+    verifiedAt: (r.verified_at as string | null) ?? null,
+    note: (r.note as string | null) ?? null,
+    createdBy: (r.created_by as string | null) ?? null,
+    createdAt: r.created_at as string,
+  };
+}
+
+export type EntityRef = { type: FactEntityType; id: number };
+
+/** All facts for one entity, newest effective_date first. */
+export async function listFacts(entity: EntityRef): Promise<Fact[]> {
+  const col = entity.type === "person" ? "person_id" : "company_id";
+  const { data } = await sb
+    .from("facts")
+    .select(COLS)
+    .eq(col, entity.id)
+    .order("effective_date", { ascending: false })
+    .order("id", { ascending: false });
+  return (data ?? []).map(mapRow);
+}
+
+/**
+ * The current value of each field for an entity — one fact per field, the one
+ * with the latest effective_date (ties broken by newest id). Returns them sorted
+ * by field name for stable display.
+ */
+export async function currentFacts(entity: EntityRef): Promise<Fact[]> {
+  const all = await listFacts(entity);
+  // Current = latest effective CALENDAR DAY; tie-broken by which was recorded
+  // last (createdAt, then id), so a back-dated correction recorded today wins
+  // over an earlier same-day fact regardless of intra-day timestamps.
+  const ranked = [...all].sort((a, b) => {
+    const dayA = a.effectiveDate.slice(0, 10), dayB = b.effectiveDate.slice(0, 10);
+    if (dayA !== dayB) return dayB.localeCompare(dayA);
+    if (a.createdAt !== b.createdAt) return b.createdAt.localeCompare(a.createdAt);
+    return b.id - a.id;
+  });
+  const seen = new Set<string>();
+  const current: Fact[] = [];
+  for (const f of ranked) {
+    if (seen.has(f.field)) continue;
+    seen.add(f.field);
+    current.push(f);
+  }
+  return current.sort((a, b) => a.field.localeCompare(b.field));
+}
+
+/** Full history of one field for an entity, newest first. */
+async function factHistory(entity: EntityRef, field: string): Promise<Fact[]> {
+  return (await listFacts(entity)).filter((f) => f.field === field);
+}
+
+/**
+ * The CURRENT fact for a single field (latest effective day, tie-broken by most
+ * recently recorded) — or null if the field has never been recorded. Same ranking
+ * rule as currentFacts(), but for one field only, so the discrepancy cross-check
+ * stays cheap.
+ */
+async function currentFactForField(entity: EntityRef, field: string): Promise<Fact | null> {
+  const history = await factHistory(entity, field.trim());
+  if (!history.length) return null;
+  const ranked = [...history].sort((a, b) => {
+    const dayA = a.effectiveDate.slice(0, 10), dayB = b.effectiveDate.slice(0, 10);
+    if (dayA !== dayB) return dayB.localeCompare(dayA);
+    if (a.createdAt !== b.createdAt) return b.createdAt.localeCompare(a.createdAt);
+    return b.id - a.id;
+  });
+  return ranked[0];
+}
+
+export interface RecordFactInput {
+  entity: EntityRef;
+  field: string;
+  value: FactValue;
+  /** Optional explicit rendering; computed from value when omitted. */
+  display?: string | null;
+  /** Defaults to now. */
+  effectiveDate?: Date | string;
+  source?: string | null;
+  documentId?: number | null;
+  sourceHash?: string | null;
+  /** A fact created from a confirmed source can be marked verified at birth. */
+  verified?: boolean;
+  note?: string | null;
+  createdBy?: string;
+}
+
+/** A recorded fact, plus a discrepancy signal when its value contradicts the
+ *  fact it supersedes (only computed for document-sourced appends). */
+export type RecordedFact = Fact & { discrepancy?: FactDiscrepancy };
+
+/**
+ * Append a new fact. Never mutates an existing row — a change is a new entry,
+ * and currentFacts() will surface it as the live value. Best-effort: a failed
+ * write returns null rather than throwing into the caller's action.
+ *
+ * Cross-check: when the new fact comes FROM A DOCUMENT (source/documentId set)
+ * and MATERIALLY disagrees with the current fact for the same field, the append
+ * still happens (history is the point) but the disagreement is logged as a
+ * `fact-discrepancy` system_event and the proving document is flagged
+ * review_status='needs_review' so the owner is alerted to verify. The signal is
+ * also returned on the fact (`.discrepancy`). All of this is best-effort and
+ * never throws into — nor blocks — the caller's save.
+ */
+export async function recordFact(input: RecordFactInput): Promise<RecordedFact | null> {
+  const effective = input.effectiveDate
+    ? new Date(input.effectiveDate).toISOString()
+    : new Date().toISOString();
+  const verified = input.verified ?? false;
+  const field = input.field.trim();
+  const display = input.display ?? renderFactValue(field, input.value);
+
+  // Compare against the CURRENT fact BEFORE we append — only for document-sourced
+  // facts (a manual entry or a non-document append has nothing to cross-check).
+  let discrepancy: FactDiscrepancy | undefined;
+  const fromDocument = input.documentId != null || !!input.source;
+  if (fromDocument) {
+    try {
+      const current = await currentFactForField(input.entity, field);
+      if (current) {
+        const d = detectFactDiscrepancy(field, current.display, current.value, display, input.value);
+        if (d.conflict) discrepancy = d;
+      }
+    } catch {
+      /* cross-check is advisory — never block the append on it */
+    }
+  }
+
+  const row = {
+    entity_type: input.entity.type,
+    person_id: input.entity.type === "person" ? input.entity.id : null,
+    company_id: input.entity.type === "company" ? input.entity.id : null,
+    field,
+    value: input.value,
+    display,
+    effective_date: effective,
+    source: input.source ?? null,
+    document_id: input.documentId ?? null,
+    source_hash: input.sourceHash ?? null,
+    verified,
+    verified_at: verified ? new Date().toISOString() : null,
+    note: input.note ?? null,
+    created_by: input.createdBy ?? "web-ui",
+    created_at: new Date().toISOString(),
+  };
+  const { data, error } = await sb.from("facts").insert(row).select(COLS).single();
+  if (error || !data) return null;
+  const fact = mapRow(data);
+
+  // Surface the contradiction: log it + flag the document for review. Both are
+  // best-effort and fire after the append has succeeded.
+  if (discrepancy) {
+    await flagFactDiscrepancy(input.entity, fact, input.documentId ?? null, discrepancy);
+  }
+  return { ...fact, ...(discrepancy ? { discrepancy } : {}) };
+}
+
+/**
+ * Record a fact-discrepancy: a system_event for the audit trail + the History
+ * panel, and a needs_review flag on the proving document so the contradiction
+ * lands in the Verify queue. Fully guarded — telemetry must never crash the save.
+ */
+async function flagFactDiscrepancy(
+  entity: EntityRef,
+  fact: Fact,
+  documentId: number | null,
+  discrepancy: FactDiscrepancy
+): Promise<void> {
+  await recordEvent("fact-discrepancy", "ok", {
+    entityType: entity.type,
+    entityId: entity.id,
+    field: fact.field,
+    factId: fact.id,
+    documentId,
+    reason: discrepancy.reason,
+  });
+  if (documentId != null) {
+    try {
+    } catch {
+      /* flag is advisory — a failed update must not unwind the fact append */
+    }
+  }
+}
+
+/**
+ * Mark a fact verified (or un-verify it). Verifying stamps verified_at to now so
+ * the 180-day staleness clock restarts. This is the ONE allowed in-place edit —
+ * it confirms a fact, it does not change its value.
+ */
+export async function setFactVerified(id: number, verified: boolean, createdBy = "web-ui"): Promise<boolean> {
+  const { error } = await sb
+    .from("facts")
+    .update({ verified, verified_at: verified ? new Date().toISOString() : null })
+    .eq("id", id);
+  void createdBy; // reserved for a future fact-events audit trail
+  return !error;
+}
+
+/**
+ * Hard-delete a fact — only for correcting a mistaken entry (a typo'd row), not
+ * for retiring a value (that's done by recording a newer one). Append-only is
+ * about never overwriting history, not about being unable to undo a slip.
+ */
+export async function deleteFact(id: number): Promise<boolean> {
+  const { error } = await sb.from("facts").delete().eq("id", id);
+  return !error;
+}

@@ -5,17 +5,17 @@
  * a page that repeats Home: a panel you open from Home, a company or a person,
  * choose company · person · period, and take away as a PDF, an email with the
  * PDF attached, a WhatsApp message, copied text or an Outbox draft. The PDF and
- * its sections are the Brief's own, unchanged (lib/brief-pdf.tsx).
+ * its sections are the Brief's own, unchanged (lib/reports/brief-pdf.tsx).
  *
  * Owner: every company and person. Director: only their companies and the
  * people in them — `resolvePortalBriefFilters` drops anything wider, so a
  * hand-built request cannot widen the report. Every action is guarded.
  */
 import { sb } from "@/db/supabase";
-import { guardViewer, type Viewer } from "@/lib/viewer";
-import { getBrief, parseBriefPeriod, briefShareText, briefEmail, briefEmailDoc, type BriefData } from "@/lib/director-brief";
-import { briefMonthOptions, parseBriefPersonRole, type BriefPersonRole } from "@/lib/brief-links";
-import { briefPdfFilename } from "@/lib/brief-pdf-shared";
+import { guardViewer, type Viewer } from "@/lib/auth/viewer";
+import { getBrief, parseBriefPeriod, briefShareText, briefEmail, briefEmailDoc, type BriefData } from "@/lib/reports/director-brief";
+import { briefMonthOptions, parseBriefPersonRole, type BriefPersonRole } from "@/lib/reports/brief-links";
+import { briefPdfFilename } from "@/lib/reports/brief-pdf-shared";
 
 export type ReportInput = {
   period?: string;
@@ -61,7 +61,7 @@ async function scoped(v: Viewer, input: ReportInput): Promise<{ period: ReturnTy
   if (v.kind === "owner") {
     return { period, companyId: companyIds.length ? companyIds : null, personId: personIds, personRole: personIds.length ? parseBriefPersonRole(input.role) : null };
   }
-  const { resolvePortalBriefFilters } = await import("@/lib/portal-brief-scope");
+  const { resolvePortalBriefFilters } = await import("@/lib/portal/portal-brief-scope");
   const params = new URLSearchParams();
   if (companyIds.length) params.set("co", companyIds.join(","));
   if (personIds.length) params.set("who", personIds.join(","));
@@ -79,7 +79,7 @@ export async function reportOptions(): Promise<ReportOptions> {
   const v = await guard();
   const months = briefMonthOptions(new Date(), 12);
   if (v.kind === "director") {
-    const { portalBriefOptions } = await import("@/lib/portal-brief-scope");
+    const { portalBriefOptions } = await import("@/lib/portal/portal-brief-scope");
     const o = await portalBriefOptions(v.person);
     return { companies: o.companies.map((c) => ({ id: c.id, name: c.name })), people: o.people, months, canNote: false, pdfBase: "/api/portal/brief-pdf" };
   }
@@ -124,7 +124,7 @@ export async function emailReport(input: ReportInput, to: string[]): Promise<{ o
   if (!list.length) return { ok: false, error: "Add at least one email address." };
   if (list.length > 20) return { ok: false, error: "Twenty addresses at most, please." };
   const b = await build(v, input);
-  const { renderBriefPdf } = await import("@/lib/brief-pdf");
+  const { renderBriefPdf } = await import("@/lib/reports/brief-pdf");
   const pdf = await renderBriefPdf(b);
   const { renderEmail, senderName } = await import("@/lib/email/layout");
   const { sendEmail } = await import("@/lib/email/send");
@@ -166,7 +166,7 @@ export async function reportRecipients(): Promise<{ name: string; email: string 
   const v = await guard();
   let q = sb.from("people").select("id,name,email").eq("active", true).not("email", "is", null).order("name");
   if (v.kind === "director") {
-    const { portalBriefOptions } = await import("@/lib/portal-brief-scope");
+    const { portalBriefOptions } = await import("@/lib/portal/portal-brief-scope");
     const ids = (await portalBriefOptions(v.person)).people.map((p) => p.id);
     q = q.in("id", ids.length ? ids : [-1]);
   }

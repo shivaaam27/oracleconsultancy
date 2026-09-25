@@ -1,21 +1,21 @@
-import { getAllTasks } from "@/lib/queries";
-import { getCompanyLogoMap } from "@/lib/company-brand";
-import { computeCompanyKpisForCompanies } from "@/lib/company-kpis";
-import { getPersonCompaniesMap } from "@/lib/people-queries";
+import { getAllTasks } from "@/lib/tasks/queries";
+import { getCompanyLogoMap } from "@/lib/companies/company-brand";
+import { computeCompanyKpisForCompanies } from "@/lib/tasks/company-kpis";
+import { getPersonCompaniesMap } from "@/lib/people/people-queries";
 import { sb } from "@/db/supabase";
-import { getDepartmentsAdmin } from "@/lib/departments";
-import { getSitesAdmin } from "@/lib/sites";
-import { getRolesAdmin } from "@/lib/roles";
+import { getDepartmentsAdmin } from "@/lib/people/departments";
+import { getSitesAdmin } from "@/lib/people/sites";
+import { getRolesAdmin } from "@/lib/auth/roles";
 import { StudioCompanies } from "@/components/studio/companies/studio-companies";
 import { redirect } from "next/navigation";
-import { getViewer } from "@/lib/viewer";
+import { getViewer } from "@/lib/auth/viewer";
 
 export const dynamic = "force-dynamic";
 
 
 export default async function CompaniesPage() {
   // The owner, or a director — who sees their own companies to open, and
-  // none of the owner's reference lists (lib/viewer.ts).
+  // none of the owner's reference lists (lib/auth/viewer.ts).
   const viewer = await getViewer();
   if (!viewer) redirect("/portal");
   const director = viewer.kind === "director";

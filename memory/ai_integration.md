@@ -22,7 +22,7 @@ route documents a 503 (only `/api/draft-email` does).
   `Authorization: Bearer <key>`), so the harness is one OpenAI-compatible
   implementation with two base URLs.
 
-## Models — `src/lib/ai-models.ts`
+## Models — `src/lib/ai/ai-models.ts`
 
 - **One pair for every lane**: `gemini-3.1-flash-lite` primary →
   `gemini-3.5-flash-lite` fallback. Fast, smart, vision and the ORI chat picker
@@ -41,7 +41,7 @@ route documents a 503 (only `/api/draft-email` does).
   `npx tsx scripts/list-gemini-models.ts` lists what the current key can use —
   run it after a key change before editing the ladders.
 
-## Harness — `src/lib/ai-json.ts`
+## Harness — `src/lib/ai/ai-json.ts`
 
 - `callAIJson()` (strict JSON: strip, parse, `validateShape`) and `callAIText()`.
   Both retry a brief 429/5xx, time out (`DEFAULT_TIMEOUT_MS` 20s), fall through
@@ -60,7 +60,7 @@ route documents a 503 (only `/api/draft-email` does).
    features" (`v2.aiEnabled`). Off → `undefined` → rule/manual fallback.
 2. **Key** — in-app `geminiApiKey` (rotatable without a redeploy) → env
    `GEMINI_API_KEY`.
-3. **Spend cap** — `isOverSpendCap()` (`src/lib/ai-spend.ts`). Only bites when
+3. **Spend cap** — `isOverSpendCap()` (`src/lib/ai/ai-spend.ts`). Only bites when
    `aiMonthlySpendCap` > 0; the default 0 means unlimited, and any error fails
    OPEN. Cached ~60s. Settings → *AI usage* shows today's calls and quota per
    model; `/api/ai-usage` feeds the palette's "AI today".
@@ -69,31 +69,31 @@ route documents a 503 (only `/api/draft-email` does).
 
 | Surface | Where | Notes |
 |---|---|---|
-| Ask ORI (RAG) | `/api/ask` (+ `src/lib/ask-retrieval.ts`) | ⌘K palette and portal (`/api/portal/ori/ask`). Streams. Page context from `src/lib/page-context.ts`; memory via `/api/ai-memory` + `src/lib/ai-memory.ts`. |
-| AI commands | `/api/action` | Parse → confirm → execute; audit rows `createdBy: "ai-command"`; bulk over the current view (`src/lib/current-view.ts`, cap 50). |
+| Ask ORI (RAG) | `/api/ask` (+ `src/lib/ai/ask-retrieval.ts`) | ⌘K palette and portal (`/api/portal/ori/ask`). Streams. Page context from `src/lib/ai/page-context.ts`; memory via `/api/ai-memory` + `src/lib/ai/ai-memory.ts`. |
+| AI commands | `/api/action` | Parse → confirm → execute; audit rows `createdBy: "ai-command"`; bulk over the current view (`src/lib/nav/current-view.ts`, cap 50). |
 | ORI agent | `/api/ori` (`src/lib/ori/agent.ts`, tools in `src/lib/ori/`) | Plans, then runs only what the owner confirms. Portal twin `/api/portal/ori/act`. |
 | Task polish | `/api/polish` | `PolishedInput` and the quick-task popover; rule fallback `polishActionItem` (`smart-parse.ts`). |
 | Follow-up email | `/api/draft-email` | Task drawer button. 503 when AI is off. |
 | Company summary | `/api/company-summary` | Studio company page. |
 | Voice | `/api/transcribe` | Groq Whisper; voice dictionary sent as a prompt bias; returns `source` `ai` / `no-key` / `error`, and `VoiceButton` falls back to browser speech. |
-| Notes AI | `src/lib/note-ai.ts` via `src/app/notes/ai-actions.ts` | Tidy, Summarise, Find the jobs, Name it, Suggest links, Ask your notes. Every one is a PROPOSAL; nothing writes. |
-| Document reader | `src/lib/doc-read.ts` (Files → read details) | Reads and suggests fields only; never files, renames or picks an owner. Shares `file-extract.ts` with the event reader. |
-| Event reader | `src/lib/event-read.ts` / `event-read-core.ts` | Ticket/booking → event form. A time is never accepted without its IANA zone. |
+| Notes AI | `src/lib/notes/note-ai.ts` via `src/app/notes/ai-actions.ts` | Tidy, Summarise, Find the jobs, Name it, Suggest links, Ask your notes. Every one is a PROPOSAL; nothing writes. |
+| Document reader | `src/lib/documents/doc-read.ts` (Files → read details) | Reads and suggests fields only; never files, renames or picks an owner. Shares `file-extract.ts` with the event reader. |
+| Event reader | `src/lib/calendar/event-read.ts` / `event-read-core.ts` | Ticket/booking → event form. A time is never accepted without its IANA zone. |
 | Announcements | `src/app/announcements/actions.ts` | Draft from a prompt; translate EN ↔ SW. |
 | People | `src/app/people/actions.ts` | Extract a person's details from a pasted message. |
-| Search translation | `src/lib/embeddings.ts` | Translates non-English text to English before embedding (best effort). |
+| Search translation | `src/lib/search/embeddings.ts` | Translates non-English text to English before embedding (best effort). |
 
 Deterministic, no AI: `/api/brief`, `/api/briefing` (radar), the ORI
 automations cron.
 
-## Shared context — `src/lib/ai-context.ts`
+## Shared context — `src/lib/ai/ai-context.ts`
 
 `loadContext()` (companies, people, recent tasks), `loadTaskContext(taskId)`,
 `findSimilarTasks(query)` (no LLM), `invalidateContext()`.
 
 ## Dormant
 
-- `src/lib/model-watch.ts` — the Groq deprecation watch; silent while the
+- `src/lib/ai/model-watch.ts` — the Groq deprecation watch; silent while the
   provider is Gemini.
 - `ocrSpaceApiKey` in settings — nothing reads it.
 

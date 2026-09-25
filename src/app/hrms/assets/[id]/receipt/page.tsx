@@ -1,8 +1,8 @@
 import { notFound } from "next/navigation";
-import { getAsset } from "@/lib/assets";
+import { getAsset } from "@/lib/operations/assets";
 import { sb } from "@/db/supabase";
-import { ASSET_STATUS_LABELS } from "@/lib/assets-shared";
-import { PersonPackPrintButton } from "@/components/person-pack-print-button";
+import { ASSET_STATUS_LABELS } from "@/lib/operations/assets-shared";
+import { PersonPackPrintButton } from "@/components/people/person-pack-print-button";
 
 export const dynamic = "force-dynamic";
 

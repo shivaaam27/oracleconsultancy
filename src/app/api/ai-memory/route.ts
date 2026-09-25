@@ -16,7 +16,7 @@
 // storage hiccup never fails the caller's primary action.
 
 import { NextRequest, NextResponse } from "next/server";
-import { recordQA, listMemories } from "@/lib/ai-memory";
+import { recordQA, listMemories } from "@/lib/ai/ai-memory";
 
 // Single owner-operator on the admin side — all admin memories share one bucket.
 const MEMORY_RECIPIENT = "admin";

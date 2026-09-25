@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { guardOwner } from "@/lib/viewer";
+import { guardOwner } from "@/lib/auth/viewer";
 import { sb } from "@/db/supabase";
 
 type Result = { ok: true; id?: number } | { ok: false; error: string };

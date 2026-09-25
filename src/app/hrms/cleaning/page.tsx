@@ -1,4 +1,4 @@
-import { ensureDefaultAreas, ensureDay, earliestDayKey, listAreas, listChecks, listDays, dayStatus } from "@/lib/cleaning";
+import { ensureDefaultAreas, ensureDay, earliestDayKey, listAreas, listChecks, listDays, dayStatus } from "@/lib/operations/cleaning";
 import { sb } from "@/db/supabase";
 import { StudioCleaningToday, type CleaningHistoryDay } from "@/components/studio/cleaning/studio-cleaning-today";
 

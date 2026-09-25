@@ -23,11 +23,11 @@ component that loads data and hands it to one Studio client component.
 
 **Redirect stubs** (carry the query string across): `/hrms/ocr` → `/hrms/cleaning`,
 `/hrms/oecr` → `/hrms/supplies`. Old nav ids are mapped in `LEGACY_ROUTE_IDS` /
-`resolveRouteId()` in `src/lib/nav.ts`. Pipeline and Commitments (and
+`resolveRouteId()` in `src/lib/nav/nav.ts`. Pipeline and Commitments (and
 `/hrms/registers`) were removed 26 Sept 2026 and redirect to Home.
 
 Every server action starts with its guard (`guardOwner` / `guardViewer` / a
-portal check) — see `src/lib/viewer.ts`. Currency is **TZS**. British English.
+portal check) — see `src/lib/auth/viewer.ts`. Currency is **TZS**. British English.
 
 ---
 
@@ -37,9 +37,9 @@ Recurring tax / statutory / legal obligations. Route path unchanged; only the
 label is "Tax & Legal".
 
 - Data: `recurring_obligations` + `obligation_company` (per-company tick and
-  "not applicable"). Logic in `src/lib/recurring.ts` (`listObligations`,
+  "not applicable"). Logic in `src/lib/operations/recurring.ts` (`listObligations`,
   `splitObligations`, `buildDeadlinesWithCompanies`, `loadObligationCompany`)
-  and `src/lib/command-centre.ts` (`permitFlag`, `daysUntil`, `CcFlag`).
+  and `src/lib/operations/command-centre.ts` (`permitFlag`, `daysUntil`, `CcFlag`).
 - Page: the period's progress and the next deadline on top; every dated
   obligation with a tick per company; the routine daily/weekly duties you tick
   as you go (habits); `?view=permits` = **Permit Watch** — person documents in
@@ -47,7 +47,7 @@ label is "Tax & Legal".
 - Actions: `tickHabitAction`, `toggleObligationCompanyAction`,
   `setObligationApplicableAction`, `createTaskFromObligationAction`.
 - **Auto-spawn**: due obligations spawn tasks on the daily tick
-  (`src/lib/automation-time.ts`), only for trigger dates on/after the automation
+  (`src/lib/automation/automation-time.ts`), only for trigger dates on/after the automation
   baseline.
 - **Master pause**: `commandCentrePaused` (Settings) hides the page from nav and
   renders `StudioTaxPaused`; nothing is computed or spawned. Unpausing resets
@@ -60,13 +60,13 @@ in archived assets (restore lives there). Filters go through `useUrlFilters`, so
 a filtered view survives Back and reload. Each asset and each supplier also has
 its own page: `/hrms/assets/[id]` and `/hrms/vendors/[id]`.
 
-- **Assets** (`src/lib/assets.ts`, `assets-shared.ts`) — individually serialised
+- **Assets** (`src/lib/operations/assets.ts`, `assets-shared.ts`) — individually serialised
   durable equipment. Assigned to a person, or shared to a company + custodian
   (`assignAssetAction` / `assignAssetSharedAction` / `returnAssetAction`), with
   a history (`asset_assignments`). **Auto-returned on offboarding** (the
   "Returned on offboarding" path in `assets.ts`). Statuses include `in_store`,
   `maintenance` ("the workshop") and `retired`. CSV/sheet import
-  (`importAssetsAction`, `lib/asset-import.ts`). Printable register
+  (`importAssetsAction`, `lib/operations/asset-import.ts`). Printable register
   `/hrms/assets/print` and a hand-over receipt `/hrms/assets/[id]/receipt`
   (company legal name + signatory in the footer).
 - **Run as a management system (migration 0171)**:
@@ -85,11 +85,11 @@ its own page: `/hrms/assets/[id]` and `/hrms/vendors/[id]`.
     bought + upkeep totals.
   - The top strip ("needs attention"): in the workshop, warranty ending,
     stock-take, value and upkeep — each tile filters the list.
-- **Tools** (`src/lib/site-tools.ts`, `site-tools-shared.ts`) —
+- **Tools** (`src/lib/operations/site-tools.ts`, `site-tools-shared.ts`) —
   quantity-tracked kit owned by a site: no serial numbers and no single holder;
   one row per tool kind per site with count, minimum and condition. Grouped by
   site with low stock flagged; movements and import in `site-tools-actions.ts`.
-- **Vendors** (`src/lib/vendors.ts`, `vendors-shared.ts`) — suppliers,
+- **Vendors** (`src/lib/operations/vendors.ts`, `vendors-shared.ts`) — suppliers,
   contractors, landlords. Their contracts are ordinary `documents` rows via
   `documents.vendor_id` (filed in Files). The vendor page shows what they sold
   us, their upkeep cost and whether their papers are in date.
@@ -101,8 +101,8 @@ Office consumables (never equipment — that is Assets). Renamed from "OECR".
 
 - Data: `stock_items`, `stock_purchases` (in), `stock_issues` (out, tagged to a
   company). **Current stock = opening + purchased − issued, derived at read time,
-  never stored** (`currentStock` in `src/lib/stock-shared.ts`; Supabase reads in
-  `src/lib/stock.ts`).
+  never stored** (`currentStock` in `src/lib/operations/stock-shared.ts`; Supabase reads in
+  `src/lib/operations/stock.ts`).
 - `?tab=purchases|issues` picks the lane; `?archived=1` shows archived items.
 - Actions in `app/hrms/actions.ts`: item create/update/archive/delete, purchase
   and issue record/update/delete. Issuing below zero is guarded with an
@@ -115,7 +115,7 @@ The daily office cleaning checklist — one shared HQ register, not per company.
 Renamed from "OCR".
 
 - Data: `cleaning_areas`, `cleaning_days` (one per date), `cleaning_checks`
-  (per-area tick + time + comment). Logic: `src/lib/cleaning.ts`
+  (per-area tick + time + comment). Logic: `src/lib/operations/cleaning.ts`
   (`ensureDefaultAreas`, `ensureDay`, `listDays`, `dayStatus`, …) and
   `cleaning-shared.ts` (derived completion %).
 - **The receptionist ticks from her portal** (`/portal/cleaning`, capability
@@ -130,7 +130,7 @@ Renamed from "OCR".
 
 The route kept its old name; the page is **Attendance**. **The Leave module
 (types, requests, approvals, balances) was retired in July 2026** — mark "On
-leave" directly on the register. `src/lib/leave.ts` still holds `listHolidays`
+leave" directly on the register. `src/lib/people/leave.ts` still holds `listHolidays`
 and the ELR working-day maths; its request/balance functions are unused.
 
 - `?ym=YYYY-MM` picks the month, `?view=holidays` the Holidays list, `?co=` a
@@ -139,7 +139,7 @@ and the ELR working-day maths; its request/balance functions are unused.
   One `attendance` row per person per day; statuses Present / Absent / On leave
   / Holiday / Remote / Half-day / Sick. No clock in/out.
   `recordAttendanceAction` / `bulkRecordAttendanceAction`;
-  `getAttendanceMonth()` in `src/lib/attendance.ts`.
+  `getAttendanceMonth()` in `src/lib/people/attendance.ts`.
 - **Holidays**: `public_holidays` fill the register by themselves
   (`addHolidayAction` / `deleteHolidayAction`).
 - **Staff self check-in** (trusted, a manager can override): the "Today" card on
@@ -147,7 +147,7 @@ and the ELR working-day maths; its request/balance functions are unused.
   `StaffCheckinCard`; `CheckinPanel` on Profile for managers), and
   `portal-attendance.tsx`. Server side `portalMarkAttendance` in
   `app/portal/actions.ts`; `personAttendanceToday` / `personAttendanceWeek` /
-  `teamAttendanceToday` in `lib/attendance.ts`.
+  `teamAttendanceToday` in `lib/people/attendance.ts`.
 
 ## Related, managed elsewhere
 

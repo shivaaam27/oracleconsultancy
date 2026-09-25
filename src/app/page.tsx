@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
-import { getAllTasks } from "@/lib/queries";
+import { getAllTasks } from "@/lib/tasks/queries";
 import { TasksSection } from "./_hub/tasks-section";
 import { StudioHomeServer } from "./_hub/studio-home";
-import { getViewer } from "@/lib/viewer";
+import { getViewer } from "@/lib/auth/viewer";
 
 export const dynamic = "force-dynamic";
 
@@ -34,7 +34,7 @@ type Sp = {
 
 export default async function HubPage({ searchParams }: { searchParams: Promise<Sp> }) {
   const sp = await searchParams;
-  // The owner, or a director on the shared screens (lib/viewer.ts). The front
+  // The owner, or a director on the shared screens (lib/auth/viewer.ts). The front
   // door lets a signed-in director reach "/", so the page decides.
   const viewer = await getViewer();
   if (!viewer) redirect("/portal");

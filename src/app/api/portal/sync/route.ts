@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sb } from "@/db/supabase";
-import { isAdminSession } from "@/lib/admin-auth";
-import { getPortalPerson, personCanSeeTask } from "@/lib/portal-auth";
+import { isAdminSession } from "@/lib/auth/admin-auth";
+import { getPortalPerson, personCanSeeTask } from "@/lib/portal/portal-auth";
 
 /* Tiny freshness probe behind the same locks as the pages themselves.
  * Returns an opaque stamp that changes whenever the task or its timeline

@@ -2,8 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import type { RegistrationResponseJSON } from "@simplewebauthn/server";
-import { getPortalPerson } from "@/lib/portal-auth";
-import { beginRegistration, finishRegistration, deleteCredential } from "@/lib/webauthn";
+import { getPortalPerson } from "@/lib/portal/portal-auth";
+import { beginRegistration, finishRegistration, deleteCredential } from "@/lib/auth/webauthn";
 
 export async function staffBeginPasskey() {
   const me = await getPortalPerson();

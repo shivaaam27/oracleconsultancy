@@ -18,10 +18,10 @@
 import { Command } from "cmdk";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CheckSquare, Sparkles, Search, CornerDownLeft, Clock, ArrowUpRight, type LucideIcon } from "lucide-react";
-import type { SearchResult } from "@/lib/search";
-import type { DirectAnswer } from "@/lib/direct-answer";
-import type { SmartAnswer } from "@/lib/smart-answer";
-import type { NavRoute } from "@/lib/nav";
+import type { SearchResult } from "@/lib/search/search";
+import type { DirectAnswer } from "@/lib/ai/direct-answer";
+import type { SmartAnswer } from "@/lib/ai/smart-answer";
+import type { NavRoute } from "@/lib/nav/nav";
 import { cn } from "@/lib/cn";
 
 export type StudioSearchItem = { code: string; label: string; sub: string; href: string; status: string; flag: string };

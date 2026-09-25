@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Phone, MessageCircle, MapPin, LifeBuoy, Check, Loader2 } from "lucide-react";
-import { useToast } from "@/components/toast";
+import { useToast } from "@/components/shell/toast";
 import { Button } from "@/components/ui";
 import { portalStaffUpdateContact } from "@/app/portal/actions";
 

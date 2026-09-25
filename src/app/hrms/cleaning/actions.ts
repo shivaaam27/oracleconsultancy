@@ -1,9 +1,9 @@
 "use server";
 
-import { guardOwner } from "@/lib/viewer";
+import { guardOwner } from "@/lib/auth/viewer";
 
 import { revalidatePath } from "next/cache";
-import { setCheck, updateDay, signDay } from "@/lib/cleaning";
+import { setCheck, updateDay, signDay } from "@/lib/operations/cleaning";
 
 type Result = { ok: true } | { ok: false; error: string };
 

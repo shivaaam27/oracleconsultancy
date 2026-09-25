@@ -8,7 +8,7 @@ registry, indexing and trace see [[ori_brain]].
 
 - **Gemini is the only text/vision provider.** `getActiveProvider()` in
   `src/lib/settings.ts` returns `"gemini"` unconditionally. Ladders live in
-  `src/lib/ai-models.ts` — one pair for every lane, `gemini-3.1-flash-lite` →
+  `src/lib/ai/ai-models.ts` — one pair for every lane, `gemini-3.1-flash-lite` →
   `gemini-3.5-flash-lite`, env-overridable (`GEMINI_FAST/SMART/VISION_MODELS`).
 - **Groq is voice only** — Whisper (`GROQ_WHISPER`, `whisper-large-v3-turbo`) via
   `getGroqOnlyKey()`. No Groq key → dictation falls back to browser speech. The
@@ -18,7 +18,7 @@ registry, indexing and trace see [[ori_brain]].
   `getAiKey()`. Kept Groq-branded on purpose: `GROQ_WHISPER`, `getGroqOnlyKey`,
   and the stored key names `GROQ_API_KEY` / `groqApiKey` (renaming would wipe the
   stored key). `ladder()` still reads legacy `GROQ_*_MODELS` env names.
-- **THE CLASS-OF-BUG KILL:** the harness (`src/lib/ai-json.ts`) maps EVERY model —
+- **THE CLASS-OF-BUG KILL:** the harness (`src/lib/ai/ai-json.ts`) maps EVERY model —
   including explicit `models:` ladders — through `providerLadder(provider, model)`,
   so a Groq model name can never reach the Gemini endpoint (that was a live 401).
   Vision uses `providerVisionModels(provider)`.
@@ -50,10 +50,10 @@ The surface is **Studio search** (`src/components/studio/search.tsx`, 24 Sept
 (Tab steps through), and "Ask ORI" as the last row — the FIRST row when the query
 reads like a question or an instruction. No preview pane, no history switch. It
 only renders: the data (one `/api/search` call, recent pages, the ORI hand-off)
-stays in `CommandPaletteProvider` (`components/command-palette.tsx`).
+stays in `CommandPaletteProvider` (`components/search/command-palette.tsx`).
 
 `/api/search` returns `{ items, results, directAnswer, smartAnswer }`:
-- **smartAnswer** (`src/lib/smart-answer.ts`, `resolveSmartAnswer(q)`) —
+- **smartAnswer** (`src/lib/ai/smart-answer.ts`, `resolveSmartAnswer(q)`) —
   deterministic natural-language LIST answers, first match wins through the
   `resolvers` array: briefing, ORI actions, radar, what-happened / entity
   activity, compare / workload / leaderboards, portal engagement analytics,
@@ -64,9 +64,9 @@ stays in `CommandPaletteProvider` (`components/command-palette.tsx`).
     in the `resolvers` array.** Order matters.
   - ⚠️ `matchCompany` / `matchPerson` use WORD BOUNDARIES + aliases + min length 3 —
     a 2-char code like "OC" must not match inside "d[oc]uments" (a real bug).
-- **directAnswer** (`src/lib/direct-answer.ts`) — single-value lookups
+- **directAnswer** (`src/lib/ai/direct-answer.ts`) — single-value lookups
   ("PES TIN", a document's expiry).
-- **results** (`src/lib/search.ts` `unifiedSearch`) — the registry-driven deep
+- **results** (`src/lib/search/search.ts` `unifiedSearch`) — the registry-driven deep
   index (typo-tolerant, synonym-expanded, per-type cap) plus Postgres FTS over
   documents via the `search_documents` RPC. Since migration 0114 that FTS covers
   only the fields the owner typed (title, type, reference, issuer, category,

@@ -18,7 +18,7 @@ import {
   recordFactAction,
   verifyFactAction,
 } from "@/app/facts/actions";
-import type { FactEntityType } from "@/lib/facts-shared";
+import type { FactEntityType } from "@/lib/companies/facts-shared";
 
 /** Coerce a planner arg to a positive integer id, else null. */
 function intArg(v: unknown): number | null {

@@ -214,13 +214,13 @@ export const people = pgTable("people", {
   active: boolean("active").notNull().default(true),
   notes: text("notes"),
   snoozedUntil: timestamp("snoozed_until", { mode: "date", withTimezone: true }),
-  // Canonical HR types (see lib/person-types.ts): "local_staff" | "expat" |
+  // Canonical HR types (see lib/people/person-types.ts): "local_staff" | "expat" |
   // "outsider" | "candidate". Legacy internal→local_staff, external→outsider.
   personType: text("person_type").notNull().default("local_staff"),
   // Soft self-reference: e.g. an immigration agent → the expat they are helping, or vice-versa.
   relatedPersonId: integer("related_person_id").references((): AnyPgColumn => people.id, { onDelete: "set null" }),
   // Staff portal sign-in (scrypt hash, set by the owner from Settings).
-  // Null hash = no portal access. See src/lib/portal-auth.ts.
+  // Null hash = no portal access. See src/lib/portal/portal-auth.ts.
   portalPasswordHash: text("portal_password_hash"),
   portalEnabledAt: timestamp("portal_enabled_at", { mode: "date", withTimezone: true }),
   portalLastLoginAt: timestamp("portal_last_login_at", { mode: "date", withTimezone: true }),
@@ -231,19 +231,19 @@ export const people = pgTable("people", {
   // Optional display designation shown INSTEAD of the plain role label (portal
   // header + admin role badge) — e.g. a "manager" whose title reads "Group Admin
   // Manager". Cosmetic today; a hook for per-manager feature tiers later. NULL =
-  // fall back to the default role label. See src/lib/portal-labels.ts.
+  // fall back to the default role label. See src/lib/portal/portal-labels.ts.
   portalDesignation: text("portal_designation"),
   // Company-scoped director: when portalRole === "director" AND this is set, the
   // director's powers/board are limited to this ONE company (a "Company Director")
   // instead of the whole portfolio. NULL on a director = portfolio-wide (default).
-  // Ignored for non-director roles. See lib/portal-auth.ts (scope helpers) +
+  // Ignored for non-director roles. See lib/portal/portal-auth.ts (scope helpers) +
   // memory/company_scoped_roles.md.
   directorCompanyId: integer("director_company_id").references(() => companies.id),
   // Comma-separated former staff IDs, stamped when the person moves company,
-  // so old references (e.g. CZ-E04) stay traceable. See lib/staff-id.ts.
+  // so old references (e.g. CZ-E04) stay traceable. See lib/people/staff-id.ts.
   previousStaffIds: text("previous_staff_ids"),
   // Explicit staff-ID category override: "director"|"manager"|"admin_hr"|
-  // "employee". Null = derive the letter from the role text. See lib/staff-id.ts.
+  // "employee". Null = derive the letter from the role text. See lib/people/staff-id.ts.
   staffCategory: text("staff_category"),
   // Where the person works/is posted, and where they live — shared `sites` list.
   workSiteId: integer("work_site_id").references((): AnyPgColumn => sites.id),
@@ -270,7 +270,7 @@ export const personCompanies = pgTable(
 // one or more rows here is a "company director" limited to those companies; a
 // director with NO rows is portfolio-wide (sees everything). Replaces the single
 // people.director_company_id (which is kept in sync with the FIRST row for
-// back-compat). Mirrors person_companies. See lib/portal-auth.ts.
+// back-compat). Mirrors person_companies. See lib/portal/portal-auth.ts.
 export const directorCompanies = pgTable(
   "director_companies",
   {
@@ -615,7 +615,7 @@ export const tasks = pgTable("tasks", {
   // across everyone involved — this only governs who carries an OVERDUE penalty):
   //   "shared" — every assignee/owner/lead shares the overdue hit (default).
   //   "lead"   — only the accountable lead(s) carry it; helpers are spared.
-  // See src/lib/kpi.ts.
+  // See src/lib/tasks/kpi.ts.
   accountability: text("accountability").notNull().default("shared"),
   // Documented blocker ("Waiting on <person>"): while set, the task's overdue
   // penalty is fully SUSPENDED for everyone (the situation is on record for the
@@ -645,7 +645,7 @@ export const taskAssignees = pgTable(
     // additional accountable people are assignees with this role.
     role: text("role").notNull().default("working"),
     // Per-person "my part is done" stamp. When set, this person is spared the
-    // task's overdue penalty (they delivered their portion) — see src/lib/kpi.ts.
+    // task's overdue penalty (they delivered their portion) — see src/lib/tasks/kpi.ts.
     partDoneAt: timestamp("part_done_at", { mode: "date", withTimezone: true }),
   },
   (t) => [
@@ -656,7 +656,7 @@ export const taskAssignees = pgTable(
 
 // Web-push device subscriptions per recipient ("admin" or "person:<id>").
 // Powers push-to-phone for the notification bell (T4b). The owner's older
-// overdue-alert push still uses the settings blob in lib/push.ts.
+// overdue-alert push still uses the settings blob in lib/messaging/push.ts.
 export const pushSubscriptions = pgTable("push_subscriptions", {
   endpoint: text("endpoint").primaryKey(),
   recipient: text("recipient").notNull(),
@@ -960,7 +960,7 @@ export const undoTokens = pgTable("undo_tokens", {
 // Conversational memory for Ask ORI (and any future assistant surface). Stores
 // past Q&A ("qa"), learned working preferences ("preference"), and stable facts
 // ("fact") per recipient ("admin" = owner; a staff name on portal surfaces).
-// Recall is cheap + deterministic (recency + keyword overlap in src/lib/ai-memory.ts,
+// Recall is cheap + deterministic (recency + keyword overlap in src/lib/ai/ai-memory.ts,
 // no AI call). Read/written via supabase-js. See migration 0095.
 export const aiMemory = pgTable("ai_memory", {
   id: serial("id").primaryKey(),
@@ -973,11 +973,11 @@ export const aiMemory = pgTable("ai_memory", {
 }, (t) => [index("ai_memory_recipient_created_idx").on(t.recipient, t.createdAt)]);
 
 // AI usage ledger. One row per successful Groq call (written best-effort,
-// fire-and-forget from src/lib/ai-json.ts): model, source ("ask"/"extract"/
+// fire-and-forget from src/lib/ai/ai-json.ts): model, source ("ask"/"extract"/
 // "translate"/…), token counts and an estimated cost. est_cost defaults to 0
 // because the Groq free tier is free today; set a per-model rate + a monthly
 // spend cap (settings) to make the ledger drive a graceful AI-off when over
-// budget. Read/written via supabase-js. See migration 0096 + src/lib/ai-spend.ts.
+// budget. Read/written via supabase-js. See migration 0096 + src/lib/ai/ai-spend.ts.
 export const aiUsage = pgTable("ai_usage", {
   id: serial("id").primaryKey(),
   at: timestamp("at", { mode: "date", withTimezone: true }).notNull().defaultNow(),
@@ -1296,7 +1296,7 @@ export const eventDocuments = pgTable(
 // HRMS — Stock Control module. Mirrors the Excel stock workbook: an item
 // register plus two movement ledgers (purchases IN, issues OUT). Current stock
 // is never stored — it is DERIVED (opening + purchased − issued) at read time
-// in src/lib/stock-shared.ts, the same way document/task status is derived.
+// in src/lib/operations/stock-shared.ts, the same way document/task status is derived.
 export const stockItems = pgTable("stock_items", {
   id: serial("id").primaryKey(),
   // Human code, e.g. "ST-001". Movements link to this, so it is unique.
@@ -1998,7 +1998,7 @@ export const noteTags = pgTable("note_tags", {
  *
  * `target_id` is deliberately NOT a foreign key. It points at five different
  * tables depending on `target_type`, which no single FK can express; the reads in
- * `lib/note-links.ts` resolve the label per type and simply drop a row whose
+ * `lib/notes/note-links.ts` resolve the label per type and simply drop a row whose
  * target has gone. `target_code` is a display convenience (task codes) so a list
  * of links can be drawn without joining.
  *

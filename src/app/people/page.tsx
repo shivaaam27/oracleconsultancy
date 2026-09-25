@@ -1,16 +1,16 @@
-import { getAllPeopleWithWorkload } from "@/lib/people-queries";
-import { getCompanyLogoMap } from "@/lib/company-brand";
+import { getAllPeopleWithWorkload } from "@/lib/people/people-queries";
+import { getCompanyLogoMap } from "@/lib/companies/company-brand";
 import { sb } from "@/db/supabase";
 import { StudioPeople } from "@/components/studio/people/studio-people";
 import { redirect } from "next/navigation";
-import { getViewer } from "@/lib/viewer";
-import { viewerPeopleIds } from "@/lib/viewer-scope";
+import { getViewer } from "@/lib/auth/viewer";
+import { viewerPeopleIds } from "@/lib/auth/viewer-scope";
 
 export const dynamic = "force-dynamic";
 
 export default async function PeoplePage() {
   // The owner, or a director — who sees the people of their companies,
-  // read-only, without anyone's private details (lib/viewer.ts).
+  // read-only, without anyone's private details (lib/auth/viewer.ts).
   const viewer = await getViewer();
   if (!viewer) redirect("/portal");
   const director = viewer.kind === "director";

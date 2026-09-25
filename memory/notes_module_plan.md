@@ -54,7 +54,7 @@ destroyed this way.
 | To-dos, reminders, push, digest | `todos` (`due_at` / `remind_at` / `pushed`, links to company·person·task) + the reminder cron | **Reuse.** A note's checklist item that matters becomes a `todos` row. Do NOT build a second reminder engine. |
 | Search / semantic / trace / palette | `embeddings` + `hybrid_search` RPC, driven by an `EntityDef` in `entity-registry.ts` | **Reuse** — but see the correction in §12: it is **three** small edits for a NEW type, not one, and two of them the compiler demands. No DB migration though. |
 | List + record screens | `RecordList` + `ENTITY_VIEWS` in `entity-view.ts` | **Reuse.** One `ENTITY_VIEWS` entry buys the list, filter rail, sorting, column chooser, bulk edit. |
-| Saved views ("smart folders") | `src/lib/saved-views.ts` + `use-url-filters.ts` + `/api/prefs/list-views` | **Reuse.** A smart folder IS a saved view over note filters. |
+| Saved views ("smart folders") | `src/lib/nav/saved-views.ts` + `use-url-filters.ts` + `/api/prefs/list-views` | **Reuse.** A smart folder IS a saved view over note filters. |
 | AI | Gemini ladders in `ai-models.ts`, spend ledger `ai-spend.ts`, cap + guardrails | **Reuse.** No new provider, no new key. |
 | Attachments | `documents` + `document_links` (task attachments already land there) | **Reuse** the same shape for note attachments. |
 | Audit | `audit_log`, `system_events`, undo tokens | Reuse for note create/archive; the body itself gets revisions (Phase 6). |
@@ -143,7 +143,7 @@ the right trade for keeping ONE way to link.
 
 The editor's typography may break the 13px body rule *inside the canvas* — a
 writing surface wants ~15px and a ~68ch measure. A deliberate exception, not drift.
-Caret menus position through `lib/suggestion-position.ts` (§10); the old
+Caret menus position through `lib/nav/suggestion-position.ts` (§10); the old
 `layoutRect()`-for-portal-zoom rule is retired (the portal zoom is gone and
 `rootZoom()` returns 1).
 
@@ -151,7 +151,7 @@ Caret menus position through `lib/suggestion-position.ts` (§10); the old
 
 ## 5. Trigger characters
 
-`/` opens the command menu (`ITEMS` in `components/note-slash-menu.tsx`), `@` a
+`/` opens the command menu (`ITEMS` in `components/notes/note-slash-menu.tsx`), `@` a
 picker over tasks/people/companies/documents, `[[` one over notes (the Obsidian
 idiom). All three are Tiptap `Suggestion`s — see the `pluginKey` trap in §10.
 
@@ -213,15 +213,15 @@ spike route is deleted.
 - ⚠️ `npm run build` overwrites `.next`, and a dev server started afterwards served a
   **stale 404** for a new route. Stop the server, delete `.next`, start again.
 
-**Phase 1 — tables + shelf + editor.** Migration **0118**. Files: `lib/notes.ts`
-(server reads) · **`lib/notes-shared.ts` (client-safe types + helpers)** ·
-`app/notes/actions.ts` · `components/note-editor.tsx` + `note-editor-mount.tsx` ·
-`components/note-record-bar.tsx`. Autosave persists both columns together, and the
+**Phase 1 — tables + shelf + editor.** Migration **0118**. Files: `lib/notes/notes.ts`
+(server reads) · **`lib/notes/notes-shared.ts` (client-safe types + helpers)** ·
+`app/notes/actions.ts` · `components/notes/note-editor.tsx` + `note-editor-mount.tsx` ·
+`components/notes/note-record-bar.tsx`. Autosave persists both columns together, and the
 concurrency guard was proven by moving `updated_at` in the database mid-typing: the
 badge said *"Changed elsewhere"*, the typing stayed on screen, the row was not
 overwritten.
 1. ⚠️ **The client/server split, exactly as CLAUDE.md warns.** A client component
-   imported a helper from `lib/notes.ts`, which imports `sb` — so `@/db/supabase`
+   imported a helper from `lib/notes/notes.ts`, which imports `sb` — so `@/db/supabase`
    went into the browser bundle and every page died with *"SUPABASE_SERVICE_ROLE_KEY
    is not set"*. FORWARD RULE: anything a client component needs from Notes goes in
    the `-shared` file.
@@ -268,13 +268,13 @@ Check computed styles on a new surface rather than assuming your classes won.
 
 **Phase 2 — `/` menu · tables · `#tags` · daily notes.** Migration **0119**
 (`note_tags`).
-- **The `/` menu** (`components/note-slash-menu.tsx`) — Tiptap `Suggestion` + a
+- **The `/` menu** (`components/notes/note-slash-menu.tsx`) — Tiptap `Suggestion` + a
   `ReactRenderer`, grouped commands fuzzy-matched on title and keywords. **To add a
   command, add one entry to `ITEMS`.** ⚠️ `startOfLine: true` — a `/` mid-sentence
   stays a slash.
 - **Tables** (`@tiptap/extension-table`, MIT) with a context toolbar that appears
   only while the caret is in a table.
-- **`#tags`** (`lib/note-tags.ts`, client-safe, tested): derived from the text on
+- **`#tags`** (`lib/notes/note-tags.ts`, client-safe, tested): derived from the text on
   every save in the SAME action as the body, never by a job. Lower-cased,
   de-duplicated, hex colours ignored. `?tag=` filters the shelf.
 - **Daily notes** — "Today" opens or creates today's page. "Today" is the date in
@@ -295,11 +295,11 @@ about, and the two would drift the moment either was edited. The cost is stated
 plainly: to link a note from a task you must open the note and type `@`. That is the
 right trade, and it is what keeps the Backlinks panel trustworthy.
 
-Files: **`lib/note-links-shared.ts`** (client-safe: types, `linkHref`, `mentionText`,
-and `extractMentions` — **16 unit tests**) · `lib/note-links.ts` (server: `syncNoteLinks`,
+Files: **`lib/notes/note-links-shared.ts`** (client-safe: types, `linkHref`, `mentionText`,
+and `extractMentions` — **16 unit tests**) · `lib/notes/note-links.ts` (server: `syncNoteLinks`,
 `resolveLinks`, `outgoingLinks`, `backlinks`, `notesLinkedTo`) ·
-`components/note-mention.tsx` (the `Mention` node + both pickers) ·
-`components/note-links-panel.tsx` (the rail) · `components/linked-notes.tsx` (the
+`components/notes/note-mention.tsx` (the `Mention` node + both pickers) ·
+`components/notes/note-links-panel.tsx` (the rail) · `components/notes/linked-notes.tsx` (the
 record tab, in a server and a client form) · `api/note-mentions` (picker search) ·
 `api/notes/linked` (the task record's tab).
 
@@ -349,7 +349,7 @@ record tab, in a server and a client form) · `api/note-mentions` (picker search
 (189px below the fold, measured). Each menu had its own copy of fragile placement
 maths: it measured a height that was not there yet (falling back to a hard-coded
 guess), nothing clamped the result, and it decided once. Fixed in
-**`lib/suggestion-position.ts`**, shared by all three menus (`/`, `@`, `[[`): the
+**`lib/nav/suggestion-position.ts`**, shared by all three menus (`/`, `@`, `[[`): the
 menu is **capped to the room on the side it opens into**, re-places on update,
 scroll (capture phase) and resize, and places again on the next animation frame.
 **FORWARD RULE: any new caret-anchored popover uses `createMenuPositioner()` — do
@@ -359,7 +359,7 @@ not hand-roll the maths again.**
 Phase 1.5 removed the focus ring from the writing surface, leaving a 1px hairline as
 the only "you are here". CSS can recolour a caret but **cannot thicken one**, and
 drawing our own breaks IME. So: the caret is the **accent blue**, and a soft band
-sits behind the block the caret is in (`components/note-active-line.tsx`, a
+sits behind the block the caret is in (`components/notes/note-active-line.tsx`, a
 ProseMirror decoration), only while focused, never on a selection, and skipping
 tables, code blocks, rules and callouts.
 ⚠️ Gated on **`.ProseMirror-focused`, not `:focus`** — `:focus` stops matching when
@@ -381,7 +381,7 @@ card for nothing. No second engine.
 - **A tick-box line promotes to a real to-do.** A context bar appears only while the
   caret is in a checklist line (the same discipline the table bar follows) offering
   *Make a to-do* and *Remind me tomorrow* (09:00 — when the day starts here and when
-  the digest goes out). `NoteTaskItem` (`components/note-task-item.tsx`) extends
+  the digest goes out). `NoteTaskItem` (`components/notes/note-task-item.tsx`) extends
   TaskItem with ONE attribute, `todoId`, so a line cannot be promoted twice and shows
   a small accent dot in the margin once it is.
   ⚠️ **That id is a POINTER, not the truth.** The owner can delete the to-do from the
@@ -397,14 +397,14 @@ card for nothing. No second engine.
 - **The morning digest needed no change at all** — `ownerReminderTodosDueBy` filters
   `kind IS NULL`, and note to-dos are `kind` NULL by design. Verified, not assumed.
 
-Files: `lib/note-todos.ts` (server) · **`lib/note-todos-shared.ts`** (client-safe types
-+ `whenLabel`/`isOverdue`) · `components/note-todos-panel.tsx` ·
-`components/note-task-item.tsx` · the actions in `app/notes/actions.ts`.
+Files: `lib/notes/note-todos.ts` (server) · **`lib/notes/note-todos-shared.ts`** (client-safe types
++ `whenLabel`/`isOverdue`) · `components/notes/note-todos-panel.tsx` ·
+`components/notes/note-task-item.tsx` · the actions in `app/notes/actions.ts`.
 
 ### Also delivered, 17 Aug 2026 — everything still owed from Phases 2 and 3
 
-**Attachments** (`app/notes/attachment-actions.ts`, `lib/note-upload.ts`,
-`components/note-image.tsx`, `api/notes/file/[id]`). Toolbar button, **drag-and-drop
+**Attachments** (`app/notes/attachment-actions.ts`, `lib/notes/note-upload.ts`,
+`components/notes/note-image.tsx`, `api/notes/file/[id]`). Toolbar button, **drag-and-drop
 and paste-a-screenshot**, all through one path.
 - ⚠️ **The bytes never touch the server.** The browser uploads straight to storage on
   a one-shot signed URL (`createUploadSlotAction`, shared with Documents) and the
@@ -423,7 +423,7 @@ and paste-a-screenshot**, all through one path.
   picture does not 404 before the first save); the derive still owns the steady state,
   **verified** by watching an orphaned link disappear on the next save.
 
-**Callouts** (`components/note-callout.tsx`) — a custom node, no dependency. Three
+**Callouts** (`components/notes/note-callout.tsx`) — a custom node, no dependency. Three
 tones (Note / Careful / Good) on a `data-tone` attribute so all the colour lives in
 CSS; `/callout` inserts one and a context bar switches tone or removes the box.
 ⚠️ Found by measurement: a callout is a top-level block, so the **active-line band
@@ -435,7 +435,7 @@ The handle appears only beside the block under the mouse. ⚠️ **Verified that
 mounts and positions on hover; the drag gesture itself was NOT simulated** (HTML5 drag
 needs real OS input) — it is the library's own behaviour.
 
-**Unlinked mentions** (`lib/note-unlinked-shared.ts`, **15 tests**) — the piece
+**Unlinked mentions** (`lib/notes/note-unlinked-shared.ts`, **15 tests**) — the piece
 deferred from Phase 3. Names written without an `@` are offered in a quiet strip at the
 foot of the sheet, each dismissible.
 - ⚠️ **Accepting REWRITES THE TEXT into a real `@` mention**, it does not quietly
@@ -449,8 +449,8 @@ foot of the sheet, each dismissible.
 
 ### Phase 5 — ✅ DONE, 17 Aug 2026. AI, every action a proposal.
 
-`lib/note-ai.ts` (the model calls) · `app/notes/ai-actions.ts` (the server actions) ·
-`components/note-ai-panel.tsx` (the strip; in Studio its card is portalled into the
+`lib/notes/note-ai.ts` (the model calls) · `app/notes/ai-actions.ts` (the server actions) ·
+`components/notes/note-ai-panel.tsx` (the strip; in Studio its card is portalled into the
 note rail) · "Ask your notes" now lives inside `studio-notes-shelf.tsx`.
 
 **Tidy the writing · Summarise · Find the jobs · Name it**, plus **Ask your notes**
@@ -476,7 +476,7 @@ refusal, and the old version is kept either way.
   a second after the last keystroke and embedding on that cadence is money on fire.
   Archiving re-indexes immediately, because that changes lifecycle.
 
-**Versions** (`lib/note-versions.ts`, `components/note-versions-panel.tsx`) — taken at
+**Versions** (`lib/notes/note-versions.ts`, `components/notes/note-versions-panel.tsx`) — taken at
 the moments that matter (before an AI rewrite, before a template, or "Save a
 version"), **never per autosave**: a row a second is a log nobody can read.
 ⚠️ Restoring **snapshots the current text first**, so a restore is itself undoable.
@@ -559,7 +559,7 @@ one flag (`cover`). Desktop is untouched.
   indicator.
 - ⚠️ **Both loading placeholders match the sheet at both sizes, in CSS** — or a
   phone flashes a bordered card before the full-screen sheet arrives.
-- **`src/lib/use-media-query.ts`** is the shared `matchMedia` hook. ⚠️ Its initial
+- **`src/lib/hooks/use-media-query.ts`** is the shared `matchMedia` hook. ⚠️ Its initial
   value is read **synchronously** where there is a window — a hook that starts
   `false` renders one frame of the wrong layout. ⚠️ **Prefer a Tailwind variant**:
   the hook is for behaviour (a scroll lock, an effect that must not run), never for
@@ -678,7 +678,7 @@ existing Tidy / Find the jobs / Summarise.
 - **Autosave vs. two tabs** — the `updated_at` precondition; on failure keep the
   local version and tell the owner. Never last-write-wins.
 - **`body_text` drift** — derive it in the same write path, never in a cron.
-- **Editor popovers** — `createMenuPositioner()` in `lib/suggestion-position.ts`, always.
+- **Editor popovers** — `createMenuPositioner()` in `lib/nav/suggestion-position.ts`, always.
 - **Bundle size** — the editor stays a lazily-loaded client chunk.
 - **Embedding cost** — re-index on idle or close, never on save.
 - **The AI-that-tidies temptation** — suggest, never act (§6).
@@ -694,7 +694,7 @@ existing Tidy / Find the jobs / Summarise.
 4. **Editor weight** — 121.6 kB gzip, one lazy chunk. Tiptap stays.
 
 ⚠️ Making a NEW type searchable is more than one `EntityDef`: `SourceType` in
-`src/lib/embeddings.ts`, `ENTITY_LABELS_ORDER` in `entity-meta.ts` (an exhaustive
+`src/lib/search/embeddings.ts`, `ENTITY_LABELS_ORDER` in `entity-meta.ts` (an exhaustive
 `Record`, so the compiler insists) and **`SearchResultType` in `search.ts`** (a
 separate hand-maintained union) all need the type. `embeddings.source_type` is plain
 `text` with no CHECK constraint, so no migration.

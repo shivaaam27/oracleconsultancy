@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { getPortalPerson, seesAllCompanies } from "@/lib/portal-auth";
-import { unifiedSearch } from "@/lib/search";
-import { runPortalSearch } from "@/lib/portal-search";
+import { getPortalPerson, seesAllCompanies } from "@/lib/portal/portal-auth";
+import { unifiedSearch } from "@/lib/search/search";
+import { runPortalSearch } from "@/lib/portal/portal-search";
 import { scopePortalSearchResults } from "@/lib/ori/portal-scope";
 
 /* ------------------------------------------------------------------ *

@@ -24,7 +24,7 @@ the key handling and the two bugs recorded below all still stand.
 | Identity | `src/lib/mcp/auth.ts` — bearer key → caller |
 | Tools | `src/lib/mcp/registry.ts` — 9 read tools, one entry each |
 | Key store | migration **0115** → `mcp_keys` (+ `mcpKeys` in `schema.ts`) |
-| Mint/revoke | `src/app/settings/mcp-actions.ts` + `src/components/mcp-key-manager.tsx` |
+| Mint/revoke | `src/app/settings/mcp-actions.ts` + `src/components/settings/mcp-key-manager.tsx` |
 | Settings card | `id="mcp-keys"`, Security & Access group |
 | Gate fix | `src/proxy.ts` matcher now excludes `api/mcp` |
 
@@ -35,7 +35,7 @@ package re-exports it aliased. `withMcpAuth` is exported under its own name and
 gives the 401 + `WWW-Authenticate` challenge for free, which is the same contract
 OAuth needs in [[mcp_stage3_sign_in]] — so that shape won't change.
 
-**`portalPersonById()` was added to `src/lib/portal-auth.ts`**, alongside a new
+**`portalPersonById()` was added to `src/lib/portal/portal-auth.ts`**, alongside a new
 private `mapPortalPerson()` that both it and the cookie path now share. That is
 what makes an MCP caller governed by the identical role/scope/capability
 resolution as a browser session — no second permission path. `getPortalPerson()`
@@ -169,15 +169,15 @@ fetch data.
 
 | Tool | Wraps | Lives in |
 |---|---|---|
-| `search_cos` | the ORI deep search | `src/lib/search.ts` |
-| `list_tasks` | `getAllTasks` (+ company/status/overdue filters) | `src/lib/queries.ts` |
-| `company_kpis` | `computeCompanyKpis` / `computeGlobalKpis` | `src/lib/queries.ts` |
-| `list_people` | `getAllPeopleWithWorkload` | `src/lib/people-queries.ts` |
-| `get_person` | `getPersonDetail` | `src/lib/people-queries.ts` |
-| `attendance_today` | `teamAttendanceToday` | `src/lib/attendance.ts` |
-| `list_events` | `listCalendarEvents` | `src/lib/calendar.ts` |
-| `list_documents` | `listDocuments` (incl. expiring soon) | `src/lib/documents.ts` |
-| `director_brief` | `getBrief` | `src/lib/director-brief.ts` |
+| `search_cos` | the ORI deep search | `src/lib/search/search.ts` |
+| `list_tasks` | `getAllTasks` (+ company/status/overdue filters) | `src/lib/tasks/queries.ts` |
+| `company_kpis` | `computeCompanyKpis` / `computeGlobalKpis` | `src/lib/tasks/queries.ts` |
+| `list_people` | `getAllPeopleWithWorkload` | `src/lib/people/people-queries.ts` |
+| `get_person` | `getPersonDetail` | `src/lib/people/people-queries.ts` |
+| `attendance_today` | `teamAttendanceToday` | `src/lib/people/attendance.ts` |
+| `list_events` | `listCalendarEvents` | `src/lib/calendar/calendar.ts` |
+| `list_documents` | `listDocuments` (incl. expiring soon) | `src/lib/documents/documents.ts` |
+| `director_brief` | `getBrief` | `src/lib/reports/director-brief.ts` |
 
 Nine tools. Enough to be genuinely useful, small enough to get right.
 

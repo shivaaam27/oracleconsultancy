@@ -1,4 +1,4 @@
-import { GROQ_WHISPER } from "@/lib/ai-models";
+import { GROQ_WHISPER } from "@/lib/ai/ai-models";
 import { NextRequest, NextResponse } from "next/server";
 import { getAppSettings, getGroqOnlyKey } from "@/lib/settings";
 

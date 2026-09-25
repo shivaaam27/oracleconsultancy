@@ -42,15 +42,15 @@ metadata:
 
 - `unpdf` (PDF text + page rasterising) with `@napi-rs/canvas`; `mammoth` (Word),
   `heic-convert`, `jszip`, `xlsx` (SheetJS tarball, for the one-off import).
-- `@react-pdf/renderer` for the Director Brief PDF (`src/lib/brief-pdf.tsx`).
+- `@react-pdf/renderer` for the Director Brief PDF (`src/lib/reports/brief-pdf.tsx`).
 - `unpdf`, `@napi-rs/canvas`, `@react-pdf/renderer` are in
   `serverExternalPackages`; `serverActions.bodySizeLimit` is `25mb`.
 
 ## AI
 
 - **Gemini only** for text and vision: `gemini-3.1-flash-lite` →
-  `gemini-3.5-flash-lite`, ladders in `src/lib/ai-models.ts`,
-  `getActiveProvider()` hard-coded `"gemini"`, harness `src/lib/ai-json.ts`.
+  `gemini-3.5-flash-lite`, ladders in `src/lib/ai/ai-models.ts`,
+  `getActiveProvider()` hard-coded `"gemini"`, harness `src/lib/ai/ai-json.ts`.
 - **Groq only for voice**: Whisper `whisper-large-v3-turbo` at `/api/transcribe`.
 - Gate: `getAiKey()` (master switch + key + optional spend cap). Full reference
   in `ai_integration.md`.
@@ -62,7 +62,7 @@ metadata:
 - MCP: `mcp-handler` + `@modelcontextprotocol/server` at `/api/mcp`.
 - Google Calendar/Meet: `googleapis` (OAuth).
 - Email: `nodemailer` over Gmail SMTP, or Resend.
-- WhatsApp: Twilio REST (`src/lib/whatsapp.ts`).
+- WhatsApp: Twilio REST (`src/lib/messaging/whatsapp.ts`).
 - Push: `web-push` (VAPID).
 - Errors: `@sentry/nextjs` (errors only, inert without a DSN).
 - Tests: Vitest.

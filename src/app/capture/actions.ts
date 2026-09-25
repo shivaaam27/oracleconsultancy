@@ -1,12 +1,12 @@
 "use server";
 
-import { guardOwner, guardViewer } from "@/lib/viewer";
-import { needCap, needCompany, stampOf, assigneesFor } from "@/lib/viewer-scope";
+import { guardOwner, guardViewer } from "@/lib/auth/viewer";
+import { needCap, needCompany, stampOf, assigneesFor } from "@/lib/auth/viewer-scope";
 import { revalidatePath, updateTag } from "next/cache";
 import { sb } from "@/db/supabase";
-import { parseCapture } from "@/lib/smart-parse";
-import { createTaskCore } from "@/lib/task-write";
-import { invalidateAllTasks } from "@/lib/queries";
+import { parseCapture } from "@/lib/tasks/smart-parse";
+import { createTaskCore } from "@/lib/tasks/task-write";
+import { invalidateAllTasks } from "@/lib/tasks/queries";
 
 /** One parsed line of a pasted list — what the preview table edits. */
 export type ParsedLine = {

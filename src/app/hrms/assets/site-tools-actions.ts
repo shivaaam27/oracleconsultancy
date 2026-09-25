@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { guardOwner } from "@/lib/viewer";
+import { guardOwner } from "@/lib/auth/viewer";
 import {
   createSiteTool,
   createSiteToolsBulk,
@@ -13,8 +13,8 @@ import {
   listSiteToolMovements,
   archiveSiteTool,
   type SiteToolInput,
-} from "@/lib/site-tools";
-import type { ToolCondition, SiteToolMovementRow } from "@/lib/site-tools-shared";
+} from "@/lib/operations/site-tools";
+import type { ToolCondition, SiteToolMovementRow } from "@/lib/operations/site-tools-shared";
 
 type Result = { ok: true; id?: number } | { ok: false; error: string };
 

@@ -7,7 +7,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Check } from "lucide-react";
 import { createCompany } from "@/app/companies/reference-actions";
-import { useToast } from "@/components/toast";
+import { useToast } from "@/components/shell/toast";
 import { cn } from "@/lib/cn";
 
 const FIELD = { color: "var(--sh-fg)", background: "var(--sh-field)", border: "1px solid var(--sh-field-line)", boxShadow: "none" } as const;

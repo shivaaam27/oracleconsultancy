@@ -1,13 +1,13 @@
-import { getAllTasks, getArchivedTasks, getTaskSources, getRecentActivity } from "@/lib/queries";
+import { getAllTasks, getArchivedTasks, getTaskSources, getRecentActivity } from "@/lib/tasks/queries";
 import { sb } from "@/db/supabase";
-import { getSavedViewsFor } from "@/lib/saved-views";
-import { getViewer } from "@/lib/viewer";
-import { viewerPeopleIds } from "@/lib/viewer-scope";
-import { getCompanyLogoMap } from "@/lib/company-brand";
+import { getSavedViewsFor } from "@/lib/nav/saved-views";
+import { getViewer } from "@/lib/auth/viewer";
+import { viewerPeopleIds } from "@/lib/auth/viewer-scope";
+import { getCompanyLogoMap } from "@/lib/companies/company-brand";
 import { TaskActions } from "./task-actions";
-import { SavedViewsBar } from "@/components/saved-views-bar";
-import { ViewPublisher } from "@/components/view-publisher";
-import { type FilterChip, type FilterOption, type IdentityStrip } from "@/components/task-filter-bar";
+import { SavedViewsBar } from "@/components/kit/saved-views-bar";
+import { ViewPublisher } from "@/components/shell/view-publisher";
+import { type FilterChip, type FilterOption, type IdentityStrip } from "@/components/tasks/task-filter-bar";
 import { parseViewMode } from "@/app/task/_views/view-switcher";
 import { BoardView } from "@/app/task/_views/board-view";
 import { TableView } from "@/app/task/_views/table-view";
@@ -15,7 +15,7 @@ import { CardsView, FocusQueue, type CompanyMeta } from "@/app/task/_views/cards
 import { CalendarView } from "@/app/task/_views/calendar-view";
 import { TimelineView } from "@/app/task/_views/timeline-view";
 import { SelectionProvider, BulkBar } from "@/app/task/_views/selection";
-import type { TaskRow } from "@/lib/queries";
+import type { TaskRow } from "@/lib/tasks/queries";
 import { getAppSettings } from "@/lib/settings";
 import { StudioTasks, StudioEmpty, StudioLaneNote } from "@/components/studio/tasks/studio-tasks";
 import type { InsightsData } from "@/components/studio/tasks/insights-card";
@@ -138,7 +138,7 @@ export async function TasksSection({ sp }: { sp: Sp }) {
   // WHO IS LOOKING (portal unification, Sept 2026). The owner sees every
   // company; a director sees the same page over THEIR companies only (a
   // portfolio director = all), with their own read marks, and none of the
-  // owner's personal things (starred tasks, saved views). See lib/viewer.ts.
+  // owner's personal things (starred tasks, saved views). See lib/auth/viewer.ts.
   const viewer = await getViewer();
   const director = viewer?.kind === "director" ? viewer : null;
   const scope = viewer?.scope ?? null;

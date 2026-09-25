@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { findSimilarTasks } from "@/lib/ai-context";
+import { findSimilarTasks } from "@/lib/ai/ai-context";
 
 export async function POST(req: NextRequest) {
   try {

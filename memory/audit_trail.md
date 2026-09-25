@@ -17,7 +17,7 @@ company Timeline tab).
 
 ## What writes it
 
-All task writes go through `src/lib/task-write.ts`, so the web form, the portal,
+All task writes go through `src/lib/tasks/task-write.ts`, so the web form, the portal,
 MCP and ORI log the same way.
 
 - `createTaskCore` — one `CREATE` row.
@@ -48,12 +48,12 @@ gone; `activity.ts` and `/api/trace` still label it "Meeting").
   the Sept 2026 clean-up; it is in git history if ever needed).
 
 - **Task record** (`/task/[code]`, `TaskRecordPage` in `task-drawer.tsx`) — the
-  task's own updates and audit rows, merged by `src/lib/timeline.ts`.
-- **Home "Latest activity"** — `listRecentActivity()` in `src/lib/activity.ts`:
+  task's own updates and audit rows, merged by `src/lib/tasks/timeline.ts`.
+- **Home "Latest activity"** — `listRecentActivity()` in `src/lib/tasks/activity.ts`:
   the newest `task_updates` across every company, author resolved from
   `created_by` (a director's list is filtered to their tasks).
 - **Tasks → Timeline view** (`?tab=tasks&view=timeline`) —
-  `getRecentActivity()` in `src/lib/queries.ts`: recent updates plus audit rows,
+  `getRecentActivity()` in `src/lib/tasks/queries.ts`: recent updates plus audit rows,
   rendered with `TimelineEntry`.
 - **Company → Timeline tab** — `companies/[id]/_tabs/timeline-tab.tsx`.
 

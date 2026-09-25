@@ -14,10 +14,10 @@ import { useEffect, useRef, useState, useTransition, type ReactNode } from "reac
 import { useRouter } from "next/navigation";
 import { Check, ChevronLeft, Loader2, Paperclip, Repeat, UserPlus, X } from "lucide-react";
 import { createTaskStudio, adminAddUpdate, adminRemindTask, type StudioNewTask } from "@/app/task/actions";
-import { useToast } from "@/components/toast";
-import { callUndo } from "@/components/undo-banner";
-import { DatePopover } from "@/components/date-popover";
-import { Combobox } from "@/components/combobox";
+import { useToast } from "@/components/shell/toast";
+import { callUndo } from "@/components/shell/undo-banner";
+import { DatePopover } from "@/components/forms/date-popover";
+import { Combobox } from "@/components/forms/combobox";
 import { StudioPeoplePick } from "@/components/studio/people-pick";
 import { DraftSubtasks } from "@/components/studio/subtasks";
 import { addSubtasks } from "@/app/task/subtask-actions";
@@ -26,7 +26,7 @@ import { useFitFrame } from "@/components/studio/use-fit-frame";
 import { StudioChoiceMenu } from "./cells";
 import { STATUS_DOT } from "./task-words";
 import { RISKS, CATEGORIES } from "@/lib/constants";
-import { withReturn } from "@/lib/return-to";
+import { withReturn } from "@/lib/nav/return-to";
 import { cn } from "@/lib/cn";
 
 /* ------------------------------------------------------------ the draft -- */

@@ -5,11 +5,11 @@
  * portal level, no private or HR details — none of it is sent.
  */
 import { notFound } from "next/navigation";
-import type { PortalPerson } from "@/lib/portal-auth";
-import { getPersonDetail } from "@/lib/people-queries";
-import { getAllTasks } from "@/lib/queries";
-import { safeReturn } from "@/lib/return-to";
-import { staffColleagueIds } from "@/lib/staff-colleagues";
+import type { PortalPerson } from "@/lib/portal/portal-auth";
+import { getPersonDetail } from "@/lib/people/people-queries";
+import { getAllTasks } from "@/lib/tasks/queries";
+import { safeReturn } from "@/lib/nav/return-to";
+import { staffColleagueIds } from "@/lib/portal/staff-colleagues";
 import { StudioPerson } from "@/components/studio/people/studio-person";
 import { StudioPathsProvider } from "@/components/studio/studio-paths";
 

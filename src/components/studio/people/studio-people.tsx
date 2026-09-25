@@ -21,16 +21,16 @@ import { Plus, Search, Maximize2, X, Mail, MessageCircle, Phone, CheckSquare, Ch
 import { StudioScope, StudioHeader, StudioCardRow, StudioCard, CardHead, BigNumber, Ring, stBtn, stFloatBar } from "@/components/studio/kit";
 import { StudioMenu } from "@/components/studio/tasks/controls";
 import { StudioChoiceMenu } from "@/components/studio/tasks/cells";
-import { useToast } from "@/components/toast";
-import { useUrlFilters } from "@/lib/use-url-filters";
-import { withReturn, markPush } from "@/lib/return-to";
-import type { PersonRow } from "@/lib/people-queries";
-import { PERSON_TYPES, PERSON_TYPE_LABELS } from "@/lib/person-types";
-import { PORTAL_ROLES, ROLE_LABEL, asPortalRole } from "@/lib/portal-permissions";
+import { useToast } from "@/components/shell/toast";
+import { useUrlFilters } from "@/lib/hooks/use-url-filters";
+import { withReturn, markPush } from "@/lib/nav/return-to";
+import type { PersonRow } from "@/lib/people/people-queries";
+import { PERSON_TYPES, PERSON_TYPE_LABELS } from "@/lib/people/person-types";
+import { PORTAL_ROLES, ROLE_LABEL, asPortalRole } from "@/lib/portal/portal-permissions";
 import { snoozePerson, setPeopleActive, bulkSetPeopleField, bulkSetPortalRole } from "@/app/people/actions";
 import { cn } from "@/lib/cn";
 import { useRemindPerson } from "./remind";
-import { useCreateParam } from "@/lib/use-create-param";
+import { useCreateParam } from "@/lib/hooks/use-create-param";
 import { useFitFrame } from "@/components/studio/use-fit-frame";
 import { useStudioPaths } from "@/components/studio/studio-paths";
 

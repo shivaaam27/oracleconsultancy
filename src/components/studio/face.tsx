@@ -6,7 +6,7 @@
  * and even in task rows they appear in that small circle and go away just
  * revealing the initials".
  *
- *  - Colour = role, expression = how their work looks now (lib/face-mood.ts,
+ *  - Colour = role, expression = how their work looks now (lib/people/face-mood.ts,
  *    worked out by /api/faces — read ONCE per page load in the background, so
  *    nothing waits on it; until it lands a face is calm and neutral).
  *  - `peek` (task rows, small circles): a LOOP — the face for a second, the
@@ -28,7 +28,7 @@ import { useGaze } from "@blobatar/react/gaze";
 import "blobatar/motion.css";
 import "blobatar/gaze.css";
 import { idle, happy, sad, surprised, sleepy, unsure, love, sick, thinking } from "blobatar/expression";
-import { faceKey, MOOD_WORDS, ROLE_HUE, type FaceMood, type FaceRole } from "@/lib/face-mood";
+import { faceKey, MOOD_WORDS, ROLE_HUE, type FaceMood, type FaceRole } from "@/lib/people/face-mood";
 import { avatarTint, initials } from "@/components/studio/tasks/task-words";
 import { cn } from "@/lib/cn";
 

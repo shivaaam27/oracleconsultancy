@@ -46,7 +46,7 @@ page, dialog, pop-up or panel is built in Studio without being asked.**
 |---|---|
 | Kit (presentational only) | `src/components/studio/kit.tsx` |
 | Frame, footer, Go-to panel | `studio/shell.tsx`, `shell-server.tsx`, `staff-shell-server.tsx` |
-| Footer page order | `src/lib/studio-nav.ts` (derived from `nav.ts`), `lib/nav-order.ts` |
+| Footer page order | `src/lib/nav/studio-nav.ts` (derived from `nav.ts`), `lib/nav/nav-order.ts` |
 | "+ New" card | `studio/quick-add.tsx` (tabs = `CREATE_ORDER` in `entity-view.ts`) |
 | Search / Ask (⌘K) | `studio/search.tsx`, rendered by `CommandPaletteProvider` |
 | Notifications | `studio/notifications-panel.tsx` (via `NotificationBell variant="studio"`) |
@@ -179,7 +179,7 @@ to restyle it** — fix the token.
   through the PATCH core with an Undo toast. Tabs switch with
   `history.replaceState` (a router navigation re-reads the whole record).
   Secondary actions go behind ⋯. A record is a page with its own URL; the back
-  link carries `?back=` (`BackLink`, `ReturnLink`, `lib/return-to.ts`).
+  link carries `?back=` (`BackLink`, `ReturnLink`, `lib/nav/return-to.ts`).
 - **An older Desk panel inside a Studio card**: wrap it in `.st-desk` (greys,
   hairlines, sentence case, ink buttons); `.st-panel` also dissolves its outer
   box. Reuse this before rewriting a panel.
@@ -255,7 +255,7 @@ director, manager and staff alike.
 - **Escape closes one layer at a time.** A menu claims the key
   (`preventDefault`); sheets listen on `window`, so a menu inside always gets
   first refusal. Check `!e.defaultPrevented` before closing.
-- Anchored menus portal through `useAnchoredMenu()` (`lib/use-anchored-menu.ts`)
+- Anchored menus portal through `useAnchoredMenu()` (`lib/hooks/use-anchored-menu.ts`)
   with `MENU_Z`, flip up when there is no room, and test outside clicks with
   `isInside()`. Do not hand-roll another.
 - A tooltip or pop-over on a dark background that is NOT `.studio` must set its
@@ -315,7 +315,7 @@ Phone = below `md` (768px; mockup iPhone 393×852), tablet = `md`, desk = `lg`
 ## 11. Faces
 
 Every person circle is **`PersonFace`** (`studio/face.tsx`, Blobatar): colour by
-role, expression by their work (`lib/face-mood.ts`, from `/api/faces`, refreshed
+role, expression by their work (`lib/people/face-mood.ts`, from `/api/faces`, refreshed
 every 5 min). Faces ≥36px follow the pointer; task-row faces "peek" (face, then
 initials, in step). Staff see calm faces outside their own companies. Reduced
 motion = still faces. Do not draw a plain initials circle.
@@ -327,22 +327,22 @@ Still in use inside Studio, restyled by the redefined tokens (verified imported,
 
 | Piece | Where | Use |
 |---|---|---|
-| `RecordList` | `components/record-list.tsx` | Every list. Studio passes `variant="studio"`. Filters/sort in the URL (`useUrlFilters`), column chooser (`listKey`), bulk (`bulkActions`), export, saved views |
+| `RecordList` | `components/kit/record-list.tsx` | Every list. Studio passes `variant="studio"`. Filters/sort in the URL (`useUrlFilters`), column chooser (`listKey`), bulk (`bulkActions`), export, saved views |
 | `ENTITY_VIEWS` | `lib/entity-view.ts` + `entity-cells.tsx` | A record type's columns, filters and form sections — one entry gives a new type its list |
-| `FluidSelect` | `components/fluid-select.tsx` | A fixed list in a toolbar or filter |
-| `SelectField` | `components/select-field.tsx` | `FluidSelect` + hidden input, for a server-action form |
-| `Combobox` | `components/combobox.tsx` | Anything you can type into or add a value to |
+| `FluidSelect` | `components/forms/fluid-select.tsx` | A fixed list in a toolbar or filter |
+| `SelectField` | `components/forms/select-field.tsx` | `FluidSelect` + hidden input, for a server-action form |
+| `Combobox` | `components/forms/combobox.tsx` | Anything you can type into or add a value to |
 | `DatePopover` / `DateInput` | `date-popover.tsx`, `date-input.tsx` | Every date |
-| `BottomSheet` | `components/bottom-sheet.tsx` | Old portal/Desk forms only (Studio uses `StudioSheet`) |
+| `BottomSheet` | `components/kit/bottom-sheet.tsx` | Old portal/Desk forms only (Studio uses `StudioSheet`) |
 | `CONTROL_BOX` / `FIELD` / `FIELD_NUM` / `ACTION_*` | `components/ui.tsx` | The Desk control box (32px, `text-sm`; softer corners inside Studio) |
 | `Select` | `components/ui.tsx` | The native kit wrapper, still in a few older forms |
 | `Switch`, `SwitchRow`, `FormSwitch` | `ui.tsx`, `form-switch.tsx` | Toggles; `.st-desk` and Settings paint the track ink via `data-switch` / `data-on` |
 | `CaretInput` / `CaretTextarea` | `ui.tsx` | Transparent compose fields; the row owns the edge (`.bare-field`) |
 | `Checkbox` | `components/ui/checkbox.tsx` | The tick box (note: `@/components/ui` is still the FILE `ui.tsx`) |
-| `useSwipeRow` | `lib/use-swipe-row.ts` | Swipe actions on a row — never hand-roll touch handlers |
-| `Reveal`, `lib/motion.ts` | `components/reveal.tsx` | Entrance motion, reduced-motion safe |
-| `useAnchoredMenu` | `lib/use-anchored-menu.ts` | Any menu anchored to a field |
-| `BackLink` / `ReturnLink` / `use-list-place` | `back-link.tsx`, `lib/return-to.ts` | Going back to where you were |
+| `useSwipeRow` | `lib/hooks/use-swipe-row.ts` | Swipe actions on a row — never hand-roll touch handlers |
+| `Reveal`, `lib/motion.ts` | `components/kit/reveal.tsx` | Entrance motion, reduced-motion safe |
+| `useAnchoredMenu` | `lib/hooks/use-anchored-menu.ts` | Any menu anchored to a field |
+| `BackLink` / `ReturnLink` / `use-list-place` | `back-link.tsx`, `lib/nav/return-to.ts` | Going back to where you were |
 
 **Rules from Desk that still hold:**
 - **No bare `<select>`** and no `<datalist>`. `FluidSelect` / `SelectField` /

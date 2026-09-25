@@ -3,7 +3,7 @@ import { sb } from "@/db/supabase";
 import { escapeLike } from "@/lib/db-helpers";
 import type { ToolDef } from "@/lib/ori/tools";
 import { str, resolveCompany, resolvePerson, resolvePersonStrict } from "@/lib/ori/tools";
-import { PORTAL_ROLES } from "@/lib/portal-permissions";
+import { PORTAL_ROLES } from "@/lib/portal/portal-permissions";
 
 /* ORI people / HR / org domain tools.
  *
@@ -24,8 +24,8 @@ import {
   enablePortalAccessQuick,
   revokePortalAccessQuick,
 } from "@/app/people/actions";
-// ── Org actions (src/lib/org-actions.ts) ────────────────────────────────────
-import { setPersonDirector, addPersonManager, setDepartmentHead } from "@/lib/org-actions";
+// ── Org actions (src/lib/people/org-actions.ts) ────────────────────────────────────
+import { setPersonDirector, addPersonManager, setDepartmentHead } from "@/lib/people/org-actions";
 
 /** Snapshot a person's portal-access columns before a Tier-3 access change. */
 async function snapshotPortalAccess(personId: number) {

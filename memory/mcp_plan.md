@@ -72,12 +72,12 @@ question of the same code.
 
 Verified present in the codebase (Aug 2026):
 
-- `src/lib/portal-permissions.ts` — **15 `CapabilityKey` values**: `createTasks`,
+- `src/lib/portal/portal-permissions.ts` — **15 `CapabilityKey` values**: `createTasks`,
   `manageAnyTask`, `bulkTaskActions`, `crossCompanyTasks`, `recurringTasks`,
   `messageOnTasks`, `bulkOutreach`, `createEvents`, `navTasks`, `navOutbox`,
   `oriAsk`, `oriAct`, `cleaningLog`, `cleaningOverview`, `directorBrief`
   (`navInsights` removed 26 Sept 2026; `company_kpis` now needs `directorBrief`). Owner-configurable in Settings → Portals → Roles & permissions.
-- `src/lib/portal-auth.ts` — `scopeLevel` on `PortalPerson` is `own` | `companies`
+- `src/lib/portal/portal-auth.ts` — `scopeLevel` on `PortalPerson` is `own` | `companies`
   | `all`; `companyScope(p)` returns `number[] | null` (null = every company);
   `isScopedDirector(p)` for the one-company director; `seesAllCompanies(p)`.
 

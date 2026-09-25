@@ -26,7 +26,7 @@ managers, then staff. Current reference for the portal: `memory/portal.md`.
 
 ## The design (as built)
 
-1. **A Viewer** (`src/lib/viewer.ts`, server-only): owner (admin cookie) →
+1. **A Viewer** (`src/lib/auth/viewer.ts`, server-only): owner (admin cookie) →
    scope null, every capability, actor `web-ui`; a director or manager → the
    `PortalPerson`, `companyScope`, caps, actor `portal-dir:` / `portal-mgr:`.
    **Staff are deliberately NOT a Viewer** — a new kind would fail open in every
@@ -68,7 +68,7 @@ managers, then staff. Current reference for the portal: `memory/portal.md`.
   overview rebuilt in Studio.
 - **Staff (26 Sept)**: Home, Tasks, task page, Profile; then People, Companies,
   Calendar, Announcements (`StudioPathsProvider staff`,
-  `lib/staff-colleagues.ts`). Receptionist moved on with them.
+  `lib/portal/staff-colleagues.ts`). Receptionist moved on with them.
 - **Announcements** rebuilt for directors and managers (`/announcements`).
 
 ## Traps

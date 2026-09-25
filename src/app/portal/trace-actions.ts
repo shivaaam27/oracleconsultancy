@@ -1,7 +1,7 @@
 "use server";
 
 import { sb } from "@/db/supabase";
-import { getPortalPerson, personCanSeePerson, personCanSeeTask } from "@/lib/portal-auth";
+import { getPortalPerson, personCanSeePerson, personCanSeeTask } from "@/lib/portal/portal-auth";
 
 /* ─────────────────────────────────────────────────────────────────────────
  * Portal Trace — a SMALL, scoped "history" trail for the two entity types the

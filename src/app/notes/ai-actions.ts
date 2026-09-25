@@ -1,6 +1,6 @@
 "use server";
 
-import { guardOwner } from "@/lib/viewer";
+import { guardOwner } from "@/lib/auth/viewer";
 
 /**
  * The AI actions a note offers. Phase 5 of memory/notes_module_plan.md.
@@ -21,12 +21,12 @@ import { sb } from "@/db/supabase";
 import {
   askNotes, extractTasks, polishNote, suggestLinks, suggestTitle, summariseNote,
   type AiResult, type ExtractedTask, type NoteAnswer, type NoteSummary,
-} from "@/lib/note-ai";
-import { linkCandidates } from "@/lib/note-links";
-import type { LinkCandidate } from "@/lib/note-unlinked-shared";
-import { snapshotNote } from "@/lib/note-versions";
-import { createNoteTodo } from "@/lib/note-todos";
-import { unifiedSearch } from "@/lib/search";
+} from "@/lib/notes/note-ai";
+import { linkCandidates } from "@/lib/notes/note-links";
+import type { LinkCandidate } from "@/lib/notes/note-unlinked-shared";
+import { snapshotNote } from "@/lib/notes/note-versions";
+import { createNoteTodo } from "@/lib/notes/note-todos";
+import { unifiedSearch } from "@/lib/search/search";
 
 export async function polishNoteAction(text: string): Promise<AiResult<{ text: string }>> {
   await guardOwner();

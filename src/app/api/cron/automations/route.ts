@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { authoriseCron } from "@/lib/cron-auth";
+import { authoriseCron } from "@/lib/auth/cron-auth";
 import { recordEvent } from "@/lib/system-events";
 import { reportError } from "@/lib/sentry";
-import { runTimeAutomations } from "@/lib/automation-time";
+import { runTimeAutomations } from "@/lib/automation/automation-time";
 
 export const dynamic = "force-dynamic";
 

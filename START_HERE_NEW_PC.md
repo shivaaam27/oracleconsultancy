@@ -124,7 +124,7 @@ To bring Claude up to speed, say:
 - **Database connection** (`src/db/index.ts`): keep `prepare: false` and
   `max: 1`, and `DATABASE_URL` on the **pooler, port 6543**.
 - **Sign-in**: the secret derivation must stay identical in `src/proxy.ts`,
-  `src/lib/admin-auth.ts` and `src/lib/portal-auth.ts`.
+  `src/lib/auth/admin-auth.ts` and `src/lib/portal/portal-auth.ts`.
 - **Back up once, at the end of a session** (`npm run db:backup`, ~15 minutes) —
   and first, before anything that drops or rewrites data.
 - **Never delete `.next` while the dev server is running** — stop it first.

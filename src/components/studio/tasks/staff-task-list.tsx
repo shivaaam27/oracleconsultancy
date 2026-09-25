@@ -6,12 +6,12 @@
  * edit in a row, because staff do not re-plan tasks. A row opens the task's
  * page, carrying the list address back (RecordList's `rowHref` does that).
  */
-import { RecordList, type RecordColumn } from "@/components/record-list";
-import type { TaskRow } from "@/lib/queries";
+import { RecordList, type RecordColumn } from "@/components/kit/record-list";
+import type { TaskRow } from "@/lib/tasks/queries";
 import { StudioFaces } from "./cells";
 import { STATUS_DOT, deadlineWords, ago } from "./task-words";
-import { withReturn } from "@/lib/return-to";
-import { portalTaskHref } from "@/lib/portal-task-href";
+import { withReturn } from "@/lib/nav/return-to";
+import { portalTaskHref } from "@/lib/portal/portal-task-href";
 import Link from "next/link";
 import { cn } from "@/lib/cn";
 

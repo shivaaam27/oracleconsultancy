@@ -1,12 +1,12 @@
 import { cache } from "react";
 import { notFound } from "next/navigation";
-import { getPersonDetail } from "@/lib/people-queries";
-import { getAllTasks } from "@/lib/queries";
-import { safeReturn } from "@/lib/return-to";
+import { getPersonDetail } from "@/lib/people/people-queries";
+import { getAllTasks } from "@/lib/tasks/queries";
+import { safeReturn } from "@/lib/nav/return-to";
 import { StudioPerson } from "@/components/studio/people/studio-person";
-import { getViewer } from "@/lib/viewer";
-import { viewerPeopleIds } from "@/lib/viewer-scope";
-import { viewerCanSeeDocument } from "@/lib/files";
+import { getViewer } from "@/lib/auth/viewer";
+import { viewerPeopleIds } from "@/lib/auth/viewer-scope";
+import { viewerCanSeeDocument } from "@/lib/documents/files";
 
 /** The owner, or a director for someone in their companies (view-only). */
 async function personForViewer(personId: number) {

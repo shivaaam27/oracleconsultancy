@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sb } from "@/db/supabase";
-import { getTraceDef } from "@/lib/entity-registry";
+import { getTraceDef } from "@/lib/search/entity-registry";
 
 export const dynamic = "force-dynamic";
 

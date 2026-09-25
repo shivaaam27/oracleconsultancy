@@ -1,6 +1,6 @@
 "use server";
 
-import { guardSignedIn } from "@/lib/viewer";
+import { guardSignedIn } from "@/lib/auth/viewer";
 // Direct-to-storage uploads (Aug 2026).
 //
 // Files used to travel to the server inside a Next server action — both to be
@@ -14,7 +14,7 @@ import { guardSignedIn } from "@/lib/viewer";
 // applying, because the bytes never pass through a serverless function.
 
 import { sb } from "@/db/supabase";
-import { DOCUMENTS_BUCKET, safeFileName } from "@/lib/documents";
+import { DOCUMENTS_BUCKET, safeFileName } from "@/lib/documents/documents";
 
 /** Where a file lands before it belongs to a document. `attachUploadedFile`
  *  moves it under the document's own id on save; anything left here is a

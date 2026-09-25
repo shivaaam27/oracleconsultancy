@@ -1,4 +1,4 @@
-import { runPortalSearch } from "@/lib/portal-search";
+import { runPortalSearch } from "@/lib/portal/portal-search";
 
 /* ------------------------------------------------------------------ *
  * Scoped portal search endpoint (Ctrl+K / ⌘K overlay).

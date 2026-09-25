@@ -12,7 +12,7 @@
  */
 import { motion, useReducedMotion } from "framer-motion";
 import { useId } from "react";
-import type { FolderColor } from "@/lib/files-shared";
+import type { FolderColor } from "@/lib/documents/files-shared";
 
 const THEMES = {
   black: { back: "#000", backShadow: "inset 0 0 6px 2px rgba(255,255,255,0.37)", flap: "#3A3A3A", flapOpacity: 0.82, flapStroke: "#979797", card: "#F1F1F1", cardStroke: "#E0E0E0", line: "#D4D4D4" },

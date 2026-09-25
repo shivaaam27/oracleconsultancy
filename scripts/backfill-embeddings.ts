@@ -13,7 +13,7 @@ config({ path: ".env" });
 async function main() {
   // Dynamic import AFTER dotenv: app modules read env at import time, but static
   // ESM imports run before the config() calls above.
-  const { reindexAll } = await import("@/lib/embeddings-reindex");
+  const { reindexAll } = await import("@/lib/search/embeddings-reindex");
   console.log("Backfilling all embeddings (tasks, meetings, documents, people; chunked)…");
   const { checked, orphansRemoved } = await reindexAll(true);
   console.log(`\nDone. ${checked} items processed, ${orphansRemoved} orphan vectors removed. Re-run any time; unchanged items are skipped.`);

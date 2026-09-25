@@ -1,6 +1,6 @@
 "use server";
 
-import { guardOwner } from "@/lib/viewer";
+import { guardOwner } from "@/lib/auth/viewer";
 
 /**
  * Attaching a file to a note. Phase 2 leftover, built alongside Phase 4.
@@ -19,7 +19,7 @@ import { guardOwner } from "@/lib/viewer";
 
 import { revalidatePath } from "next/cache";
 import { sb } from "@/db/supabase";
-import { DOCUMENTS_BUCKET, createDocument, safeFileName } from "@/lib/documents";
+import { DOCUMENTS_BUCKET, createDocument, safeFileName } from "@/lib/documents/documents";
 
 export type AttachResult =
   | { ok: true; documentId: number; fileName: string }

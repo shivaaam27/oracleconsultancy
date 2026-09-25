@@ -26,7 +26,7 @@ settings panel.
 ## Data + creation
 - Migration **0109**: `tasks.source_event_id` (FK→calendar_events, ON DELETE SET
   NULL) + index. `calendar_events.task_id` holds the PRIMARY task.
-- **`src/lib/meeting-tasks.ts`**: `shouldCreateMeetingTasks(mode, companyIds)` +
+- **`src/lib/tasks/meeting-tasks.ts`**: `shouldCreateMeetingTasks(mode, companyIds)` +
   `createTasksForEvent(event, {companyIds, createdBy, category})` — one task per
   company via `insertTaskWithUniqueCodeSb`, status "Not Started", **no
   deadline**, `meetingDate` = event start, attendee people → `task_assignees`
@@ -45,7 +45,7 @@ The administrator calendar is Studio: `/calendar` → `src/app/calendar/page.tsx
 holds the fields: `DatePopover` for start/end, `CompanyMultiSelect` for
 companies (first = the lead; hidden `companyId` = lead, `companyIds` = JSON
 array), and a "track as a task" toggle (`trackTask` → hidden `trackAsTask`). The
-portal's twin is `components/director-event-form.tsx` (also takes
+portal's twin is `components/calendar/director-event-form.tsx` (also takes
 `trackAsTask`).
 
 ## Auto-advance + ping
@@ -56,10 +56,10 @@ Started")` guard = idempotent; module-level 60s throttle). Logs `system_events`
 kind "meeting-task-advanced".
 
 On a flip, when `eventAttendeePings` is on, each assignee gets **"Meeting
-starting"** through **`createNotification`** (`src/lib/notifications.ts`, kind
+starting"** through **`createNotification`** (`src/lib/messaging/notifications.ts`, kind
 `meeting`, urgent) — the bell, which pushes. Chat was removed 26 Sept 2026;
 pings no longer go through a chat system message. Separately,
-`src/lib/event-reminders.ts` sends attendee lead-time reminders ("· in an hour")
+`src/lib/calendar/event-reminders.ts` sends attendee lead-time reminders ("· in an hour")
 the same way, plus a branded email.
 
 Wired into: `calendar/page.tsx` load (throttled), `morning-run` (force) and
@@ -95,4 +95,4 @@ company), `meetingTaskCategory` (Meetings), `autoAdvanceMeetingTasks` (true),
 ## Notes
 - Guardrails: auto-create + auto-ping are automations — keep them behind the
   settings toggles; auto-advance is reversible (audit_log). See
-  `src/lib/guardrails.ts`.
+  `src/lib/automation/guardrails.ts`.

@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import JSZip from "jszip";
 import { sb } from "@/db/supabase";
-import { getViewer } from "@/lib/viewer";
-import { viewerCanSeeDocument } from "@/lib/files";
-import { DOCUMENTS_BUCKET } from "@/lib/documents";
-import { descendantIds, extOf, pathOf, type FolderRow } from "@/lib/files-shared";
+import { getViewer } from "@/lib/auth/viewer";
+import { viewerCanSeeDocument } from "@/lib/documents/files";
+import { DOCUMENTS_BUCKET } from "@/lib/documents/documents";
+import { descendantIds, extOf, pathOf, type FolderRow } from "@/lib/documents/files-shared";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -29,7 +29,7 @@ export async function POST(req: Request) {
     folderIds.size ? sb.from("documents").select(sel).in("folder_id", [...folderIds]).eq("archived", false) : Promise.resolve({ data: [] as never[] }),
   ]);
   const all = [...(a.data ?? []), ...(b.data ?? [])].filter((r, i, arr) => r.storage_path && arr.findIndex((x) => x.id === r.id) === i);
-  // A director's .zip holds only their companies' files (lib/files.ts).
+  // A director's .zip holds only their companies' files (lib/documents/files.ts).
   const seen = await Promise.all(all.map((r) => viewerCanSeeDocument(viewer, r.id as number)));
   const rows = all.filter((_, i) => seen[i]);
   if (!rows.length) return NextResponse.json({ error: "Nothing to download." }, { status: 400 });

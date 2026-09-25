@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import Link from "next/link";
-import { useUrlFilters } from "@/lib/use-url-filters";
-import { useMediaQuery } from "@/lib/use-media-query";
+import { useUrlFilters } from "@/lib/hooks/use-url-filters";
+import { useMediaQuery } from "@/lib/hooks/use-media-query";
 import {
   CalendarPlus, Video, MapPin, Users, Bell, Building2, Download, Copy, Check,
   Pencil, Trash2, MessageCircle, CalendarDays, Mail, ChevronLeft, ChevronRight, 
@@ -13,29 +13,29 @@ import {
 } from "lucide-react";
 import { createPortal } from "react-dom";
 import { Button, Card, EmptyState } from "@/components/ui";
-import { useCreateParam } from "@/lib/use-create-param";
-import type { Announcement, ReceiptStats } from "@/lib/announcements-shared";
+import { useCreateParam } from "@/lib/hooks/use-create-param";
+import type { Announcement, ReceiptStats } from "@/lib/messaging/announcements-shared";
 import { HrmsDialog } from "@/components/hrms/hrms-dialog";
-import { AttendeePicker } from "@/components/attendee-picker";
-import { DatePopover } from "@/components/date-popover";
-import { FluidSelect } from "@/components/fluid-select";
-import { isoToLocalInput as sharedIsoToLocalInput, TimeField } from "@/components/date-time-field";
-import { CompanyMultiSelect } from "@/components/company-multi-select";
-import { Combobox } from "@/components/combobox";
-import { ReferenceAdmin } from "@/components/reference-admin";
-import { EventAttachments, StudioReadCard, type AttachedDoc, type EventPrefill } from "@/components/event-attachments";
+import { AttendeePicker } from "@/components/calendar/attendee-picker";
+import { DatePopover } from "@/components/forms/date-popover";
+import { FluidSelect } from "@/components/forms/fluid-select";
+import { isoToLocalInput as sharedIsoToLocalInput, TimeField } from "@/components/forms/date-time-field";
+import { CompanyMultiSelect } from "@/components/companies/company-multi-select";
+import { Combobox } from "@/components/forms/combobox";
+import { ReferenceAdmin } from "@/components/settings/reference-admin";
+import { EventAttachments, StudioReadCard, type AttachedDoc, type EventPrefill } from "@/components/calendar/event-attachments";
 import { listEventDocumentsAction } from "./attachment-actions";
-import { useToast } from "@/components/toast";
-import { useContextActions } from "@/components/context-actions";
+import { useToast } from "@/components/shell/toast";
+import { useContextActions } from "@/components/kit/context-actions";
 import { cn } from "@/lib/cn";
 import { StudioScope, StudioHeader, StudioCardRow, StudioCard, CardHead, BigNumber, stBtn } from "@/components/studio/kit";
 import { StudioMenu } from "@/components/studio/tasks/controls";
 import { useFitFrame } from "@/components/studio/use-fit-frame";
-import { ReturnLink } from "@/components/back-link";
-import { hasElapsed, isHappeningNow } from "@/lib/event-time-shared";
-import type { CalendarEvent, CalendarAttendee } from "@/lib/calendar";
-import { expandRecurrence } from "@/lib/ics";
-import { type OverlayItem, type OverlayKind, OVERLAY_KINDS, OVERLAY_LABELS } from "@/lib/calendar-overlays-shared";
+import { ReturnLink } from "@/components/shell/back-link";
+import { hasElapsed, isHappeningNow } from "@/lib/calendar/event-time-shared";
+import type { CalendarEvent, CalendarAttendee } from "@/lib/calendar/calendar";
+import { expandRecurrence } from "@/lib/calendar/ics";
+import { type OverlayItem, type OverlayKind, OVERLAY_KINDS, OVERLAY_LABELS } from "@/lib/calendar/calendar-overlays-shared";
 import { createEventAction, updateEventAction, deleteEventAction, sendEventInviteAction, ensureEventMeetLink, draftEventRemindersAction, draftEventFollowupAction, previewEventInviteAction, createEventCategory, renameEventCategory, mergeEventCategories, deleteEventCategory, skipEventOccurrence, restoreEventOccurrence } from "./actions";
 
 // Persisted calendar view + filter preferences (localStorage). `disabledLayers`

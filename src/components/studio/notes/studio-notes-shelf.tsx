@@ -13,10 +13,10 @@ import { CalendarDays, FileText, FolderPlus, Loader2, Plus, Search, Star } from 
 import { StudioScope, StudioHeader, StudioCardRow, StudioCard, CardHead, stBtn, stFloatBar } from "@/components/studio/kit";
 import { StudioMenu } from "@/components/studio/tasks/controls";
 import { StudioSheet } from "@/components/studio/sheet";
-import { useUrlFilters } from "@/lib/use-url-filters";
-import { useToast } from "@/components/toast";
-import { withReturn } from "@/lib/return-to";
-import { noteTitle, type NoteFolder, type NoteListRow } from "@/lib/notes-shared";
+import { useUrlFilters } from "@/lib/hooks/use-url-filters";
+import { useToast } from "@/components/shell/toast";
+import { withReturn } from "@/lib/nav/return-to";
+import { noteTitle, type NoteFolder, type NoteListRow } from "@/lib/notes/notes-shared";
 import { createNote, createFolder, openTodaysNote, tidyEmptyNotes, togglePinNote } from "@/app/notes/actions";
 import { askNotesAction, type AskResult } from "@/app/notes/ai-actions";
 import { cn } from "@/lib/cn";

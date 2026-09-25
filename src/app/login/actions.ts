@@ -11,8 +11,8 @@ import {
   setAdminPassword,
   setOwnerIdentity,
   verifyAdminPassword,
-} from "@/lib/admin-auth";
-import { callerIp, lockMessage, loginLockState, recordLoginFailure, recordLoginSuccess } from "@/lib/login-throttle";
+} from "@/lib/auth/admin-auth";
+import { callerIp, lockMessage, loginLockState, recordLoginFailure, recordLoginSuccess } from "@/lib/auth/login-throttle";
 
 export type LoginState = { error: string } | null;
 

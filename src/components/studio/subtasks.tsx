@@ -25,7 +25,7 @@ import { AnimatePresence, motion, useReducedMotion, type Transition } from "fram
 import { Plus, X } from "lucide-react";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { addSubtask, deleteSubtask, listSubtasks, renameSubtask, tickSubtask } from "@/app/task/subtask-actions";
-import type { Subtask } from "@/lib/subtasks-shared";
+import type { Subtask } from "@/lib/tasks/subtasks-shared";
 import { cn } from "@/lib/cn";
 
 const EASE_OUT = [0.22, 1, 0.36, 1] as const;

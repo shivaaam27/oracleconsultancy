@@ -21,17 +21,17 @@ designs. Their tables are kept, unreachable.
 
 - **Access is granted by the owner** — Settings → **Portals** → Staff portal
   access, or the person's profile (Studio People). Every writer goes through
-  `src/lib/portal-access.ts` (see §3).
+  `src/lib/portal/portal-access.ts` (see §3).
 - Password hash on `people.portal_password_hash` (`scrypt:<salt>:<hash>`);
   `portal_enabled_at` / `portal_last_login_at` beside it.
 - **Login**: `/login` and `/portal/login` are one Studio sign-in screen
   (`components/studio/auth/`) with a Staff / Administrator switch — see
   `memory/auth_login.md`. Staff sign in with **email or name** +
   password (`findPortalPersonByIdentifier`, case-insensitive), or a **passkey**
-  (Face ID / fingerprint / Windows Hello, `lib/webauthn.ts`; registered on the
+  (Face ID / fingerprint / Windows Hello, `lib/auth/webauthn.ts`; registered on the
   portal Profile). Login attempts are rate-limited per identifier + IP.
 - **Cookie** `cos_portal` = `<personId>.<expiryMs>.<fp>.<hmac>`, **60 days**
-  (`SESSION_DAYS` in `src/lib/portal-auth.ts`). `fp` is a fingerprint of the
+  (`SESSION_DAYS` in `src/lib/portal/portal-auth.ts`). `fp` is a fingerprint of the
   password hash, so **changing the password signs out every device**. Legacy
   3-part cookies (no fp) are still accepted on signature alone.
 - **Sliding refresh**: `src/proxy.ts` runs on `/portal*` ONLY to re-stamp the
@@ -45,7 +45,7 @@ designs. Their tables are kept, unreachable.
 - **Sign out** (`portalLogout`) lands on `/login` for every role.
 - ⚠️ **The secret derivation (`PORTAL_SESSION_SECRET`, falling back to one
   derived from `DATABASE_URL`) must stay identical in `src/proxy.ts`,
-  `src/lib/admin-auth.ts` and `src/lib/portal-auth.ts`.** Changing the secret
+  `src/lib/auth/admin-auth.ts` and `src/lib/portal/portal-auth.ts`.** Changing the secret
   signs everyone out everywhere.
 - The owner's cookie (`cos_admin`) and a portal cookie are independent. An owner
   signed in to both in one browser is treated as the owner (`getViewer`).
@@ -54,7 +54,7 @@ designs. Their tables are kept, unreachable.
 
 `portal_role` (free text on `people`, normalised by `asPortalRole`) is one of
 **four**: `staff` · `manager` · `director` · `receptionist`
-(`PortalRoleKey` in `src/lib/portal-permissions.ts`; `PortalRole` in
+(`PortalRoleKey` in `src/lib/portal/portal-permissions.ts`; `PortalRole` in
 `portal-auth.ts`). Anything unknown is treated as `staff`.
 
 | Role | Screens | Default scope | Stamp on what they write |
@@ -67,15 +67,15 @@ designs. Their tables are kept, unreachable.
 - **Managers = directors** in capabilities (code defaults AND the live settings
   row). The one designed difference: a director's reach is every company or a
   chosen set; a manager always sees the companies on their record.
-- `isStaffLikeRole(role)` (`src/lib/director-routes.ts`) = staff or
+- `isStaffLikeRole(role)` (`src/lib/portal/director-routes.ts`) = staff or
   receptionist. **UI only** — permission checks keep reading the real role and
   `caps`.
-- `isStudioRole(role)` / `usesStudio(p)` (`src/lib/viewer.ts`) = director or
+- `isStudioRole(role)` / `usesStudio(p)` (`src/lib/auth/viewer.ts`) = director or
   manager.
 
 ## 3. Capabilities, scope and who sets them
 
-**`src/lib/portal-permissions.ts` is the one model** (pure, client-safe): a
+**`src/lib/portal/portal-permissions.ts` is the one model** (pure, client-safe): a
 scope level per role (`own` / `companies` / `all`) and a capability matrix. The
 owner edits both in Settings → Portals → **Roles & permissions**; only cells
 that differ from the defaults are stored (`diffFromDefaults`, one settings
@@ -99,7 +99,7 @@ Capabilities (`CapabilityKey`), with defaults:
   default and reading `me.caps.<key>` — never hard-code a role.
 - **The creator rule is fixed**: a person can always manage a task they raised,
   whatever the matrix says.
-- ⚠️ **`canManageTask` (`src/lib/task-permissions.ts`) must be passed
+- ⚠️ **`canManageTask` (`src/lib/tasks/task-permissions.ts`) must be passed
   `me.caps.manageAnyTask` by the page AND the action.** With no grant it falls
   back to "director only"; once the screen and the server read it differently
   and a manager saw greyed controls the server would have accepted.
@@ -109,11 +109,11 @@ Capabilities (`CapabilityKey`), with defaults:
   known keys (`ALL_CAP_KEYS`), never the stored ones. MCP `company_kpis` now
   needs `directorBrief` (same defaults). `navOutbox` stays: it gates a director's
   or manager's Studio `/outbox` and its footer stop; staff have no Outbox.
-- `src/lib/portal-capabilities.ts` is down to two role-fixed flags
+- `src/lib/portal/portal-capabilities.ts` is down to two role-fixed flags
   (`isManagement`, `canCreate`) read by three portal pages. Prefer `caps`.
 
 **Scope helpers** — every data-visibility decision goes through these
-(`src/lib/portal-auth.ts`), never a raw `=== "director"`:
+(`src/lib/portal/portal-auth.ts`), never a raw `=== "director"`:
 
 - `isScopedDirector(p)` — a director with a company list.
 - `seesAllCompanies(p)` — scope level `all` and not scoped.
@@ -146,7 +146,7 @@ the scope. **Nothing a person created is deleted on revoke or archive.**
 
 ## 4. How Studio frames the portal
 
-- **Directors and managers are a `Viewer`** (`src/lib/viewer.ts`,
+- **Directors and managers are a `Viewer`** (`src/lib/auth/viewer.ts`,
   `kind: "director"`, `role` says which). They use the owner's Studio routes;
   `src/proxy.ts` `DIRECTOR_PATHS` admits a signature-checked portal cookie to
   `/`, `/task/new`, `/task/<CODE>`, `/api/task-detail`, `/files`, `/api/files/*`,
@@ -189,7 +189,7 @@ Every route in `src/app/portal/(app)/` (from disk), plus `/portal/login`:
 | `/portal` | **Studio Home** (`staff-home.tsx` → `StudioHome` slots: check-in card, due card, announcement with Acknowledge, to-do card, "How I did" → Profile) | → `/` |
 | `/portal/tasks` | **Studio Tasks** (`StaffStudioTasks`): their tasks, filters in the address; receptionist has no Tasks stop (`navTasks` off) | → `/?tab=tasks` |
 | `/portal/task/[code]` | **Studio task page** (`staff-task-record.tsx`): send for review, I'm blocked, Complete only if they raised it, conversation, people, subtasks; edit title/description only with `manageAnyTask` | → `/task/<code>` |
-| `/portal/people`, `/people/[id]` | **Studio People**: colleagues sharing a company + the Administrator; private/HR fields blanked on the server (`lib/staff-colleagues.ts`); a person shows only tasks you share | → `/people…` |
+| `/portal/people`, `/people/[id]` | **Studio People**: colleagues sharing a company + the Administrator; private/HR fields blanked on the server (`lib/portal/staff-colleagues.ts`); a person shows only tasks you share | → `/people…` |
 | `/portal/companies`, `/companies/[id]` | **Studio Companies**: their companies, details, people, open/late numbers, their own tasks | → `/companies…` |
 | `/portal/meetings` | **Studio Calendar**, read-only: events they are invited to + holidays | → `/calendar` |
 | `/portal/announcements` | **Studio Announcements**: feed, acknowledge, reactions, comments | → `/announcements` |
@@ -237,7 +237,7 @@ the component it always was:
 
 ## 8. Announcements
 
-- Table-backed feed (`lib/announcements.ts`): `feedForPersonId`,
+- Table-backed feed (`lib/messaging/announcements.ts`): `feedForPersonId`,
   `takeoverFeedForPersonId`. Audience is scoped server-side; a manager or scoped
   director posting has their audience collapsed to their companies.
 - Staff: Studio Announcements page + the Home card (Acknowledge / Got it). An
@@ -258,7 +258,7 @@ components were deleted.
 
 ## 10. Push and notifications
 
-- Bell notifications (`lib/notifications.ts`, `createNotification`) with
+- Bell notifications (`lib/messaging/notifications.ts`, `createNotification`) with
   recipient `person:<id>`; kinds include assigned, mention, reply, pinned,
   update, announcement and **meeting** (event pings and pre-event reminders —
   these used to go to Chat).

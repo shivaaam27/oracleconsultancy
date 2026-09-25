@@ -1,13 +1,13 @@
 "use server";
 
-import { guardOwner } from "@/lib/viewer";
+import { guardOwner } from "@/lib/auth/viewer";
 import { sb } from "@/db/supabase";
 import { db } from "@/db";
 import { people, sites, jobTitles } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { isAdminSession } from "@/lib/admin-auth"; // every action checks for the owner itself (audit 24 Sept 2026)
-import { reindexEntity } from "@/lib/index-hooks";
+import { isAdminSession } from "@/lib/auth/admin-auth"; // every action checks for the owner itself (audit 24 Sept 2026)
+import { reindexEntity } from "@/lib/search/index-hooks";
 
 type Result = { ok: true } | { ok: false; error: string };
 

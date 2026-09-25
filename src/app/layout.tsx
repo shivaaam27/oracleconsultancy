@@ -12,28 +12,28 @@ const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "sw
 // them until a page is switched to the new look (`.studio` in globals.css).
 const geist = Geist({ subsets: ["latin"], variable: "--font-geist", display: "swap" });
 const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono", display: "swap" });
-import { ThemeProvider } from "@/components/theme-provider";
-import { CommandPaletteProvider } from "@/components/command-palette";
-import { RecentsTracker } from "@/components/recents-tracker";
-import { ToastProvider } from "@/components/toast";
-import { UndoBanner } from "@/components/undo-banner";
-import { DensityScript } from "@/components/density-toggle";
-import { FocusScript } from "@/components/focus-mode";
-import { PortalPrefsScript } from "@/components/portal-prefs";
-import { InstallPromptScript } from "@/components/install-app";
-import { ShellThemeScript } from "@/components/shell-theme";
-import { PageTransition } from "@/components/page-transition";
-import { NavProgress } from "@/components/nav-progress";
-import { ContextActionsProvider } from "@/components/context-actions";
-import { GlobalDrawers } from "@/components/global-drawers";
-import { ServiceWorkerRegister } from "@/components/service-worker-register";
-import { LocationTracker } from "@/components/location-tracker";
-import { IosResume } from "@/components/ios-resume";
-import { HideOnPortal } from "@/components/hide-on-portal";
-import { NavVisibilityProvider } from "@/components/nav-visibility";
-import { ActivityPinger } from "@/components/activity-pinger";
+import { ThemeProvider } from "@/components/shell/theme-provider";
+import { CommandPaletteProvider } from "@/components/search/command-palette";
+import { RecentsTracker } from "@/components/shell/recents-tracker";
+import { ToastProvider } from "@/components/shell/toast";
+import { UndoBanner } from "@/components/shell/undo-banner";
+import { DensityScript } from "@/components/shell/density-toggle";
+import { FocusScript } from "@/components/shell/focus-mode";
+import { PortalPrefsScript } from "@/components/portal/portal-prefs";
+import { InstallPromptScript } from "@/components/shell/install-app";
+import { ShellThemeScript } from "@/components/shell/shell-theme";
+import { PageTransition } from "@/components/shell/page-transition";
+import { NavProgress } from "@/components/shell/nav-progress";
+import { ContextActionsProvider } from "@/components/kit/context-actions";
+import { GlobalDrawers } from "@/components/shell/global-drawers";
+import { ServiceWorkerRegister } from "@/components/shell/service-worker-register";
+import { LocationTracker } from "@/components/shell/location-tracker";
+import { IosResume } from "@/components/shell/ios-resume";
+import { HideOnPortal } from "@/components/portal/hide-on-portal";
+import { NavVisibilityProvider } from "@/components/shell/nav-visibility";
+import { ActivityPinger } from "@/components/shell/activity-pinger";
 import { getAppSettings } from "@/lib/settings";
-import { getViewer } from "@/lib/viewer";
+import { getViewer } from "@/lib/auth/viewer";
 import { StudioShellServer } from "@/components/studio/shell-server";
 import { appBaseUrl } from "@/lib/app-url";
 
@@ -80,7 +80,7 @@ export const viewport: Viewport = {
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const { operatorName, voiceLanguage, commandCentrePaused } = await getAppSettings();
   // Studio Phase 2: the footer navigator replaces the sidebar AND the pill.
-  // A director on the shared screens (lib/viewer.ts): the everything-search and
+  // A director on the shared screens (lib/auth/viewer.ts): the everything-search and
   // the owner's record drawers stay off for them.
   const asDirector = (await getViewer())?.kind === "director";
   return (

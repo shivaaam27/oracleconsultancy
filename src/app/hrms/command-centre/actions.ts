@@ -1,11 +1,11 @@
 "use server";
 
-import { guardOwner } from "@/lib/viewer";
+import { guardOwner } from "@/lib/auth/viewer";
 
 import { revalidatePath, updateTag } from "next/cache";
 import { sb } from "@/db/supabase";
 import { insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
-import { computeNextDue, type ObligationFrequency } from "@/lib/command-centre";
+import { computeNextDue, type ObligationFrequency } from "@/lib/operations/command-centre";
 
 type Result = { ok: true; code?: string } | { ok: false; error: string };
 

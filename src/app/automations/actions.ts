@@ -1,14 +1,14 @@
 "use server";
 
-import { guardOwner } from "@/lib/viewer";
+import { guardOwner } from "@/lib/auth/viewer";
 import { revalidatePath } from "next/cache";
-import { isAdminSession } from "@/lib/admin-auth";
+import { isAdminSession } from "@/lib/auth/admin-auth";
 // Every action that CHANGES something checks for the owner itself (audit 24
 // Sept 2026). The read-only lists do not: the morning brief and the notify cron
 // build the cockpit from them, and a cron has no owner session.
 import { sb } from "@/db/supabase";
-import { getAutomationMode } from "@/lib/automation-reactions";
-import { AUTOMATION_RULES, type AutomationMode } from "@/lib/automation-rules";
+import { getAutomationMode } from "@/lib/automation/automation-reactions";
+import { AUTOMATION_RULES, type AutomationMode } from "@/lib/automation/automation-rules";
 
 export type AutomationFeedItem = {
   id: number;

@@ -1,19 +1,19 @@
 "use server";
 
-import { guardOwner } from "@/lib/viewer";
-import { AI_FAST } from "@/lib/ai-models";
-import { callAIJson } from "@/lib/ai-json";
+import { guardOwner } from "@/lib/auth/viewer";
+import { AI_FAST } from "@/lib/ai/ai-models";
+import { callAIJson } from "@/lib/ai/ai-json";
 import { revalidatePath, updateTag } from "next/cache";
 import { sb } from "@/db/supabase";
-import { normalizePersonType, personTypeLabel } from "@/lib/person-types";
-import { logPersonEvent, logPersonFieldChanges, type FieldChange } from "@/lib/person-audit";
+import { normalizePersonType, personTypeLabel } from "@/lib/people/person-types";
+import { logPersonEvent, logPersonFieldChanges, type FieldChange } from "@/lib/people/person-audit";
 import { insertTaskWithUniqueCodeSb, escapeLike } from "@/lib/db-helpers";
-import { startJourney, startJourneyTx, AUTO_ONBOARD_TYPES } from "@/lib/onboarding";
-import { returnAssetsForPersonTx, clearCustodianForPersonTx } from "@/lib/assets";
+import { startJourney, startJourneyTx, AUTO_ONBOARD_TYPES } from "@/lib/people/onboarding";
+import { returnAssetsForPersonTx, clearCustodianForPersonTx } from "@/lib/operations/assets";
 import { getAiKey } from "@/lib/settings";
-import { reindexEntity, removeEntityIndex } from "@/lib/index-hooks";
-import { staffIdFor } from "@/lib/staff-id";
-import { resolveSiteId } from "@/lib/sites";
+import { reindexEntity, removeEntityIndex } from "@/lib/search/index-hooks";
+import { staffIdFor } from "@/lib/people/staff-id";
+import { resolveSiteId } from "@/lib/people/sites";
 import { recordEvent } from "@/lib/system-events";
 import {
   grantPortalAccess,
@@ -23,7 +23,7 @@ import {
   companiesOnRecord,
   directorFollowsCompanies,
   refreshDirectorScope,
-} from "@/lib/portal-access";
+} from "@/lib/portal/portal-access";
 import { withTx, type Tx } from "@/lib/tx";
 import { people, departmentHeads, reportingLines } from "@/db/schema";
 import { eq, sql as sqlRaw } from "drizzle-orm";
@@ -700,7 +700,7 @@ export async function togglePersonActive(id: number): Promise<ActionResult> {
   // Cross-process cascade: offboarding just returned all the person's assets, so
   // tick the "Return equipment" offboarding step (logged + undoable). Guarded.
   if (!nextActive) {
-    try { const m = await import("@/lib/automation-reactions"); await m.reactToOffboardingAssetsReturned(id); } catch { /* best-effort */ }
+    try { const m = await import("@/lib/automation/automation-reactions"); await m.reactToOffboardingAssetsReturned(id); } catch { /* best-effort */ }
   }
   if (orphanedReports.length > 0) {
     await logPersonEvent(id, "updated", {
@@ -963,7 +963,7 @@ export async function bulkSetPeopleField(
  * Staff-portal access — manage straight from the People page (drawer Manage
  * tab + bulk bar), no trip to Settings.
  *
- * ⚠️ These are THIN WRAPPERS over `lib/portal-access.ts`, which is the one door
+ * ⚠️ These are THIN WRAPPERS over `lib/portal/portal-access.ts`, which is the one door
  * Settings uses too. They used to be a second implementation offering only
  * three of the five roles and clearing a demoted director's scope in only one
  * of the two places it is stored. Same rules, same writes, everywhere — these
@@ -991,7 +991,7 @@ export async function setPortalRoleQuick(
  * The person profile's portal controls (Studio). A Director's reach is chosen
  * as "all" companies or "own" — the companies on their record — and the list
  * is worked out HERE, from the record, never sent from the screen. Everything
- * still goes through the one door in lib/portal-access.ts.
+ * still goes through the one door in lib/portal/portal-access.ts.
  */
 export async function setPortalLevelWithReach(personId: number, role: string, reach: "all" | "own" = "all"): Promise<ActionResult> {
   await guardOwner();

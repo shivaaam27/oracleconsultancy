@@ -13,21 +13,21 @@
  *    Brief, Approvals → card 3 "Run the day"; today's diary → the Due card's
  *    Today view. Announcements keep their banner above.
  */
-import type { TaskRow } from "@/lib/queries";
+import type { TaskRow } from "@/lib/tasks/queries";
 import { sb } from "@/db/supabase";
 import { getAppSettings, getEmailConfig } from "@/lib/settings";
-import { listRecentActivity } from "@/lib/activity";
-import { getGivenName } from "@/lib/names";
-import { gatherCockpitNow } from "@/lib/cockpit-now";
-import { listApprovals, listCockpitActivity } from "@/lib/cockpit";
+import { listRecentActivity } from "@/lib/tasks/activity";
+import { getGivenName } from "@/lib/people/names";
+import { gatherCockpitNow } from "@/lib/automation/cockpit-now";
+import { listApprovals, listCockpitActivity } from "@/lib/automation/cockpit";
 import { getAutomationConfig } from "@/lib/automation";
-import { taskHref } from "@/lib/task-href";
-import { withReturn } from "@/lib/return-to";
-import { listAnnouncements } from "@/lib/announcements";
-import { isLive } from "@/lib/announcements-shared";
+import { taskHref } from "@/lib/tasks/task-href";
+import { withReturn } from "@/lib/nav/return-to";
+import { listAnnouncements } from "@/lib/messaging/announcements";
+import { isLive } from "@/lib/messaging/announcements-shared";
 import { StudioHome, type StudioHomeData, type HomeItem } from "@/components/studio/home/studio-home";
 import { HomeActions } from "./home-actions";
-import type { Viewer } from "@/lib/viewer";
+import type { Viewer } from "@/lib/auth/viewer";
 
 const DAY = 86_400_000;
 const QUIET_MS = 7 * DAY;

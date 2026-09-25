@@ -24,14 +24,14 @@ invited to plus holidays (`/portal/meetings`, `staff-calendar.tsx`).
 |---|---|
 | `src/app/calendar/actions.ts` | create / update / delete / cancel / invite / preview; `ensureGoogleEvent`, `pingAttendees` |
 | `src/app/calendar/calendar-board.tsx` | the board and the event form |
-| `src/lib/calendar.ts` | `CalendarEvent`, reads, `setGoogleEventId`, `toIcsEvent` |
-| `src/lib/google-calendar.ts` | `createGoogleEvent`, `updateGoogleEvent`, `addGoogleMeet`, `cancelGoogleEvent`, `cancelGoogleInstance` |
-| `src/lib/calendar-google-sync.ts` | `backfillGoogleEvents()` — heals failed pushes |
-| `src/lib/managed-calendar.ts` | `getManagedCalendarPerson`, `withManagedGuest` |
-| `src/lib/event-reminders-core.ts` (pure, tested) + `event-reminders.ts` | which reminders are due, and delivering them |
-| `src/lib/event-email.ts` (pure) | `buildEventEmail` — every event email |
-| `src/lib/event-changes.ts` (pure, tested) | `diffEvent`, `guestFacingChanges`, `changeLines` |
-| `src/lib/time-input.ts` (tested) + `components/date-time-field.tsx` | the typed time field |
+| `src/lib/calendar/calendar.ts` | `CalendarEvent`, reads, `setGoogleEventId`, `toIcsEvent` |
+| `src/lib/calendar/google-calendar.ts` | `createGoogleEvent`, `updateGoogleEvent`, `addGoogleMeet`, `cancelGoogleEvent`, `cancelGoogleInstance` |
+| `src/lib/calendar/calendar-google-sync.ts` | `backfillGoogleEvents()` — heals failed pushes |
+| `src/lib/calendar/managed-calendar.ts` | `getManagedCalendarPerson`, `withManagedGuest` |
+| `src/lib/calendar/event-reminders-core.ts` (pure, tested) + `event-reminders.ts` | which reminders are due, and delivering them |
+| `src/lib/calendar/event-email.ts` (pure) | `buildEventEmail` — every event email |
+| `src/lib/calendar/event-changes.ts` (pure, tested) | `diffEvent`, `guestFacingChanges`, `changeLines` |
+| `src/lib/time-input.ts` (tested) + `components/forms/date-time-field.tsx` | the typed time field |
 
 ## Google two-way sync
 
@@ -86,7 +86,7 @@ removed 26 Sept 2026).
   invitation automatically.
 - **On a real reschedule or cancel/delete**: `pingAttendees()` — only when the
   start time actually moved (`diff.timeMoved`), never for a typo fix.
-- **Before the event**: `runEventReminders()` (`src/lib/event-reminders.ts`):
+- **Before the event**: `runEventReminders()` (`src/lib/calendar/event-reminders.ts`):
   - `dueReminders()` works out which lead times fell due in the window,
     expanding recurring series onto their real next occurrence, skipping
     cancelled occurrences and anything already under way (15-min grace).
@@ -118,7 +118,7 @@ Google / Add to Outlook / Join buttons (not on a follow-up), EAT footer.
 
 - Wording follows the link: with a Meet link it is an **"Invitation: …"**;
   without one, **"Your upcoming event: …"**.
-- Greets by `getGivenName` (`lib/names.ts`) so "Mr Shivam Parmar" is "Shivam",
+- Greets by `getGivenName` (`lib/people/names.ts`) so "Mr Shivam Parmar" is "Shivam",
   not "Mr".
 - ⚠️ **Images use `emailAssetBaseUrl()`** (`lib/app-url.ts`), which never
   returns localhost — a dev-sent email with a localhost logo shows a black box.

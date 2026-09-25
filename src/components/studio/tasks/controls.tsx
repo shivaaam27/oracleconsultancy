@@ -13,9 +13,9 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronDown, Plus, Search, SlidersHorizontal, X } from "lucide-react";
-import type { FilterChip, FilterOption, IdentityStrip } from "@/components/task-filter-bar";
+import type { FilterChip, FilterOption, IdentityStrip } from "@/components/tasks/task-filter-bar";
 import { adminRemindTask } from "@/app/task/actions";
-import { useToast } from "@/components/toast";
+import { useToast } from "@/components/shell/toast";
 import { Dot, stBtn, stFloatBar } from "@/components/studio/kit";
 import { cn } from "@/lib/cn";
 

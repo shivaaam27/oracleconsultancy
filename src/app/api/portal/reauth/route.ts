@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { setSessionCookie, verifyRememberToken } from "@/lib/portal-auth";
+import { setSessionCookie, verifyRememberToken } from "@/lib/portal/portal-auth";
 
 export const dynamic = "force-dynamic";
 

@@ -9,7 +9,7 @@
 // nothing rather than an error.
 
 import { NextResponse } from "next/server";
-import { getAllTasks, computeGlobalKpis } from "@/lib/queries";
+import { getAllTasks, computeGlobalKpis } from "@/lib/tasks/queries";
 import { sb } from "@/db/supabase";
 
 export type PulseItem = { label: string; detail: string; when: string; href?: string };

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { sb } from "@/db/supabase";
-import { isAdminSession } from "@/lib/admin-auth";
+import { isAdminSession } from "@/lib/auth/admin-auth";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";

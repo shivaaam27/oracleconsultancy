@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAllTasks } from "@/lib/queries";
-import { unifiedSearch } from "@/lib/search";
-import { resolveDirectAnswer } from "@/lib/direct-answer";
-import { resolveSmartAnswer } from "@/lib/smart-answer";
-import { expandTokens } from "@/lib/synonyms";
+import { getAllTasks } from "@/lib/tasks/queries";
+import { unifiedSearch } from "@/lib/search/search";
+import { resolveDirectAnswer } from "@/lib/ai/direct-answer";
+import { resolveSmartAnswer } from "@/lib/ai/smart-answer";
+import { expandTokens } from "@/lib/search/synonyms";
 
 const TASK_STOP = new Set(["the", "a", "an", "of", "for", "to", "in", "on", "and", "is", "with", "all", "any", "show", "list", "find"]);
 function taskTokens(q: string): string[] {

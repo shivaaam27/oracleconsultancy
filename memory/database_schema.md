@@ -61,7 +61,7 @@ Conventions:
   (`portal_password_hash`, `portal_enabled_at`, `portal_last_login_at`,
   **`portal_role`** staff | manager | director | receptionist,
   `portal_designation`, `director_company_id`). Staff IDs are computed
-  (`src/lib/staff-id.ts`), not stored.
+  (`src/lib/people/staff-id.ts`), not stored.
 - **person_companies** (secondary company links), **director_companies** (a
   director's company scope), **reporting_lines** ("also reports to"; the primary
   manager stays `people.manager_id`).
@@ -69,7 +69,7 @@ Conventions:
 - **journey_step_templates** — onboarding/offboarding step templates; the steps
   themselves are `todos` rows with a `kind`.
 
-Only `src/lib/portal-access.ts` may write `portal_role`, `director_companies` or
+Only `src/lib/portal/portal-access.ts` may write `portal_role`, `director_companies` or
 `director_company_id`.
 
 ## Sign-in and MCP
@@ -107,7 +107,7 @@ Only `src/lib/portal-access.ts` may write `portal_role`, `director_companies` or
 - **undo_tokens** — ten-minute undo payloads.
 - **daily_snapshots** — nightly per-company counts (company momentum strip).
 
-All task writes go through `src/lib/task-write.ts`.
+All task writes go through `src/lib/tasks/task-write.ts`.
 
 ## Calendar, announcements, notifications
 
@@ -155,7 +155,7 @@ All task writes go through `src/lib/task-write.ts`.
   stock is derived.
 - **cleaning_areas**, **cleaning_days**, **cleaning_checks** — Cleaning.
 - **attendance** — one row per person per day; **public_holidays**.
-- **leave_types** — still read by `lib/leave.ts`.
+- **leave_types** — still read by `lib/people/leave.ts`.
 - **recurring_obligations**, **obligation_company** — Tax & Legal.
 
 ## Governance and facts

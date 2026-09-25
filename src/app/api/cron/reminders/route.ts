@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { authoriseCron } from "@/lib/cron-auth";
+import { authoriseCron } from "@/lib/auth/cron-auth";
 import { recordEvent } from "@/lib/system-events";
 import { reportError } from "@/lib/sentry";
-import { configurePush, sendToRecipient } from "@/lib/push";
-import { dueTodoRemindersForPush, markTodosPushed } from "@/lib/todo-reminders";
+import { configurePush, sendToRecipient } from "@/lib/messaging/push";
+import { dueTodoRemindersForPush, markTodosPushed } from "@/lib/tasks/todo-reminders";
 
 export const dynamic = "force-dynamic";
 

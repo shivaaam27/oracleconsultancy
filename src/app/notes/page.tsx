@@ -1,9 +1,9 @@
 import { sb } from "@/db/supabase";
-import { snippetOf } from "@/lib/notes-shared";
-import { OfflineNotesBanner } from "@/components/offline-notes-banner";
+import { snippetOf } from "@/lib/notes/notes-shared";
+import { OfflineNotesBanner } from "@/components/notes/offline-notes-banner";
 import { StudioNotesShelf } from "@/components/studio/notes/studio-notes-shelf";
-import { listNotes, listFolders, noteCounts, listTags, noteIdsForTag } from "@/lib/notes";
-import { getSavedViewsFor } from "@/lib/saved-views";
+import { listNotes, listFolders, noteCounts, listTags, noteIdsForTag } from "@/lib/notes/notes";
+import { getSavedViewsFor } from "@/lib/nav/saved-views";
 
 export const dynamic = "force-dynamic";
 

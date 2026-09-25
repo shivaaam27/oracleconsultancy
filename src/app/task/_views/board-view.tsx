@@ -2,34 +2,34 @@
 
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { markPush, withReturn } from "@/lib/return-to";
+import { markPush, withReturn } from "@/lib/nav/return-to";
 import { motion, LayoutGroup, useReducedMotion } from "framer-motion";
 import {
   ExternalLink, Clock, CheckCircle2, AlertOctagon, Plus, X, Building2,
 } from "lucide-react";
-import type { TaskRow } from "@/lib/queries";
+import type { TaskRow } from "@/lib/tasks/queries";
 import { spring } from "@/lib/motion";
 import { Badge, Button, IconButton, FieldLabel } from "@/components/ui";
-import { Panel } from "@/components/surface-kit";
-import { Reveal } from "@/components/reveal";
-import { FluidSelect, type FluidOption } from "@/components/fluid-select";
-import { Combobox } from "@/components/combobox";
-import { TaskInlineStatus, TaskInlinePriority } from "@/components/task-inline-edit";
-import { TaskMetaLine, PinnedMarker, WaitingOnChip } from "@/components/task-meta-line";
-import { TaskUpdateLine } from "@/components/task-update-line";
-import { TaskRowActions } from "@/components/task-row-actions";
-import { AssigneeList } from "@/components/assignee-list";
-import { PeekPreview, type PeekAction } from "@/components/peek-preview";
-import { TaskContext } from "@/components/task-context";
-import { PeekQuickUpdate } from "@/components/peek-quick-update";
-import { SnoozeSheet } from "@/components/snooze-sheet";
-import { triggerHaptic } from "@/lib/use-long-press";
-import { useToast } from "@/components/toast";
-import { callUndo } from "@/components/undo-banner";
+import { Panel } from "@/components/kit/surface-kit";
+import { Reveal } from "@/components/kit/reveal";
+import { FluidSelect, type FluidOption } from "@/components/forms/fluid-select";
+import { Combobox } from "@/components/forms/combobox";
+import { TaskInlineStatus, TaskInlinePriority } from "@/components/tasks/task-inline-edit";
+import { TaskMetaLine, PinnedMarker, WaitingOnChip } from "@/components/tasks/task-meta-line";
+import { TaskUpdateLine } from "@/components/tasks/task-update-line";
+import { TaskRowActions } from "@/components/tasks/task-row-actions";
+import { AssigneeList } from "@/components/tasks/assignee-list";
+import { PeekPreview, type PeekAction } from "@/components/tasks/peek-preview";
+import { TaskContext } from "@/components/tasks/task-context";
+import { PeekQuickUpdate } from "@/components/tasks/peek-quick-update";
+import { SnoozeSheet } from "@/components/tasks/snooze-sheet";
+import { triggerHaptic } from "@/lib/hooks/use-long-press";
+import { useToast } from "@/components/shell/toast";
+import { callUndo } from "@/components/shell/undo-banner";
 import { inlineUpdateTask } from "@/app/task/actions";
 import { createCaptureTask } from "@/app/capture/actions";
 import { SelectCheckbox, OrderRegistrar } from "./selection";
-import { taskHref } from "@/lib/task-href";
+import { taskHref } from "@/lib/tasks/task-href";
 
 const BOARD_STATUSES = [
   "Not Started", "In Progress", "Under Review", "Waiting External",

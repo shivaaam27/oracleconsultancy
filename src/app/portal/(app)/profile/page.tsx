@@ -1,40 +1,40 @@
 import { redirect } from "next/navigation";
-import { SignOutForm } from "@/components/sign-out-form";
+import { SignOutForm } from "@/components/shell/sign-out-form";
 import { Bell, FileCheck2, LogOut, Settings2, UserRound, Route as RouteIcon, Package, CheckCircle2, Circle } from "lucide-react";
-import { DevicePushToggle } from "@/components/device-push-toggle";
+import { DevicePushToggle } from "@/components/settings/device-push-toggle";
 import { sb } from "@/db/supabase";
-import { Hero, Panel, SectionLabel, TONE } from "@/components/surface-kit";
+import { Hero, Panel, SectionLabel, TONE } from "@/components/kit/surface-kit";
 import { ShieldCheck } from "lucide-react";
 import { Badge } from "@/components/ui";
-import { Reveal } from "@/components/reveal";
-import { AccessibilityControls } from "@/components/portal-prefs";
-import { PortalDocuments, type PortalDocumentItem } from "@/components/portal-documents";
-import { PortalAttendance } from "@/components/portal-attendance";
-import { personAttendanceWeek } from "@/lib/attendance";
-import { PasskeyManager } from "@/components/passkey-manager";
-import { InstallApp } from "@/components/install-app";
-import { PortalPassword } from "@/components/portal-password";
-import { listCredentials } from "@/lib/webauthn";
+import { Reveal } from "@/components/kit/reveal";
+import { AccessibilityControls } from "@/components/portal/portal-prefs";
+import { PortalDocuments, type PortalDocumentItem } from "@/components/portal/portal-documents";
+import { PortalAttendance } from "@/components/portal/portal-attendance";
+import { personAttendanceWeek } from "@/lib/people/attendance";
+import { PasskeyManager } from "@/components/people/passkey-manager";
+import { InstallApp } from "@/components/shell/install-app";
+import { PortalPassword } from "@/components/portal/portal-password";
+import { listCredentials } from "@/lib/auth/webauthn";
 import { staffBeginPasskey, staffFinishPasskey, staffRemovePasskey } from "@/app/portal/passkey-actions";
 import { Clock, ScanFace, KeyRound, MonitorSmartphone } from "lucide-react";
-import { getPortalPerson } from "@/lib/portal-auth";
-import { getInitials } from "@/lib/names";
-import { getJourney } from "@/lib/onboarding";
-import { assetsForPerson } from "@/lib/assets";
-import { staffIdFor } from "@/lib/staff-id";
+import { getPortalPerson } from "@/lib/portal/portal-auth";
+import { getInitials } from "@/lib/people/names";
+import { getJourney } from "@/lib/people/onboarding";
+import { assetsForPerson } from "@/lib/operations/assets";
+import { staffIdFor } from "@/lib/people/staff-id";
 import { portalLogout } from "../../actions";
-import { PortalBriefFilters } from "@/components/portal-brief-filters";
-import { portalBriefOptions } from "@/lib/portal-brief-scope";
-import { briefMonthOptions } from "@/lib/brief-links";
+import { PortalBriefFilters } from "@/components/portal/portal-brief-filters";
+import { portalBriefOptions } from "@/lib/portal/portal-brief-scope";
+import { briefMonthOptions } from "@/lib/reports/brief-links";
 import { Contact } from "lucide-react";
 import { PortalContactDetails, type ContactDetails } from "./portal-contact-details";
-import { getAllTasks } from "@/lib/queries";
-import { computePersonKpi } from "@/lib/kpi";
-import { PortalKpiCard } from "@/components/portal-kpi-card";
+import { getAllTasks } from "@/lib/tasks/queries";
+import { computePersonKpi } from "@/lib/tasks/kpi";
+import { PortalKpiCard } from "@/components/portal/portal-kpi-card";
 import { StaffProfile, PCard, KpiCard } from "@/components/studio/profile/staff-profile";
 import { WeekStrip, CheckinPanel } from "@/components/studio/home/staff-cards";
 import { StudioInstall } from "@/components/studio/studio-install";
-import { isStaffLikeRole } from "@/lib/director-routes";
+import { isStaffLikeRole } from "@/lib/portal/director-routes";
 
 export const dynamic = "force-dynamic";
 
@@ -71,7 +71,7 @@ export default async function PortalProfile() {
     // The documents filed against this person — a plain list, no checklist.
     (async (): Promise<PortalDocumentItem[]> => {
       if (isDirector) return [];
-      const { deriveDocStatus, expiryLabel: docExpiryLabel, listDocuments } = await import("@/lib/documents");
+      const { deriveDocStatus, expiryLabel: docExpiryLabel, listDocuments } = await import("@/lib/documents/documents");
       return (await listDocuments())
         .filter((d) => d.personId === me.id && !d.archived)
         .map((d) => ({

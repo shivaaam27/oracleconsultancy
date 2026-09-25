@@ -21,9 +21,9 @@
 // Server-only.
 
 import { sb } from "@/db/supabase";
-import { companyScope } from "@/lib/portal-auth";
+import { companyScope } from "@/lib/portal/portal-auth";
 import { callerStamp, type McpCaller } from "@/lib/mcp/auth";
-import { mutate, type Actor } from "@/lib/mutate";
+import { mutate, type Actor } from "@/lib/tasks/mutate";
 import type { WriteResult } from "@/lib/mcp/writes";
 
 /* --------------------------------------------------------------- *
@@ -124,7 +124,7 @@ export async function mcpListRecords(
     }
 
     case "risks": {
-      const { getRiskRegister } = await import("@/lib/governance");
+      const { getRiskRegister } = await import("@/lib/companies/governance");
       let rows = await getRiskRegister();
       if (openOnly) rows = rows.filter((r) => (r.status ?? "").toLowerCase() !== "closed");
       if (search) rows = rows.filter((r) => matches(search, r.title, r.category, r.owner));
@@ -136,7 +136,7 @@ export async function mcpListRecords(
     }
 
     case "decisions": {
-      const { getDecisions } = await import("@/lib/governance");
+      const { getDecisions } = await import("@/lib/companies/governance");
       let rows = await getDecisions();
       rows = scoped(byCompany(rows), scope);
       if (openOnly) rows = rows.filter((d) => (d.status ?? "").toLowerCase() !== "decided");
@@ -149,13 +149,13 @@ export async function mcpListRecords(
 
     case "governance": {
       if (companyId == null) return { ok: false, error: "Which company's governance? Governance is held per company." };
-      const { getCompanyGovernance } = await import("@/lib/governance");
+      const { getCompanyGovernance } = await import("@/lib/companies/governance");
       const g = await getCompanyGovernance(companyId);
       return { ok: true, type, company: args.company, governance: g };
     }
 
     case "vendors": {
-      const { listVendors } = await import("@/lib/vendors");
+      const { listVendors } = await import("@/lib/operations/vendors");
       let rows = await listVendors();
       rows = scoped(byCompany(rows), scope);
       if (openOnly) rows = rows.filter((v) => v.active);
@@ -171,7 +171,7 @@ export async function mcpListRecords(
       // Supplies is one office's consumables, not per-company, so a scoped caller has
       // no claim to it.
       if (scope != null) return { ok: false, error: "The stock register isn't something your login can read." };
-      const { listStockItems } = await import("@/lib/stock");
+      const { listStockItems } = await import("@/lib/operations/stock");
       let rows = await listStockItems();
       if (search) rows = rows.filter((s) => matches(search, s.name, s.code, s.category));
       return out(rows.map((s) => ({
@@ -182,7 +182,7 @@ export async function mcpListRecords(
 
     case "cleaning": {
       if (scope != null) return { ok: false, error: "The cleaning register isn't something your login can read." };
-      const { listDays } = await import("@/lib/cleaning");
+      const { listDays } = await import("@/lib/operations/cleaning");
       const rows = await listDays({ limit });
       return out(rows.map((d) => ({
         date: isoDay(d.date), note: d.note, signedBy: d.signedByName, signedAt: isoDay(d.signedAt),
@@ -190,7 +190,7 @@ export async function mcpListRecords(
     }
 
     case "announcements": {
-      const { listAnnouncements } = await import("@/lib/announcements");
+      const { listAnnouncements } = await import("@/lib/messaging/announcements");
       let rows = await listAnnouncements();
       if (search) rows = rows.filter((a) => matches(search, a.title, a.body, a.type));
       return out(rows.map((a) => ({
@@ -200,14 +200,14 @@ export async function mcpListRecords(
     }
 
     case "holidays": {
-      const { listHolidays } = await import("@/lib/leave");
+      const { listHolidays } = await import("@/lib/people/leave");
       let rows = await listHolidays();
       if (search) rows = rows.filter((h) => matches(search, h.name));
       return out(rows.map((h) => ({ date: isoDay(h.date), name: h.name })));
     }
 
     case "facts": {
-      const { listFacts } = await import("@/lib/facts");
+      const { listFacts } = await import("@/lib/companies/facts");
       if (companyId == null) return { ok: false, error: "Facts are held per company — which one?" };
       const rows = await listFacts({ type: "company", id: companyId });
       return out(rows as unknown[]);

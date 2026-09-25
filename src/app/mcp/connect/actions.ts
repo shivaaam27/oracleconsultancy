@@ -12,9 +12,9 @@
 
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
-import { isAdminSession, ownerIdentifierMatches, verifyAdminPassword, getOwnerIdentity } from "@/lib/admin-auth";
-import { findPortalPersonByIdentifier, getPortalPerson, portalPersonById, verifyPassword } from "@/lib/portal-auth";
-import { callerIp, lockMessage, loginLockState, recordLoginFailure, recordLoginSuccess } from "@/lib/login-throttle";
+import { isAdminSession, ownerIdentifierMatches, verifyAdminPassword, getOwnerIdentity } from "@/lib/auth/admin-auth";
+import { findPortalPersonByIdentifier, getPortalPerson, portalPersonById, verifyPassword } from "@/lib/portal/portal-auth";
+import { callerIp, lockMessage, loginLockState, recordLoginFailure, recordLoginSuccess } from "@/lib/auth/login-throttle";
 import { getClient, issueCode, redirectAllowed, DEFAULT_SCOPE } from "@/lib/mcp/oauth";
 import { recordEvent } from "@/lib/system-events";
 

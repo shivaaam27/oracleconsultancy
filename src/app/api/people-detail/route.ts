@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getPersonDetail } from "@/lib/people-queries";
+import { getPersonDetail } from "@/lib/people/people-queries";
 
 export const dynamic = "force-dynamic";
 

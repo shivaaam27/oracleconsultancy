@@ -52,13 +52,13 @@ search.
 
 ## How it works
 
-- **What is indexed** — every type in `src/lib/entity-registry.ts`: tasks,
+- **What is indexed** — every type in `src/lib/search/entity-registry.ts`: tasks,
   notes, people, companies, vendors, assets, governance records
   (shareholders, owners, signatories, key persons) and risks. Files contribute
   only what you typed about them (title, type, issuer, reference, notes); the
   file itself is never read for search, and ⌘K finds files by plain text match.
 - **Always fresh** — every create, edit and archive fires a per-write hook
-  (`src/lib/index-hooks.ts` → `reindexEntity` / `removeEntityIndex`), except
+  (`src/lib/search/index-hooks.ts` → `reindexEntity` / `removeEntityIndex`), except
   files. The nightly `/api/cron/reindex` (05:00 UTC) is the catch-all: it
   re-indexes changed rows, heals missed hooks and sweeps vectors of deleted rows.
   It does nothing while the switch is off.
@@ -67,7 +67,7 @@ search.
   records by default; ⌘K has an "Include history" toggle; the `hybrid_search`
   function takes `filter_lifecycle` (`active` / `history` / all). Only
   hard-deleted rows lose their vectors.
-- **Coverage self-audit** — `src/lib/coverage-audit.ts` compares what exists
+- **Coverage self-audit** — `src/lib/search/coverage-audit.ts` compares what exists
   with what is indexed and flags gaps on the System status card (inert while
   the switch is off).
 - **Adding a new record type** — add one `EntityDef` to the registry; indexing,
@@ -79,7 +79,7 @@ search.
   synonyms, and nothing is deleted.
 - **English-strong.** `gte-small` reads English best. Swahili text is
   translated to English by the AI before embedding when AI is on
-  (`src/lib/embeddings.ts`); keyword search still covers every language by
+  (`src/lib/search/embeddings.ts`); keyword search still covers every language by
   literal match.
 - **Cost:** nothing beyond your existing Supabase usage.
 - **Privacy:** embedding happens inside your Supabase region. (The optional

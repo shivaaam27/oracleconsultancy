@@ -1,11 +1,11 @@
 // Generated per-person summary image (light-Aurora) used as the WhatsApp
 // link-preview card (and the Twilio MediaUrl header). Public but signed (see
-// lib/wa-card.ts). Shows aggregate counts plus the recipient's top-3 overdue task
+// lib/messaging/wa-card.ts). Shows aggregate counts plus the recipient's top-3 overdue task
 // titles — the recipient already owns these, and the URL is HMAC-signed so it
 // can't be enumerated. Node runtime: uses node:crypto + postgres.js.
 import { ImageResponse } from "next/og";
-import { verifyWaCardToken, sanitizeFrom } from "@/lib/wa-card";
-import { loadWaSummary } from "@/lib/wa-summary";
+import { verifyWaCardToken, sanitizeFrom } from "@/lib/messaging/wa-card";
+import { loadWaSummary } from "@/lib/messaging/wa-summary";
 import { appBaseUrl } from "@/lib/app-url";
 
 export const runtime = "nodejs";

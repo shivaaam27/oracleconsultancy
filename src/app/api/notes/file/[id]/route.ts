@@ -15,7 +15,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { sb } from "@/db/supabase";
-import { signDocumentFile } from "@/lib/documents";
+import { signDocumentFile } from "@/lib/documents/documents";
 
 export const dynamic = "force-dynamic";
 

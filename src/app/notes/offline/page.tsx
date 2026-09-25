@@ -1,4 +1,4 @@
-import { OfflineNotesSurface } from "@/components/offline-notes-surface";
+import { OfflineNotesSurface } from "@/components/notes/offline-notes-surface";
 
 /* The one page that works with no connection.
  *

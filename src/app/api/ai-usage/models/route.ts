@@ -1,6 +1,6 @@
 // /api/ai-usage/models — the live per-model AI usage dashboard feed.
 //
-// Reads the existing `ai_usage` ledger (see lib/ai-spend.ts) — invents no new
+// Reads the existing `ai_usage` ledger (see lib/ai/ai-spend.ts) — invents no new
 // store. Admin-gated by the edge proxy (like /api/ai-usage, /api/pulse) — no
 // explicit auth here. Best-effort throughout: any failure fails OPEN to zeros so
 // the dashboard renders "nothing yet" rather than erroring.
@@ -17,8 +17,8 @@
 
 import { NextResponse } from "next/server";
 import { sb } from "@/db/supabase";
-import { pacificDayStartISO, nextPacificResetISO } from "@/lib/ai-spend";
-import { dailyQuotaFor, tierOf, CHAT_MODELS, type ModelTier } from "@/lib/ai-models";
+import { pacificDayStartISO, nextPacificResetISO } from "@/lib/ai/ai-spend";
+import { dailyQuotaFor, tierOf, CHAT_MODELS, type ModelTier } from "@/lib/ai/ai-models";
 import { getAppSettings } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";

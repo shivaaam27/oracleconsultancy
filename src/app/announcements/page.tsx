@@ -1,12 +1,12 @@
 import { redirect } from "next/navigation";
-import { getViewer } from "@/lib/viewer";
+import { getViewer } from "@/lib/auth/viewer";
 import { sb } from "@/db/supabase";
-import { directReportIds, isScopedDirector } from "@/lib/portal-auth";
-import { listAnnouncements, receiptStats, feedForPersonId } from "@/lib/announcements";
-import { ANNOUNCEMENT_TYPES, audienceLabel, isLive, isScheduled, type AudienceKind } from "@/lib/announcements-shared";
-import { getSitesAdmin } from "@/lib/sites";
-import { listRoleNames } from "@/lib/roles";
-import { PERSON_TYPES, PERSON_TYPE_LABELS } from "@/lib/person-types";
+import { directReportIds, isScopedDirector } from "@/lib/portal/portal-auth";
+import { listAnnouncements, receiptStats, feedForPersonId } from "@/lib/messaging/announcements";
+import { ANNOUNCEMENT_TYPES, audienceLabel, isLive, isScheduled, type AudienceKind } from "@/lib/messaging/announcements-shared";
+import { getSitesAdmin } from "@/lib/people/sites";
+import { listRoleNames } from "@/lib/auth/roles";
+import { PERSON_TYPES, PERSON_TYPE_LABELS } from "@/lib/people/person-types";
 import { StudioAnnouncements, type NoticeRow } from "@/components/studio/announcements/studio-announcements";
 import { AuthorAnnouncements } from "@/components/studio/announcements/author-announcements";
 

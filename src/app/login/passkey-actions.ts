@@ -1,9 +1,9 @@
 "use server";
 
 import type { AuthenticationResponseJSON } from "@simplewebauthn/server";
-import { beginAuthentication, finishAuthentication } from "@/lib/webauthn";
-import { setAdminCookie } from "@/lib/admin-auth";
-import { setSessionCookie } from "@/lib/portal-auth";
+import { beginAuthentication, finishAuthentication } from "@/lib/auth/webauthn";
+import { setAdminCookie } from "@/lib/auth/admin-auth";
+import { setSessionCookie } from "@/lib/portal/portal-auth";
 import { sb } from "@/db/supabase";
 
 /** Step 1: discoverable sign-in options for the browser. */

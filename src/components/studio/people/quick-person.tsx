@@ -8,9 +8,9 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createPerson } from "@/app/people/actions";
-import { PERSON_TYPES, PERSON_TYPE_LABELS, type PersonType } from "@/lib/person-types";
+import { PERSON_TYPES, PERSON_TYPE_LABELS, type PersonType } from "@/lib/people/person-types";
 import { StudioChoiceMenu } from "@/components/studio/tasks/cells";
-import { useToast } from "@/components/toast";
+import { useToast } from "@/components/shell/toast";
 import { cn } from "@/lib/cn";
 
 type Options = { companies: { id: number; name: string }[]; people: { id: number; name: string }[] };

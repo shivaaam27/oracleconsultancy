@@ -3,14 +3,14 @@
 // — no explicit auth here. Best-effort throughout: any failure fails OPEN to
 // zeros so the palette simply renders nothing rather than erroring.
 //
-// Reuses the existing `ai_usage` ledger (see lib/ai-spend.ts) — does NOT invent
+// Reuses the existing `ai_usage` ledger (see lib/ai/ai-spend.ts) — does NOT invent
 // a new store. Sums today's rows in the EAT calendar day.
 
 import { NextResponse } from "next/server";
 import { sb } from "@/db/supabase";
 
 /** Start-of-today ISO in Dar es Salaam (UTC+3, no DST), matching the app's EAT
- *  date handling (mirrors eatMonthStartISO in lib/ai-spend.ts). */
+ *  date handling (mirrors eatMonthStartISO in lib/ai/ai-spend.ts). */
 function eatDayStartISO(now = new Date()): string {
   const ymd = now.toLocaleDateString("en-CA", { timeZone: "Africa/Nairobi" }); // YYYY-MM-DD
   return new Date(`${ymd}T00:00:00+03:00`).toISOString();

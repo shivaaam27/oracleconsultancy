@@ -7,12 +7,12 @@
  * one read it makes of the owner's actions (an event's papers) is skipped when
  * read-only.
  */
-import type { PortalPerson } from "@/lib/portal-auth";
+import type { PortalPerson } from "@/lib/portal/portal-auth";
 import { sb } from "@/db/supabase";
-import { listCalendarEvents, toIcsEvent } from "@/lib/calendar";
-import { listOverlayItems } from "@/lib/calendar-overlays";
-import { listEventCategories } from "@/lib/event-categories";
-import { googleCalendarUrl } from "@/lib/ics";
+import { listCalendarEvents, toIcsEvent } from "@/lib/calendar/calendar";
+import { listOverlayItems } from "@/lib/calendar/calendar-overlays";
+import { listEventCategories } from "@/lib/calendar/event-categories";
+import { googleCalendarUrl } from "@/lib/calendar/ics";
 import { CalendarBoard, type CalendarEventView } from "@/app/calendar/calendar-board";
 
 const EAT = "Africa/Dar_es_Salaam";

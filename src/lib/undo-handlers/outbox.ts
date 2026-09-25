@@ -1,6 +1,6 @@
 import { sb } from "@/db/supabase";
 import { registerUndoHandler } from "../undo";
-import { removeEntityIndex } from "@/lib/index-hooks";
+import { removeEntityIndex } from "@/lib/search/index-hooks";
 
 // outbox.markSent — delete the reminder + outbox rows we just inserted.
 registerUndoHandler("outbox.markSent", async (raw) => {

@@ -1,9 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { getPortalPerson } from "@/lib/portal-auth";
-import { getBrief, parseBriefPeriod } from "@/lib/director-brief";
-import { renderBriefPdf } from "@/lib/brief-pdf";
-import { briefPdfFilename } from "@/lib/brief-pdf-shared";
-import { resolvePortalBriefFilters } from "@/lib/portal-brief-scope";
+import { getPortalPerson } from "@/lib/portal/portal-auth";
+import { getBrief, parseBriefPeriod } from "@/lib/reports/director-brief";
+import { renderBriefPdf } from "@/lib/reports/brief-pdf";
+import { briefPdfFilename } from "@/lib/reports/brief-pdf-shared";
+import { resolvePortalBriefFilters } from "@/lib/portal/portal-brief-scope";
 
 // Director download of the Director Brief PDF from the portal. Excluded from the
 // admin edge gate (see src/proxy.ts), so it verifies the portal session itself.

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isAdminSession } from "@/lib/admin-auth";
-import { getPortalPerson } from "@/lib/portal-auth";
+import { isAdminSession } from "@/lib/auth/admin-auth";
+import { getPortalPerson } from "@/lib/portal/portal-auth";
 import {
   listNotifications,
   unreadCount,
@@ -9,7 +9,7 @@ import {
   deleteNotification,
   deleteAllNotifications,
   personRecipient,
-} from "@/lib/notifications";
+} from "@/lib/messaging/notifications";
 
 /* The bell's data endpoint, for BOTH the admin owner and portal users.
  * Resolves the recipient from whichever session is present. Excluded from

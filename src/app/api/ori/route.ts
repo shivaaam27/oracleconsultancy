@@ -10,9 +10,9 @@ import { planTurn, type ChatMsg, type PlanStep } from "@/lib/ori/agent";
 import { TOOL_BY_NAME } from "@/lib/ori/tools";
 import { sb } from "@/db/supabase";
 import { recordEvent } from "@/lib/system-events";
-import { resolveSmartAnswer, type SmartAnswer } from "@/lib/smart-answer";
-import { aiCacheKey, aiCacheGet, aiCacheSet } from "@/lib/ai-cache";
-import { AI_RESTING_NOTE } from "@/lib/ai-models";
+import { resolveSmartAnswer, type SmartAnswer } from "@/lib/ai/smart-answer";
+import { aiCacheKey, aiCacheGet, aiCacheSet } from "@/lib/ai/ai-cache";
+import { AI_RESTING_NOTE } from "@/lib/ai/ai-models";
 
 /** Render a SmartAnswer to a short, plain-language line for ORI's chat reply.
  *  Keeps ORI a true superset — a "just answer it" turn returns a real answer,

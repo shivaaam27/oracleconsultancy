@@ -58,7 +58,7 @@ wrapper), `StudioHeader`, `StudioCardRow` (becomes `StudioSwipeRow`,
   (header dropdowns) is in `tasks/controls.tsx`.
 - `face.tsx` — `PersonFace`: every person circle in Studio. Blobatar
   (`blobatar` + `@blobatar/react`), colour by ROLE, expression by WORK
-  (`src/lib/face-mood.ts`, tested). Moods come from `/api/faces`, memoised
+  (`src/lib/people/face-mood.ts`, tested). Moods come from `/api/faces`, memoised
   5 min per server and filtered per viewer.
 - `people-pick.tsx` — the people picker (+ sheet, new task, a task's people).
 - `subtasks.tsx` — `TaskSubtasks`, `DraftSubtasks` and the exported `ListShell`
@@ -80,7 +80,7 @@ manager) + `staff-shell-server.tsx` (staff):
   neighbours are prefetched.
 - Go-to panel: every page, grouped, type to filter, Enter goes; ‹ › as key caps,
   "Search every record" (hidden for a director), the one light/dark toggle.
-- The page order is `src/lib/studio-nav.ts`, derived from `nav.ts`
+- The page order is `src/lib/nav/studio-nav.ts`, derived from `nav.ts`
   (longest-path match, wrap-around; tested). `directorStops()` and
   `staffStops()` there are the director/manager and staff menus.
 - The shell listens for `window` event **`studio:new` {tab}** to open "+ New" on
@@ -114,7 +114,7 @@ manager) + `staff-shell-server.tsx` (staff):
   hairlines, control box, sentence case; `.st-panel` dissolves its own box).
   Reuse this before rewriting a panel.
 - `.st-form` gives Desk dropdowns and date pickers inside a Studio form the
-  `.st-field` box; wrap a `DateInput` (`src/components/date-input.tsx` — use it
+  `.st-field` box; wrap a `DateInput` (`src/components/forms/date-input.tsx` — use it
   instead of `<input type="date">`) in `<span className="st-date block">`.
 - `.st-settings` — Settings' masonry columns. `[data-st-menu]` — a dropdown
   that becomes a full-width panel at the foot below 640px (tag every new popup).
@@ -122,7 +122,7 @@ manager) + `staff-shell-server.tsx` (staff):
   redefines it light. Don't put #8E9197 / #A3A6AB text back on either.
 
 **Lists and forms**
-- `RecordList variant="studio"` (`src/components/record-list.tsx`) — looks only;
+- `RecordList variant="studio"` (`src/components/kit/record-list.tsx`) — looks only;
   same column engine, sorting, bulk, export, `activeKey`, `lead` (quick-add
   row). Filters still go through `useUrlFilters`.
 - Some shared Desk components still take a `studio` prop because the other look
@@ -139,7 +139,7 @@ manager) + `staff-shell-server.tsx` (staff):
 - Hero: a bar per open task (quiet → moving → due soon → late), height by
   priority; each opens its task. Live announcements ride in the hero line.
 - Due card (Today / This week) + three turning cards (‹ ›, dots, swipe, ←/→):
-  Tasks, People, Companies & the day — incl. Latest activity (`lib/activity.ts`),
+  Tasks, People, Companies & the day — incl. Latest activity (`lib/tasks/activity.ts`),
   Team today, Documents, Controls held (optimistic, rolled back on failure).
 - "Send the Director Brief" asks twice. Phone: hero + `PhoneFolds` (open state in
   localStorage `studio.home.folds`).
@@ -167,7 +167,7 @@ below it floats; on a phone it is a sheet above the footer (the quick-update
 sheet). It loads `/api/task-detail`, which stamps the owner's view (marks read).
 ↗ grows the panel to the frame, then navigates (page prefetched on open).
 
-**Task record** — `/task/[code]`, `TaskRecordPage` in `src/components/task-drawer.tsx`.
+**Task record** — `/task/[code]`, `TaskRecordPage` in `src/components/tasks/task-drawer.tsx`.
 - Three columns fitted to the frame: Details (`tasks/details.tsx`, every value
   edits in place through `patchTaskField` → `updateTaskCore`, audited, Undo;
   moving company follows the new code), the conversation (oldest-first bubbles,
@@ -175,7 +175,7 @@ sheet). It loads `/api/task-detail`, which stamps the owner's view (marks read).
 - Waiting on = `StudioBlocker` (`tasks/blocker.tsx`). Owner can edit/take down
   an update (`adminEditUpdate` / `adminDeleteUpdate`). Notes tab is owner-only
   (`ownerView` from `/api/task-detail`). Subtasks tab carries a count.
-- **No loading screens**: `src/lib/task-detail-cache.ts` (stale-while-
+- **No loading screens**: `src/lib/tasks/task-detail-cache.ts` (stale-while-
   revalidate), filled by the panel, the record and read-ahead (hovered row after
   160ms, neighbours of the open task). `task/[code]/loading.tsx` draws the record
   from it; `task/loading.tsx` returns null. ‹ › uses `history.pushState` and the
@@ -195,7 +195,7 @@ background (`preloadQuickAdd`). "Create and add another" = Ctrl+Enter.
 
 **Recurring** — `/task/recurring` → `studio/recurring/studio-recurring.tsx`,
 same four actions in `src/app/task/recurring-actions.ts`.
-- `nextOccurrences()` in `src/lib/recurring-task-rules.ts` (tested) is built on
+- `nextOccurrences()` in `src/lib/tasks/recurring-task-rules.ts` (tested) is built on
   `occursToday` and skips today once `lastFiredAt` ≥ 09:00, so the page never
   promises a day the job won't act on. Remove asks twice.
 
@@ -210,7 +210,7 @@ filters, views, `EventForm`, saves).
 - Event screen (board Event): dark action bar, two columns, clash footer.
   `useEventActions` is the ONE copy of an event's actions and their dialogs;
   `StudioReadCard` shows what was read from a ticket.
-- Overlay links come from `src/lib/calendar-overlays.ts` and are `ReturnLink`s.
+- Overlay links come from `src/lib/calendar/calendar-overlays.ts` and are `ReturnLink`s.
 
 **People** — `studio/people/studio-people.tsx`; person `studio-person.tsx`.
 - Columns (per company, `PeopleColumns`, slides ‹ ›) is the default for everyone;
@@ -223,7 +223,7 @@ filters, views, `EventForm`, saves).
   (`applyPortalDraft`).
 - A director's reach is one choice: every company / only their companies
   (`setPortalLevelWithReach`, `grantPortalAccessWithReach`; `directorFollowsCompanies`
-  + `refreshDirectorScope` in `src/lib/portal-access.ts`, wired into
+  + `refreshDirectorScope` in `src/lib/portal/portal-access.ts`, wired into
   `updatePerson` and bulk company). A "custom" scope is shown and left alone.
 - "Remind about open work" = `useRemindPerson` (`people/remind.ts`): an Outbox
   draft, never sent. Equipment = `people/person-equipment.tsx`.
@@ -232,7 +232,7 @@ filters, views, `EventForm`, saves).
 Departments / Sites / Roles as `StudioReference`) and `studio-company.tsx`.
 - ONE standing rule, `standing()` / `STANDING` (exported from the hub): nothing
   open → late/open > ½ At risk → any late Watch → On track. "Done" = this month.
-  Counts come from `src/lib/company-kpis.ts` (a task counts once, under its
+  Counts come from `src/lib/tasks/company-kpis.ts` (a task counts once, under its
   filed company).
 - Company tabs: Profile = `company-profile.tsx` (`StudioCompanyProfile`), Tasks =
   the Studio task list inside `StudioPickProvider`, Notes / Timeline / Org inside
@@ -267,19 +267,19 @@ work by company/person, status/priority mix. Pure render.
 for `/hrms/assets/[id]`, `studio-vendor.tsx` for `/hrms/vendors/[id]`,
 `asset-sheets.tsx`). Hand-over desk, workshop, warranty (`assets.warranty_until`),
 stock-take (`assets.checked_at`), service log (`asset_services`) — migration
-0171. The Excel importer is `src/lib/asset-import.ts`.
+0171. The Excel importer is `src/lib/operations/asset-import.ts`.
 
 **Attendance** — `/hrms/leave` → `studio/attendance/studio-attendance.tsx`.
 Register painted with a brush, or Holidays; on a phone the grid becomes ONE day.
 A holiday cell is derived and cannot be painted.
 
 **Supplies** — `studio/supplies/studio-supplies.tsx`. Stock is never stored:
-opening + bought − issued (`src/lib/stock-shared.ts`).
+opening + bought − issued (`src/lib/operations/stock-shared.ts`).
 
 **Cleaning** — owner `/hrms/cleaning` and the receptionist's screen:
 `studio/cleaning/studio-cleaning-today.tsx` (`portal` prop). A manager's
 overview: `studio/cleaning/studio-cleaning.tsx` (read-only). "Today" is the EAT
-day on both sides; `ensureDay` (`src/lib/cleaning.ts`) retries after a
+day on both sides; `ensureDay` (`src/lib/operations/cleaning.ts`) retries after a
 duplicate-key race.
 
 **Tax & Legal** — `/hrms/command-centre` → `studio/tax/studio-tax-legal.tsx`
@@ -296,7 +296,7 @@ PDF. A director needs `caps.directorBrief`.
 
 **Ask / search** — `studio/search.tsx` (`StudioSearch`) only RENDERS; the one
 `/api/search` call, recent pages and the ORI hand-off stay in
-`CommandPaletteProvider` (`src/components/command-palette.tsx`). Empty: recent
+`CommandPaletteProvider` (`src/components/search/command-palette.tsx`). Empty: recent
 tasks, recent pages, ORI questions. Typing: one ranked list of 8 (max 4 of a
 kind), kinds with counts (Tab steps), "Ask ORI" last — first when it reads as a
 question. `cmdk` runs `shouldFilter={false}` (the server already filtered). No
@@ -306,7 +306,7 @@ Desk extras on open. `/ask` redirects home.
 `studio/notifications-panel.tsx`: Needs you / Activity, filter chips, ORI digests
 folded. Open / Mark read / Dismiss are real; Reply posts in place
 (`replyToTaskByCode` → `addTaskUpdateCore`). `DeviceAlertsRow`
-(`src/components/notification-settings.tsx`) at the foot for owner and directors.
+(`src/components/settings/notification-settings.tsx`) at the foot for owner and directors.
 Opens from the bottom on a phone.
 
 **Emails** — ONE template, `src/lib/email/layout.ts`: Studio look, full HTML
@@ -323,12 +323,12 @@ Commitments, Approvals (redirect home; tables kept).
 - **Owner**: every page above.
 - **Directors and managers** — the same Home, Tasks, task, People, Companies,
   Calendar, Files, Outbox, Announcements over their companies. They are a
-  `Viewer` (`src/lib/viewer.ts`, `kind: "director"`, `role` says which;
+  `Viewer` (`src/lib/auth/viewer.ts`, `kind: "director"`, `role` says which;
   `getViewer`, `guardOwner` / `guardViewer`). Managers' capabilities equal
   directors'; a director's reach can be all / own / chosen companies, a manager
   always sees their own. Read `memory/portal_unification_plan.md`.
   - An old portal address is sent on by the PORTAL LAYOUT
-    (`studioPathForDirector` in `src/lib/director-routes.ts`, tested; the proxy
+    (`studioPathForDirector` in `src/lib/portal/director-routes.ts`, tested; the proxy
     passes the address in `x-cos-path`), before the old frame paints.
   - `/portal/profile` (both) and `/portal/cleaning` (managers) stay under the
     portal in the Studio frame the portal layout draws; a manager checks in on
@@ -352,7 +352,7 @@ Commitments, Approvals (redirect home; tables kept).
     side panel). A task = `studio/tasks/staff-task-record.tsx` (Send for review,
     I'm blocked, Complete only if they raised it; edit only with
     `caps.manageAnyTask`). Profile = `studio/profile/staff-profile.tsx`.
-  - Shared screens with staff limits: `src/lib/staff-colleagues.ts`
+  - Shared screens with staff limits: `src/lib/portal/staff-colleagues.ts`
     (`staffColleagueIds`, `forStaff` blanks workload/private fields),
     `people/[id]/staff-person.tsx`, `companies/[id]/staff-company.tsx`,
     `meetings/staff-calendar.tsx` (read-only), all under
@@ -435,10 +435,10 @@ Commitments, Approvals (redirect home; tables kept).
 - `ai_jobs` holds 54 unanswered ORI questions + 641 old reading jobs from the
   dead cloud worker — owner not yet asked about clearing them.
 - Retired proposal kinds (pipeline-*, compliance-verify) no longer count as
-  waiting (`RETIRED_KINDS`, `src/lib/cockpit.ts`); 7 such rows sit in
+  waiting (`RETIRED_KINDS`, `src/lib/automation/cockpit.ts`); 7 such rows sit in
   `automation_events`.
 - Tax & Legal is paused live, so its full view was only type-checked.
-- `TimeField` (`src/components/date-time-field.tsx`) shows 12-hour; the mockup
+- `TimeField` (`src/components/forms/date-time-field.tsx`) shows 12-hour; the mockup
   prints 24-hour. Shared with the portal — ask before changing.
 - Old `portal-hr:` authors on existing rows still display (HR role removed).
 - Left as the owner's decisions: authorship matched by name not id; reminders go

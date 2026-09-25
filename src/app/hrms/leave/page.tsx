@@ -1,5 +1,5 @@
-import { listHolidays } from "@/lib/leave";
-import { getAttendanceMonth } from "@/lib/attendance";
+import { listHolidays } from "@/lib/people/leave";
+import { getAttendanceMonth } from "@/lib/people/attendance";
 import { sb } from "@/db/supabase";
 import { StudioAttendance } from "@/components/studio/attendance/studio-attendance";
 

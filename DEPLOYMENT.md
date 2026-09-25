@@ -127,7 +127,7 @@ fires a daily 404 at it.
   the right binary for the host.
 - Uploads ride server actions, so `serverActions.bodySizeLimit` is `25mb`.
 - The Director Brief PDF is rendered on the server by `@react-pdf/renderer`
-  (`src/lib/brief-pdf.tsx`).
+  (`src/lib/reports/brief-pdf.tsx`).
 
 ## Database migrations
 

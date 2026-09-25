@@ -1,4 +1,4 @@
-import { loadStock } from "@/lib/stock";
+import { loadStock } from "@/lib/operations/stock";
 import { sb } from "@/db/supabase";
 import { StudioSupplies } from "@/components/studio/supplies/studio-supplies";
 

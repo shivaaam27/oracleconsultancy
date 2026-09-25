@@ -1,15 +1,15 @@
 import { createTask } from "../actions";
 import { STATUSES, RISKS, CATEGORIES } from "@/lib/constants";
 import { Button, FieldLabel, Input } from "@/components/ui";
-import { SelectField } from "@/components/select-field";
-import { FormSwitch } from "@/components/form-switch";
-import { Combobox } from "@/components/combobox";
-import { SubmitTextarea, EnterHint } from "@/components/form-keys";
-import { ActionItemField } from "@/components/action-item-field";
-import { PersonPicker, type PickerPerson } from "@/components/person-picker";
-import { PrioritySegment, DeadlineQuickPick, CompanySelectField, RepeatSection } from "@/components/task-form-fields";
+import { SelectField } from "@/components/forms/select-field";
+import { FormSwitch } from "@/components/forms/form-switch";
+import { Combobox } from "@/components/forms/combobox";
+import { SubmitTextarea, EnterHint } from "@/components/forms/form-keys";
+import { ActionItemField } from "@/components/tasks/action-item-field";
+import { PersonPicker, type PickerPerson } from "@/components/people/person-picker";
+import { PrioritySegment, DeadlineQuickPick, CompanySelectField, RepeatSection } from "@/components/tasks/task-form-fields";
 import Link from "next/link";
-import { ReturnField } from "@/components/location-tracker";
+import { ReturnField } from "@/components/shell/location-tracker";
 import { Plus, ChevronRight } from "lucide-react";
 import type { ReactNode } from "react";
 

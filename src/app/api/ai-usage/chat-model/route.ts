@@ -5,7 +5,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { saveAppSettings } from "@/lib/settings";
-import { CHAT_MODELS } from "@/lib/ai-models";
+import { CHAT_MODELS } from "@/lib/ai/ai-models";
 
 export async function POST(req: NextRequest) {
   try {

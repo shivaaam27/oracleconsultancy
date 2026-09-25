@@ -14,14 +14,14 @@
 
 import { revalidatePath } from "next/cache";
 import { sb } from "@/db/supabase";
-import { getPortalPerson, companyScope, type PortalPerson } from "@/lib/portal-auth";
+import { getPortalPerson, companyScope, type PortalPerson } from "@/lib/portal/portal-auth";
 import type { RuleConfig } from "@/lib/ori/automations";
 import {
   buildConfig, cleanAssigneeIds, rowToRule, PAUSED_FOREVER,
   type RecurringRuleRow, type RecurringTaskInput, type RecurringTaskRule, type Result,
-} from "@/lib/recurring-task-rules";
+} from "@/lib/tasks/recurring-task-rules";
 
-// The shape and the checks live in src/lib/recurring-task-rules.ts, shared with
+// The shape and the checks live in src/lib/tasks/recurring-task-rules.ts, shared with
 // the Administrator's door (src/app/task/recurring-actions.ts).
 //
 // ⚠️ NOTHING BUT AN ASYNC FUNCTION MAY BE EXPORTED FROM A "use server" FILE —
@@ -31,7 +31,7 @@ import {
 // not defined", thrown while the module is evaluated, which took down EVERY
 // page whose action graph reaches this file — /login included, so nobody could
 // sign in. `tsc` and the tests both pass; only running the app finds it.
-// Types are imported from lib/recurring-task-rules.ts directly.
+// Types are imported from lib/tasks/recurring-task-rules.ts directly.
 
 /** "portal-dir:<Name>" / "portal-mgr:<Name>" — the exact tag
  *  portalDirectorCreateTask stamps, so a person's own recurring rules can be found

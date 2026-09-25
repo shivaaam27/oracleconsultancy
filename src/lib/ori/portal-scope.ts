@@ -6,8 +6,8 @@ import {
   companyScope,
   visibleTaskIds,
   type PortalPerson,
-} from "@/lib/portal-auth";
-import type { SearchResult, SearchResultType } from "@/lib/search";
+} from "@/lib/portal/portal-auth";
+import type { SearchResult, SearchResultType } from "@/lib/search/search";
 
 /* ------------------------------------------------------------------ *
  * Portal ORI — scope enforcement for the wider `unifiedSearch` result

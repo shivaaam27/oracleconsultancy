@@ -1,6 +1,6 @@
 "use server";
 
-import { guardOwner } from "@/lib/viewer";
+import { guardOwner } from "@/lib/auth/viewer";
 
 // Server actions for the ORI Automation management screen: pause/cancel an
 // existing standing rule, plus the RULE BUILDER's create action. The builder is

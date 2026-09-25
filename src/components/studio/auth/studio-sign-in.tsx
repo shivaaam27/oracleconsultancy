@@ -21,7 +21,7 @@ import Image from "next/image";
 import { useActionState, useEffect, useRef, useState } from "react";
 import { useTheme } from "next-themes";
 import { Eye, EyeOff, Loader2, Moon, ShieldCheck, Sun, TriangleAlert, UserRound } from "lucide-react";
-import { ShakeOnError } from "@/components/auth-fields";
+import { ShakeOnError } from "@/components/forms/auth-fields";
 import { PasskeyLoginButton, PASSKEY_USED_KEY } from "@/app/login/passkey-login-button";
 import { adminLogin, adminSetup, type LoginState } from "@/app/login/actions";
 import { portalLogin } from "@/app/portal/actions";

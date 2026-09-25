@@ -2,7 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import { Plus } from "lucide-react";
-import { useContextActions } from "@/components/context-actions";
+import { useContextActions } from "@/components/kit/context-actions";
 
 /**
  * Registers the Home/overview contextual action: New task.

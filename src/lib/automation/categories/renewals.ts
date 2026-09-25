@@ -8,8 +8,8 @@ export const renewalsCategory: CategoryDef = {
   key: "renewals",
   scheduledToday: () => true, // daily
   async run(ctx, mode) {
-    const { listDocuments } = await import("@/lib/documents");
-    const { getDocumentRenewalCandidates } = await import("@/lib/automation-suggestions");
+    const { listDocuments } = await import("@/lib/documents/documents");
+    const { getDocumentRenewalCandidates } = await import("@/lib/automation/automation-suggestions");
     const docs = await listDocuments();
     const candidates = await getDocumentRenewalCandidates(docs);
     let prepared = 0, sent = 0;

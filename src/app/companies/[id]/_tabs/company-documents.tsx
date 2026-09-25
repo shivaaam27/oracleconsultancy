@@ -4,13 +4,13 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import * as Dialog from "@radix-ui/react-dialog";
 import { FilePlus, X, FolderOpen, Users, ExternalLink, Pencil, Trash2, Loader2, ChevronDown, Search, Check } from "lucide-react";
-import { DocumentForm } from "@/components/document-form";
-import { DocPreview } from "@/components/doc-preview";
-import { PersonDrawerLink } from "@/components/person-drawer-link";
+import { DocumentForm } from "@/components/documents/document-form";
+import { DocPreview } from "@/components/documents/doc-preview";
+import { PersonDrawerLink } from "@/components/people/person-drawer-link";
 import { archiveDocumentAction, renameDocumentAction } from "@/app/documents/actions";
-import { deriveDocStatus, expiryLabel, type DocStatus, type DocumentRow } from "@/lib/documents-shared";
-import { useToast } from "@/components/toast";
-import { getInitials as initials } from "@/lib/names";
+import { deriveDocStatus, expiryLabel, type DocStatus, type DocumentRow } from "@/lib/documents/documents-shared";
+import { useToast } from "@/components/shell/toast";
+import { getInitials as initials } from "@/lib/people/names";
 
 const STATUS_BADGE: Record<DocStatus, string> = {
   Valid: "bg-success-soft text-success",

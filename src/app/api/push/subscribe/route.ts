@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { addSubscription, removeSubscription, addRecipientSubscription, removeRecipientSubscription } from "@/lib/push";
-import { isAdminSession } from "@/lib/admin-auth";
-import { getPortalPerson } from "@/lib/portal-auth";
-import { personRecipient } from "@/lib/notifications";
+import { addSubscription, removeSubscription, addRecipientSubscription, removeRecipientSubscription } from "@/lib/messaging/push";
+import { isAdminSession } from "@/lib/auth/admin-auth";
+import { getPortalPerson } from "@/lib/portal/portal-auth";
+import { personRecipient } from "@/lib/messaging/notifications";
 
 export const dynamic = "force-dynamic";
 

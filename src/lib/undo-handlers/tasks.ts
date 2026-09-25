@@ -1,6 +1,6 @@
 import { sb } from "@/db/supabase";
 import { registerUndoHandler } from "../undo";
-import { reindexEntity, removeEntityIndex } from "@/lib/index-hooks";
+import { reindexEntity, removeEntityIndex } from "@/lib/search/index-hooks";
 
 type TaskFields = {
   actionItem: string;

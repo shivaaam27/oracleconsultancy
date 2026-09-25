@@ -1,6 +1,6 @@
 "use server";
 
-import { guardOwner } from "@/lib/viewer";
+import { guardOwner } from "@/lib/auth/viewer";
 
 import { revalidatePath } from "next/cache";
 import {
@@ -16,7 +16,7 @@ import {
   type StockItemInput,
   type PurchaseInput,
   type IssueInput,
-} from "@/lib/stock";
+} from "@/lib/operations/stock";
 
 type Result = { ok: true; id?: number } | { ok: false; error: string };
 

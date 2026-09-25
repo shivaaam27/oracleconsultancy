@@ -1,6 +1,6 @@
 "use server";
 
-import { guardOwner } from "@/lib/viewer";
+import { guardOwner } from "@/lib/auth/viewer";
 // Administrator control levers — the one-tap switches the owner pulls from the
 // home cockpit. Each mirrors a setting that otherwise lives only in /settings, so
 // the operator can hold or release the whole operation without leaving home.
@@ -101,7 +101,7 @@ export async function runAutomationsNowAction(): Promise<RunResult> {
 export async function sendBriefNowAction(): Promise<RunResult> {
   await guardOwner();
   try {
-    const { sendDirectorBriefToOwnerNow } = await import("@/lib/director-brief-send");
+    const { sendDirectorBriefToOwnerNow } = await import("@/lib/reports/director-brief-send");
     const { sent } = await sendDirectorBriefToOwnerNow();
     revalidatePath("/");
     revalidatePath("/outbox");

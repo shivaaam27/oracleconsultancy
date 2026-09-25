@@ -28,8 +28,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { bulkUpdateTasks, type BulkAction, type BulkResult } from "@/app/task/actions";
-import { callUndo } from "@/components/undo-banner";
-import { useToast } from "@/components/toast";
+import { callUndo } from "@/components/shell/undo-banner";
+import { useToast } from "@/components/shell/toast";
 import { Button, Select } from "@/components/ui";
 import { Checkbox } from "@/components/ui/checkbox";
 

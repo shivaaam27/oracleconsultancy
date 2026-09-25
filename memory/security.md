@@ -35,7 +35,7 @@ Until 20 Aug 2026 every table had Row Level Security OFF and full grants to
   whose default privileges still grant `anon` everything. Create tables by
   migration only.
 - `postgres_changes` no longer reaches `anon` (RLS). Realtime is broadcast only
-  (`src/lib/cos-pulse.ts`, server → REST), and no page subscribes any more, so
+  (`src/lib/messaging/cos-pulse.ts`, server → REST), and no page subscribes any more, so
   the app itself no longer reads `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
 - **`npm run db:check-security`** (`scripts/check-db-security.ts`) re-tests RLS,
   anon grants, views, SECURITY DEFINER functions and public storage buckets, and
@@ -66,7 +66,7 @@ Settings, and skim `audit_log` / `system_events`.
 
 ## 3. The self-check
 
-Settings → Security & Access → **Security check** (`src/lib/security-status.ts`)
+Settings → Security & Access → **Security check** (`src/lib/auth/security-status.ts`)
 reports from the live environment: database lock, sign-in cookie key
 (`PORTAL_SESSION_SECRET`), error alerts (Sentry DSN), CSP mode. It only reads.
 
@@ -84,11 +84,11 @@ a portal check).
 
 ## 5. Open backlog (verified still open, Sept 2026)
 
-- **P2 — scrypt cost.** `hashPassword` in `src/lib/portal-auth.ts` (used for the
+- **P2 — scrypt cost.** `hashPassword` in `src/lib/portal/portal-auth.ts` (used for the
   owner too) calls `scryptSync(password, salt, 32)` with Node's defaults
   (N=16384). Raise the cost (N=2^17) or move to argon2, with a version tag in the
   stored string so old hashes still verify and re-hash on next sign-in.
-- **P3 — login throttle is in memory.** `src/lib/login-throttle.ts` keeps its
+- **P3 — login throttle is in memory.** `src/lib/auth/login-throttle.ts` keeps its
   counters in a `Map` per server instance; Vercel runs many short-lived
   instances, so it is not a real lockout. Move the counters to a small table.
 - **P5 — the admin gate fails open.** `src/proxy.ts` trusts a valid signature

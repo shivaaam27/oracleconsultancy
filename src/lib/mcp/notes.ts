@@ -22,8 +22,8 @@
 import { sb } from "@/db/supabase";
 import type { McpCaller } from "@/lib/mcp/auth";
 import type { WriteResult } from "@/lib/mcp/writes";
-import { snippetOf } from "@/lib/notes-shared";
-import { unifiedSearch } from "@/lib/search";
+import { snippetOf } from "@/lib/notes/notes-shared";
+import { unifiedSearch } from "@/lib/search/search";
 
 /** The refusal both tools share. Owner-only is not negotiable here — see above. */
 function ownerOnly(caller: McpCaller): string | null {
@@ -239,7 +239,7 @@ export async function mcpNoteWrite(caller: McpCaller, args: NoteWriteArgs): Prom
   const { error } = await sb.from("notes").update({ archived, updated_at: now }).eq("id", id);
   if (error) return { ok: false, error: error.message };
 
-  const { reindexEntity } = await import("@/lib/index-hooks");
+  const { reindexEntity } = await import("@/lib/search/index-hooks");
   await reindexEntity("note", id);
   return {
     ok: true,
@@ -258,14 +258,14 @@ export async function mcpNoteWrite(caller: McpCaller, args: NoteWriteArgs): Prom
  */
 async function after(noteId: number, bodyText: string): Promise<void> {
   try {
-    const { parseTags } = await import("@/lib/note-tags");
+    const { parseTags } = await import("@/lib/notes/note-tags");
     const tags = parseTags(bodyText);
     await sb.from("note_tags").delete().eq("note_id", noteId);
     if (tags.length) await sb.from("note_tags").insert(tags.map((tag) => ({ note_id: noteId, tag })));
   } catch { /* a tag index is a convenience */ }
 
   try {
-    const { reindexEntity } = await import("@/lib/index-hooks");
+    const { reindexEntity } = await import("@/lib/search/index-hooks");
     await reindexEntity("note", noteId);
   } catch { /* the nightly sweep will catch it */ }
 }

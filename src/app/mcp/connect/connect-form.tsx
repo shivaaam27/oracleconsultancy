@@ -12,7 +12,7 @@
 import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { Eye, EyeOff, Loader2, Lock, ShieldCheck, UserRound } from "lucide-react";
-import { ShakeOnError } from "@/components/auth-fields";
+import { ShakeOnError } from "@/components/forms/auth-fields";
 import { cn } from "@/lib/cn";
 import { approveConnection, denyConnection, type ConnectState } from "./actions";
 

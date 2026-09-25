@@ -1,8 +1,8 @@
 "use server";
 
-import { guardOwner, guardViewer, fromBrowser, trusted, type Viewer } from "@/lib/viewer";
-import { needCap, needCompany, stampOf, assigneesFor } from "@/lib/viewer-scope";
-import type { CapabilityKey } from "@/lib/portal-permissions";
+import { guardOwner, guardViewer, fromBrowser, trusted, type Viewer } from "@/lib/auth/viewer";
+import { needCap, needCompany, stampOf, assigneesFor } from "@/lib/auth/viewer-scope";
+import type { CapabilityKey } from "@/lib/portal/portal-permissions";
 import { revalidatePath } from "next/cache";
 // bustTag, NEVER updateTag, anywhere in this file. Half of these actions are
 // also called from /api/mcp - a route handler, where updateTag throws, and it
@@ -11,23 +11,23 @@ import { revalidatePath } from "next/cache";
 // Action behaves exactly as it did.
 import { bustTag } from "@/lib/cache-bust";
 import { redirect } from "next/navigation";
-import { BACK_PARAM, safeReturn, withReturn } from "@/lib/return-to";
+import { BACK_PARAM, safeReturn, withReturn } from "@/lib/nav/return-to";
 import { sb } from "@/db/supabase";
-import { isAdminSession } from "@/lib/admin-auth";
+import { isAdminSession } from "@/lib/auth/admin-auth";
 import { logChangeSb } from "@/lib/db-helpers";
-import { mutate, type UndoSpec } from "@/lib/mutate";
+import { mutate, type UndoSpec } from "@/lib/tasks/mutate";
 import { setUndoCookie } from "@/lib/undo-cookie";
-import { computeClosedDateFrom } from "@/lib/task-status";
-import { createTaskCore, updateTaskCore, addTaskUpdateCore } from "@/lib/task-write";
-import { shouldCreateTodaysCopy } from "@/lib/recurring-task-rules";
+import { computeClosedDateFrom } from "@/lib/tasks/task-status";
+import { createTaskCore, updateTaskCore, addTaskUpdateCore } from "@/lib/tasks/task-write";
+import { shouldCreateTodaysCopy } from "@/lib/tasks/recurring-task-rules";
 import { saveRuleOnly } from "./recurring-actions";
 import { getOrCreatePersonSb } from "@/lib/db-helpers";
-import { reindexEntity, removeEntityIndex } from "@/lib/index-hooks";
-import { invalidateAllTasks } from "@/lib/queries";
+import { reindexEntity, removeEntityIndex } from "@/lib/search/index-hooks";
+import { invalidateAllTasks } from "@/lib/tasks/queries";
 import { ingestAttachmentDocument } from "@/app/documents/actions";
-import { parseMentionIds } from "@/lib/mentions";
-import { createNotification, notifyMany, notifyPinned, personRecipient, recipientForCreatedBy } from "@/lib/notifications";
-import { broadcastPulse } from "@/lib/cos-pulse";
+import { parseMentionIds } from "@/lib/tasks/mentions";
+import { createNotification, notifyMany, notifyPinned, personRecipient, recipientForCreatedBy } from "@/lib/messaging/notifications";
+import { broadcastPulse } from "@/lib/messaging/cos-pulse";
 
 function parseDate(v: FormDataEntryValue | null): Date | null {
   if (!v || typeof v !== "string" || v.trim() === "") return null;
@@ -156,7 +156,7 @@ async function snapshotForDelete(t: TaskRowRaw): Promise<Record<string, unknown>
 async function fireTaskCascade(taskId: number, wasStatus: string, nowStatus: string) {
   if (wasStatus === nowStatus) return;
   try {
-    const m = await import("@/lib/automation-reactions");
+    const m = await import("@/lib/automation/automation-reactions");
     await m.reactToTaskStatusChange(taskId, wasStatus, nowStatus);
   } catch { /* best-effort */ }
 }
@@ -173,7 +173,7 @@ async function fireTaskCascade(taskId: number, wasStatus: string, nowStatus: str
  * may do what the owner does to a task, but only to tasks in their companies,
  * only with the matching permission switched on for directors (Settings →
  * Portals), and never by creating a person. Everything they change is stamped
- * as them ("portal-dir:<Name>"), not as the owner. See lib/viewer.ts. */
+ * as them ("portal-dir:<Name>"), not as the owner. See lib/auth/viewer.ts. */
 
 /** Resolve the acting viewer for a task given by id or code. */
 async function taskActor(ref: { taskId?: number | null; code?: string | null }, cap?: CapabilityKey): Promise<Viewer> {
@@ -246,15 +246,15 @@ export async function adminRemindTask(
   const name = person.name as string;
 
   // Scope: this one task, or every open task the person is on.
-  const { getAllTasks } = await import("@/lib/queries");
-  const { isOpen } = await import("@/lib/derive");
+  const { getAllTasks } = await import("@/lib/tasks/queries");
+  const { isOpen } = await import("@/lib/tasks/derive");
   let rows = (await getAllTasks()).filter((x) => isOpen(x.status) && x.assigneeIds.includes(personId as number));
   if (!allTasks) rows = rows.filter((x) => x.id === taskId);
   if (rows.length === 0) return { ok: false, error: "No open tasks to remind about." };
 
   const { buildTaskSummaryWhatsApp } = await import("@/lib/outbox/gen");
   const { pickChannel, contactForChannel, linkFor } = await import("@/lib/outbox/links");
-  const { waReminderLink } = await import("@/lib/wa-card");
+  const { waReminderLink } = await import("@/lib/messaging/wa-card");
 
   const contact = {
     email: (person.email as string | null) ?? null,
@@ -281,7 +281,7 @@ export async function adminRemindTask(
 /**
  * Edit a task from the web form.
  *
- * The write itself lives in `updateTaskCore` (lib/task-write.ts) so /api/mcp
+ * The write itself lives in `updateTaskCore` (lib/tasks/task-write.ts) so /api/mcp
  * edits tasks through identical code. What stays here is what only a browser
  * has: the FormData, the undo cookie and the redirect.
  *
@@ -354,7 +354,7 @@ export async function updateTask(code: string, formData: FormData) {
 /**
  * Create a task from the web form.
  *
- * The write itself lives in `createTaskCore` (lib/task-write.ts) so /api/mcp
+ * The write itself lives in `createTaskCore` (lib/tasks/task-write.ts) so /api/mcp
  * creates tasks through identical code. What stays here is what only a browser
  * has: the FormData, the undo cookie and the redirect.
  */
@@ -464,7 +464,7 @@ export async function createTask(formData: FormData) {
 
 /**
  * Post an update from the web. The write is `addTaskUpdateCore`
- * (lib/task-write.ts), shared with /api/mcp; the cookie, revalidation and pulse
+ * (lib/tasks/task-write.ts), shared with /api/mcp; the cookie, revalidation and pulse
  * are the browser's half.
  */
 export async function addTaskUpdate(taskId: number, taskCode: string, body: string, newStatus?: string) {
@@ -1243,7 +1243,7 @@ export async function copyTaskToCompany(
 
 /* ─── KPI accountability controls ──────────────────────────────────────────
  * Overdue-blame mode, documented blockers (Waiting on <person>) and per-person
- * "my part is done". These feed src/lib/kpi.ts. All post a timestamped update
+ * "my part is done". These feed src/lib/tasks/kpi.ts. All post a timestamped update
  * so the record (not just the score) stays defensible. */
 
 async function postTaskUpdate(taskId: number, body: string, by = "web-ui") {

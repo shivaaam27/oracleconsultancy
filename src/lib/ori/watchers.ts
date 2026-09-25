@@ -1,6 +1,6 @@
 import "server-only";
 import { sb } from "@/db/supabase";
-import { createNotification, personRecipient, type NotifKind } from "@/lib/notifications";
+import { createNotification, personRecipient, type NotifKind } from "@/lib/messaging/notifications";
 
 /**
  * ORI WATCHERS — event-driven "tell me the moment X happens" alerts.
@@ -8,7 +8,7 @@ import { createNotification, personRecipient, type NotifKind } from "@/lib/notif
  * A watcher is a standing rule stored in `automation_rules` with kind="watch".
  * Unlike the time-driven automations (evaluated by the /api/cron/ori-automations
  * tick), watchers are EVENT-DRIVEN: they piggyback on the per-write index hook
- * (src/lib/index-hooks.ts → reindexEntity), which already fires on EVERY
+ * (src/lib/search/index-hooks.ts → reindexEntity), which already fires on EVERY
  * create/update across the 12 indexed entity types. After a row is re-indexed we
  * call evaluateWatchers(type, id), which loads the watch rules for that type,
  * reads the just-written row and fires a notification the instant the condition

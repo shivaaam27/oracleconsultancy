@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { StudioScope, StudioCardRow, StudioCard, CardHead, BigNumber } from "@/components/studio/kit";
 import { useStudioFootNote } from "@/components/studio/foot-note";
-import { useToast } from "@/components/toast";
+import { useToast } from "@/components/shell/toast";
 import { FolderIcon, type FolderBadge } from "./folder-icon";
 import { FileIcon, ExpiryPill, PopMenu, addedBy, when, type MenuItem } from "./file-bits";
 import { FilePreview } from "./file-preview";
@@ -29,9 +29,9 @@ import {
   moveFilesAction, renameFileAction, starFilesAction, deleteFilesAction, restoreFilesAction, purgeFilesAction,
   uploadTicketAction, fileUploadAction,
 } from "@/app/files/actions";
-import { descendantIds, displayName, fmtSize, kindOf, pathOf, KEEP_DELETED_DAYS, FOLDER_COLORS, type FileRow, type FolderColor, type FolderRow, type Library } from "@/lib/files-shared";
+import { descendantIds, displayName, fmtSize, kindOf, pathOf, KEEP_DELETED_DAYS, FOLDER_COLORS, type FileRow, type FolderColor, type FolderRow, type Library } from "@/lib/documents/files-shared";
 import { StudioChoiceMenu } from "@/components/studio/tasks/cells";
-import { MAX_UPLOAD_BYTES } from "@/lib/documents-shared";
+import { MAX_UPLOAD_BYTES } from "@/lib/documents/documents-shared";
 import { cn } from "@/lib/cn";
 
 export type FilesCompany = { id: number; name: string; prefix: string; tile: string; ink: string };

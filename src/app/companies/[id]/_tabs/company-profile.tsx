@@ -2,12 +2,12 @@
 
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { FactsPanel } from "@/components/facts-panel";
-import { GovernancePanel } from "@/components/governance-panel";
+import { FactsPanel } from "@/components/companies/facts-panel";
+import { GovernancePanel } from "@/components/companies/governance-panel";
 import { Save, Loader2, Building2, FileSignature, ImagePlus, Trash2 } from "lucide-react";
 import { saveCompanyProfileAction } from "../actions";
-import { useToast } from "@/components/toast";
-import { CompanyAvatar } from "@/components/company-avatar";
+import { useToast } from "@/components/shell/toast";
+import { CompanyAvatar } from "@/components/companies/company-avatar";
 
 export type CompanyProfile = {
   filePrefix: string | null;

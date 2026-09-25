@@ -55,7 +55,7 @@ Three things update themselves — worth knowing, so you don't do work you needn
 |---|---|
 | **New data in existing tables** — a new company, person, task, document | **Instantly.** Nothing to do. The company list is read live per request precisely so it can't go stale. |
 | **A permission change in Settings** | **Next request.** Tools are filtered from freshly resolved capabilities every single call. Switch a director capability off and it disappears from Pulin's Claude with no redeploy. |
-| **A new searchable entity** added to `src/lib/entity-registry.ts` | **Free.** `search_cos` runs on the ORI registry, so one `EntityDef` makes a new thing findable through Claude with no MCP change at all. |
+| **A new searchable entity** added to `src/lib/search/entity-registry.ts` | **Free.** `search_cos` runs on the ORI registry, so one `EntityDef` makes a new thing findable through Claude with no MCP change at all. |
 
 Everything else — a new *action*, a new *module*, a new *surface* — needs a
 registry entry.

@@ -6,8 +6,8 @@ import { useCallback, useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { Laptop, Loader2, RotateCcw, Users, ArrowUpRight } from "lucide-react";
 import { StudioChoiceMenu } from "@/components/studio/tasks/cells";
-import { useToast } from "@/components/toast";
-import type { AssetRow } from "@/lib/assets-shared";
+import { useToast } from "@/components/shell/toast";
+import type { AssetRow } from "@/lib/operations/assets-shared";
 import { assignAssetAction, returnAssetAction } from "@/app/hrms/assets/actions";
 import { cn } from "@/lib/cn";
 

@@ -1,21 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sb } from "@/db/supabase";
-import { authoriseCron } from "@/lib/cron-auth";
+import { authoriseCron } from "@/lib/auth/cron-auth";
 import { recordEvent } from "@/lib/system-events";
 import { reportError } from "@/lib/sentry";
-import { getAllTasks } from "@/lib/queries";
-import { isOpen } from "@/lib/derive";
-import { sendToRecipient, configurePush, flushRoutineDigests } from "@/lib/push";
-import { listDocuments, deriveDocStatus } from "@/lib/documents";
-import { isReminderDueToday } from "@/lib/documents-shared";
-import { gatherSafetyFindings } from "@/lib/safety-net";
-import { listApprovals } from "@/lib/cockpit";
+import { getAllTasks } from "@/lib/tasks/queries";
+import { isOpen } from "@/lib/tasks/derive";
+import { sendToRecipient, configurePush, flushRoutineDigests } from "@/lib/messaging/push";
+import { listDocuments, deriveDocStatus } from "@/lib/documents/documents";
+import { isReminderDueToday } from "@/lib/documents/documents-shared";
+import { gatherSafetyFindings } from "@/lib/automation/safety-net";
+import { listApprovals } from "@/lib/automation/cockpit";
 
 export const dynamic = "force-dynamic";
 
 const SIG_KEY = "push.lastSignature";
 
-// flushRoutineDigests now lives in lib/push (single source of truth) so the
+// flushRoutineDigests now lives in lib/messaging/push (single source of truth) so the
 // scheduled morning-run cron can flush the digest too — see its comment there.
 
 export async function GET(req: NextRequest) {

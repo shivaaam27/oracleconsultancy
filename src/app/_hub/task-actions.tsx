@@ -3,9 +3,9 @@
 import { useState } from "react";
 import { usePathname } from "next/navigation";
 import { Plus } from "lucide-react";
-import { useContextActions } from "@/components/context-actions";
-import { QuickTaskPopover, type QuickTaskCompany } from "@/components/quick-task-popover";
-import { InlineAddTask } from "@/components/inline-add-task";
+import { useContextActions } from "@/components/kit/context-actions";
+import { QuickTaskPopover, type QuickTaskCompany } from "@/components/tasks/quick-task-popover";
+import { InlineAddTask } from "@/components/tasks/inline-add-task";
 
 /**
  * Task Management quick-create host.

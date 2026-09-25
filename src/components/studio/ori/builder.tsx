@@ -16,10 +16,10 @@
 import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, Loader2, Plus, X } from "lucide-react";
-import { FluidSelect } from "@/components/fluid-select";
-import { Combobox } from "@/components/combobox";
-import { DatePopover } from "@/components/date-popover";
-import { useToast } from "@/components/toast";
+import { FluidSelect } from "@/components/forms/fluid-select";
+import { Combobox } from "@/components/forms/combobox";
+import { DatePopover } from "@/components/forms/date-popover";
+import { useToast } from "@/components/shell/toast";
 import { useFitFrame } from "@/components/studio/use-fit-frame";
 import { OriToggle } from "./toggle";
 import { STATUSES } from "@/lib/constants";

@@ -12,7 +12,7 @@
  */
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { useToast } from "@/components/toast";
+import { useToast } from "@/components/shell/toast";
 import { cn } from "@/lib/cn";
 import { saveSignalSettingsAction } from "@/app/ori-automations/actions";
 import { OriToggle } from "./toggle";

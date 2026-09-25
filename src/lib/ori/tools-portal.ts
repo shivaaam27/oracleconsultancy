@@ -2,7 +2,7 @@ import "server-only";
 import { sb } from "@/db/supabase";
 import type { ToolDef } from "@/lib/ori/tools";
 import { str, nowIso, resolveTask } from "@/lib/ori/tools";
-import { reindexEntity } from "@/lib/index-hooks";
+import { reindexEntity } from "@/lib/search/index-hooks";
 import {
   type CapabilityKey,
   type PortalPermissionsConfig,
@@ -10,8 +10,8 @@ import {
   CAPABILITY_GROUPS,
   PORTAL_ROLES,
   permits,
-} from "@/lib/portal-permissions";
-import { getPortalPermissions, savePortalPermissions } from "@/lib/portal-permissions-store";
+} from "@/lib/portal/portal-permissions";
+import { getPortalPermissions, savePortalPermissions } from "@/lib/portal/portal-permissions-store";
 
 /* ORI portal domain tools.
  *

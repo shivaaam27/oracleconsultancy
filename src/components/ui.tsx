@@ -1,7 +1,7 @@
 import { cn } from "@/lib/cn";
 import Link from "next/link";
 import { Loader2, ChevronDown } from "lucide-react";
-import { getInitials } from "@/lib/names";
+import { getInitials } from "@/lib/people/names";
 import type { ComponentProps, ReactNode } from "react";
 
 /* ══════════════════════════════════════════════════ ONE CONTROL BOX ══

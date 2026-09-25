@@ -4,7 +4,7 @@
  * Where the shared Studio screens point (26 Sept 2026, owner: "the system is a
  * unification"). People, a person, Companies and a company are ONE set of
  * screens for the owner, directors, managers — and staff. Staff reach them
- * under /portal/* (they are not a Viewer — lib/viewer.ts), so every link inside
+ * under /portal/* (they are not a Viewer — lib/auth/viewer.ts), so every link inside
  * those screens asks here instead of writing "/people/5" itself.
  *
  * `staff` also turns on the staff limits inside the screens (owner's choice,
@@ -13,8 +13,8 @@
  * the screen hiding it is the second lock, not the first.
  */
 import { createContext, useContext, type ReactNode } from "react";
-import { taskHref } from "@/lib/task-href";
-import { portalTaskHref } from "@/lib/portal-task-href";
+import { taskHref } from "@/lib/tasks/task-href";
+import { portalTaskHref } from "@/lib/portal/portal-task-href";
 
 export type StudioPaths = {
   staff: boolean;

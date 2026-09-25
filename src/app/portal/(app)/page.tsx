@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getPortalPerson } from "@/lib/portal-auth";
+import { getPortalPerson } from "@/lib/portal/portal-auth";
 import { StaffStudioHome } from "./staff-home";
 
 /**

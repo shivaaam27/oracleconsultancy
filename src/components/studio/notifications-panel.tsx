@@ -14,17 +14,17 @@
  * notifications") — posted through `replyToTaskByCode` → addTaskUpdateCore,
  * the task's own writer, so it lands on the task's conversation.
  */
-import { DeviceAlertsRow } from "@/components/notification-settings";
+import { DeviceAlertsRow } from "@/components/settings/notification-settings";
 import { PersonFace } from "@/components/studio/face";
 import { useMemo, useState, useTransition } from "react";
 import { replyToTaskByCode } from "@/app/task/actions";
-import { useToast } from "@/components/toast";
+import { useToast } from "@/components/shell/toast";
 import { Check, CheckCheck, ChevronDown, CornerUpLeft, Loader2, Settings as SettingsIcon, Sparkles, X } from "lucide-react";
 import Link from "next/link";
 import {
   groupNotifications, isDailyReminder, isSystemDigest, notifAgo, notifBucket, notifLane,
   type NotifGroup, type NotifRow,
-} from "@/lib/notification-view";
+} from "@/lib/messaging/notification-view";
 import { cn } from "@/lib/cn";
 
 type Filter = "all" | "mentions" | "updates" | "reminders" | "ori";

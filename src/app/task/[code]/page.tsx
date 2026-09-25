@@ -1,6 +1,6 @@
-import { TaskRecordPage } from "@/components/task-drawer";
+import { TaskRecordPage } from "@/components/tasks/task-drawer";
 import { redirect } from "next/navigation";
-import { getViewer } from "@/lib/viewer";
+import { getViewer } from "@/lib/auth/viewer";
 
 /**
  * /task/CODE — the task record, at its own URL.
@@ -17,7 +17,7 @@ import { getViewer } from "@/lib/viewer";
  * this on with it, so the two always match.
  */
 export default async function TaskPage({ params }: { params: Promise<{ code: string }> }) {
-  // The owner, or a director (lib/viewer.ts) — the record's data route then
+  // The owner, or a director (lib/auth/viewer.ts) — the record's data route then
   // refuses a task outside their companies.
   if (!(await getViewer())) redirect("/portal");
   const { code } = await params;

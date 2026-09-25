@@ -2,28 +2,28 @@
 // Given a free-form question, pulls relevant tasks/companies/people/updates
 // from the DB and asks Groq to answer using that context.
 
-import { AI_FAST, providerLadder, isAiExhausted, AI_RESTING_NOTE, CHAT_MODELS } from "@/lib/ai-models";
-import { callAIText, PROVIDER_CHAT_URLS, providerRequestExtras } from "@/lib/ai-json";
+import { AI_FAST, providerLadder, isAiExhausted, AI_RESTING_NOTE, CHAT_MODELS } from "@/lib/ai/ai-models";
+import { callAIText, PROVIDER_CHAT_URLS, providerRequestExtras } from "@/lib/ai/ai-json";
 import { getActiveProvider } from "@/lib/settings";
-import { expandQuery, expandTokens } from "@/lib/synonyms";
-import { hybridSearch } from "@/lib/embeddings";
+import { expandQuery, expandTokens } from "@/lib/search/synonyms";
+import { hybridSearch } from "@/lib/search/embeddings";
 import { NextRequest, NextResponse } from "next/server";
 import { sb } from "@/db/supabase";
 import { getAiKey, getQualityTextModel, getAppSettings } from "@/lib/settings";
-import { listDocuments, deriveDocStatus, daysToExpiry } from "@/lib/documents";
-import { normalizePersonType } from "@/lib/person-types";
-import { getCompanyRelationships, getPersonRelationships } from "@/lib/relationships";
-import { getEntityGraph } from "@/lib/entity-graph";
-import { recallMemories, recordQA } from "@/lib/ai-memory";
-import { resolveSmartAnswer, type SmartAnswer } from "@/lib/smart-answer";
-import { aiCacheKey, aiCacheGet, aiCacheSet } from "@/lib/ai-cache";
+import { listDocuments, deriveDocStatus, daysToExpiry } from "@/lib/documents/documents";
+import { normalizePersonType } from "@/lib/people/person-types";
+import { getCompanyRelationships, getPersonRelationships } from "@/lib/people/relationships";
+import { getEntityGraph } from "@/lib/search/entity-graph";
+import { recallMemories, recordQA } from "@/lib/ai/ai-memory";
+import { resolveSmartAnswer, type SmartAnswer } from "@/lib/ai/smart-answer";
+import { aiCacheKey, aiCacheGet, aiCacheSet } from "@/lib/ai/ai-cache";
 import {
   formatSmartAnswer,
   rewriteRetrievalQuery,
   isEngagementQuestion,
   fetchActivitySlice,
   pruneByBudget,
-} from "@/lib/ask-retrieval";
+} from "@/lib/ai/ask-retrieval";
 
 export const maxDuration = 60; // allow up to 60s on Vercel
 
@@ -633,7 +633,7 @@ export async function buildContext(question: string, page?: PageCtx) {
       const { data } = await sb
         .from("assets")
         // Disambiguate the people FK by constraint name (assets has two people
-        // FKs: assigned-to + custodian); mirrors src/lib/search.ts.
+        // FKs: assigned-to + custodian); mirrors src/lib/search/search.ts.
         .select("name,status,company_id,holder:people!assets_assigned_to_person_id_people_id_fk(name)")
         .eq("archived", false)
         .limit(20);

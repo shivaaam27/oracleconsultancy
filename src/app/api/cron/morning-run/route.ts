@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sb } from "@/db/supabase";
-import { authoriseCron } from "@/lib/cron-auth";
+import { authoriseCron } from "@/lib/auth/cron-auth";
 import { recordEvent } from "@/lib/system-events";
 import { reportError } from "@/lib/sentry";
-import { sendToRecipient, configurePush, flushRoutineDigests } from "@/lib/push";
-import { purgeOldRead, purgeSupersededRecurring } from "@/lib/notifications";
-import { runTimeAutomations } from "@/lib/automation-time";
-import { buildMorningBrief } from "@/lib/morning-brief";
+import { sendToRecipient, configurePush, flushRoutineDigests } from "@/lib/messaging/push";
+import { purgeOldRead, purgeSupersededRecurring } from "@/lib/messaging/notifications";
+import { runTimeAutomations } from "@/lib/automation/automation-time";
+import { buildMorningBrief } from "@/lib/reports/morning-brief";
 import { getAppSettings } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
 
     // 1a½. Advance meeting-tasks whose start has passed (Not Started → In Progress).
     try {
-      const { advanceDueMeetingTasks, postMeetingFollowups } = await import("@/lib/meeting-tasks");
+      const { advanceDueMeetingTasks, postMeetingFollowups } = await import("@/lib/tasks/meeting-tasks");
       await advanceDueMeetingTasks({ force: true });
       await postMeetingFollowups({ force: true });
     } catch (e) {
@@ -44,7 +44,7 @@ export async function GET(req: NextRequest) {
     // 1a¾. Scheduled announcements whose go-live has passed (0172) — the tick
     //   does this through the day; this catches them when no tick is running.
     try {
-      const { deliverDueAnnouncements } = await import("@/lib/announcements");
+      const { deliverDueAnnouncements } = await import("@/lib/messaging/announcements");
       await deliverDueAnnouncements();
     } catch (e) {
       await recordEvent("cron.morning", "error", { step: "announcements", message: e instanceof Error ? e.message : String(e) });
@@ -79,7 +79,7 @@ export async function GET(req: NextRequest) {
     //     unhealthy after the repair pass; jobs that self-repaired are logged as a
     //     calm "system.repaired" note instead. In-app only — no email.
     try {
-      const { checkSystemHealth } = await import("@/lib/system-health");
+      const { checkSystemHealth } = await import("@/lib/automation/system-health");
       const health = await checkSystemHealth({ repair: true });
       const repaired = health.jobs.filter((j) => j.repaired);
       if (repaired.length) {
@@ -112,7 +112,7 @@ export async function GET(req: NextRequest) {
     //     longer serves (vision is the known risk) so it surfaces BEFORE document
     //     scanning silently breaks. Best-effort, in-app only.
     try {
-      const { checkModelAvailability } = await import("@/lib/model-watch");
+      const { checkModelAvailability } = await import("@/lib/ai/model-watch");
       await checkModelAvailability();
     } catch (e) {
       await recordEvent("cron.morning", "error", { step: "model-watch", message: e instanceof Error ? e.message : String(e) });
@@ -134,7 +134,7 @@ export async function GET(req: NextRequest) {
     // 1e. Files Management: whatever has sat in Deleted for 30 days is removed
     //     for good, with its stored file (the owner's rule, 24 Sept 2026).
     try {
-      const { purgeExpiredDeleted } = await import("@/lib/files");
+      const { purgeExpiredDeleted } = await import("@/lib/documents/files");
       const gone = await purgeExpiredDeleted();
       if (gone > 0) await recordEvent("cron.morning", "ok", { step: "files-purge", gone });
     } catch (e) {

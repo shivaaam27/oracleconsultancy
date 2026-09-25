@@ -1,18 +1,18 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
-import { usesStudio } from "@/lib/viewer";
-import { studioPathForDirector, isStaffLikeRole } from "@/lib/director-routes";
+import { usesStudio } from "@/lib/auth/viewer";
+import { studioPathForDirector, isStaffLikeRole } from "@/lib/portal/director-routes";
 import { StaffShellServer } from "@/components/studio/staff-shell-server";
 import { StudioShellServer } from "@/components/studio/shell-server";
-import { PortalSessionKeeper } from "@/components/portal-session";
-import { PortalSearch } from "@/components/portal-search";
-import { PortalCommand } from "@/components/portal-command";
-import { PortalInstallPrompt } from "@/components/portal-install-prompt";
-import { PortalNotifyPrompt } from "@/components/portal-notify-prompt";
-import { AnnouncementTakeover } from "@/components/announcement-takeover";
-import { getPortalPerson } from "@/lib/portal-auth";
-import { takeoverFeedForPersonId } from "@/lib/announcements";
+import { PortalSessionKeeper } from "@/components/portal/portal-session";
+import { PortalSearch } from "@/components/portal/portal-search";
+import { PortalCommand } from "@/components/portal/portal-command";
+import { PortalInstallPrompt } from "@/components/portal/portal-install-prompt";
+import { PortalNotifyPrompt } from "@/components/portal/portal-notify-prompt";
+import { AnnouncementTakeover } from "@/components/announcements/announcement-takeover";
+import { getPortalPerson } from "@/lib/portal/portal-auth";
+import { takeoverFeedForPersonId } from "@/lib/messaging/announcements";
 
 // Staff who install from the portal get a portal-scoped app: portal start_url
 // and portal shortcuts (My tasks / Messages / My profile) instead of the admin

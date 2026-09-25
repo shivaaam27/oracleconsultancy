@@ -5,8 +5,8 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { sb } from "@/db/supabase";
-import { getPortalPerson } from "@/lib/portal-auth";
-import { isAdminSession } from "@/lib/admin-auth";
+import { getPortalPerson } from "@/lib/portal/portal-auth";
+import { isAdminSession } from "@/lib/auth/admin-auth";
 import { logActivity } from "@/lib/activity-telemetry";
 
 export const dynamic = "force-dynamic";

@@ -9,7 +9,7 @@
 import nodemailer from "nodemailer";
 import { getEmailConfig, type EmailConfig } from "@/lib/settings";
 import { sb } from "@/db/supabase";
-import { DOCUMENTS_BUCKET } from "@/lib/documents";
+import { DOCUMENTS_BUCKET } from "@/lib/documents/documents";
 
 export type EmailAttachment = {
   filename: string;

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { sb } from "@/db/supabase";
-import { DEFAULT_PINS } from "@/lib/nav";
+import { DEFAULT_PINS } from "@/lib/nav/nav";
 
 const KEY = "nav.pinned";
 
