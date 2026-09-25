@@ -33,6 +33,7 @@ import { cn } from "@/lib/cn";
 import { FOOT_NOTE_EVENT, type PageFootNote } from "./foot-note";
 import { startNavProgress } from "@/components/nav-progress";
 import { useNavOrder, applyNavOrder, moveNavStop } from "@/lib/nav-order";
+import { PersonFace } from "@/components/studio/face";
 
 export type StudioFootNote = { label: string; text: string; href?: string; tone?: "late" | "soon" | "info" } | null;
 
@@ -232,9 +233,9 @@ export function StudioShell({ needs, director = null }: { needs: NonNullable<Stu
                 onClick={() => { setDir(-1); setPending((i - 1 + stops.length) % stops.length); }}
                 aria-label={`Previous page: ${prev.label}`}
                 title={prev.label}
-                className="flex h-[38px] w-11 items-center justify-center rounded-[10px] text-[#D4D6DA] transition-colors hover:bg-[#2A2C30] hover:text-white md:h-7 md:w-7 md:rounded-[9px]"
+                className="flex h-[38px] w-11 items-center justify-center rounded-[10px] text-white transition-colors hover:bg-[#2A2C30] md:h-8 md:w-8 md:rounded-[9px]"
               >
-                <ChevronLeft size={13} strokeWidth={2.2} />
+                <ChevronLeft size={15} strokeWidth={2.6} />
               </Link>
               <button
                 type="button"
@@ -242,12 +243,12 @@ export function StudioShell({ needs, director = null }: { needs: NonNullable<Stu
                 aria-haspopup="dialog"
                 aria-expanded={goTo}
                 title="Go to any page"
-                className="flex h-[38px] min-w-[96px] max-w-[40vw] items-center justify-center gap-2 overflow-hidden rounded-[10px] bg-[#2A2C30] px-3 text-[14px] font-medium text-white md:h-7 md:min-w-[96px] md:rounded-[9px] md:text-[13px] md:max-w-[46vw]"
+                className="flex h-[38px] min-w-[104px] max-w-[40vw] items-center justify-center gap-2 overflow-hidden rounded-[10px] bg-[#F2F2F0] px-3.5 text-[14px] font-semibold text-[#111214] shadow-[0_1px_0_rgba(255,255,255,0.25)_inset] transition-colors hover:bg-white md:h-8 md:min-w-[120px] md:rounded-[9px] md:text-[13.5px] md:max-w-[46vw]"
               >
                 {/* The name slides the way you are going, the moment you ask —
                     before the page has arrived, so the step never feels stuck. */}
                 <span key={shown} className={cn("truncate", shown !== i || pending != null ? (dir > 0 ? "st-slide-l" : "st-slide-r") : undefined)}>{stops[shown]?.label ?? current.label}</span>
-                <ChevronUp size={11} strokeWidth={2.2} className={cn("shrink-0 transition-transform", goTo && "rotate-180")} />
+                <ChevronUp size={12} strokeWidth={2.6} className={cn("shrink-0 transition-transform", goTo && "rotate-180")} />
               </button>
               <Link
                 href={next.href}
@@ -255,9 +256,9 @@ export function StudioShell({ needs, director = null }: { needs: NonNullable<Stu
                 onClick={() => { setDir(1); setPending((i + 1) % stops.length); }}
                 aria-label={`Next page: ${next.label}`}
                 title={next.label}
-                className="flex h-[38px] w-11 items-center justify-center rounded-[10px] text-[#D4D6DA] transition-colors hover:bg-[#2A2C30] hover:text-white md:h-7 md:w-7 md:rounded-[9px]"
+                className="flex h-[38px] w-11 items-center justify-center rounded-[10px] text-white transition-colors hover:bg-[#2A2C30] md:h-8 md:w-8 md:rounded-[9px]"
               >
-                <ChevronRight size={13} strokeWidth={2.2} />
+                <ChevronRight size={15} strokeWidth={2.6} />
               </Link>
             </div>
             {director ? (
@@ -298,9 +299,9 @@ export function StudioShell({ needs, director = null }: { needs: NonNullable<Stu
                 type="submit"
                 aria-label="Sign out"
                 title="Sign out"
-                className="inline-flex h-9 w-9 items-center justify-center rounded-[10px] border border-[#2A2C30] text-[#C9CBCF] transition-colors hover:border-[#3A3D42] hover:text-white"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-[10px] border border-[rgba(240,123,190,0.4)] bg-[rgba(224,71,158,0.18)] text-[#F58BC8] transition-colors hover:bg-[rgba(224,71,158,0.3)] hover:text-white"
               >
-                <LogOut size={15} />
+                <LogOut size={16} strokeWidth={2.4} />
               </button>
             </SignOutForm>
             <NotificationBell
@@ -425,7 +426,7 @@ function GoToPanel({
             Sign out — they left the footer so it fits a thumb and a tablet. */}
         <span aria-hidden className="mx-auto h-[5px] w-10 shrink-0 rounded-full bg-[var(--sh-chip-line)] sm:hidden" />
         <div className="flex items-center gap-3 border-b border-[var(--sh-line)] pb-3 lg:hidden">
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--sh-hover)] text-sm font-semibold">{initialsOf(me.name)}</span>
+          <PersonFace name={me.name} size={44} className="shrink-0" />
           <div className="min-w-0 flex-1">
             <div className="truncate text-[15px] font-semibold">{me.name}</div>
             <div className="truncate text-xs text-[var(--sh-muted)]">{me.role}</div>
@@ -494,19 +495,6 @@ function GoToPanel({
           })}
           {shown.length === 0 && <div className="col-span-full py-6 text-center text-sm text-[var(--sh-muted)]">No page called “{q}”.</div>}
         </div>
-        <div className="flex gap-2 lg:hidden">
-          {/* The owner's "profile" IS Settings, already a tile above — don't show it twice. */}
-          {me.profile !== "/settings" && (
-            <Link href={me.profile} onClick={onClose} className="flex h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-[var(--sh-chip-line)] text-sm">
-              <UserRound size={15} />{me.profileLabel}
-            </Link>
-          )}
-          <SignOutForm action={me.logout} className="flex flex-1">
-            <button type="submit" className="flex h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-[var(--sh-chip-line)] text-sm text-[#E0479E]">
-              <LogOut size={15} />Sign out
-            </button>
-          </SignOutForm>
-        </div>
 
         {/* Tablet and desk (owner, 26 Sept 2026: "cleaner and smaller, the
             negative space gone"): Work — the long group — in two columns, then
@@ -557,6 +545,22 @@ function GoToPanel({
                 (lg:hidden), and between sm and lg both showed: two toggles. */}
             <span className="hidden lg:contents"><ShellThemeButton /></span>
           </span>
+        </div>
+        {/* Below lg: Profile and Sign out close the sheet, on a phone AND a
+            tablet (they sat above the pages on a tablet). Sign out is filled —
+            it is the one way out, and an outline was easy to miss. */}
+        <div className="flex gap-2 lg:hidden">
+          {/* The owner's "profile" IS Settings, already a tile above — don't show it twice. */}
+          {me.profile !== "/settings" && (
+            <Link href={me.profile} onClick={onClose} className="flex h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-[var(--sh-chip-line)] bg-[var(--sh-card)] text-sm font-medium">
+              <UserRound size={15} />{me.profileLabel}
+            </Link>
+          )}
+          <SignOutForm action={me.logout} className="flex flex-1">
+            <button type="submit" className="flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-[var(--sh-on-bg)] text-sm font-semibold text-[var(--sh-on-fg)] transition-opacity hover:opacity-90">
+              <LogOut size={15} strokeWidth={2.4} className="text-[#E0479E]" />Sign out
+            </button>
+          </SignOutForm>
         </div>
       </div>
     </div>
@@ -612,12 +616,6 @@ function MoveBtn({ dir, on, disabled, onClick, label }: { dir: -1 | 1; on: boole
   );
 }
 
-function initialsOf(name: string): string {
-  const clean = name.replace(/^(Mr|Mrs|Ms|Miss|Dr)\.?\s+/i, "").trim();
-  const parts = clean.split(/\s+/).filter(Boolean);
-  return ((parts[0]?.[0] ?? "") + (parts.length > 1 ? parts[parts.length - 1][0] : "")).toUpperCase() || "?";
-}
-
 const KEY = "inline-flex h-5 min-w-5 items-center justify-center rounded-[5px] border border-[var(--sh-chip-line)] bg-[var(--sh-card)] px-1 text-[10px] font-medium text-[var(--sh-sub)]";
 
 /** Light / dark, drawn for the sheet. The shared ThemeToggle wears the Desk
@@ -633,9 +631,9 @@ function ShellThemeButton() {
       type="button"
       onClick={() => setTheme(dark ? "light" : "dark")}
       aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
-      className="flex h-8 items-center gap-1.5 rounded-lg border border-[var(--sh-chip-line)] px-2.5 text-[var(--sh-sub)] hover:text-[var(--sh-fg)]"
+      className="flex h-8 items-center gap-1.5 rounded-lg bg-[var(--sh-on-bg)] px-2.5 text-[12.5px] font-medium text-[var(--sh-on-fg)] transition-opacity hover:opacity-90"
     >
-      {dark ? <Sun size={13} /> : <Moon size={13} />}{dark ? "Light" : "Dark"}
+      {dark ? <Sun size={13} strokeWidth={2.2} /> : <Moon size={13} strokeWidth={2.2} />}{dark ? "Light" : "Dark"}
     </button>
   );
 }
