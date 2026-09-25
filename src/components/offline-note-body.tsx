@@ -29,7 +29,7 @@ function Inline({ node, k }: { node: DocNode; k: number }) {
   if (node.type === "mention") {
     const label = (node.attrs?.label as string) || (node.attrs?.id as string) || "mention";
     return (
-      <span className="rounded bg-accent/10 px-1 py-px text-accent" key={k}>
+      <span className="rounded bg-[var(--st-page)] px-1 py-px text-[var(--st-blue)]" key={k}>
         @{label}
       </span>
     );
@@ -41,8 +41,8 @@ function Inline({ node, k }: { node: DocNode; k: number }) {
     if (m?.type === "bold") out = <strong>{out}</strong>;
     else if (m?.type === "italic") out = <em>{out}</em>;
     else if (m?.type === "strike") out = <s>{out}</s>;
-    else if (m?.type === "code") out = <code className="rounded bg-bg-subtle px-1 py-px text-[0.9em]">{out}</code>;
-    else if (m?.type === "link") out = <span className="text-accent underline underline-offset-2">{out}</span>;
+    else if (m?.type === "code") out = <code className="rounded bg-[var(--st-page)] px-1 py-px text-[0.9em]">{out}</code>;
+    else if (m?.type === "link") out = <span className="text-[var(--st-blue)] underline underline-offset-2">{out}</span>;
   }
   return <Fragment key={k}>{out}</Fragment>;
 }
@@ -65,7 +65,7 @@ function Block({ node }: { node: DocNode }): ReactNode {
       // An empty paragraph is a blank line, and a blank line is part of the
       // writing — it gets height rather than being collapsed away.
       return kids.length ? (
-        <p className="my-2 leading-relaxed">
+        <p className="my-2">
           <Inlines nodes={kids} />
         </p>
       ) : (
@@ -76,10 +76,10 @@ function Block({ node }: { node: DocNode }): ReactNode {
       const level = Number(node.attrs?.level ?? 2);
       const cls =
         level === 1
-          ? "mt-5 mb-2 text-[1.35rem] font-semibold"
+          ? "mt-5 mb-2 text-[1.5rem] font-medium tracking-[-0.02em]"
           : level === 2
-            ? "mt-4 mb-1.5 text-[1.15rem] font-semibold"
-            : "mt-3 mb-1 text-[1rem] font-semibold";
+            ? "mt-4 mb-1.5 text-[1.25rem] font-medium tracking-[-0.015em]"
+            : "mt-3 mb-1 text-[1.05rem] font-semibold";
       return (
         <div className={cls}>
           <Inlines nodes={kids} />
@@ -119,10 +119,10 @@ function Block({ node }: { node: DocNode }): ReactNode {
               <span
                 aria-hidden
                 className={`mt-[3px] inline-block h-3.5 w-3.5 shrink-0 rounded-[3px] border ${
-                  item.attrs?.checked ? "border-accent bg-accent" : "border-border"
+                  item.attrs?.checked ? "border-[var(--st-ink)] bg-[var(--st-ink)]" : "border-[var(--st-line)]"
                 }`}
               />
-              <span className={item.attrs?.checked ? "text-fg-muted line-through" : ""}>
+              <span className={item.attrs?.checked ? "text-[var(--st-muted)] line-through" : ""}>
                 <Blocks nodes={item.content} />
               </span>
             </li>
@@ -132,27 +132,27 @@ function Block({ node }: { node: DocNode }): ReactNode {
 
     case "blockquote":
       return (
-        <blockquote className="my-2 border-l-2 border-border pl-3 text-fg-muted">
+        <blockquote className="my-2 border-l-2 border-[var(--st-line)] pl-3 text-[var(--st-sub)]">
           <Blocks nodes={kids} />
         </blockquote>
       );
 
     case "callout":
       return (
-        <div className="my-2 rounded-md border border-border bg-bg-subtle px-3 py-2">
+        <div className="my-2 rounded-[10px] bg-[var(--st-page)] px-3.5 py-2.5">
           <Blocks nodes={kids} />
         </div>
       );
 
     case "codeBlock":
       return (
-        <pre className="my-2 overflow-x-auto rounded-md border border-border bg-bg-subtle p-3 text-sm">
+        <pre className="my-2 overflow-x-auto rounded-[10px] bg-[var(--st-page)] p-3 text-sm">
           <code>{(kids ?? []).map((c) => c.text ?? "").join("")}</code>
         </pre>
       );
 
     case "horizontalRule":
-      return <hr className="my-4 border-border" />;
+      return <hr className="my-4 border-[var(--st-line)]" />;
 
     case "table":
       return (
@@ -166,8 +166,8 @@ function Block({ node }: { node: DocNode }): ReactNode {
                     return (
                       <Tag
                         key={c}
-                        className={`border border-border px-2 py-1 align-top ${
-                          cell.type === "tableHeader" ? "bg-bg-subtle text-left font-medium" : ""
+                        className={`border border-[var(--st-line)] px-2 py-1 align-top ${
+                          cell.type === "tableHeader" ? "bg-[var(--st-page)] text-left font-medium" : ""
                         }`}
                       >
                         <Blocks nodes={cell.content} />
@@ -183,7 +183,7 @@ function Block({ node }: { node: DocNode }): ReactNode {
 
     case "image":
       return (
-        <span className="my-2 inline-flex items-center gap-2 rounded-md border border-dashed border-border px-3 py-2 text-sm text-fg-subtle">
+        <span className="my-2 inline-flex items-center gap-2 rounded-[10px] border border-dashed border-[var(--st-line)] px-3 py-2 text-sm text-[var(--st-muted)]">
           <ImageOff size={14} />
           {(node.attrs?.alt as string) || "Picture"} — needs a connection
         </span>
@@ -216,14 +216,14 @@ export function OfflineNoteBody({ doc, fallbackText }: { doc: unknown; fallbackT
   // the writing, so show that rather than an empty sheet.
   if (blocks.length === 0) {
     return fallbackText.trim() ? (
-      <div className="whitespace-pre-wrap text-sm leading-relaxed">{fallbackText}</div>
+      <div className="whitespace-pre-wrap text-[15px] leading-[1.6] text-[var(--st-ink)] sm:text-[16px]">{fallbackText}</div>
     ) : (
-      <p className="text-sm text-fg-subtle">This note is empty.</p>
+      <p className="m-0 text-[15px] text-[var(--st-muted)]">This note is empty.</p>
     );
   }
 
   return (
-    <div className="text-sm">
+    <div className="text-[15px] leading-[1.6] text-[var(--st-ink)] sm:text-[16px]">
       <Blocks nodes={blocks} />
     </div>
   );

@@ -1,15 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CloudOff, Loader2, Plus, RefreshCw, Send, Wifi } from "lucide-react";
-import { PageHeader } from "@/components/ui";
+import { CloudOff, Loader2, RefreshCw, Send, Wifi } from "lucide-react";
+import { StudioScope, stBtn } from "@/components/studio/kit";
 import { cn } from "@/lib/cn";
 import { OfflineNoteShelf } from "@/components/offline-note-shelf";
 import { OfflineNoteView } from "@/components/offline-note-view";
 import { OfflineNoteWriter } from "@/components/offline-note-writer";
 import {
   countDrafts,
-  countEdits,
   listCachedNotes,
   listEdits,
   notesCachedAt,
@@ -24,9 +23,10 @@ import {
  *
  * ⚠️ THE POINT IS THAT THIS LOOKS LIKE COS. The owner's instruction, plainly:
  * offline should not be a different product — everything looks the same, and it
- * tells you the connection is gone. So this is the shelf and the note page, the
- * real ones, fed from the device's own copy instead of from the server, with one
- * bar across the top saying what is going on and what is waiting to be sent.
+ * tells you the connection is gone. So this is the Studio shelf and the Studio
+ * note page (25 Sept 2026 — they were the old Desk ones until then), fed from the
+ * device's own copy instead of from the server, with one bar saying what is
+ * going on and what is waiting to be sent.
  *
  * ⚠️ IT STILL LOADS NO SERVER DATA. This is the only page of the app the service
  * worker keeps, so what is cached must be an empty sheet of paper — every note on
@@ -133,33 +133,33 @@ export function OfflineNotesSurface() {
     else setSaid("Nothing to send.");
   }
 
+  async function takeCopy(report: boolean) {
+    setBusy(true);
+    const r = await refreshNoteCache();
+    setReachable(r.reachable);
+    await load();
+    setBusy(false);
+    if (report) setSaid(r.ok ? "Fresh copy taken." : "COS could not be reached.");
+  }
+
   const open = view.name === "note" ? (notes ?? []).find((n) => n.id === view.id) ?? null : null;
   const count = (notes ?? []).filter((n) => !n.archived).length;
+  const toShelf = () => { setView({ name: "shelf" }); void load(); };
 
-  return (
-    <div className="space-y-4">
-      <PageHeader
-        title="Notes"
-        sub={
-          notes === null
-            ? "Looking on this device…"
-            : `${count} note${count === 1 ? "" : "s"} on this device${
-                cachedAt ? ` · copied ${new Date(cachedAt).toLocaleString("en-GB")}` : ""
-              }`
-        }
-      />
-
-      {/* One bar, always. It says which of the two states you are in, because
-          "why can I not press that" is the question this page has to answer
-          before any other. */}
-      <div
-        className={cn(
-          "flex flex-wrap items-center gap-2 rounded-lg border px-3.5 py-2 text-sm",
-          connected ? "border-border bg-bg-subtle text-fg-muted" : "border-warn/30 bg-warn/10 text-warn",
-        )}
-      >
-        {connected ? <Wifi size={14} /> : <CloudOff size={14} />}
-        <span>
+  /* One bar, always — on the shelf, in a note and in a new one. It says which of
+     the two states you are in, because "why can I not press that" is the
+     question this page has to answer before any other. */
+  const bar = (
+    <div
+      role="status"
+      className={cn(
+        "flex items-start gap-2.5 rounded-[14px] px-4 py-2.5 text-[13px] sm:items-center",
+        connected ? "bg-[var(--st-surface)] text-[var(--st-ink)]" : "bg-[var(--st-warn-wash)] text-[var(--st-soon-text)]",
+      )}
+    >
+      {connected ? <Wifi size={15} className="mt-0.5 shrink-0 text-[var(--st-ok-text)] sm:mt-0" /> : <CloudOff size={15} className="mt-0.5 shrink-0 sm:mt-0" />}
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2.5 gap-y-1.5">
+        <span className="min-w-0">
           {connected
             ? "Connected. This is the copy kept on this device, so it works when the connection does not."
             : online
@@ -167,129 +167,76 @@ export function OfflineNotesSurface() {
               : "No connection. You are reading the copy on this device, and you can still write."}
         </span>
         {waiting > 0 && (
-          <span className="font-medium">
-            {waiting} thing{waiting > 1 ? "s" : ""} waiting to be sent.
+          <span className="inline-flex h-6 items-center rounded-[7px] bg-[var(--st-page)] px-2 text-xs font-medium text-[var(--st-ink)]">
+            {waiting} waiting to be sent
           </span>
-        )}
-        <span className="grow" />
-        {/* ⚠️ Shown whenever the browser thinks there is a network, NOT only when
-            COS answered. Hiding them the moment a request failed would leave no
-            way to try again — and "cannot reach COS" is usually the state you
-            most want a Retry for. Pressing them says plainly what happened. */}
-        {online && (
-          <>
-            {waiting > 0 && (
-              <button
-                type="button"
-                onClick={() => void send()}
-                disabled={busy}
-                className="inline-flex h-7 items-center gap-1.5 rounded-md bg-accent px-2.5 text-sm font-medium text-accent-fg hover:opacity-90 disabled:opacity-60"
-              >
-                {busy ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />} Send
-              </button>
-            )}
-            <button
-              type="button"
-              title="Take a fresh copy"
-              onClick={() => void (async () => { setBusy(true); const r = await refreshNoteCache(); setReachable(r.reachable); await load(); setBusy(false); setSaid(r.ok ? "Fresh copy taken." : "COS could not be reached."); })()}
-              disabled={busy}
-              className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border bg-bg-elev px-2 text-sm font-medium text-fg-muted hover:text-fg disabled:opacity-60"
-            >
-              <RefreshCw size={12} />
-            </button>
-          </>
         )}
         {said && <span className="w-full text-xs opacity-80">{said}</span>}
       </div>
-
-      {view.name === "new" ? (
-        <div className="rounded-lg border border-border bg-bg-elev p-4">
-          <div className="mb-3 flex items-center justify-between gap-2">
-            <h2 className="text-[14px] font-semibold">A new note</h2>
-            <button
-              type="button"
-              onClick={() => { setView({ name: "shelf" }); void load(); }}
-              className="text-sm text-fg-muted hover:text-fg"
-            >
-              Back to all notes
+      {/* ⚠️ Shown whenever the browser thinks there is a network, NOT only when
+          COS answered. Hiding them the moment a request failed would leave no
+          way to try again — and "cannot reach COS" is usually the state you
+          most want a Retry for. Pressing them says plainly what happened. */}
+      {online && (
+        <span className="flex shrink-0 items-center gap-1.5">
+          {waiting > 0 && (
+            <button type="button" onClick={() => void send()} disabled={busy} className={cn(stBtn.dark, "h-8 px-3 text-xs disabled:opacity-60")}>
+              {busy ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />} Send
             </button>
-          </div>
-          <OfflineNoteWriter />
-        </div>
-      ) : open ? (
-        <OfflineNoteView
-          note={open}
-          pending={pending.get(open.id) ?? []}
-          online={connected}
-          onBack={() => setView({ name: "shelf" })}
-          onChanged={load}
-        />
-      ) : notes === null ? (
-        <p className="flex items-center gap-2 text-sm text-fg-muted">
-          <Loader2 size={14} className="animate-spin" /> Looking on this device…
-        </p>
-      ) : notes.length === 0 ? (
-        <EmptyDevice online={connected} busy={busy} onCopy={() => void (async () => { setBusy(true); const r = await refreshNoteCache(); setReachable(r.reachable); await load(); setBusy(false); })()} onNew={() => setView({ name: "new" })} />
-      ) : (
-        <>
-          {view.name === "note" && !open && (
-            <p className="rounded-md border border-border bg-bg-subtle px-3 py-2 text-sm text-fg-muted">
-              That note is not on this device. Open it once with a connection and it will be.
-            </p>
           )}
-          <div className="flex justify-end">
-            <button
-              type="button"
-              onClick={() => setView({ name: "new" })}
-              className="inline-flex h-7 items-center gap-1.5 rounded-md bg-accent px-2.5 text-sm font-medium text-accent-fg hover:opacity-90"
-            >
-              <Plus size={13} /> New note
-            </button>
-          </div>
-          <OfflineNoteShelf notes={notes} onOpen={(id) => setView({ name: "note", id })} />
-        </>
+          <button
+            type="button"
+            title="Take a fresh copy"
+            aria-label="Take a fresh copy"
+            onClick={() => void takeCopy(true)}
+            disabled={busy}
+            className={cn(stBtn.ghost, "h-8 w-8 justify-center px-0 text-[var(--st-ink)] disabled:opacity-60")}
+          >
+            <RefreshCw size={13} className={cn(busy && "animate-spin")} />
+          </button>
+        </span>
       )}
     </div>
   );
-}
 
-function EmptyDevice({
-  online,
-  busy,
-  onCopy,
-  onNew,
-}: {
-  online: boolean;
-  busy: boolean;
-  onCopy: () => void;
-  onNew: () => void;
-}) {
   return (
-    <div className="rounded-lg border border-border bg-bg-elev px-4 py-5 text-sm">
-      <p className="font-medium text-fg">No notes have been copied to this device yet.</p>
-      <p className="mt-1.5 text-sm text-fg-subtle">
-        Open this page once while you have a connection and the whole collection is kept here, so you can
-        read it anywhere. You can write a new one either way.
-      </p>
-      <div className="mt-3 flex flex-wrap gap-2">
-        {online && (
-          <button
-            type="button"
-            onClick={onCopy}
-            disabled={busy}
-            className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border px-2.5 text-sm font-medium text-fg-muted hover:text-fg disabled:opacity-60"
-          >
-            {busy ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />} Copy them now
-          </button>
-        )}
-        <button
-          type="button"
-          onClick={onNew}
-          className="inline-flex h-7 items-center gap-1.5 rounded-md bg-accent px-2.5 text-sm font-medium text-accent-fg hover:opacity-90"
-        >
-          <Plus size={13} /> New note
-        </button>
-      </div>
-    </div>
+    <StudioScope className="flex flex-col gap-4">
+      {view.name === "new" ? (
+        <>
+          {bar}
+          <OfflineNoteWriter onBack={toShelf} />
+        </>
+      ) : open ? (
+        <>
+          {bar}
+          <OfflineNoteView
+            note={open}
+            pending={pending.get(open.id) ?? []}
+            online={connected}
+            onBack={() => setView({ name: "shelf" })}
+            onChanged={load}
+          />
+        </>
+      ) : (
+        <OfflineNoteShelf
+          notes={notes}
+          pendingIds={pending}
+          sub={
+            notes === null
+              ? "Looking on this device…"
+              : `${count} note${count === 1 ? "" : "s"} on this device${
+                  cachedAt ? ` · copied ${new Date(cachedAt).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}` : ""
+                }`
+          }
+          bar={bar}
+          missing={view.name === "note" && notes !== null}
+          connected={connected}
+          busy={busy}
+          onCopy={() => void takeCopy(false)}
+          onOpen={(id) => setView({ name: "note", id })}
+          onNew={() => setView({ name: "new" })}
+        />
+      )}
+    </StudioScope>
   );
 }

@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Loader2, Send, Trash2 } from "lucide-react";
-import { Button } from "@/components/ui";
+import { ArrowLeft, Loader2, Send, Trash2 } from "lucide-react";
+import { cn } from "@/lib/cn";
 import {
   countDrafts,
   deleteDraft,
@@ -32,7 +32,7 @@ import {
 /** How long after you stop typing before the draft is written to the device. */
 const SAVE_MS = 600;
 
-export function OfflineNoteWriter() {
+export function OfflineNoteWriter({ onBack }: { onBack?: () => void } = {}) {
   const [text, setText] = useState("");
   const [drafts, setDrafts] = useState<NoteDraft[]>([]);
   const [status, setStatus] = useState<string | null>(null);
@@ -138,58 +138,80 @@ export function OfflineNoteWriter() {
     return () => window.removeEventListener("pagehide", bye);
   }, [text, persist]);
 
-  if (!supported) {
-    return (
-      <p className="text-sm text-danger">
-        This browser cannot store anything on the device, so notes written here could not be kept. Try
-        Edge or Chrome.
-      </p>
-    );
-  }
+  /* The Studio note sheet: "All notes" first in the strip along the top, then
+     the white paper. What you can still do sits in the strip; what is waiting
+     on this device is a card under it. */
+  const tool = "inline-flex h-[30px] shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-xs transition-colors";
 
   return (
     <div className="flex flex-col gap-4">
-      <textarea
-        value={text}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder="Write anything. The first line becomes the title."
-        rows={12}
-        autoFocus
-        className="w-full resize-y rounded-lg border border-border bg-bg px-3.5 py-3 text-sm leading-relaxed outline-none focus:border-accent"
-      />
+      <div className="flex min-h-[24rem] flex-col overflow-hidden rounded-[20px] bg-[var(--st-surface)]">
+        <div className="slim-scroll flex shrink-0 items-center gap-0.5 overflow-x-auto border-b border-[var(--st-line-soft)] px-2 py-1.5 sm:flex-wrap sm:overflow-x-visible sm:px-3 sm:py-2">
+          {onBack && (
+            <>
+              <button type="button" onClick={onBack}
+                className="inline-flex h-[30px] shrink-0 items-center gap-1.5 rounded-lg bg-[var(--st-page)] px-2.5 text-xs text-[var(--st-ink)] transition-colors hover:bg-[var(--st-seg)]">
+                <ArrowLeft size={12} strokeWidth={2.2} /> All notes
+              </button>
+              <span className="mx-1 h-[18px] w-px shrink-0 bg-[var(--st-line)]" aria-hidden />
+            </>
+          )}
+          <span className="shrink-0 px-1.5 text-xs font-medium text-[var(--st-ink)]">A new note</span>
+          <span className="grow" />
+          {status && <span className="shrink-0 px-1 text-xs text-[var(--st-muted)]">{status}</span>}
+          {drafts.length > 0 && (
+            <button type="button" onClick={() => void runSync(false)} disabled={syncing || !online}
+              className={cn(tool, "text-[var(--st-ink)] hover:bg-[var(--st-page)] disabled:opacity-50")}>
+              {syncing ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}
+              Send {drafts.length} to COS
+            </button>
+          )}
+          <button type="button" onClick={keepAndClear} disabled={!text.trim() || !supported}
+            className={cn(tool, "bg-[var(--st-ink)] font-medium text-[var(--st-page)] hover:opacity-90 disabled:opacity-50")}>
+            Keep this note
+          </button>
+        </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <Button onClick={keepAndClear} disabled={!text.trim()}>
-          Keep this note
-        </Button>
-        {drafts.length > 0 && (
-          <Button variant="ghost" onClick={() => void runSync(false)} disabled={syncing || !online}>
-            {syncing ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
-            Send {drafts.length} to COS
-          </Button>
-        )}
-        {status && <span className="text-xs text-fg-muted">{status}</span>}
+        <div className="slim-scroll min-h-0 flex-1 px-6 py-7 sm:px-10 sm:py-9 lg:px-16 lg:pb-10 lg:pt-9">
+          <div className="mx-auto w-full max-w-[68ch] lg:mx-0 lg:max-w-[72ch]">
+            {supported ? (
+              <textarea
+                value={text}
+                onChange={(e) => onChange(e.target.value)}
+                placeholder="Write anything. The first line becomes the title."
+                rows={14}
+                autoFocus
+                /* `.bare-field`: part of the paper, not a box on it. */
+                className="bare-field w-full resize-y bg-transparent text-[15px] leading-[1.6] text-[var(--st-ink)] outline-none placeholder:text-[var(--st-muted)] sm:text-[16px]"
+              />
+            ) : (
+              <p className="m-0 rounded-[10px] bg-[var(--st-bad-wash)] px-3 py-2.5 text-[13px] text-[var(--st-late-text)]">
+                This browser cannot store anything on the device, so notes written here could not be kept. Try
+                Edge or Chrome.
+              </p>
+            )}
+          </div>
+        </div>
       </div>
 
       {drafts.length > 0 && (
-        <div className="rounded-lg border border-border">
-          <div className="border-b border-border px-3.5 py-2 text-xs font-medium text-fg-muted">
-            Waiting on this device ({drafts.length})
-          </div>
-          <ul className="divide-y divide-border">
+        <section className="rounded-[20px] bg-[var(--st-surface)] px-5 py-4">
+          <h2 className="m-0 text-[15px] font-semibold">Waiting on this device <span className="font-normal text-[var(--st-muted)]">{drafts.length}</span></h2>
+          <ul className="m-0 mt-2 list-none divide-y divide-[var(--st-line-soft)] p-0">
             {drafts.map((d) => (
-              <li key={d.clientKey} className="flex items-start gap-3 px-3.5 py-2.5">
+              <li key={d.clientKey} className="flex items-start gap-3 py-2.5">
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm">
+                  <div className="truncate text-[14px]">
                     {d.text.split("\n").find((l) => l.trim())?.slice(0, 90) || "Empty note"}
                   </div>
-                  <div className="text-xs text-fg-subtle">
+                  <div className="text-xs text-[var(--st-muted)]">
                     {new Date(d.createdAt).toLocaleString("en-GB")}
                   </div>
                 </div>
                 <button
                   type="button"
                   title="Discard this one"
+                  aria-label="Discard this one"
                   onClick={async () => {
                     // Deliberately explicit: this is the only way writing is
                     // ever thrown away here, and it takes a click to do it.
@@ -197,17 +219,17 @@ export function OfflineNoteWriter() {
                     await deleteDraft(d.clientKey);
                     await refresh();
                   }}
-                  className="mt-0.5 shrink-0 text-fg-subtle hover:text-danger"
+                  className="mt-0.5 shrink-0 text-[var(--st-muted)] hover:text-[var(--st-late-text)]"
                 >
                   <Trash2 size={14} />
                 </button>
               </li>
             ))}
           </ul>
-        </div>
+        </section>
       )}
 
-      <p className="text-xs text-fg-subtle">
+      <p className="m-0 px-1 text-xs text-[var(--st-muted)]">
         Notes written here are held on this device until COS can be reached, then they appear on your
         shelf. Nothing is deleted from here until the server confirms it has it.
       </p>

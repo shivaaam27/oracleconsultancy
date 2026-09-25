@@ -202,7 +202,7 @@ function LogoTile({ size }: { size: number }) {
 const TAGLINE = "Built in-house, and the first in Tanzania — an advanced task management system for a group of companies.";
 
 /** Phone and tablet: the same dark panel, sized to sit above the form. */
-function BrandCompact() {
+export function BrandCompact() {
   return (
     <div className="st-tex-rings relative overflow-hidden rounded-[22px] bg-[#141517] p-4 text-[#F2F2F0] sm:p-5 lg:hidden">
       <div className="flex items-center gap-2.5">
@@ -225,7 +225,7 @@ function BrandCompact() {
 const BARS = [34, 52, 40, 60, 46, 66, 38, 58, 44, 64, 50, 36, 62, 48, 56, 42, 66, 40, 54, 46, 60, 38, 52, 44, 58, 36, 62, 50, 46, 64, 42, 56, 40, 60, 48, 54];
 const BAR_C = (i: number) => (i > 29 ? "#E0479E" : i > 26 ? "#F5A524" : i > 5 ? "#19C37D" : "#CFE05A");
 
-function BrandPanel() {
+export function BrandPanel() {
   return (
     <aside className="st-tex-rings relative hidden min-h-[560px] flex-col justify-between overflow-hidden rounded-[28px] bg-[#141517] p-10 text-[#F2F2F0] lg:flex">
       <div className="flex items-center gap-3">
@@ -250,7 +250,7 @@ function BrandPanel() {
   );
 }
 
-function ThemeButton({ inline = false }: { inline?: boolean }) {
+export function ThemeButton({ inline = false }: { inline?: boolean }) {
   const { resolvedTheme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);

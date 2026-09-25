@@ -12,7 +12,7 @@
 // and if either is wrong, render an error rather than redirecting. Bouncing to an
 // unvalidated address is how authorization codes reach the wrong hands.
 
-import { AuthShell } from "@/components/auth-shell";
+import { StudioConsentFrame, StudioConsentProblem } from "@/components/studio/auth/studio-consent";
 import { isAdminSession } from "@/lib/admin-auth";
 import { getPortalPerson } from "@/lib/portal-auth";
 import { getClient, redirectAllowed, DEFAULT_SCOPE } from "@/lib/mcp/oauth";
@@ -23,12 +23,9 @@ export const dynamic = "force-dynamic";
 
 function Problem({ title, detail }: { title: string; detail: string }) {
   return (
-    <AuthShell kicker="Oracle Consultancy Limited" title="Connection request">
-      <div className="space-y-2 text-sm">
-        <p className="font-semibold">{title}</p>
-        <p className="text-fg-muted">{detail}</p>
-      </div>
-    </AuthShell>
+    <StudioConsentFrame title="Connection request">
+      <StudioConsentProblem title={title} detail={detail} />
+    </StudioConsentFrame>
   );
 }
 
@@ -88,8 +85,11 @@ export default async function McpConnectPage({
       : null;
 
   return (
-    <AuthShell kicker="Oracle Consultancy Limited" title="Connect an assistant">
+    <StudioConsentFrame
+      title="Connect an assistant"
+      sub={<><span className="font-semibold">{client.clientName}</span> wants to connect to COS.</>}
+    >
       <ConnectForm params={params} signedInAs={signedInAs} />
-    </AuthShell>
+    </StudioConsentFrame>
   );
 }
