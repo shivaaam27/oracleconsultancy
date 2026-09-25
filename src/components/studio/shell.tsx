@@ -497,7 +497,9 @@ function GoToPanel({
                 <Search size={13} />Search every record<span className={KEY}>{shortcut}</span>
               </button>
             )}
-            <ShellThemeButton />
+            {/* From lg only — below it the theme is in the header row above
+                (lg:hidden), and between sm and lg both showed: two toggles. */}
+            <span className="hidden lg:contents"><ShellThemeButton /></span>
           </span>
         </div>
       </div>
