@@ -1046,7 +1046,27 @@ function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: st
      conversation never passed them in). */
   if (mode === "page") {
     if (loading && !data) {
-      return <StudioScope><p className="py-16 text-center text-base text-[var(--st-muted)]">Loading {code}…</p></StudioScope>;
+      // The shape of the task page — its dark header, the conversation and the
+      // details — breathing softly, not a line of text (owner, 25 Sept 2026).
+      return (
+        <StudioScope>
+          <div aria-busy aria-label={`Loading ${code}`} className="flex animate-pulse flex-col gap-4 motion-reduce:animate-none lg:grid lg:grid-cols-[minmax(0,1fr)_340px]">
+            <div className="flex flex-col gap-4">
+              <div className="flex h-[196px] flex-col justify-between rounded-[24px] bg-[var(--st-card)] p-6">
+                <div className="flex gap-2"><span className="h-8 w-20 rounded-[10px] bg-[#26282C]" /><span className="h-8 w-16 rounded-[10px] bg-[#26282C]" /></div>
+                <span className="h-9 w-2/3 rounded-[10px] bg-[#26282C]" />
+                <div className="flex gap-2"><span className="h-7 w-24 rounded-lg bg-[#26282C]" /><span className="h-7 w-24 rounded-lg bg-[#26282C]" /><span className="h-7 w-24 rounded-lg bg-[#26282C]" /></div>
+              </div>
+              <div className="flex h-[300px] flex-col gap-3 rounded-[20px] bg-[var(--st-surface)] p-6">
+                <span className="h-4 w-40 rounded bg-[var(--st-page)]" />
+                <span className="h-16 w-full rounded-[12px] bg-[var(--st-page)]" />
+                <span className="h-16 w-4/5 rounded-[12px] bg-[var(--st-page)]" />
+              </div>
+            </div>
+            <div className="hidden h-[520px] rounded-[20px] bg-[var(--st-surface)] lg:block" />
+          </div>
+        </StudioScope>
+      );
     }
     if (error || !t || !data) {
       return (
