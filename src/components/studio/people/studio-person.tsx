@@ -44,6 +44,7 @@ import { PortalEditor, applyPortalDraft, draftFrom, type PortalDraft, type Porta
 import { cn } from "@/lib/cn";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { useFitFrame } from "@/components/studio/use-fit-frame";
+import { useStudioPaths } from "@/components/studio/studio-paths";
 
 export type StudioPersonData = {
   person: {
@@ -134,6 +135,11 @@ const BAND_BTN = "inline-flex h-9 sm:h-8 shrink-0 items-center gap-1.5 whitespac
  *  one of those writes is owner-only on the server as well. */
 export function StudioPerson({ data, backHref, readOnly = false }: { data: StudioPersonData; backHref: string; readOnly?: boolean }) {
   const { person: p, workload } = data;
+  const paths = useStudioPaths();
+  // A member of staff looking at a colleague (26 Sept 2026, "own work only"):
+  // who they are and how to reach them, and the tasks the two of them share.
+  // The page sends only those tasks, no files, no history, no private details.
+  const staff = paths.staff;
   const router = useRouter();
   const { toast } = useToast();
   const [busy, start] = useTransition();
@@ -157,7 +163,7 @@ export function StudioPerson({ data, backHref, readOnly = false }: { data: Studi
       window.history.replaceState(window.history.state, "", `${window.location.pathname}${qs ? `?${qs}` : ""}`);
     },
   };
-  const tabs: readonly Tab[] = readOnly ? TABS.filter((t) => t === "overview" || t === "tasks" || t === "documents" || t === "history") : TABS;
+  const tabs: readonly Tab[] = staff ? TABS.filter((t) => t === "overview" || t === "tasks") : readOnly ? TABS.filter((t) => t === "overview" || t === "tasks" || t === "documents" || t === "history") : TABS;
   const tab: Tab = (tabs as readonly string[]).includes(url.values.tab) ? (url.values.tab as Tab) : "overview";
   const [sheet, setSheet] = useState<null | "facts" | "pack">(null);
   // Phone: long lists show three, then "Show N more" (as Home).
@@ -171,7 +177,7 @@ export function StudioPerson({ data, backHref, readOnly = false }: { data: Studi
     lastLoginAt: data.portal.lastLoginAt, directorCompanyIds: data.portal.directorCompanyIds, companyIds: p.companyIds,
   };
   const [portalDraft, setPortalDraft] = useState<PortalDraft>(() => draftFrom(portalNow));
-  const here = `/people/${p.id}`;
+  const here = paths.person(p.id);
   // Overview and Edit fit the screen from xl with no page scroll.
   const fitRef = useRef<HTMLDivElement>(null);
   const wide = useMediaQuery("(min-width: 1280px)");
@@ -208,8 +214,8 @@ export function StudioPerson({ data, backHref, readOnly = false }: { data: Studi
           <a href={p.email ? `mailto:${p.email}` : undefined} aria-disabled={!p.email} title={p.email ?? "No email on file"} className={BAND_BTN}><Mail size={13} />Email</a>
           <a href={p.whatsapp ? waHref(p.whatsapp) : undefined} target="_blank" rel="noreferrer" aria-disabled={!p.whatsapp} title={p.whatsapp ?? "No WhatsApp on file"} className={BAND_BTN}><MessageCircle size={13} />WhatsApp</a>
           <a href={p.phone || p.whatsapp ? `tel:${p.phone ?? p.whatsapp}` : undefined} aria-disabled={!(p.phone || p.whatsapp)} className={BAND_BTN}><Phone size={13} />Call</a>
-          {!readOnly && <Link href={`/chat?dm=${p.id}`} className={BAND_BTN}><MessagesSquare size={13} />Chat</Link>}
-          <Link href={newTaskHref} className={BAND_BTN}><Plus size={13} />New task</Link>
+          {(!readOnly || staff) && <Link href={paths.chat(p.id)} className={BAND_BTN}><MessagesSquare size={13} />Chat</Link>}
+          {!staff && <Link href={newTaskHref} className={BAND_BTN}><Plus size={13} />New task</Link>}
           {!readOnly && <Link href={addDocHref} className={BAND_BTN}><FileText size={13} />Add a file</Link>}
     </>
   );
@@ -217,7 +223,7 @@ export function StudioPerson({ data, backHref, readOnly = false }: { data: Studi
     <>
       {p.staffId && <span className="st-mono inline-flex h-9 shrink-0 items-center rounded-[9px] bg-[#26282C] px-2.5 text-[11px] text-[#C9CBCF] sm:h-auto sm:rounded-md sm:px-2 sm:py-1">{p.staffId}</span>}
       <BandPill c={p.active ? "#19C37D" : "#8E9197"} bg={p.active ? "#1D2A23" : "#26282C"} fg={p.active ? "#5BE0A5" : "#C9CBCF"}>{p.active ? (snoozed ? "Active · snoozed" : "Active") : "Inactive"}</BandPill>
-      {data.portal.enabled
+      {staff ? null : data.portal.enabled
         ? <BandPill c="#2490EF" bg="#1B2633" fg="#9CC8F5">{data.portal.designation || `${ROLE_LABEL[portalRole]} portal`}</BandPill>
         : <BandPill c="#8E9197" bg="#26282C" fg="#C9CBCF">No portal</BandPill>}
     </>
@@ -247,7 +253,7 @@ export function StudioPerson({ data, backHref, readOnly = false }: { data: Studi
           </DropdownMenu.Trigger>
           <DropdownMenu.Portal>
             <DropdownMenu.Content align="end" sideOffset={6} className="studio z-[140] w-60 rounded-xl border border-[var(--st-line)] bg-[var(--st-surface)] p-1.5 text-[13px] shadow-[0_16px_40px_rgba(17,18,20,0.16)]">
-              <MenuItem onSelect={() => openReport({ personIds: [p.id] })} icon={<FileText size={14} />}>Report on {p.name.replace(/^(Mr|Mrs|Ms|Miss|Dr)\.?\s+/, "").split(" ")[0]}…</MenuItem>
+              {!staff && <MenuItem onSelect={() => openReport({ personIds: [p.id] })} icon={<FileText size={14} />}>Report on {p.name.replace(/^(Mr|Mrs|Ms|Miss|Dr)\.?\s+/, "").split(" ")[0]}…</MenuItem>}
               {!readOnly && <MenuItem onSelect={() => setSheet("pack")} icon={<PackageCheck size={14} />}>Send a pack…</MenuItem>}
               {contact && <MenuItem onSelect={() => { void navigator.clipboard.writeText(contact).then(() => toast(`Copied ${contact}`, { tone: "success" })); }} icon={<Copy size={14} />}>Copy contact</MenuItem>}
               {!readOnly && <>
@@ -281,8 +287,8 @@ export function StudioPerson({ data, backHref, readOnly = false }: { data: Studi
             ["Call", <Phone key="i" size={16} />, p.phone || p.whatsapp ? `tel:${p.phone ?? p.whatsapp}` : null, false],
             ["WhatsApp", <MessageCircle key="i" size={16} />, p.whatsapp ? waHref(p.whatsapp) : null, true],
             ["Email", <Mail key="i" size={16} />, p.email ? `mailto:${p.email}` : null, false],
-            ...(!readOnly ? [["Chat", <MessagesSquare key="i" size={16} />, `/chat?dm=${p.id}`, false] as const] : []),
-            ["New task", <Plus key="i" size={16} />, newTaskHref, false],
+            ...(!readOnly || staff ? [["Chat", <MessagesSquare key="i" size={16} />, paths.chat(p.id), false] as const] : []),
+            ...(!staff ? [["New task", <Plus key="i" size={16} />, newTaskHref, false] as const] : []),
           ] as const).map(([label, icon, href, external]) => (
             <a key={label} href={href ?? undefined} aria-disabled={!href} target={external ? "_blank" : undefined} rel={external ? "noreferrer" : undefined}
               className="flex min-w-0 flex-1 flex-col items-center gap-1.5 text-[11px] text-[#C9CBCF] aria-disabled:pointer-events-none aria-disabled:opacity-35">
@@ -315,7 +321,7 @@ export function StudioPerson({ data, backHref, readOnly = false }: { data: Studi
       <div className={COL}>
         <div className="grid shrink-0 grid-cols-2 gap-2.5 sm:grid-cols-4">
           {([
-            [workload.open, "open tasks", "var(--st-ink)", () => { url.set({ tab: "tasks", tf: "open" }); }],
+            [workload.open, staff ? "shared, open" : "open tasks", "var(--st-ink)", () => { url.set({ tab: "tasks", tf: "open" }); }],
             [workload.overdue, "overdue", workload.overdue ? "var(--st-late-text)" : "var(--st-ink)", () => { url.set({ tab: "tasks", tf: "open" }); }],
             [workload.completedThisMonth, `finished in ${monthName}`, "var(--st-ink)", () => { url.set({ tab: "tasks", tf: "done" }); }],
             [data.reports.length, "direct reports", "var(--st-ink)", null],
@@ -328,16 +334,16 @@ export function StudioPerson({ data, backHref, readOnly = false }: { data: Studi
           ))}
         </div>
 
-        <Card title="Open tasks" className={GROW} right={open.length > 0 && <button type="button" onClick={() => url.set({ tab: "tasks", tf: "open" })} className="text-[var(--st-ink)] hover:underline">All {open.length} →</button>}>
+        <Card title={staff ? "Tasks you share" : "Open tasks"} className={GROW} right={open.length > 0 && <button type="button" onClick={() => url.set({ tab: "tasks", tf: "open" })} className="text-[var(--st-ink)] hover:underline">All {open.length} →</button>}>
           <div className={cn("mt-1.5 flex flex-col", LIST)}>
-            {open.length === 0 && <div className="py-4 text-[13px] text-[var(--st-muted)]">Nothing open. {workload.completedThisMonth ? `${workload.completedThisMonth} finished this month.` : ""}</div>}
+            {open.length === 0 && <div className="py-4 text-[13px] text-[var(--st-muted)]">{staff ? "No open task you are both on." : "Nothing open."} {workload.completedThisMonth ? `${workload.completedThisMonth} finished this month.` : ""}</div>}
             {overdueFirst.map((t, i) => {
               const d = due(t);
               // Six below xl; from xl the card is sized to the screen and scrolls.
               // (CSS, not the media hook: the hook reads the window on the first
               // render, and a different list on the server is a hydration error.)
               return (
-                <Link key={t.code} href={withReturn(taskHref(t.code), here)} className={cn(
+                <Link key={t.code} href={withReturn(paths.task(t.code), here)} className={cn(
                   // ⚠️ The hiding classes go LAST: cn() lets a later `grid` cancel
                   // an earlier `hidden`, which is why six-then-scroll never held.
                   "grid shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2.5 border-b border-[var(--st-line-soft)] py-2 text-[13px] last:border-0 hover:bg-[var(--st-cal-busy)]",
@@ -373,12 +379,12 @@ export function StudioPerson({ data, backHref, readOnly = false }: { data: Studi
           <Facts>
             <F k="Job title" v={p.role} />
             <F k="Type" v={PERSON_TYPE_LABELS[p.personType]} />
-            <F k="Main company" v={p.companyName && p.companyId ? <Link href={`/companies/${p.companyId}`} className={LINK}>{p.companyName}</Link> : p.companyName} />
+            <F k="Main company" v={p.companyName && p.companyId ? <Link href={paths.company(p.companyId)} className={LINK}>{p.companyName}</Link> : p.companyName} />
             <F k="Also works for" v={p.alsoCompanies.length ? <span title={p.alsoCompanies.join(", ")}>{p.alsoCompanies.length > 1 ? `${p.alsoCompanies.length} companies` : p.alsoCompanies[0]}</span> : "—"} />
-            <F k="Reports to" v={p.managerName && p.managerId ? <Link href={withReturn(`/people/${p.managerId}`, here)} className={LINK}>{shortName(p.managerName)}</Link> : p.managerName} />
-            <F k="Also reports to" v={p.secondaryManagers.length ? p.secondaryManagers.map((m, i) => <span key={m.id}>{i > 0 && ", "}<Link href={withReturn(`/people/${m.id}`, here)} className={LINK}>{shortName(m.name ?? "")}</Link></span>) : "—"} />
+            <F k="Reports to" v={p.managerName && p.managerId ? <Link href={withReturn(paths.person(p.managerId), here)} className={LINK}>{shortName(p.managerName)}</Link> : p.managerName} />
+            <F k="Also reports to" v={p.secondaryManagers.length ? p.secondaryManagers.map((m, i) => <span key={m.id}>{i > 0 && ", "}<Link href={withReturn(paths.person(m.id), here)} className={LINK}>{shortName(m.name ?? "")}</Link></span>) : "—"} />
             <F k="Department" v={p.departmentName} />
-            <F k="Started" v={fmt(p.startDate)} />
+            {!staff && <F k="Started" v={fmt(p.startDate)} />}
             {p.probationEndDate && <F k="Probation ends" v={fmt(p.probationEndDate)} />}
           </Facts>
         </Card>
@@ -390,7 +396,7 @@ export function StudioPerson({ data, backHref, readOnly = false }: { data: Studi
               <F k="WhatsApp" v={p.whatsapp && p.whatsapp !== p.phone ? p.whatsapp : p.whatsapp ? "Same as phone" : null} />
               <F k="Prefers" v={p.preferredChannel ? p.preferredChannel.charAt(0) + p.preferredChannel.slice(1).toLowerCase() : null} />
               <F k="Works at" v={p.workSite} />
-              <F k="Lives at" v={p.residence} />
+              {!staff && <F k="Lives at" v={p.residence} />}
             </Facts>
             {!readOnly && <>
             <button type="button" onClick={() => setPersonalOpen((v) => !v)} aria-expanded={personalOpen} className="mt-3 flex w-full items-center justify-between border-t border-[var(--st-line-soft)] pt-2.5 text-left text-xs text-[var(--st-muted)] hover:text-[var(--st-ink)]">
@@ -416,7 +422,7 @@ export function StudioPerson({ data, backHref, readOnly = false }: { data: Studi
       </div>
 
       <div className={cn(COL, "lg:col-span-2 xl:col-span-1")}>
-        <Card title="Portal access" className="shrink-0" right={data.portal.enabled ? ROLE_LABEL[portalRole] : "None"}>
+        {!staff && <Card title="Portal access" className="shrink-0" right={data.portal.enabled ? ROLE_LABEL[portalRole] : "None"}>
           <p className="mt-1.5 text-[13px] leading-normal text-[var(--st-sub)]">
             {data.portal.enabled
               ? <>{SCOPE_SENTENCE(data.portalScope[portalRole])}{" "}{data.portal.lastLoginAt ? `Last signed in ${fmt(data.portal.lastLoginAt)}.` : "Has never signed in."}</>
@@ -437,19 +443,19 @@ export function StudioPerson({ data, backHref, readOnly = false }: { data: Studi
             )}
           </div>
           )}
-        </Card>
+        </Card>}
 
         {data.reports.length > 0 && (
           <Card title="Direct reports" className={GROW} right={data.reports.length}>
             <div className={cn("mt-2.5 flex flex-col gap-1", LIST)}>
               {data.reports.map((r, i) => (
-                <Link key={`${r.id}-${r.dotted}`} href={withReturn(`/people/${r.id}`, here)} className={cn("flex min-h-11 shrink-0 items-center gap-2.5 rounded-lg py-1 hover:bg-[var(--st-cal-busy)] sm:min-h-0", i >= 3 && !allReports && "max-sm:hidden")}>
+                <Link key={`${r.id}-${r.dotted}`} href={withReturn(paths.person(r.id), here)} className={cn("flex min-h-11 shrink-0 items-center gap-2.5 rounded-lg py-1 hover:bg-[var(--st-cal-busy)] sm:min-h-0", i >= 3 && !allReports && "max-sm:hidden")}>
                   <PersonFace name={r.name} size={32} peek />
                   <span className="min-w-0 flex-1 text-[13px]">
                     <span className="block truncate">{shortName(r.name)}{r.dotted && <span className="text-[var(--st-muted)]"> (also)</span>}</span>
                     <span className="block truncate text-[11px] text-[var(--st-muted)]">{[r.role, r.companyName].filter(Boolean).join(" · ")}</span>
                   </span>
-                  <span className="shrink-0 text-xs" style={{ color: r.overdue ? "var(--st-late-text)" : "var(--st-sub)" }}>{r.overdue ? `${r.overdue} late` : r.open ? `${r.open} open` : "—"}</span>
+                  {!staff && <span className="shrink-0 text-xs" style={{ color: r.overdue ? "var(--st-late-text)" : "var(--st-sub)" }}>{r.overdue ? `${r.overdue} late` : r.open ? `${r.open} open` : "—"}</span>}
                 </Link>
               ))}
               {!allReports && data.reports.length > 3 && (
@@ -496,7 +502,7 @@ export function StudioPerson({ data, backHref, readOnly = false }: { data: Studi
             <button key={k} type="button" onClick={() => url.set({ tf: k })} className={cn("h-7 rounded-lg px-2.5 text-xs", url.values.tf === k ? "bg-[var(--st-surface)] font-medium text-[var(--st-ink)] shadow-[0_1px_2px_rgba(0,0,0,0.08)]" : "text-[var(--st-sub)]")}>{l}</button>
           ))}
         </span>
-        <Link href={newTaskHref} className={BTN_DARK}><Plus size={12} />New task</Link>
+        {!staff && <Link href={newTaskHref} className={BTN_DARK}><Plus size={12} />New task</Link>}
       </span>
     }>
       <div className="mt-2 flex flex-col">
@@ -504,7 +510,7 @@ export function StudioPerson({ data, backHref, readOnly = false }: { data: Studi
         {shownTasks.map((t) => {
           const d = due(t);
           return (
-            <Link key={t.code} href={withReturn(taskHref(t.code), `${here}?tab=tasks${url.values.tf !== "open" ? `&tf=${url.values.tf}` : ""}`)}
+            <Link key={t.code} href={withReturn(paths.task(t.code), `${here}?tab=tasks${url.values.tf !== "open" ? `&tf=${url.values.tf}` : ""}`)}
               className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 border-b border-[var(--st-line-soft)] py-2.5 text-[13px] last:border-0 hover:bg-[var(--st-cal-busy)] sm:grid-cols-[72px_minmax(0,1fr)_minmax(0,180px)_110px_90px]">
               <span className="st-mono hidden text-[11px] text-[var(--st-muted)] sm:block">{t.code}</span>
               <span className="min-w-0 truncate"><span className="st-mono text-[11px] text-[var(--st-muted)] sm:hidden">{t.code} </span>{t.title}</span>

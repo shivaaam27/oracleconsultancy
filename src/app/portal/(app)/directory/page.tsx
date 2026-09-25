@@ -35,6 +35,8 @@ export default async function PortalDirectoryPage({
   const { tab: initialTab } = await searchParams;
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
+  // Staff have the shared People and Companies screens now (26 Sept 2026).
+  if (me.portalRole === "staff") redirect(initialTab === "companies" ? "/portal/companies" : "/portal/people");
 
   const groupWide = seesAllCompanies(me);
   // Non-all-companies viewers are scoped to their company set: managers/staff → the
@@ -176,7 +178,7 @@ export default async function PortalDirectoryPage({
           companies={companies}
           attendance={attendance}
           showAttendance={canSeeAttendance}
-          canOpenProfiles={me.portalRole !== "staff"}
+          canOpenProfiles
           initialTab={initialTab}
         />
       </Reveal>

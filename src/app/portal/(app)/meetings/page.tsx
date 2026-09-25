@@ -10,6 +10,7 @@ import { Reveal } from "@/components/reveal";
 import { PortalMeetingsPage } from "@/components/portal-meetings-page";
 import { PortalBriefings } from "@/components/portal-briefings";
 import { AnnouncementFeed } from "@/components/announcement-feed";
+import { StaffCalendar } from "./staff-calendar";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,12 @@ export default async function PortalBriefingsRoute({ searchParams }: { searchPar
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
   const { tab } = await searchParams;
+  // Staff (26 Sept 2026): the shared Calendar, read-only, over their own
+  // meetings; announcements have their own page.
+  if (me.portalRole === "staff") {
+    if (tab === "announcements") redirect("/portal/announcements");
+    return <StaffCalendar me={me} />;
+  }
   const initialTab = tab === "announcements" ? "announcements" : "meetings";
 
   const caps = portalCapabilities(me.portalRole);

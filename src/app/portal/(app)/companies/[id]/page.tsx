@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation";
+import { StaffCompanyPage } from "./staff-company";
 import Link from "next/link";
 import { ReturnLink } from "@/components/back-link";
 import { ArrowLeft, ClipboardCheck, AlertTriangle, FileText } from "lucide-react";
@@ -42,11 +43,17 @@ export default async function PortalCompanyPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ from?: string }>;
+  searchParams: Promise<{ from?: string; tab?: string }>;
 }) {
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
-  const { from } = await searchParams;
+  const { from, tab } = await searchParams;
+  // Staff (26 Sept 2026): the shared company screen, "own work only".
+  if (me.portalRole === "staff") {
+    const cid = Number((await params).id);
+    if (!Number.isFinite(cid)) notFound();
+    return <StaffCompanyPage me={me} companyId={cid} tabParam={tab} />;
+  }
   const back = BACK_TO[from ?? ""] ?? BACK_TO.board;
   const companyId = Number((await params).id);
   if (!Number.isFinite(companyId) || !(await personCanSeeCompany(me, companyId))) notFound();

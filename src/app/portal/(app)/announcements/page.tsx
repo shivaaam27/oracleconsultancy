@@ -5,6 +5,7 @@ import { Hero, SectionLabel } from "@/components/surface-kit";
 import { Reveal } from "@/components/reveal";
 import { AnnouncementComposer, type Opt } from "@/components/announcement-composer";
 import { AnnouncementFeed } from "@/components/announcement-feed";
+import { StudioScope, StudioHeader, StudioCardRow, StudioCard, CardHead, BigNumber } from "@/components/studio/kit";
 import { getPortalPerson, directReportIds } from "@/lib/portal-auth";
 import { getPersonAudienceAttrs, feedForPerson } from "@/lib/announcements";
 import type { AudienceKind } from "@/lib/announcements-shared";
@@ -17,6 +18,38 @@ export default async function PortalAnnouncements() {
 
   const attrs = await getPersonAudienceAttrs(me.id);
   const feed = attrs ? await feedForPerson(attrs) : [];
+
+  // Staff (26 Sept 2026): the Studio look — two dark cards, then the feed,
+  // which keeps Acknowledge, reactions and comments exactly as they were.
+  if (me.portalRole === "staff") {
+    const waiting = feed.filter((a) => (a.requireAck ? !a.ackAt : !a.seenAt));
+    const toAck = feed.filter((a) => a.requireAck && !a.ackAt).length;
+    const pinned = feed.filter((a) => a.pinned).length;
+    return (
+      <StudioScope className="flex flex-col gap-5">
+        <StudioHeader title="Announcements" />
+        <StudioCardRow>
+          <StudioCard className="min-h-[170px]">
+            <CardHead label="Waiting for you" right={<span>{toAck} to acknowledge</span>} />
+            <div className="mt-auto pt-3">
+              <BigNumber value={waiting.length} unit={waiting.length === 1 ? "notice" : "notices"} />
+              <div className="mt-2 truncate text-[13px] text-[var(--st-on-card-muted)]">{waiting[0] ? waiting[0].title : "You are up to date."}</div>
+            </div>
+          </StudioCard>
+          <StudioCard texture="rings" className="min-h-[170px]">
+            <CardHead label="On the board" right={<span>{pinned} pinned</span>} />
+            <div className="mt-auto pt-3">
+              <BigNumber value={feed.length} unit="live" />
+              <div className="mt-2 text-[13px] text-[var(--st-on-card-muted)]">Notices from management for you. Newest first, pinned on top.</div>
+            </div>
+          </StudioCard>
+        </StudioCardRow>
+        <section className="st-desk st-panel min-w-0 rounded-[20px] bg-[var(--st-surface)] px-5 py-4">
+          <AnnouncementFeed items={feed} />
+        </section>
+      </StudioScope>
+    );
+  }
   // A director is redirected above; a manager posts to their own team.
   const canPost = me.portalRole === "manager";
 

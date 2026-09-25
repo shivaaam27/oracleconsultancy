@@ -26,6 +26,7 @@ import { useStudioFootNote } from "@/components/studio/foot-note";
 import { useToast } from "@/components/toast";
 import { withReturn } from "@/lib/return-to";
 import { cn } from "@/lib/cn";
+import { useStudioPaths } from "@/components/studio/studio-paths";
 import type { DepartmentAdminRow } from "@/lib/departments";
 import type { SiteAdminRow } from "@/lib/sites";
 import type { RoleAdminRow } from "@/lib/roles";
@@ -62,6 +63,10 @@ const TAB_LABEL: Record<Tab, string> = { companies: "Companies", departments: "D
 const addCompany = () => window.dispatchEvent(new CustomEvent("studio:new", { detail: { tab: "company" } }));
 
 export function StudioCompanies({ data }: { data: StudioCompaniesData }) {
+  // Staff (26 Sept 2026): their own companies, the numbers only — the task
+  // lists behind them are not theirs to open.
+  const paths = useStudioPaths();
+  const staff = paths.staff;
   const sp = useSearchParams();
   const [tab, setTabState] = useState<Tab>(() => (TABS as string[]).includes(sp.get("tab") ?? "") ? (sp.get("tab") as Tab) : "companies");
   // The tab lives in the address (a link can land on it) but is written with
@@ -88,7 +93,7 @@ export function StudioCompanies({ data }: { data: StudioCompaniesData }) {
   const atRisk = cos.filter((c) => c.late > 0).sort((a, b) => b.late / b.open - a.late / a.open || b.late - a.late).slice(0, 4);
   const worst = atRisk[0];
   useStudioFootNote(worst
-    ? { label: "Needs you most", text: `${worst.name} · ${worst.late === worst.open ? `all ${worst.open} open tasks are late` : `${worst.late} of ${worst.open} open tasks late`}`, href: `/companies/${worst.id}` }
+    ? { label: "Needs you most", text: `${worst.name} · ${worst.late === worst.open ? `all ${worst.open} open tasks are late` : `${worst.late} of ${worst.open} open tasks late`}`, href: paths.company(worst.id) }
     : { label: "Needs you most", text: "Nothing is late — every company is on time" });
 
   const grid = useRef<HTMLDivElement>(null);
@@ -115,12 +120,12 @@ export function StudioCompanies({ data }: { data: StudioCompaniesData }) {
         <>
           <StudioCardRow className="lg:h-[210px]">
             <StudioCard tone="dark">
-              <CardHead label="Portfolio" right={`${cos.length} companies`} />
+              <CardHead label={staff ? "Your companies" : "Portfolio"} right={`${cos.length} ${cos.length === 1 ? "company" : "companies"}`} />
               <div className="mt-auto flex flex-wrap items-end gap-x-7 gap-y-4 pt-4">
                 <div>
-                  <Link href="/?tab=tasks" className="block hover:opacity-90"><BigNumber value={open} unit="open" /></Link>
+                  {staff ? <BigNumber value={open} unit="open" /> : <Link href="/?tab=tasks" className="block hover:opacity-90"><BigNumber value={open} unit="open" /></Link>}
                   <div className="mt-3 flex gap-3.5 text-xs text-[var(--st-on-card-muted)]">
-                    <Link href="/?tab=tasks&flag=overdue" className="text-[#F07BBE] hover:underline">{late} late</Link>
+                    {staff ? <span className="text-[#F07BBE]">{late} late</span> : <Link href="/?tab=tasks&flag=overdue" className="text-[#F07BBE] hover:underline">{late} late</Link>}
                     <span>{done} done this month</span>
                   </div>
                 </div>
@@ -142,7 +147,7 @@ export function StudioCompanies({ data }: { data: StudioCompaniesData }) {
                 {atRisk.map((c) => {
                   const pct = Math.round((c.late / c.open) * 100);
                   return (
-                    <Link key={c.id} href={withReturn(`/companies/${c.id}`, "/companies")}
+                    <Link key={c.id} href={withReturn(paths.company(c.id), paths.companies())}
                       className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3.5 gap-y-1.5 text-[13px] hover:opacity-90 lg:grid-cols-[170px_minmax(0,1fr)_150px]">
                       <span className="truncate">{c.name}</span>
                       {/* On a phone AND a tablet (the card is half the screen there) the
@@ -158,12 +163,12 @@ export function StudioCompanies({ data }: { data: StudioCompaniesData }) {
             </StudioCard>
           </StudioCardRow>
 
-          <div ref={grid} className="st-scroll grid grid-cols-1 rounded-[18px] bg-[var(--st-surface)] px-1 min-[480px]:grid-cols-2 min-[480px]:gap-3 min-[480px]:rounded-none min-[480px]:bg-transparent min-[480px]:px-0 md:grid-cols-3 lg:auto-rows-[minmax(132px,1fr)] lg:grid-cols-4 lg:overflow-y-auto xl:grid-cols-5">
+          <div ref={grid} className="st-scroll grid grid-cols-1 rounded-[18px] bg-[var(--st-surface)] px-1 min-[480px]:grid-cols-2 min-[480px]:gap-3 min-[480px]:rounded-none min-[480px]:bg-transparent min-[480px]:px-0 md:grid-cols-3 lg:auto-rows-[minmax(132px,200px)] lg:content-start lg:grid-cols-4 lg:overflow-y-auto xl:grid-cols-5">
             {cos.map((c) => {
               const s = standing(c.open, c.late);
               const st = STANDING[s];
               return (
-                <Link key={c.id} href={withReturn(`/companies/${c.id}`, "/companies")}
+                <Link key={c.id} href={withReturn(paths.company(c.id), paths.companies())}
                   className={cn("flex min-w-0 flex-col gap-2 bg-[var(--st-surface)] transition-shadow hover:shadow-[0_6px_18px_rgba(17,18,20,0.07)]",
                     // Phone (mockup M_Companies): rows in one card, hairlines between.
                     "border-b border-[var(--st-line-soft)] px-3 py-3 last:border-b-0 min-[480px]:rounded-2xl min-[480px]:border-0 min-[480px]:p-3.5",

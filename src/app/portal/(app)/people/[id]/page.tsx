@@ -9,6 +9,7 @@ import { sb } from "@/db/supabase";
 import { Hero, Panel, SectionLabel } from "@/components/surface-kit";
 import { Reveal } from "@/components/reveal";
 import { PortalTrace, PortalTraceButton } from "@/components/portal-trace";
+import { StaffPersonPage } from "./staff-person";
 
 export const dynamic = "force-dynamic";
 
@@ -26,10 +27,15 @@ function Row({ icon, label, value }: { icon: React.ReactNode; label: string; val
   );
 }
 
-export default async function PortalPersonPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function PortalPersonPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ back?: string }> }) {
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
   const targetId = Number((await params).id);
+  // Staff (26 Sept 2026): the shared person screen, "own work only".
+  if (me.portalRole === "staff") {
+    if (!Number.isFinite(targetId)) notFound();
+    return <StaffPersonPage me={me} personId={targetId} back={(await searchParams).back} />;
+  }
   if (!Number.isFinite(targetId) || !(await personCanSeePerson(me, targetId))) notFound();
 
   const { data: p } = await sb
@@ -68,7 +74,7 @@ export default async function PortalPersonPage({ params }: { params: Promise<{ i
   const startLabel = p.start_date
     ? new Date(p.start_date as string).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })
     : null;
-  const canOpenCompany = me.portalRole !== "staff";
+  const canOpenCompany = true; // staff take the Studio page above
   // Where "back" actually goes. /portal/team is the MANAGER roster — it
   // redirects a director to /portal/outbox and staff to /portal/home, so a
   // hard-coded link here dropped a director who had opened someone from the

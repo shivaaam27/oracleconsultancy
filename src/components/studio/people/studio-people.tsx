@@ -34,6 +34,7 @@ import { useRemindPerson } from "./remind";
 import { useCreateParam } from "@/lib/use-create-param";
 import { useFitFrame } from "@/components/studio/use-fit-frame";
 import { useMediaQuery } from "@/lib/use-media-query";
+import { useStudioPaths } from "@/components/studio/studio-paths";
 
 type Company = { id: number; name: string };
 type Hints = Record<number, { onLeave: boolean; present: number; absent: number }>;
@@ -94,6 +95,10 @@ export function StudioPeople({ people, companies, hints = {}, readOnly = false }
 }) {
   const router = useRouter();
   const { toast } = useToast();
+  const paths = useStudioPaths();
+  // A member of staff (26 Sept 2026): their colleagues as a contact book — no
+  // workload, no portal levels, no attention queue. The server sends none of it.
+  const staff = paths.staff;
   const [busy, start] = useTransition();
   const f = useUrlFilters({ co: "all", type: "all", loc: "all", mode: "browse", group: "company", chip: "all", q: "" }, { debounceKeys: ["q"] });
   const [q, setQ] = useState(f.values.q);
@@ -111,7 +116,7 @@ export function StudioPeople({ people, companies, hints = {}, readOnly = false }
   useCreateParam("1", () => { if (!readOnly) openAdd(); });
 
   const openPerson = (id: number) => {
-    const to = withReturn(`/people/${id}`, `${window.location.pathname}${window.location.search}`);
+    const to = withReturn(paths.person(id), `${window.location.pathname}${window.location.search}`);
     markPush(to);
     router.push(to);
   };
@@ -234,7 +239,7 @@ export function StudioPeople({ people, companies, hints = {}, readOnly = false }
         }
         right={
           <>
-            <div className="flex gap-0.5 rounded-[11px] bg-[var(--st-seg)] p-[3px]" role="tablist" aria-label="Mode">
+            {!staff && <div className="flex gap-0.5 rounded-[11px] bg-[var(--st-seg)] p-[3px]" role="tablist" aria-label="Mode">
               {([["browse", "Browse", null], ["attention", "Attention", attention.length]] as const).map(([k, l, n]) => (
                 <button key={k} type="button" role="tab" aria-selected={f.values.mode === k} onClick={() => f.set({ mode: k })}
                   className={cn("flex h-[30px] items-center gap-1.5 rounded-lg px-3 text-xs font-medium transition-colors",
@@ -242,7 +247,7 @@ export function StudioPeople({ people, companies, hints = {}, readOnly = false }
                   {l}{n != null && <span className="text-[11px] font-normal text-[var(--st-muted)]">{n}</span>}
                 </button>
               ))}
-            </div>
+            </div>}
             <StudioMenu label="Group" sub={`· ${GROUPS.find(([k]) => k === f.values.group)?.[1] ?? "Company"}`}
               options={GROUPS.map(([k, l]) => ({ key: k, label: l, href: f.hrefFor({ group: k }), active: f.values.group === k }))} />
             {!readOnly && <button type="button" onClick={openAdd} className={stBtn.dark}><Plus size={15} />Add person</button>}
@@ -253,7 +258,8 @@ export function StudioPeople({ people, companies, hints = {}, readOnly = false }
       {/* ── The two cards ─────────────────────────────────────────────────── */}
       <StudioCardRow className="lg:h-[220px]">
         <StudioCard className="md:min-h-[200px]">
-          <CardHead label="Directory" right={<span className="text-xs text-[var(--st-muted)]">{people.length} people · {companies.length} companies</span>} />
+          <CardHead label={staff ? "Your colleagues" : "Directory"} right={<span className="text-xs text-[var(--st-muted)]">{people.length} people · {companies.length} {companies.length === 1 ? "company" : "companies"}</span>} />
+          {staff ? <StaffCompanyBars people={people} companies={companies} pick={(id) => f.set({ co: f.values.co === String(id) ? "all" : String(id) })} on={f.values.co} /> :
           <div className="mt-auto flex items-end gap-3 pt-3 sm:flex-wrap sm:gap-5 lg:flex-nowrap xl:gap-7">
             <div className="min-w-0 flex-1 sm:flex-none">
               <span className="contents sm:hidden"><BigNumber value={active} unit="active" size={52} /></span>
@@ -274,7 +280,7 @@ export function StudioPeople({ people, companies, hints = {}, readOnly = false }
               <span className="hidden sm:contents xl:hidden"><Ring value={active ? (counts.overloaded / active) * 100 : 0} size={92} stroke={10} color="var(--st-late)" track="var(--st-card-line)" label={counts.overloaded} sub="overloaded" /></span>
               <span className="contents sm:hidden"><Ring value={active ? (counts.overloaded / active) * 100 : 0} size={66} stroke={8} color="var(--st-late)" track="var(--st-card-line)" label={counts.overloaded} sub="busy" /></span>
             </button>
-          </div>
+          </div>}
         </StudioCard>
 
         <StudioCard texture="contour" className="min-h-[200px]">
@@ -297,19 +303,26 @@ export function StudioPeople({ people, companies, hints = {}, readOnly = false }
               </div>
               <div className="flex-1" />
               <div className="flex flex-wrap items-center gap-2">
+                {!staff && <>
                 <Link href={`/?tab=tasks&who=${selP.id}`} title="Their open tasks" className="flex h-[26px] items-center rounded-lg bg-[var(--st-card-3)] px-2.5 text-xs hover:bg-[var(--st-card-line)]">{selP.workload.open} open</Link>
                 <span className={cn("flex h-[26px] items-center rounded-lg bg-[var(--st-card-3)] px-2.5 text-xs", selP.workload.overdue ? "text-[#F07BBE]" : "text-[var(--st-on-card-muted)]")}>{selP.workload.overdue} late</span>
                 <span className="flex h-[26px] items-center rounded-lg bg-[var(--st-card-3)] px-2.5 text-xs">{portalLabel(selP)}</span>
+                </>}
                 {hints[selP.id]?.onLeave && <span className="flex h-[26px] items-center rounded-lg bg-[var(--st-card-3)] px-2.5 text-xs text-[#F5B94E]">On leave today</span>}
                 <span className="flex-1" />
                 {selP.email && <a href={`mailto:${selP.email}`} aria-label="Email" title={selP.email} className={ICON_BTN}><Mail size={14} /></a>}
                 {selP.whatsapp && <a href={waHref(selP.whatsapp)} target="_blank" rel="noreferrer" aria-label="WhatsApp" title="WhatsApp" className={ICON_BTN}><MessageCircle size={14} /></a>}
                 {(selP.phone || selP.whatsapp) && <a href={`tel:${selP.phone ?? selP.whatsapp}`} aria-label="Call" title="Call" className={ICON_BTN}><Phone size={14} /></a>}
-                {!readOnly && <Link href={`/chat?dm=${selP.id}`} aria-label="Chat" title="Chat" className={ICON_BTN}><MessagesSquare size={14} /></Link>}
+                {(!readOnly || staff) && <Link href={paths.chat(selP.id)} aria-label="Chat" title="Chat" className={ICON_BTN}><MessagesSquare size={14} /></Link>}
                 {!readOnly && <button type="button" disabled={!selP.workload.open || reminding} onClick={() => remind(selP, selP.topTasks)}
                   title={selP.workload.open ? "Saves a reminder in the Outbox for you to send" : "No open tasks"}
                   className={cn(stBtn.onCard, "h-8 rounded-[9px] disabled:opacity-50")}>{reminding && <Loader2 size={12} className="animate-spin" />}Remind about open work</button>}
               </div>
+            </div>
+          ) : staff ? (
+            <div className="st-pop flex h-full flex-col">
+              <CardHead label="Reach someone" right={<span className="text-xs text-[var(--st-muted)]">Pick a person to see them here</span>} />
+              <p className="mt-auto pt-3 text-[15px] leading-normal text-[#E6E6E3]">Click a colleague to see how to reach them — chat, WhatsApp, email or a call. Double-click opens their page.</p>
             </div>
           ) : (
             <div className="st-pop flex h-full flex-col">
@@ -372,7 +385,7 @@ export function StudioPeople({ people, companies, hints = {}, readOnly = false }
                 {f.values.group !== "none" && (
                   <div className="flex items-baseline gap-2.5 px-1 pb-2">
                     <span className="text-[15px] font-semibold">{g.name}</span>
-                    <span className="text-xs" style={{ color: noteC }}>{note}</span>
+                    {!staff && <span className="text-xs" style={{ color: noteC }}>{note}</span>}
                     <span className="text-xs text-[var(--st-muted)]">{g.items.length} {g.items.length === 1 ? "person" : "people"}</span>
                   </div>
                 )}
@@ -406,13 +419,13 @@ export function StudioPeople({ people, companies, hints = {}, readOnly = false }
                             <span className="block truncate text-xs text-[var(--st-muted)]">{p.role ?? "No job title"}</span>
                           </span>
                           {/* Phone (mockup M_People): one row, the load on the right. */}
-                          <span className="ml-auto shrink-0 whitespace-nowrap pl-2 text-xs font-medium sm:hidden" style={{ color: l.c }}>{l.text}</span>
+                          {!staff && <span className="ml-auto shrink-0 whitespace-nowrap pl-2 text-xs font-medium sm:hidden" style={{ color: l.c }}>{l.text}</span>}
                         </span>
                         <span className="hidden min-w-0 items-center gap-1.5 text-[11px] sm:flex">
                           {p.staffId && <span className="st-mono shrink-0 rounded-[5px] bg-[var(--st-page)] px-1.5 py-0.5 text-[var(--st-label)]">{p.staffId}</span>}
-                          <span className="truncate text-[var(--st-muted)]">{hints[p.id]?.onLeave ? "On leave today" : portalLabel(p)}</span>
+                          <span className="truncate text-[var(--st-muted)]">{staff ? p.companyName ?? "" : hints[p.id]?.onLeave ? "On leave today" : portalLabel(p)}</span>
                           <span className="flex-1" />
-                          <span className="shrink-0 whitespace-nowrap text-xs font-medium" style={{ color: l.c }}>{l.text}</span>
+                          {!staff && <span className="shrink-0 whitespace-nowrap text-xs font-medium" style={{ color: l.c }}>{l.text}</span>}
                         </span>
                       </button>
                     );
@@ -462,9 +475,9 @@ export function StudioPeople({ people, companies, hints = {}, readOnly = false }
               <input type="search" value={q} onChange={(e) => { setQ(e.target.value); f.set({ q: e.target.value }); }} placeholder="Search people"
                 className="bare-field h-9 w-full border-0 bg-transparent text-[13px] text-[var(--st-ink)] outline-none" />
             </label>
-            <span className="hidden h-6 w-px bg-[var(--st-line)] sm:block" aria-hidden />
+            {!staff && <span className="hidden h-6 w-px bg-[var(--st-line)] sm:block" aria-hidden />}
             <div className="flex max-w-full gap-1.5 overflow-x-auto [scrollbar-width:none]">
-              {CHIPS.map(([k, l, dot]) => {
+              {!staff && CHIPS.map(([k, l, dot]) => {
                 const on = f.values.chip === k;
                 return (
                   <button key={k} type="button" aria-pressed={on} onClick={() => f.set({ chip: k, mode: "browse" })}
@@ -484,6 +497,28 @@ export function StudioPeople({ people, companies, hints = {}, readOnly = false }
       </div>
       </div>
     </StudioScope>
+  );
+}
+
+/** Staff's first card: how many colleagues in each of their companies — a
+ *  company is a filter, as the owner's rings are. */
+function StaffCompanyBars({ people, companies, pick, on }: { people: PersonRow[]; companies: Company[]; pick: (id: number) => void; on: string }) {
+  const count = (id: number) => people.filter((p) => p.active && (p.companyId === id || p.associations.some((a) => a.companyId === id))).length;
+  const rows = companies.map((c) => ({ ...c, n: count(c.id) })).filter((c) => c.n > 0).sort((a, b) => b.n - a.n);
+  const max = Math.max(1, ...rows.map((r) => r.n));
+  return (
+    <div className="mt-auto flex items-end gap-5 pt-3">
+      <BigNumber value={people.filter((p) => p.active).length} unit="colleagues" />
+      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+        {rows.slice(0, 4).map((c) => (
+          <button key={c.id} type="button" onClick={() => pick(c.id)} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 text-left text-xs">
+            <span className={cn("truncate", on === String(c.id) ? "text-white" : "text-[#C9CBCF] hover:text-white")}>{c.name}</span>
+            <span className="st-mono text-[var(--st-on-card-muted)]">{c.n}</span>
+            <span className="col-span-2 mt-1 h-[5px] overflow-hidden rounded-[3px] bg-[var(--st-card-line)]"><span className="block h-full rounded-[3px] bg-[var(--st-ok)]" style={{ width: `${(c.n / max) * 100}%` }} /></span>
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
 

@@ -58,10 +58,11 @@ export function StudioCompanyProfile({ companyId, companyName, accent, logoUrl, 
   accent: string | null;
   logoUrl: string | null;
   profile: CompanyProfile;
-  relationships: CompanyRelationship[];
+  /** null = leave the column out (a member of staff sees the details only). */
+  relationships: CompanyRelationship[] | null;
   facts: ReactNode;
   governance: ReactNode;
-  documents: ReactNode;
+  documents: ReactNode | null;
   /** A director: the profile to read — fields locked, no save, no photo. */
   readOnly?: boolean;
 }) {
@@ -96,7 +97,7 @@ export function StudioCompanyProfile({ companyId, companyName, accent, logoUrl, 
   return (
     <div className="flex flex-col gap-4">
       <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)_minmax(0,1fr)]">
-        <form onSubmit={onSubmit} onChange={() => setDirty(true)} className="flex min-w-0 flex-col gap-4">
+        <form onSubmit={onSubmit} onChange={() => setDirty(true)} className={cn("flex min-w-0 flex-col gap-4", relationships == null && "lg:col-span-2 lg:grid lg:grid-cols-2 lg:items-start xl:col-span-3")}>
           <fieldset disabled={readOnly} className="contents">
           <Card title="Official details" right={readOnly ? undefined : saveBtn}>
             <div className="mt-3 flex items-center gap-4">
@@ -144,7 +145,7 @@ export function StudioCompanyProfile({ companyId, companyName, accent, logoUrl, 
           </fieldset>
         </form>
 
-        <div className="flex min-w-0 flex-col gap-4">
+        {relationships != null && <div className="flex min-w-0 flex-col gap-4">
           <Card title="People in filings" right={readOnly ? undefined : <Link href={`/graph?type=company&id=${companyId}`} className="inline-flex items-center gap-1 hover:text-[var(--st-ink)]"><Network size={12} />All connections</Link>}>
             <p className="mt-0.5 text-xs text-[var(--st-muted)]">Read from its filed documents — directors, shareholders, the secretary.</p>
             <div className="mt-2 flex flex-col">
@@ -162,12 +163,12 @@ export function StudioCompanyProfile({ companyId, companyName, accent, logoUrl, 
             </div>
           </Card>
           {governance && <section className="st-desk st-panel min-w-0 rounded-[20px] bg-[var(--st-surface)] px-5 py-4">{governance}</section>}
-        </div>
+        </div>}
 
         {facts && <section className="st-desk st-panel min-w-0 rounded-[20px] bg-[var(--st-surface)] px-5 py-4 lg:col-span-2 xl:col-span-1">{facts}</section>}
       </div>
 
-      <section className="st-desk st-panel min-w-0 rounded-[20px] bg-[var(--st-surface)] px-5 py-4">{documents}</section>
+      {documents != null && <section className="st-desk st-panel min-w-0 rounded-[20px] bg-[var(--st-surface)] px-5 py-4">{documents}</section>}
     </div>
   );
 }

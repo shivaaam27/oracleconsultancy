@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { sb } from "@/db/supabase";
 import { getViewer } from "@/lib/viewer";
-import { getPortalPerson } from "@/lib/portal-auth";
+import { getPortalPerson, colleagueCompanyScope } from "@/lib/portal-auth";
 import { viewerPeopleIds } from "@/lib/viewer-scope";
 import { getAllTasks } from "@/lib/queries";
 import { faceKey, moodFor, type FaceMood, type FaceRole, type FaceStats } from "@/lib/face-mood";
@@ -14,7 +14,8 @@ export const dynamic = "force-dynamic";
  * page in the background (components/studio/face.tsx), so no page ever waits
  * on it; a face with no entry is simply calm.
  *
- * Signed-in only (owner or director). A company-scoped director gets the faces
+ * Signed-in only (owner, director, or a portal person — staff see their own
+ * companies' people). A company-scoped director gets the faces
  * of their companies' people only — a mood says something about someone's work.
  */
 type Entry = { id: number; key: string; face: [FaceRole, FaceMood] };
@@ -37,14 +38,23 @@ function allFaces(): Promise<Entry[]> {
 
 export async function GET() {
   const v = await getViewer();
-  if (!v) {
-    // A member of staff (26 Sept 2026) is on the Studio screens too, but a mood
-    // says something about someone's work, so they get none: every face calm.
-    // An answer rather than a 401, so no staff page logs an error per load.
-    if (await getPortalPerson()) return NextResponse.json({ faces: { [faceKey("Administrator")]: ["owner", "idle"] } }, { headers: { "Cache-Control": "private, max-age=300" } });
-    return NextResponse.json({ error: "Sign in first." }, { status: 401 });
+  let allowedFor: Promise<Set<number> | null>;
+  if (v) allowedFor = viewerPeopleIds(v);
+  else {
+    // A member of staff (26 Sept 2026, owner: "do the faces"): the faces of the
+    // people in their own companies — the same rule a director gets over theirs.
+    const me = await getPortalPerson();
+    if (!me) return NextResponse.json({ error: "Sign in first." }, { status: 401 });
+    allowedFor = colleagueCompanyScope(me).then(async (scope) => {
+      if (scope == null) return null;
+      const [{ data: main }, { data: links }] = await Promise.all([
+        sb.from("people").select("id").in("company_id", scope.length ? scope : [-1]),
+        sb.from("person_companies").select("person_id").in("company_id", scope.length ? scope : [-1]),
+      ]);
+      return new Set<number>([me.id, ...(main ?? []).map((r) => r.id as number), ...(links ?? []).map((r) => r.person_id as number)]);
+    });
   }
-  const [entries, allowed] = await Promise.all([allFaces(), viewerPeopleIds(v)]);
+  const [entries, allowed] = await Promise.all([allFaces(), allowedFor]);
   const faces: Record<string, [FaceRole, FaceMood]> = {};
   for (const e of entries) if (!allowed || allowed.has(e.id)) faces[e.key] = e.face;
   // The owner, as updates name them.

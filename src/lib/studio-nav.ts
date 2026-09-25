@@ -79,10 +79,10 @@ export function directorStops(o: { outbox: boolean; cleaning?: boolean }): Studi
   ];
 }
 
-/** A member of STAFF on the Studio screens (26 Sept 2026): their own Home,
- *  Tasks and Profile, rebuilt; Calendar, People, Announcements and Chat are the
- *  current portal pages until each is rebuilt. Every address is under /portal,
- *  where their session lives. */
+/** A member of STAFF on the Studio screens (26 Sept 2026): the same stops as
+ *  a director, over their own work — Companies and People are the shared
+ *  screens with staff limits; Chat is still the portal page. Every address is
+ *  under /portal, where their session lives. */
 export function staffStops(): StudioStop[] {
   return [
     { id: "home", label: "Home", href: "/portal", group: "Work", icon: Home },
@@ -90,7 +90,8 @@ export function staffStops(): StudioStop[] {
     { id: "calendar", label: "Calendar", href: "/portal/meetings", group: "Work", icon: CalendarDays },
     { id: "announcements", label: "Announcements", href: "/portal/announcements", group: "Work", icon: Megaphone },
     { id: "chat", label: "Chat", href: "/portal/chat", group: "Work", icon: MessageSquare },
-    { id: "people", label: "People", href: "/portal/directory", group: "Records", icon: Users },
+    { id: "companies", label: "Companies", href: "/portal/companies", group: "Records", icon: Building2 },
+    { id: "people", label: "People", href: "/portal/people", group: "Records", icon: Users },
     { id: "profile", label: "Profile", href: "/portal/profile", group: "Records", icon: UserRound },
   ];
 }

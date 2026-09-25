@@ -30,6 +30,7 @@ import { withReturn } from "@/lib/return-to";
 import { taskHref } from "@/lib/task-href";
 import { cn } from "@/lib/cn";
 import { STANDING, standing } from "./studio-companies";
+import { useStudioPaths } from "@/components/studio/studio-paths";
 
 export type CompanyTabKey = "overview" | "profile" | "tasks" | "notes" | "timeline" | "org";
 
@@ -67,10 +68,15 @@ const BAND_BTN = "inline-flex h-9 sm:h-8 shrink-0 items-center gap-1.5 whitespac
 const shortName = (n: string) => n.replace(/^(Mr|Ms|Mrs|Miss|Dr|Chef|Eng)\.? /i, "");
 
 export function StudioCompany({ data, children }: { data: StudioCompanyData; children?: ReactNode }) {
-  const pathname = usePathname() || `/companies/${data.id}`;
+  // Staff (26 Sept 2026, "own work only"): the company's details, its people,
+  // its numbers, and THEIR tasks there — no files, equipment, governance,
+  // report or new task. The page sends none of that data for them either.
+  const paths = useStudioPaths();
+  const staff = paths.staff;
+  const pathname = usePathname() || paths.company(data.id);
   const s = standing(data.open, data.late);
   const st = STANDING[s];
-  const tasksHref = `/?tab=tasks&company=${encodeURIComponent(data.name)}`;
+  const tasksHref = staff ? `/portal/tasks?co=${data.id}` : `/?tab=tasks&company=${encodeURIComponent(data.name)}`;
   useStudioFootNote({ label: "Company", text: `${data.name} · ${data.prefix}` });
 
   const standingPill = (
@@ -80,7 +86,12 @@ export function StudioCompany({ data, children }: { data: StudioCompanyData; chi
       {st.label}{data.late > 0 ? ` · ${data.late} late` : ""}
     </span>
   );
-  const doors = (
+  const doors = staff ? (
+    <>
+      <Link href={tasksHref} className={BAND_BTN}><List size={13} />My tasks here</Link>
+      <Link href={paths.people(`co=${data.id}`)} className={BAND_BTN}><Users size={13} />Team</Link>
+    </>
+  ) : (
     <>
       <Link href={tasksHref} className={BAND_BTN}><List size={13} />Open in Tasks</Link>
       <Link href={`/files?co=${data.id}`} className={BAND_BTN}><Folder size={13} />Files</Link>
@@ -94,15 +105,15 @@ export function StudioCompany({ data, children }: { data: StudioCompanyData; chi
   const band = (
     <div className="st-tex-contour flex shrink-0 flex-col gap-3.5 rounded-[20px] bg-[#141517] px-4 py-4 text-[#F2F2F0] sm:px-[22px] sm:py-[18px]">
       <div className="flex flex-wrap items-center gap-2">
-        <Link href="/companies" className="inline-flex h-9 items-center gap-1.5 rounded-[9px] bg-[#F2F2F0] px-3 text-xs font-medium text-[#111214] sm:h-[30px] sm:rounded-lg sm:px-2.5">
+        <Link href={paths.companies()} className="inline-flex h-9 items-center gap-1.5 rounded-[9px] bg-[#F2F2F0] px-3 text-xs font-medium text-[#111214] sm:h-[30px] sm:rounded-lg sm:px-2.5">
           <Minimize2 size={13} strokeWidth={2.2} />Companies
         </Link>
         <span className="flex-1" />
         <div className="hidden max-w-full gap-1.5 overflow-x-auto [scrollbar-width:none] sm:flex">{doors}</div>
-        <Link href={`/task/new?companyId=${data.id}&returnTo=${encodeURIComponent(pathname)}`}
+        {!staff && <Link href={`/task/new?companyId=${data.id}&returnTo=${encodeURIComponent(pathname)}`}
           className="inline-flex h-9 shrink-0 sm:h-8 items-center gap-1.5 rounded-[9px] bg-[#F2F2F0] px-3 text-xs font-semibold text-[#111214] transition-opacity hover:opacity-90">
           <Plus size={13} strokeWidth={2.4} />New task
-        </Link>
+        </Link>}
       </div>
       <div className="flex items-center gap-3 sm:flex-wrap sm:items-end sm:gap-x-[18px] sm:gap-y-3">
         <span className="st-mono flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-2xl text-base font-semibold sm:h-16 sm:w-16 sm:text-xl"
@@ -122,10 +133,10 @@ export function StudioCompany({ data, children }: { data: StudioCompanyData; chi
       </div>
       <div className="-mx-4 flex gap-1.5 overflow-x-auto px-4 [scrollbar-width:none] sm:hidden">{standingPill}{doors}</div>
       <div className="-mx-1 flex gap-0.5 overflow-x-auto px-1 [scrollbar-width:none]" role="tablist">
-        {TABS.filter((t) => !(data.readOnly && t.id === "notes")).map((t) => (
-          <Link key={t.id} role="tab" aria-selected={data.tab === t.id} href={t.id === "overview" ? `/companies/${data.id}` : `/companies/${data.id}?tab=${t.id}`} scroll={false}
+        {TABS.filter((t) => (staff ? t.id === "overview" || t.id === "profile" || t.id === "tasks" : !(data.readOnly && t.id === "notes"))).map((t) => (
+          <Link key={t.id} role="tab" aria-selected={data.tab === t.id} href={paths.company(data.id, t.id)} scroll={false}
             className={cn("flex h-9 shrink-0 items-center gap-1.5 rounded-[9px] px-3 text-[13px] transition-colors sm:h-8", data.tab === t.id ? "bg-[#F2F2F0] text-[#111214]" : "text-[#C9CBCF] hover:text-white")}>
-            {t.label}{t.id === "tasks" && data.open > 0 && <span className="text-xs text-[#B4B7BC]">{data.open}</span>}
+            {staff && t.id === "tasks" ? "My tasks" : t.label}{t.id === "tasks" && !staff && data.open > 0 && <span className="text-xs text-[#B4B7BC]">{data.open}</span>}
           </Link>
         ))}
       </div>
@@ -139,7 +150,7 @@ export function StudioCompany({ data, children }: { data: StudioCompanyData; chi
         ? <Overview data={data} o={data.overview} tasksHref={tasksHref} />
         : data.tab === "tasks"
           ? <>
-              <TasksHead data={data} tasksHref={tasksHref} />
+              {!staff && <TasksHead data={data} tasksHref={tasksHref} />}
               {children}
             </>
           : children}
@@ -164,7 +175,9 @@ const COL = "flex min-h-0 min-w-0 flex-col gap-4";
 const TONE = { late: "var(--st-late-text)", soon: "var(--st-soon-text)", none: "#A3A6AB", plain: "var(--st-sub)" } as const;
 
 function Overview({ data, o, tasksHref }: { data: StudioCompanyData; o: NonNullable<StudioCompanyData["overview"]>; tasksHref: string }) {
-  const here = `/companies/${data.id}`;
+  const paths = useStudioPaths();
+  const staff = paths.staff;
+  const here = paths.company(data.id);
   const fit = useRef<HTMLDivElement>(null);
   const wide = useMediaQuery("(min-width: 1280px)");
   const [allTasks, setAllTasks] = useState(false);
@@ -173,7 +186,13 @@ function Overview({ data, o, tasksHref }: { data: StudioCompanyData; o: NonNulla
   const valid = Math.max(0, o.documents.total - o.documents.expired);
   const docPct = o.documents.total ? Math.round((valid / o.documents.total) * 100) : 0;
 
-  const tiles: [number, string, string | undefined, string][] = [
+  // Staff: the company's numbers, not doors into its task list (theirs is below).
+  const tiles: [number, string, string | undefined, string | null][] = staff ? [
+    [data.open, "open tasks", undefined, null],
+    [data.late, "overdue", data.late ? "var(--st-late-text)" : undefined, null],
+    [data.people, "people", undefined, paths.people(`co=${data.id}`)],
+    [o.tasks.length, "yours here", undefined, paths.company(data.id, "tasks")],
+  ] : [
     [data.open, "open tasks", undefined, `/companies/${data.id}?tab=tasks`],
     [data.late, "overdue", data.late ? "var(--st-late-text)" : undefined, `${tasksHref}&flag=overdue`],
     [data.people, "people", undefined, `/people?co=${data.id}`],
@@ -185,23 +204,27 @@ function Overview({ data, o, tasksHref }: { data: StudioCompanyData; o: NonNulla
     <div ref={fit} className="flex flex-col gap-4">
       {/* Phone (owner, 25 Sept 2026): ONE card, five equal columns, the whole
           screen width — the sliding row cut the last tile off. */}
-      <div className="grid shrink-0 grid-cols-5 divide-x divide-[var(--st-line-soft)] rounded-[18px] bg-[var(--st-surface)] sm:gap-2.5 sm:divide-x-0 sm:rounded-none sm:bg-transparent">
-        {tiles.map(([n, l, c, href]) => (
-          <Link key={l} href={href} className="min-w-0 px-1 py-3 text-center transition-colors hover:bg-[var(--st-cal-busy)] sm:rounded-[14px] sm:bg-[var(--st-surface)] sm:px-3.5 sm:text-left">
-            <div className="text-[22px] leading-none tracking-[-0.03em] tabular-nums sm:text-[28px]" style={{ color: c }}>{n}</div>
-            <div className="mt-1.5 truncate text-[11px] text-[var(--st-label)] sm:text-xs"><span className="sm:hidden">{l === "open tasks" ? "open" : l === "files expired" ? "expired" : l}</span><span className="hidden sm:inline">{l}</span></div>
-          </Link>
-        ))}
+      <div className={cn("grid shrink-0 divide-x divide-[var(--st-line-soft)] rounded-[18px] bg-[var(--st-surface)] sm:gap-2.5 sm:divide-x-0 sm:rounded-none sm:bg-transparent", staff ? "grid-cols-4" : "grid-cols-5")}>
+        {tiles.map(([n, l, c, href]) => {
+          const inner = (
+            <>
+              <div className="text-[22px] leading-none tracking-[-0.03em] tabular-nums sm:text-[28px]" style={{ color: c }}>{n}</div>
+              <div className="mt-1.5 truncate text-[11px] text-[var(--st-label)] sm:text-xs"><span className="sm:hidden">{l === "open tasks" ? "open" : l === "files expired" ? "expired" : l}</span><span className="hidden sm:inline">{l}</span></div>
+            </>
+          );
+          const cls = "min-w-0 px-1 py-3 text-center transition-colors sm:rounded-[14px] sm:bg-[var(--st-surface)] sm:px-3.5 sm:text-left";
+          return href ? <Link key={l} href={href} className={cn(cls, "hover:bg-[var(--st-cal-busy)]")}>{inner}</Link> : <div key={l} className={cls}>{inner}</div>;
+        })}
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:min-h-0 xl:flex-1 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)]">
+      <div className={cn("grid grid-cols-1 gap-4 lg:grid-cols-2 xl:min-h-0 xl:flex-1", !staff && "xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)]")}>
         <div className={COL}>
-          <Card title="Open tasks" className={GROW} right={data.open > 0 && <Link href={`/companies/${data.id}?tab=tasks`} className="text-[var(--st-ink)] hover:underline">All {data.open} →</Link>}>
-            <div className="mt-2 shrink-0"><Chips chips={data.chips} tasksHref={tasksHref} /></div>
+          <Card title={staff ? "Your tasks here" : "Open tasks"} className={GROW} right={staff ? (o.tasks.length > 0 && <Link href={tasksHref} className="text-[var(--st-ink)] hover:underline">All →</Link>) : data.open > 0 && <Link href={`/companies/${data.id}?tab=tasks`} className="text-[var(--st-ink)] hover:underline">All {data.open} →</Link>}>
+            {!staff && <div className="mt-2 shrink-0"><Chips chips={data.chips} tasksHref={tasksHref} /></div>}
             <div className={cn("mt-2 flex flex-col", LIST)}>
-              {o.tasks.length === 0 && <div className="py-4 text-[13px] text-[var(--st-muted)]">Nothing open for {data.name}.</div>}
+              {o.tasks.length === 0 && <div className="py-4 text-[13px] text-[var(--st-muted)]">{staff ? `Nothing open of yours at ${data.name}.` : `Nothing open for ${data.name}.`}</div>}
               {o.tasks.map((t, i) => (
-                <Link key={t.code} href={withReturn(taskHref(t.code), here)}
+                <Link key={t.code} href={withReturn(paths.task(t.code), here)}
                   // ⚠️ Hiding classes LAST — cn() lets a later `grid` cancel `hidden`.
                   // Phone: three, then "Show N more" (as Home); desk: six, then scroll.
                   className={cn("grid shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2.5 border-b border-[var(--st-line-soft)] py-2 text-[13px] last:border-0 hover:bg-[var(--st-cal-busy)]",
@@ -215,7 +238,7 @@ function Overview({ data, o, tasksHref }: { data: StudioCompanyData; o: NonNulla
               )}
             </div>
           </Card>
-          <Card title="Equipment & suppliers" className="shrink-0" right={data.readOnly ? undefined : <Link href="/hrms/assets" className="text-[var(--st-ink)] hover:underline">Open →</Link>}>
+          {!staff && <Card title="Equipment & suppliers" className="shrink-0" right={data.readOnly ? undefined : <Link href="/hrms/assets" className="text-[var(--st-ink)] hover:underline">Open →</Link>}>
             {o.equipment.assets + o.equipment.vendors === 0 ? (
               <p className="mt-1.5 text-[13px] leading-normal text-[var(--st-sub)]">No equipment or suppliers are filed against {shortName(data.name)} yet.</p>
             ) : (
@@ -234,16 +257,16 @@ function Overview({ data, o, tasksHref }: { data: StudioCompanyData; o: NonNulla
                 </div>
               </>
             )}
-          </Card>
+          </Card>}
         </div>
 
         <div className={COL}>
           {!data.readOnly && <Briefing companyId={data.id} />}
-          <Card title="People" className={GROW} right={data.people > 0 && <Link href={`/people?co=${data.id}`} className="text-[var(--st-ink)] hover:underline">All {data.people} →</Link>}>
+          <Card title="People" className={GROW} right={data.people > 0 && <Link href={paths.people(`co=${data.id}`)} className="text-[var(--st-ink)] hover:underline">All {data.people} →</Link>}>
             <div className={cn("mt-2 flex flex-col gap-1", LIST)}>
               {o.staff.length === 0 && <div className="py-3 text-[13px] text-[var(--st-muted)]">Nobody has {shortName(data.name)} as their main company yet.</div>}
               {o.staff.map((p, i) => (
-                <Link key={p.id} href={withReturn(`/people/${p.id}`, here)} className={cn("flex shrink-0 items-center gap-2.5 rounded-lg py-1 hover:bg-[var(--st-cal-busy)]", i >= 4 && (allStaff ? "sm:max-xl:hidden" : "hidden xl:flex"), i >= 3 && i < 4 && !allStaff && "max-sm:hidden")}>
+                <Link key={p.id} href={withReturn(paths.person(p.id), here)} className={cn("flex shrink-0 items-center gap-2.5 rounded-lg py-1 hover:bg-[var(--st-cal-busy)]", i >= 4 && (allStaff ? "sm:max-xl:hidden" : "hidden xl:flex"), i >= 3 && i < 4 && !allStaff && "max-sm:hidden")}>
                   <PersonFace name={p.name} size={30} />
                   <span className="min-w-0 flex-1 text-[13px]">
                     <span className="block truncate">{p.name}</span>
@@ -254,12 +277,12 @@ function Overview({ data, o, tasksHref }: { data: StudioCompanyData; o: NonNulla
               {!allStaff && o.staff.length > 3 && (
                 <button type="button" onClick={() => setAllStaff(true)} className="mt-1.5 flex h-10 items-center justify-center rounded-xl bg-[var(--st-page)] text-[13px] text-[var(--st-sub)] sm:hidden">Show {o.staff.length - 3} more</button>
               )}
-              {o.alsoCount > 0 && <Link href={`/people?co=${data.id}`} className="shrink-0 pt-1 text-xs text-[var(--st-muted)] hover:text-[var(--st-ink)]">+ {o.alsoCount} who also work for {shortName(data.name).split(" ")[0]}</Link>}
+              {o.alsoCount > 0 && <Link href={paths.people(`co=${data.id}`)} className="shrink-0 pt-1 text-xs text-[var(--st-muted)] hover:text-[var(--st-ink)]">+ {o.alsoCount} who also work for {shortName(data.name).split(" ")[0]}</Link>}
             </div>
           </Card>
         </div>
 
-        <div className={cn(COL, "lg:col-span-2 xl:col-span-1")}>
+        {!staff && <div className={cn(COL, "lg:col-span-2 xl:col-span-1")}>
           <Card title="Files" className="shrink-0" right={<Link href={`/files?co=${data.id}`} className="text-[var(--st-ink)] hover:underline">All {o.documents.total} →</Link>}>
             <div className="mt-2.5 flex items-center gap-4">
               <Ring value={docPct} size={84} stroke={9} track="var(--st-line-soft)" color={o.documents.expired ? "var(--st-ok)" : "var(--st-ok)"} label={valid} sub="valid" />
@@ -289,7 +312,7 @@ function Overview({ data, o, tasksHref }: { data: StudioCompanyData; o: NonNulla
               })}
             </div>
           </Card>
-        </div>
+        </div>}
       </div>
     </div>
   );
