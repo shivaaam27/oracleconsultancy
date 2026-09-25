@@ -35,6 +35,10 @@ import { PortalContactDetails, type ContactDetails } from "./portal-contact-deta
 import { getAllTasks } from "@/lib/queries";
 import { computePersonKpi } from "@/lib/kpi";
 import { PortalKpiCard } from "@/components/portal-kpi-card";
+import { StaffProfile, PCard, KpiCard } from "@/components/studio/profile/staff-profile";
+import { WeekStrip } from "@/components/studio/home/staff-cards";
+import { StudioInstall } from "@/components/studio/studio-install";
+import { visibleTaskIds } from "@/lib/portal-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -136,6 +140,130 @@ export default async function PortalProfile() {
       const k = computePersonKpi(me.id, allTasks, dt.getFullYear(), dt.getMonth() + 1);
       return { monthLabel: k.monthLabel, completed: k.completed, openInvolved: k.openInvolved, score: k.score };
     });
+  }
+
+  // Staff are on Studio (26 Sept 2026, mockup S_Profile): the same parts, in
+  // the Studio layout. Every part that saves is the component it always was.
+  if (me.portalRole === "staff") {
+    const [allT, ids] = await Promise.all([getAllTasks(), visibleTaskIds(me)]);
+    const mineIds = new Set(ids);
+    const openMine = allT.filter((r) => mineIds.has(r.id) && r.status !== "Completed" && r.status !== "Closed");
+    const lateNow = openMine.filter((r) => r.flag === "overdue" || r.flag === "escalate-now").length;
+    const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const week = attendance.days.map((d) => ({ date: d.date, label: DOW[d.dow], status: d.status, isToday: d.isToday }));
+    const tick = "text-xs text-[var(--st-muted)]";
+    const row = "flex items-center gap-3 border-t border-[var(--st-line-soft)] py-3 first:border-0 first:pt-0";
+    const icon = "grid h-8 w-8 shrink-0 place-items-center rounded-[10px] bg-[var(--st-page)] text-[var(--st-sub)]";
+    const head = "flex items-center gap-3 text-[13px] font-medium";
+    return (
+      <StaffProfile
+        name={me.name}
+        sub={[me.role, companyName].filter(Boolean).join(" · ") || "Your profile"}
+        pills={[...(staffId ? [{ label: staffId }] : []), { label: accessLabel, dot: "#19C37D" }]}
+        sections={{
+          kpi: kpiMonths.length > 0 ? <KpiCard months={kpiMonths.map((k) => ({ monthLabel: k.monthLabel, completed: k.completed }))} openNow={openMine.length} lateNow={lateNow} /> : null,
+          attendance: (
+            <PCard title="Attendance" right="this week">
+              <WeekStrip week={week} />
+              <p className={tick + " mt-3"}>Check in on Home each day. Your manager can adjust a day if needed.</p>
+            </PCard>
+          ),
+          guides: (
+            <>
+              {journey && journey.total > 0 && (
+                <PCard title="Your onboarding" right={journey.completed + " of " + journey.total + " done"}>
+                  <div className="mb-3 h-1.5 overflow-hidden rounded-full bg-[var(--st-page)]"><div className="h-full rounded-full bg-[var(--st-ok,#19C37D)]" style={{ width: journey.percent + "%" }} /></div>
+                  <ul className="m-0 flex list-none flex-col gap-1.5 p-0">
+                    {journey.steps.slice(0, 12).map((st) => (
+                      <li key={st.id} className="flex items-center gap-2.5 text-[13px]">
+                        {st.done ? <CheckCircle2 size={14} className="shrink-0 text-[var(--st-ok-text)]" /> : <Circle size={14} className="shrink-0 text-[var(--st-muted)]" />}
+                        <span className={st.done ? "text-[var(--st-muted)] line-through" : ""}>{st.label}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className={tick + " mt-3"}>Your administrator ticks these off as they are completed.</p>
+                </PCard>
+              )}
+              {showGuides && (
+                <PCard title="Guides & tips">
+                  <TourReplay welcome={welcome} spotlights={spotlightsLite} restart={portalRestartTour} />
+                </PCard>
+              )}
+            </>
+          ),
+          details: (
+            <PCard title="My details" right="from HR — ask to change">
+              <dl className="m-0 grid grid-cols-[minmax(0,0.8fr)_minmax(0,1.4fr)] gap-x-3 gap-y-2.5 text-[13px]">
+                {details.map((d) => (
+                  <div key={d.label} className="contents"><dt className="text-[var(--st-muted)]">{d.label}</dt><dd className="m-0 min-w-0 break-words">{d.value}</dd></div>
+                ))}
+              </dl>
+              <div className="mt-5 border-t border-[var(--st-line-soft)] pt-4">
+                <div className="mb-3 text-[13px] font-semibold">Contact — you can edit these</div>
+                <PortalContactDetails initial={contact} />
+                <p className={tick + " mt-2"}>Only you can edit them.</p>
+              </div>
+            </PCard>
+          ),
+          files: (
+            <PCard title="My files" right={String(docItems.length)}>
+              <PortalDocuments items={docItems} />
+              <p className={tick + " mt-2"}>Send anything we ask for. Your administrator files and checks each one.</p>
+            </PCard>
+          ),
+          equipment: (
+            <PCard title="Equipment" right={String(equipment.length)}>
+              {equipment.length === 0 ? <p className={tick}>Nothing is signed out to you.</p> : (
+                <div className="flex flex-col">
+                  {equipment.map((a) => (
+                    <div key={a.id} className={row}>
+                      <span className={icon}><Package size={15} /></span>
+                      <span className="min-w-0">
+                        <span className="block truncate text-[13px] font-medium">{a.name}</span>
+                        <span className="block truncate text-[11px] text-[var(--st-muted)]">{[a.category, a.brand, a.tag].filter(Boolean).join(" · ") || "Assigned to you"}</span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </PCard>
+          ),
+          signin: (
+            <PCard title="Sign-in & app">
+              <div className="flex flex-col">
+                <div className={row + " flex-col items-stretch"}>
+                  <div className={head}><span className={icon}><ScanFace size={15} /></span>Face ID / fingerprint</div>
+                  <PasskeyManager initial={passkeys} begin={staffBeginPasskey} finish={staffFinishPasskey} remove={staffRemovePasskey} />
+                </div>
+                <div className={row + " flex-col items-stretch"}>
+                  <div className={head}><span className={icon}><KeyRound size={15} /></span>Password</div>
+                  <PortalPassword />
+                </div>
+                <div className={row + " flex-col items-stretch"}>
+                  <div className={head}><span className={icon}><Bell size={15} /></span>Alerts on this device</div>
+                  <DevicePushToggle />
+                </div>
+                <div className={row + " flex-col items-stretch"}>
+                  <div className={head}><span className={icon}><MonitorSmartphone size={15} /></span>Install Oracle</div>
+                  <StudioInstall />
+                </div>
+                <div className={row + " flex-col items-stretch"}>
+                  <div className={head}><span className={icon}><Settings2 size={15} /></span>Accessibility</div>
+                  <AccessibilityControls />
+                </div>
+              </div>
+            </PCard>
+          ),
+          signout: (
+            <SignOutForm action={portalLogout}>
+              <button type="submit" className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-[12px] border border-[var(--st-line)] bg-[var(--st-surface)] text-[13px] font-medium text-[var(--st-late-text)] transition-colors hover:bg-[var(--st-page)]">
+                <LogOut size={15} /> Sign out
+              </button>
+            </SignOutForm>
+          ),
+        }}
+      />
+    );
   }
 
   // Glance rail — the three numbers that tell a staff member where they stand

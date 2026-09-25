@@ -46,5 +46,5 @@ export function studioPathForDirector(path: string, search = ""): string | null 
  */
 export function isStaffStudioPath(path: string): boolean {
   const p = path.replace(/\/+$/, "") || "/portal";
-  return p === "/portal" || p === "/portal/tasks" || (p.startsWith("/portal/task/") && p !== "/portal/task/new");
+  return p === "/portal" || p === "/portal/tasks" || p === "/portal/profile" || (p.startsWith("/portal/task/") && p !== "/portal/task/new");
 }

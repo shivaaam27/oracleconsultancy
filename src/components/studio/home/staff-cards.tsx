@@ -86,8 +86,18 @@ function CheckinBody({ c, dense }: { c: StaffCheckin; dense?: boolean }) {
       ) : (
         <div className="rounded-xl bg-[var(--st-page)] px-3 py-2.5 text-[13px] text-[var(--st-sub)]">{c.lockReason ?? "Today can't be marked."}</div>
       )}
+      <WeekStrip week={c.week} />
+      {!dense && <div className="min-h-1 flex-1" />}
+      <div className="text-xs text-[var(--st-muted)]">{worked} of {workdays} {workdays === 1 ? "day" : "days"} so far this week · your manager can adjust a day</div>
+    </>
+  );
+}
+
+/** The week, Monday to Saturday — a mark per day (Home's check-in card, Profile). */
+export function WeekStrip({ week }: { week: StaffWeekDay[] }) {
+  return (
       <div className="grid grid-cols-6 gap-1.5" aria-label="This week">
-        {c.week.map((d) => {
+        {week.map((d) => {
           const m = d.status ? MARK[d.status] : null;
           return (
             <div key={d.date} title={d.status ?? "Not marked"} className={cn("flex flex-col items-center gap-0.5 rounded-[10px] py-1.5", d.isToday ? "bg-[var(--st-page)] ring-1 ring-[var(--st-line)]" : "")}>
@@ -97,9 +107,6 @@ function CheckinBody({ c, dense }: { c: StaffCheckin; dense?: boolean }) {
           );
         })}
       </div>
-      {!dense && <div className="min-h-1 flex-1" />}
-      <div className="text-xs text-[var(--st-muted)]">{worked} of {workdays} {workdays === 1 ? "day" : "days"} so far this week · your manager can adjust a day</div>
-    </>
   );
 }
 
