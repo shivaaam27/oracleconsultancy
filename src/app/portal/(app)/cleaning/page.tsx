@@ -3,7 +3,8 @@ import { getPortalPerson } from "@/lib/portal-auth";
 import { ensureDefaultAreas, ensureDay, listAreas, listChecks, listDays, dayStatus } from "@/lib/cleaning";
 import { sb } from "@/db/supabase";
 import { PortalCleaning } from "@/components/portal-cleaning";
-import { CleaningOverview, type CleaningHistoryRow } from "@/components/cleaning-overview";
+import type { CleaningHistoryRow } from "@/components/cleaning-overview";
+import { StudioCleaningOverview } from "@/components/studio/cleaning/studio-cleaning";
 import { SprayCan } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -70,10 +71,7 @@ export default async function PortalCleaningPage() {
   });
   const todayCleaner = day.attendancePersonId ? nameOf.get(day.attendancePersonId) ?? null : null;
 
-  return (
-    <div className="mx-auto max-w-2xl">
-      {header}
-      <CleaningOverview dateIso={todayIso} day={day} areas={areas} checks={checks} cleanerName={todayCleaner} history={history} />
-    </div>
-  );
+  // Oversight is a Studio page now (26 Sept 2026) — a manager's only portal
+  // page besides Profile, and it wore the old sidebar.
+  return <StudioCleaningOverview dateIso={todayIso} day={day} areas={areas} checks={checks} cleanerName={todayCleaner} history={history} />;
 }

@@ -19,7 +19,7 @@ import { SplashController } from "./app-splash-controller";
 /*  Staff's rebuilt pages (26 Sept 2026) are Studio too — the same list as
  *  `isStaffStudioPath` in lib/director-routes.ts, which cannot be imported
  *  into a <head> string. */
-export const SPLASH_GATE = `(function(){try{var p=location.pathname;if(p.length>1&&p.charAt(p.length-1)==="/")p=p.slice(0,-1);var portal=p==="/portal"||p.indexOf("/portal/")===0;var studio=["/portal","/portal/tasks","/portal/profile","/portal/people","/portal/companies","/portal/meetings","/portal/announcements"].indexOf(p)>=0||(p.indexOf("/portal/task/")===0&&p!=="/portal/task/new")||p.indexOf("/portal/people/")===0||p.indexOf("/portal/companies/")===0;if(!portal||studio||p.indexOf("/portal/login")===0)document.documentElement.setAttribute("data-no-splash","")}catch(e){}})()`;
+export const SPLASH_GATE = `(function(){try{var p=location.pathname;if(p.length>1&&p.charAt(p.length-1)==="/")p=p.slice(0,-1);var portal=p==="/portal"||p.indexOf("/portal/")===0;var studio=["/portal","/portal/tasks","/portal/profile","/portal/people","/portal/companies","/portal/meetings","/portal/announcements","/portal/cleaning"].indexOf(p)>=0||(p.indexOf("/portal/task/")===0&&p!=="/portal/task/new")||p.indexOf("/portal/people/")===0||p.indexOf("/portal/companies/")===0;if(!portal||studio||p.indexOf("/portal/login")===0)document.documentElement.setAttribute("data-no-splash","")}catch(e){}})()`;
 
 export function SplashGateScript() {
   return <script dangerouslySetInnerHTML={{ __html: SPLASH_GATE }} />;

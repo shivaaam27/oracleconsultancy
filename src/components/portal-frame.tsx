@@ -18,7 +18,7 @@ import { isStaffStudioPath } from "@/lib/director-routes";
 
 export function PortalFrame({ staff, studioRole = false, studioChrome, classicTop, classicBottom, common, style, className, children }: {
   staff: boolean;
-  /** A director or manager: their one portal page (Profile) is Studio too. */
+  /** A director or manager: their portal pages (Profile, a manager's Cleaning) are Studio too. */
   studioRole?: boolean;
   studioChrome: React.ReactNode;
   classicTop: React.ReactNode;
@@ -30,7 +30,7 @@ export function PortalFrame({ staff, studioRole = false, studioChrome, classicTo
 }) {
   const pathname = usePathname() || "/portal";
   const p = pathname.replace(/\/+$/, "");
-  if ((staff && isStaffStudioPath(pathname)) || (studioRole && p === "/portal/profile")) {
+  if ((staff && isStaffStudioPath(pathname)) || (studioRole && (p === "/portal/profile" || p === "/portal/cleaning"))) {
     return (
       <div className="flex flex-col">
         {common}

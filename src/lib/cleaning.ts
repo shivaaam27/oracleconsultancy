@@ -115,9 +115,14 @@ export async function ensureDay(dateIso: string): Promise<CleaningDay> {
     .select("*")
     .single();
   if (error) {
-    // Race: another request created it — fetch and return.
-    const again = await getDay(dateIso);
-    if (again) return again;
+    // Race: another request created it — fetch and return. Its row can take a
+    // moment to become readable (seen as a manager: the page threw "duplicate
+    // key" while the retry found nothing), so look a few times before failing.
+    for (let i = 0; i < 4; i++) {
+      const again = await getDay(dateIso);
+      if (again) return again;
+      await new Promise((r) => setTimeout(r, 150 * (i + 1)));
+    }
     throw new Error(error.message);
   }
   const day = mapDay(data as DayDbRow);
