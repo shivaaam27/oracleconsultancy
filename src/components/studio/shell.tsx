@@ -20,7 +20,7 @@ import { SignOutForm } from "@/components/sign-out-form";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, ChevronUp, Home, LogOut, Moon, Plus, Search, Sun, Settings as SettingsIcon, UserRound, X } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, ChevronUp, Home, LogOut, Moon, Pencil, Plus, Search, Sun, Settings as SettingsIcon, UserRound, X } from "lucide-react";
 import { adminLogout } from "@/app/login/actions";
 import { portalLogout } from "@/app/portal/actions";
 import { studioStops, stopIndexFor, directorStops, directorStopIndex, staffStops, staffStopIndex, type StudioStop } from "@/lib/studio-nav";
@@ -32,6 +32,7 @@ import { useNavVisibility, isHiddenNavHref } from "@/components/nav-visibility";
 import { cn } from "@/lib/cn";
 import { FOOT_NOTE_EVENT, type PageFootNote } from "./foot-note";
 import { startNavProgress } from "@/components/nav-progress";
+import { useNavOrder, applyNavOrder, moveNavStop } from "@/lib/nav-order";
 
 export type StudioFootNote = { label: string; text: string; href?: string; tone?: "late" | "soon" | "info" } | null;
 
@@ -84,10 +85,13 @@ export function StudioShell({ needs, director = null }: { needs: NonNullable<Stu
   const isStaff = !!director?.staff;
   const staffTasks = director?.staffTasks ?? true;
   const staffCleaning = director?.staffCleaning ?? false;
-  const stops = useMemo(
+  const baseStops = useMemo(
     () => (isStaff ? staffStops({ tasks: staffTasks, cleaning: staffCleaning }) : isDirector ? directorStops({ outbox: directorOutbox, cleaning: directorCleaning }) : studioStops().filter((s) => !isHiddenNavHref(s.href, vis))),
     [vis, isDirector, isStaff, directorOutbox, directorCleaning, staffTasks, staffCleaning],
   );
+  // Your own order (the Go-to panel's Edit) — the footer's ‹ › follow it too.
+  const [navOrder, saveNavOrder] = useNavOrder(isStaff ? "staff" : isDirector ? "director" : "owner");
+  const stops = useMemo(() => applyNavOrder(baseStops, navOrder), [baseStops, navOrder]);
   const tab = params.get("tab");
   let i: number;
   if (isStaff) {
@@ -347,6 +351,7 @@ export function StudioShell({ needs, director = null }: { needs: NonNullable<Stu
           onClose={() => setGoTo(false)}
           onGo={(href) => { setGoTo(false); startNavProgress(); router.push(href); }}
           onSearch={director ? undefined : () => { setGoTo(false); openPalette(); }}
+          onReorder={saveNavOrder}
           me={director
             ? { name: director.name, role: director.role, profile: "/portal/profile", profileLabel: "Profile", logout: portalLogout }
             : { name: "Administrator", role: "Every company", profile: "/settings", profileLabel: "Settings", logout: adminLogout }}
@@ -359,8 +364,10 @@ export function StudioShell({ needs, director = null }: { needs: NonNullable<Stu
 type GoToMe = { name: string; role: string; profile: string; profileLabel: string; logout: () => Promise<void> | void };
 
 function GoToPanel({
-  stops, current, prev, next, onClose, onGo, onSearch, me,
+  stops, current, prev, next, onClose, onGo, onSearch, me, onReorder,
 }: {
+  /** Save the pages in a new order (null = back to the natural order). */
+  onReorder: (ids: string[] | null) => void;
   me: GoToMe;
   stops: StudioStop[];
   current: StudioStop;
@@ -373,6 +380,22 @@ function GoToPanel({
 }) {
   const [q, setQ] = useState("");
   const input = useRef<HTMLInputElement>(null);
+  // Edit = move pages with ‹ ›. Opened by the pencil, or by holding a page
+  // down for half a second (phone and desk alike).
+  const [edit, setEdit] = useState(false);
+  const hold = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const held = useRef(false);
+  const holdProps = {
+    onPointerDown: () => { held.current = false; hold.current = setTimeout(() => { held.current = true; setEdit(true); setQ(""); try { navigator.vibrate?.(12); } catch { /* not a phone */ } }, 500); },
+    onPointerUp: () => { if (hold.current) clearTimeout(hold.current); },
+    onPointerLeave: () => { if (hold.current) clearTimeout(hold.current); },
+    onPointerCancel: () => { if (hold.current) clearTimeout(hold.current); },
+    onContextMenu: (e: React.MouseEvent) => { if (held.current) e.preventDefault(); },
+    // The click that ends a long press must not also open the page.
+    onClickCapture: (e: React.MouseEvent) => { if (held.current) { e.preventDefault(); e.stopPropagation(); held.current = false; } },
+  };
+  const move = (id: string, dir: -1 | 1) => { const ids = moveNavStop(stops, id, dir); if (ids) onReorder(ids); };
+  const canMove = (id: string, dir: -1 | 1) => moveNavStop(stops, id, dir) !== null;
   const [shortcut, setShortcut] = useState("Ctrl K");
   useEffect(() => { if (/Mac|iPhone|iPad/.test(navigator.platform)) setShortcut("⌘K"); }, []);
   useEffect(() => {
@@ -382,7 +405,7 @@ function GoToPanel({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const needle = q.trim().toLowerCase();
+  const needle = edit ? "" : q.trim().toLowerCase();
   const shown = needle ? stops.filter((s) => s.label.toLowerCase().includes(needle) || s.group.toLowerCase().includes(needle)) : stops;
   const groups: { label: string; items: StudioStop[] }[] = [];
   for (const s of shown) {
@@ -410,7 +433,7 @@ function GoToPanel({
           <ShellThemeButton />
         </div>
         <div className="flex flex-wrap items-center gap-2.5">
-          <label className="flex h-11 min-w-0 flex-1 basis-60 items-center gap-2.5 rounded-xl border border-[var(--sh-chip-line)] bg-[var(--sh-field)] px-3.5 text-[var(--sh-muted)] sm:h-10">
+          <label className="flex h-11 min-w-0 flex-1 basis-40 sm:basis-60 items-center gap-2.5 rounded-xl border border-[var(--sh-chip-line)] bg-[var(--sh-field)] px-3.5 text-[var(--sh-muted)] sm:h-10">
             <Search size={16} />
             <span className="sr-only">Find a page</span>
             <input
@@ -428,19 +451,42 @@ function GoToPanel({
           <button type="button" onClick={() => onGo(next.href)} className="hidden h-10 items-center gap-2 rounded-xl border border-[var(--sh-chip-line)] px-3 text-[13px] text-[var(--sh-sub)] hover:text-[var(--sh-fg)] sm:flex">
             {next.label}<ChevronRight size={13} strokeWidth={2.2} />
           </button>
+          <button type="button" onClick={() => { setEdit((v) => !v); setQ(""); }} aria-pressed={edit}
+            aria-label={edit ? "Done arranging" : "Arrange the pages"} title={edit ? "Done" : "Arrange the pages (or hold a page down)"}
+            className={cn("flex h-11 items-center justify-center gap-1.5 rounded-xl border px-3 text-[13px] sm:h-10",
+              edit ? "border-transparent bg-[var(--sh-on-bg)] font-medium text-[var(--sh-on-fg)]" : "w-11 border-[var(--sh-chip-line)] px-0 text-[var(--sh-sub)] hover:text-[var(--sh-fg)] sm:w-10")}>
+            {edit ? <><Check size={14} />Done</> : <Pencil size={15} />}
+          </button>
           <button type="button" onClick={onClose} aria-label="Close" className="flex h-11 w-11 items-center justify-center rounded-xl border border-[var(--sh-chip-line)] text-[var(--sh-sub)] hover:text-[var(--sh-fg)] sm:h-10 sm:w-10">
             <X size={15} />
           </button>
         </div>
 
+        {edit && (
+          <div className="flex items-center gap-2 rounded-xl bg-[var(--sh-hover)] px-3 py-2 text-xs text-[var(--sh-sub)]">
+            <span className="flex-1">Move pages with ‹ ›. The footer steps through them in this order. Home stays first.</span>
+            <button type="button" onClick={() => onReorder(null)} className="shrink-0 font-medium text-[var(--sh-fg)] hover:underline">Reset</button>
+          </div>
+        )}
         <div className="grid grid-cols-3 gap-2 sm:hidden">
           {shown.map((s) => {
             const on = s.id === current.id;
             const Icon = s.icon;
-            return (
-              <Link key={s.id} href={s.href} onClick={onClose} aria-current={on ? "page" : undefined}
-                className={cn("flex h-[62px] min-w-0 flex-col items-center justify-center gap-1.5 rounded-[14px] px-1 text-xs",
-                  on ? "bg-[var(--sh-on-bg)] text-[var(--sh-on-fg)]" : "bg-[var(--sh-card)] text-[var(--sh-fg)]")}>
+            const tile = cn("relative flex min-w-0 flex-col items-center justify-center gap-1.5 rounded-[14px] px-1 text-xs select-none [-webkit-touch-callout:none]",
+              on ? "bg-[var(--sh-on-bg)] text-[var(--sh-on-fg)]" : "bg-[var(--sh-card)] text-[var(--sh-fg)]", edit ? "h-[96px]" : "h-[62px]", edit && s.id !== "home" && "ring-1 ring-[var(--sh-chip-line)]");
+            return edit ? (
+              <div key={s.id} className={tile}>
+                <Icon size={17} />
+                <span className="w-full truncate text-center">{s.label}</span>
+                {s.id !== "home" && (
+                  <span className="mt-0.5 flex gap-2">
+                    <MoveBtn dir={-1} on={on} disabled={!canMove(s.id, -1)} onClick={() => move(s.id, -1)} label={s.label} />
+                    <MoveBtn dir={1} on={on} disabled={!canMove(s.id, 1)} onClick={() => move(s.id, 1)} label={s.label} />
+                  </span>
+                )}
+              </div>
+            ) : (
+              <Link key={s.id} href={s.href} onClick={onClose} aria-current={on ? "page" : undefined} className={tile} {...holdProps}>
                 <Icon size={17} />
                 <span className="w-full truncate text-center">{s.label}</span>
               </Link>
@@ -471,7 +517,10 @@ function GoToPanel({
             <div key={g.label} className={cn("flex min-w-0 flex-col gap-1.5", g.items.length > 4 && "sm:col-span-2 md:col-span-1")}>
               <div className="px-1 text-[11px] uppercase tracking-[0.08em] text-[var(--sh-muted)]">{g.label}</div>
               <div className={cn("grid gap-1.5", g.items.length > 4 ? "grid-cols-2" : "grid-cols-1")}>
-                {g.items.map((s) => <GoToItem key={s.id} s={s} on={s.id === current.id} onClose={onClose} />)}
+                {g.items.map((s) => (
+                  <GoToItem key={s.id} s={s} on={s.id === current.id} onClose={onClose} hold={holdProps}
+                    edit={edit ? { canEarlier: canMove(s.id, -1), canLater: canMove(s.id, 1), move: (d) => move(s.id, d) } : null} />
+                ))}
               </div>
             </div>
           ))}
@@ -516,12 +565,31 @@ function GoToPanel({
 
 /** One page in the Go-to panel (tablet and desk): compact — a 26px icon tile
  *  and the name on one 36px row. */
-function GoToItem({ s, on, onClose }: { s: StudioStop; on: boolean; onClose: () => void }) {
+function GoToItem({ s, on, onClose, hold, edit }: {
+  s: StudioStop; on: boolean; onClose: () => void;
+  hold: Record<string, unknown>;
+  /** Arranging: the row shows ‹ › instead of opening the page. */
+  edit: { canEarlier: boolean; canLater: boolean; move: (d: -1 | 1) => void } | null;
+}) {
   const Icon = s.icon;
+  const cls = cn("flex h-9 min-w-0 select-none items-center gap-2 rounded-[10px] px-1.5 transition-colors",
+    on ? "bg-[var(--sh-on-bg)] text-[var(--sh-on-fg)]" : "bg-[var(--sh-card)] text-[var(--sh-fg)] hover:bg-[var(--sh-hover)]");
+  if (edit) {
+    return (
+      <div className={cls}>
+        <span className={cn("flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-[8px]", !on && "bg-[var(--sh-hover)] text-[var(--sh-sub)]")}><Icon size={14} /></span>
+        <span className="min-w-0 flex-1 truncate text-[13px] font-medium">{s.label}</span>
+        {s.id !== "home" && (
+          <span className="flex shrink-0 gap-0.5">
+            <MoveBtn dir={-1} on={on} disabled={!edit.canEarlier} onClick={() => edit.move(-1)} label={s.label} />
+            <MoveBtn dir={1} on={on} disabled={!edit.canLater} onClick={() => edit.move(1)} label={s.label} />
+          </span>
+        )}
+      </div>
+    );
+  }
   return (
-    <Link href={s.href} onClick={onClose} aria-current={on ? "page" : undefined}
-      className={cn("flex h-9 min-w-0 items-center gap-2 rounded-[10px] px-1.5 transition-colors",
-        on ? "bg-[var(--sh-on-bg)] text-[var(--sh-on-fg)]" : "bg-[var(--sh-card)] text-[var(--sh-fg)] hover:bg-[var(--sh-hover)]")}>
+    <Link href={s.href} onClick={onClose} aria-current={on ? "page" : undefined} className={cls} {...hold}>
       {/* The tile on the selected (inverted) item is a tint of its own text
           colour — a light tile there held a white icon in light mode and a
           black one in dark, and the icon vanished. */}
@@ -531,6 +599,16 @@ function GoToItem({ s, on, onClose }: { s: StudioStop; on: boolean; onClose: () 
       </span>
       <span className="min-w-0 truncate text-[13px] font-medium">{s.label}</span>
     </Link>
+  );
+}
+
+function MoveBtn({ dir, on, disabled, onClick, label }: { dir: -1 | 1; on: boolean; disabled: boolean; onClick: () => void; label: string }) {
+  return (
+    <button type="button" disabled={disabled} onClick={onClick} aria-label={`Move ${label} ${dir < 0 ? "earlier" : "later"}`}
+      className={cn("grid h-7 w-7 place-items-center rounded-lg transition-colors disabled:opacity-25 sm:h-6 sm:w-6 sm:rounded-md",
+        on ? "bg-[color-mix(in_srgb,var(--sh-on-fg)_16%,transparent)] text-[var(--sh-on-fg)]" : "bg-[var(--sh-hover)] text-[var(--sh-fg)] hover:bg-[var(--sh-chip-line)]")}>
+      {dir < 0 ? <ChevronLeft size={14} strokeWidth={2.4} /> : <ChevronRight size={14} strokeWidth={2.4} />}
+    </button>
   );
 }
 
