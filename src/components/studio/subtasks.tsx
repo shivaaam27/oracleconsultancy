@@ -23,7 +23,7 @@
  */
 import { AnimatePresence, motion, useReducedMotion, type Transition } from "framer-motion";
 import { Plus, X } from "lucide-react";
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { addSubtask, deleteSubtask, listSubtasks, renameSubtask, tickSubtask } from "@/app/task/subtask-actions";
 import type { Subtask } from "@/lib/subtasks-shared";
 import { cn } from "@/lib/cn";
@@ -221,6 +221,13 @@ export function TaskSubtasks({ taskId, tone = "page", title, onCount }: {
 }) {
   const [items, setItems] = useState<Subtask[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // The list as it is NOW, for the moment a new subtask's real id comes back:
+  // anything done to it while it was still on its way (ticked, renamed,
+  // deleted — the server had nothing to act on yet) is replayed then. It used
+  // to be dropped: a quick tick came undone, and a quick delete came back on
+  // the next visit.
+  const latest = useRef<Subtask[] | null>(null);
+  latest.current = items;
   useEffect(() => {
     if (items) onCount?.({ done: items.filter((x) => x.done).length, total: items.length });
   }, [items]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -230,7 +237,9 @@ export function TaskSubtasks({ taskId, tone = "page", title, onCount }: {
     return () => { live = false; };
   }, [taskId]);
 
-  const fail = (e: unknown) => setError(e instanceof Error ? e.message : "That did not save — try again.");
+  // Not the thrown message — in production that is Next's generic "An error
+  // occurred…".
+  const fail = (e: unknown) => { void e; setError("That did not save — try again."); };
   if (items == null) return <div aria-busy className="h-9 animate-pulse rounded-[11px] bg-[var(--st-page)]" />;
   const withKeys = items.map((s) => ({ ...s, key: s.id }));
   return (
@@ -241,8 +250,15 @@ export function TaskSubtasks({ taskId, tone = "page", title, onCount }: {
         title={title}
         onAdd={(v) => {
           const temp = -Date.now();
+          setError(null);
           setItems((l) => [...(l ?? []), { id: temp, title: v, done: false }]);
-          addSubtask(taskId, v).then((s) => setItems((l) => (l ?? []).map((x) => (x.id === temp ? s : x)))).catch((e) => { setItems((l) => (l ?? []).filter((x) => x.id !== temp)); fail(e); });
+          addSubtask(taskId, v).then((s) => {
+            const now = (latest.current ?? []).find((x) => x.id === temp);
+            if (!now) { deleteSubtask(s.id).catch(fail); return; } // deleted while on its way
+            if (now.done) tickSubtask(s.id, true).catch(fail);
+            if (now.title !== s.title) renameSubtask(s.id, now.title).catch(fail);
+            setItems((l) => (l ?? []).map((x) => (x.id === temp ? { ...s, title: now.title, done: now.done } : x)));
+          }).catch((e) => { setItems((l) => (l ?? []).filter((x) => x.id !== temp)); fail(e); });
         }}
         onTick={(s, done) => {
           setItems((l) => (l ?? []).map((x) => (x.id === s.id ? { ...x, done } : x)));

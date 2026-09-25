@@ -55,13 +55,19 @@ export async function recipientForCreatedBy(by: string | null): Promise<string |
 
 /** Notify a task's assignees (+ the admin owner) that an instruction was
  *  pinned. `exceptPersonId` skips the person who pinned it. */
-export async function notifyPinned(taskId: number, code: string, actor: string, exceptPersonId: number | null): Promise<void> {
+export async function notifyPinned(
+  taskId: number, code: string, actor: string, exceptPersonId: number | null,
+  /** The administrator pinned it himself — don't tell him about his own pin
+   *  (it landed in his bell, and on his phone, as "Management pinned…"). */
+  opts?: { byAdmin?: boolean },
+): Promise<void> {
   const { data: people } = await sb.from("task_assignees").select("person_id").eq("task_id", taskId);
   const recipients = (people ?? [])
     .map((p) => p.person_id as number)
     .filter((id) => id !== exceptPersonId)
     .map(personRecipient);
-  recipients.push("admin");
+  if (!opts?.byAdmin) recipients.push("admin");
+  if (!recipients.length) return;
   await notifyMany(recipients, {
     kind: "pinned",
     taskId,

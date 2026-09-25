@@ -318,7 +318,14 @@ function EditSheet({ open, onClose, taskId, title, description }: { open: boolea
   const [busy, start] = useTransition();
   const save = () => start(async () => {
     if (!name.trim()) { toast("A task needs a title.", { tone: "warn" }); return; }
-    const res = await portalEditTask({ taskId, actionItem: name.trim(), description: desc.trim() || null });
+    // A dropped connection throws — inside this transition that would take the
+    // page to its error screen, so it is a toast like any other refusal.
+    const res = await portalEditTask({ taskId, actionItem: name.trim(), description: desc.trim() || null })
+      .catch((e: unknown) => {
+        // Signed out: the action redirects to sign-in by throwing — let it go.
+        if (String((e as { digest?: unknown } | null)?.digest ?? "").startsWith("NEXT_REDIRECT")) throw e;
+        return { ok: false as const, error: "That didn't save — check the connection and try again." };
+      });
     if (!res.ok) { toast(res.error, { tone: "warn" }); return; }
     toast("Task updated.", { tone: "success" });
     onClose();

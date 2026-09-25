@@ -19,6 +19,13 @@ import { FIELD } from "@/components/ui";
 import { stBtn } from "@/components/studio/kit";
 import { cn } from "@/lib/cn";
 
+/** A failed request becomes a message — except a sign-in redirect (a portal
+ *  session that ran out), which is thrown on so it can do its job. */
+function offline(e: unknown): { ok: false; error: string } {
+  if (String((e as { digest?: unknown } | null)?.digest ?? "").startsWith("NEXT_REDIRECT")) throw e;
+  return { ok: false, error: "That didn't go through — check the connection and try again." };
+}
+
 export function StudioBlocker({
   taskId,
   closed,
@@ -51,9 +58,10 @@ export function StudioBlocker({
     const reason = String(fd.get("reason") ?? "");
     if (!personId) return toast("Pick who it is waiting on.", { tone: "warn" });
     setBusy(true);
-    const res = portal
-      ? await portalRaiseBlocker(taskId, personId, reason).then((r) => (r.error ? { ok: false as const, error: r.error } : { ok: true as const }))
-      : await setTaskBlocker(taskId, personId, reason);
+    const res = await (portal
+      ? portalRaiseBlocker(taskId, personId, reason).then((r) => (r.error ? { ok: false as const, error: r.error } : { ok: true as const }))
+      : setTaskBlocker(taskId, personId, reason)
+    ).catch(offline);
     setBusy(false);
     if (!res.ok) return toast(res.error, { tone: "warn" });
     toast("Marked as waiting. Overdue is paused until it is cleared.", { tone: "success" });
@@ -63,8 +71,13 @@ export function StudioBlocker({
 
   async function clear() {
     setBusy(true);
-    await (portal ? portalClearBlocker(taskId) : clearTaskBlocker(taskId));
+    // It used to say "cleared" whatever the server answered.
+    const res = await (portal
+      ? portalClearBlocker(taskId).then((r) => (r.error ? { ok: false as const, error: r.error } : { ok: true as const }))
+      : clearTaskBlocker(taskId)
+    ).catch(offline);
     setBusy(false);
+    if (!res.ok) return toast(res.error, { tone: "warn" });
     toast("Blocker cleared — the task is live again.", { tone: "success" });
     onChanged();
   }

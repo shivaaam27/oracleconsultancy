@@ -125,7 +125,9 @@ export function useCreateTask() {
     if (!d.title.trim()) { toast("Say what needs doing first.", { tone: "warn" }); return; }
     if (!d.companyId) { toast("Pick a company — it sets the task code.", { tone: "warn" }); return; }
     start(async () => {
-      const res = await createTaskStudio(toInput(d));
+      // A dropped connection throws — inside this transition that would take
+      // the page (and everything typed) down to the error screen.
+      const res = await createTaskStudio(toInput(d)).catch(() => ({ ok: false as const, error: "That didn't go through — check the connection and try again. What you typed is still here." }));
       if (!res.ok) { toast(res.error, { tone: "warn" }); return; }
       if (res.ruleOnly) {
         toast("Saved as a repeating task — the first one appears on its day.", { tone: "success", duration: 6000 });
@@ -145,7 +147,7 @@ export function useCreateTask() {
       }
       let link: string | undefined;
       if (d.tell && d.people.length) {
-        const r = await adminRemindTask(res.taskId, false);
+        const r = await adminRemindTask(res.taskId, false).catch(() => ({ ok: false as const, error: "" }));
         if (r.ok) link = r.link ?? undefined;
       }
       const also = res.copies.length ? ` — and ${res.copies.join(", ")}` : "";

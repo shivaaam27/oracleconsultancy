@@ -214,15 +214,32 @@ export const getRecentActivity = cache(async (limit = 160): Promise<RawActivity>
 /** Build TaskRow[] from the live tables. `includeArchived` controls whether
  *  soft-retired (archived) tasks are returned — false by default so archived
  *  tasks never inflate lists, KPIs or the Director Brief (ACTTASKS-01). */
-async function buildAllTasks(includeArchived: boolean): Promise<TaskRow[]> {
+async function buildAllTasks(includeArchived: boolean, only?: string): Promise<TaskRow[]> {
+  const TASK_COLS = "id,code,legacy_code,company_id,department_id,meeting_date,action_item,owner_id,created_by_person_id,created_date,deadline,status,priority,category,risk,escalation,comments,latest_update,last_updated_at,closed_date,archived,requires_attachment,recurring_rule_id,accountability,blocked_on_person_id,blocked_reason";
+  // ONE task by its code (or legacy code), archived or not — read fresh, with
+  // only that task's people and updates. See getTaskRowFresh.
+  let oneRes: Awaited<ReturnType<typeof fetchOne>> | null = null;
+  async function fetchOne(code: string) {
+    const byCode = await sb.from("tasks").select(TASK_COLS).eq("code", code);
+    if (byCode.error || (byCode.data ?? []).length) return byCode;
+    return sb.from("tasks").select(TASK_COLS).eq("legacy_code", code);
+  }
+  if (only != null) {
+    oneRes = await fetchOne(only);
+    if (oneRes.error) throw new Error(oneRes.error.message);
+    if (!(oneRes.data ?? []).length) return [];
+  }
+  const ids = oneRes ? (oneRes.data ?? []).map((t) => (t as { id: number }).id) : null;
   // Exclude archived rows at the source unless explicitly opted in.
-  const tasksQuery = sb.from("tasks").select("id,code,legacy_code,company_id,department_id,meeting_date,action_item,owner_id,created_by_person_id,created_date,deadline,status,priority,category,risk,escalation,comments,latest_update,last_updated_at,closed_date,archived,requires_attachment,recurring_rule_id,accountability,blocked_on_person_id,blocked_reason");
+  const tasksQuery = sb.from("tasks").select(TASK_COLS);
+  const assigneesQuery = sb.from("task_assignees").select("task_id,person_id,role,part_done_at");
+  const updatesQuery = sb.from("task_updates").select("id,task_id,created_at,created_by,pinned_at").is("deleted_at", null);
   const [tasksRes, companiesRes, deptsRes, peopleRes, assigneesRes, updatesRes, settings] = await Promise.all([
-    includeArchived ? tasksQuery : tasksQuery.eq("archived", false),
+    oneRes ?? (includeArchived ? tasksQuery : tasksQuery.eq("archived", false)),
     sb.from("companies").select("id,name,accent_color"),
     sb.from("departments").select("id,name"),
     sb.from("people").select("id,name"),
-    sb.from("task_assignees").select("task_id,person_id,role,part_done_at"),
+    ids ? assigneesQuery.in("task_id", ids) : assigneesQuery,
     // One batched read of every live update, newest first, for the rich-row
     // enrichment (latest update id/time/author + count + pinned). No per-task
     // query (no N+1). The heavy `body` blob is deliberately OMITTED here — it is
@@ -230,7 +247,7 @@ async function buildAllTasks(includeArchived: boolean): Promise<TaskRow[]> {
     // for every task) yet only the LATEST body renders, and that is already held
     // denormalised on tasks.latest_update. So we source the body from the task
     // row instead of transferring millions of bytes of stale update text.
-    sb.from("task_updates").select("id,task_id,created_at,created_by,pinned_at").is("deleted_at", null).order("created_at", { ascending: false }),
+    (ids ? updatesQuery.in("task_id", ids) : updatesQuery).order("created_at", { ascending: false }),
     getAppSettings(),
   ]);
   const thresholds = {
@@ -401,6 +418,21 @@ function allTasksMemo(): Promise<TaskRow[]> {
  *  archived tasks are filtered out at the base fetch (ACTTASKS-01). React
  *  cache() dedupes within a single render; allTasksMemo() dedupes across them. */
 export const getAllTasks = cache(async (): Promise<TaskRow[]> => structuredClone(await allTasksMemo()));
+
+/** ONE task as a TaskRow, read FRESH from the database — current code or a
+ *  legacy one, archived or not; null when there is no such task.
+ *
+ *  ⚠️ For the task record (/api/task-detail). It used to search getAllTasks,
+ *  whose memo lives per server instance for 30s: a change saved by a server
+ *  action running elsewhere (a separate function on Vercel, a separate bundle
+ *  in dev) left the record showing the OLD value — measured: Archive saved,
+ *  the page still said "Archive". And archived tasks were never in that list at
+ *  all, so an archived task opened as "No task …". This reads one task's rows
+ *  only, so it is cheaper than the whole-graph read as well. */
+export async function getTaskRowFresh(code: string): Promise<TaskRow | null> {
+  const rows = await buildAllTasks(true, code);
+  return rows[0] ?? null;
+}
 
 /** Same shape as getAllTasks but INCLUDING archived tasks — for the explicit
  *  "Show archived" opt-in only. Never feed this into KPI/brief aggregations. */

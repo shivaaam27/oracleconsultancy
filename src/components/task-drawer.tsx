@@ -44,7 +44,7 @@ import { SimilarTasks } from "./similar-tasks";
 import { DraftEmailButton } from "./draft-email-button";
 import { useToast } from "./toast";
 import { callUndo } from "./undo-banner";
-import { inlineUpdateTask, deleteTaskQuick, adminAddUpdate, adminTogglePin, updateTask, adminRemindTask, setTaskArchived, copyTaskToCompany, adminEditUpdate, adminDeleteUpdate } from "@/app/task/actions";
+import { inlineUpdateTask, deleteTaskQuick, adminAddUpdate, adminTogglePin, updateTask, adminRemindTask, setTaskArchived, copyTaskToCompany, adminEditUpdate, adminDeleteUpdate, restoreTaskUpdate } from "@/app/task/actions";
 import { TaskCopyToCompanies, type CopyActions } from "@/components/task-copy-companies";
 import { setTaskRecurrence, stopTaskRecurrence } from "@/app/task/recurring-actions";
 import { RecurringTaskSheet, draftFromRule, scheduleLabel, BLANK as BLANK_RULE } from "@/components/portal-recurring-tasks";
@@ -174,7 +174,10 @@ function SetLink({ onClick, children }: { onClick: () => void; children: React.R
  * Everything between here and the return statement is shared — one record, one
  * set of actions, no second implementation to drift.
  */
-function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: string }) {
+/** What a button says when the server could not be reached at all. */
+const NET_FAIL = "That didn't go through — check the connection and try again.";
+
+function TaskRecord({ mode, codeProp, stamp }: { mode: "drawer" | "page"; codeProp?: string; stamp?: number }) {
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const router = useRouter();
@@ -299,9 +302,12 @@ function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: st
     if (!data) return;
     setActing(kind);
     const isDone = data.task.status === "Completed" || data.task.status === "Closed";
+    // A dropped connection throws; without the catch every button stayed
+    // disabled (`acting` never cleared) and nothing was said.
+    const offline = () => ({ ok: false as const, error: NET_FAIL, undoToken: undefined });
     const res = kind === "complete"
-      ? await inlineUpdateTask(data.task.code, "status", isDone ? "In Progress" : "Completed")
-      : await inlineUpdateTask(data.task.code, "escalation", "Yes");
+      ? await inlineUpdateTask(data.task.code, "status", isDone ? "In Progress" : "Completed").catch(offline)
+      : await inlineUpdateTask(data.task.code, "escalation", "Yes").catch(offline);
     setActing(null);
     if (res.ok) {
       toast(kind === "complete" ? (isDone ? `${data.task.code} reopened` : `${data.task.code} completed`) : `${data.task.code} escalated`,
@@ -320,7 +326,7 @@ function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: st
   async function remindAbout(scope: "task" | "all") {
     if (!data) return;
     setReminding(true);
-    const res = await adminRemindTask(data.task.id, scope === "all");
+    const res = await adminRemindTask(data.task.id, scope === "all").catch(() => ({ ok: false as const, error: NET_FAIL }));
     setReminding(false);
     if (!res.ok) { toast(res.error, { tone: "warn", duration: 3500 }); return; }
     toast(`${scope === "all" ? "Summary" : "Reminder"} ready for ${getGivenName(res.name)}.`, {
@@ -334,7 +340,7 @@ function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: st
   async function applyRedate() {
     if (!data || !newDate) return;
     setActing("redate");
-    const res = await inlineUpdateTask(data.task.code, "deadline", newDate);
+    const res = await inlineUpdateTask(data.task.code, "deadline", newDate).catch(() => ({ ok: false as const, error: NET_FAIL, undoToken: undefined }));
     setActing(null);
     if (res.ok) {
       setRedating(false);
@@ -368,7 +374,7 @@ function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: st
   async function saveRepeat(input: Parameters<typeof setTaskRecurrence>[1]) {
     if (!data) return;
     setRepeatBusy(true);
-    const res = await setTaskRecurrence(data.task.id, input);
+    const res = await setTaskRecurrence(data.task.id, input).catch(() => ({ ok: false as const, error: NET_FAIL }));
     setRepeatBusy(false);
     if (!res.ok) { toast(res.error, { tone: "danger" }); return; }
     toast(data.recurrence ? "Repeat changed." : `${data.task.code} now repeats.`, { tone: "success" });
@@ -379,7 +385,7 @@ function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: st
   async function stopRepeat() {
     if (!data) return;
     setRepeatBusy(true);
-    const res = await stopTaskRecurrence(data.task.id);
+    const res = await stopTaskRecurrence(data.task.id).catch(() => ({ ok: false as const, error: NET_FAIL }));
     setRepeatBusy(false);
     setConfirmStop(false);
     if (!res.ok) { toast(res.error, { tone: "danger" }); return; }
@@ -394,7 +400,7 @@ function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: st
     if (!data) return;
     const next = !data.task.archived;
     setArchiving(true);
-    const res = await setTaskArchived(data.task.code, next);
+    const res = await setTaskArchived(data.task.code, next).catch(() => ({ ok: false as const, error: NET_FAIL }));
     setArchiving(false);
     if (!res.ok) { toast(res.error || "Could not change it.", { tone: "danger" }); return; }
     toast(next ? `${data.task.code} archived.` : `${data.task.code} restored.`, {
@@ -416,7 +422,7 @@ function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: st
   async function handleDelete() {
     if (!data) return;
     setActing("delete");
-    const res = await deleteTaskQuick(data.task.code);
+    const res = await deleteTaskQuick(data.task.code).catch(() => ({ ok: false as const, error: NET_FAIL, undoToken: undefined }));
     setActing(null);
     if (res.ok) {
       const c = data.task.code;
@@ -475,8 +481,13 @@ function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: st
       .then((d: DrawerData) => { storeTaskDetail(code, d); if (live) { setData(d); setLoading(false); } })
       .catch(() => { if (live) { setError(true); setLoading(false); } });
     return () => { live = false; };
+  // `stamp` changes whenever the server draws the page again — i.e. on every
+  // router.refresh(). The in-place editors (status, priority and deadline on
+  // the band and in Details, the blocker, an Undo from a toast) only call
+  // router.refresh(); without this the page kept showing the OLD value after a
+  // change that had saved.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [code, refreshKey, refreshNonce, isTaskPage, mode]);
+  }, [code, refreshKey, refreshNonce, isTaskPage, mode, stamp]);
 
   // Read the tasks either side ahead of time, so ‹ › is instant.
   useEffect(() => { prefetchTaskDetail(prevCode); prefetchTaskDetail(nextCode); }, [prevCode, nextCode]);
@@ -1115,7 +1126,7 @@ function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: st
           departments={data.departments}
           recurrenceLabel={data.recurrence ? scheduleLabel(data.recurrence) : null}
           onChanged={refresh}
-          onOpenRepeat={() => setRepeatOpen(true)}
+          onOpenRepeat={data.ownerView ? () => setRepeatOpen(true) : undefined}
           onOpenForm={edit}
         />
       </div>
@@ -1205,7 +1216,20 @@ function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: st
                     addAction={adminAddUpdate}
                     pinAction={adminTogglePin}
                     editAction={async (fd: FormData) => { await adminEditUpdate(fd); refresh(); }}
-                    deleteAction={async (fd: FormData) => { await adminDeleteUpdate(fd); refresh(); }}
+                    deleteAction={async (fd: FormData) => {
+                      await adminDeleteUpdate(fd);
+                      refresh();
+                      // The confirm says "It can be restored" — so say how.
+                      const id = Number(fd.get("updateId"));
+                      toast("Update taken down.", {
+                        tone: "success", duration: 8000,
+                        action: { label: "Undo", onClick: async () => {
+                          const r = await restoreTaskUpdate(id).catch(() => ({ ok: false as const, error: NET_FAIL }));
+                          if (!r.ok) toast(r.error || "Couldn't put it back.", { tone: "warn" });
+                          refresh();
+                        } },
+                      });
+                    }}
                     canModerate
                     canPin
                     canAck={false}
@@ -1225,8 +1249,10 @@ function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: st
               <ChevronLeft size={13} /><span className="sm:hidden">{backLabel}</span><span className="hidden sm:inline">{backLabel === "Tasks" ? "Back to the list" : `Back to ${backLabel}`}</span>
             </button>
             <span className="st-mono rounded-md bg-[var(--st-card-3)] px-2 py-1 text-[11px] text-[#C9CBCF]">{t.code}</span>
-            <CompanyDrawerLink id={t.companyId} className="truncate text-[13px] text-[var(--st-on-card-muted)] hover:text-white">{t.companyName}</CompanyDrawerLink>
-            <span className="grow" />
+            {/* On a phone the name gives way (…) so the ⋯ button stays on this row
+                instead of dropping onto a line of its own. */}
+            <CompanyDrawerLink id={t.companyId} className="min-w-0 truncate text-[13px] text-[var(--st-on-card-muted)] hover:text-white max-sm:flex-1 max-sm:basis-0">{t.companyName}</CompanyDrawerLink>
+            <span className="grow max-sm:hidden" />
             <button type="button" onClick={() => setMoreOpen(true)} aria-label="More actions" className="flex h-9 w-9 items-center justify-center rounded-[10px] border border-[var(--st-card-line)] text-[#C9CBCF] sm:hidden">
               <MoreHorizontal size={16} />
             </button>
@@ -1277,9 +1303,15 @@ function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: st
               <DeadlineEditor code={t.code} deadline={t.deadline ? new Date(t.deadline) : null} daysToDeadline={t.daysToDeadline} studio="dark" />
               <StudioPriorityCell code={t.code} priority={t.priority} tone="dark" suffix=" priority" />
               {t.escalation === "Yes" && <span className="inline-flex h-7 items-center rounded-lg bg-[#3A1D2E] px-2.5 text-xs text-[#F07BBE]">Escalated</span>}
-              <button type="button" onClick={() => setRepeatOpen(true)} className="inline-flex h-7 items-center gap-1.5 rounded-lg bg-[#1F2023] px-2.5 text-xs text-[#F2F2F0] hover:bg-[#2A2C30]">
-                {data.recurrence ? scheduleLabel(data.recurrence) : "Doesn’t repeat"}
-              </button>
+              {/* Repeat rules are the administrator's (the server refuses anyone
+                  else) — a director sees how it repeats, not a dead button. */}
+              {data.ownerView ? (
+                <button type="button" onClick={() => setRepeatOpen(true)} className="inline-flex h-7 items-center gap-1.5 rounded-lg bg-[#1F2023] px-2.5 text-xs text-[#F2F2F0] hover:bg-[#2A2C30]">
+                  {data.recurrence ? scheduleLabel(data.recurrence) : "Doesn’t repeat"}
+                </button>
+              ) : data.recurrence ? (
+                <span className="inline-flex h-7 items-center gap-1.5 rounded-lg bg-[#1F2023] px-2.5 text-xs text-[#F2F2F0]">{scheduleLabel(data.recurrence)}</span>
+              ) : null}
             </div>
           </div>
           <div className="flex gap-2 sm:hidden">
@@ -1314,9 +1346,11 @@ function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: st
                   triggerClassName="flex h-[50px] w-full items-center gap-3 border-b border-[var(--st-line-soft)] text-[15px]"
                 />
               )}
-              <button type="button" onClick={() => { setMoreOpen(false); setRepeatOpen(true); }} className="flex h-[50px] w-full items-center gap-3 border-b border-[var(--st-line-soft)] text-[15px]">
-                <Repeat size={17} />Repeat…
-              </button>
+              {data.ownerView && (
+                <button type="button" onClick={() => { setMoreOpen(false); setRepeatOpen(true); }} className="flex h-[50px] w-full items-center gap-3 border-b border-[var(--st-line-soft)] text-[15px]">
+                  <Repeat size={17} />Repeat…
+                </button>
+              )}
               <button type="button" onClick={() => { setMoreOpen(false); void toggleArchived(); }} disabled={archiving} className="flex h-[50px] w-full items-center gap-3 border-b border-[var(--st-line-soft)] text-[15px]">
                 {t.archived ? <ArchiveRestore size={17} /> : <Archive size={17} />}{t.archived ? "Restore" : "Archive"}
               </button>
@@ -1367,8 +1401,8 @@ function TaskRecord({ mode, codeProp }: { mode: "drawer" | "page"; codeProp?: st
 
 /** The record at its own URL — /task/CODE. This is the primary way to open a
  *  task (the owner's decision: a record is a page, as in ERPNext). */
-export function TaskRecordPage({ code }: { code: string }) {
-  return <TaskRecord mode="page" codeProp={code} />;
+export function TaskRecordPage({ code, stamp }: { code: string; stamp?: number }) {
+  return <TaskRecord mode="page" codeProp={code} stamp={stamp} />;
 }
 
 /** Legacy `?task=CODE` links (old emails, notifications, pasted URLs) still

@@ -155,7 +155,8 @@ export async function taskRecurrence(taskId: number): Promise<RecurringTaskRule 
 /** Make a task repeat, or change how it repeats — from its own record. Edits
  *  the rule it already points at, else creates one and links the task. */
 export async function setTaskRecurrence(taskId: number, input: RecurringTaskInput): Promise<Result> {
-  await guardOwner();
+  // Said, not thrown: the task page shows this as a toast.
+  try { await guardOwner(); } catch { return { ok: false, error: "Only the administrator can change how a task repeats." }; }
   const { data: t } = await sb.from("tasks").select("id,recurring_rule_id").eq("id", taskId).maybeSingle();
   if (!t) return { ok: false, error: "Task not found." };
   const ruleId = t.recurring_rule_id as number | null;
@@ -179,7 +180,8 @@ export async function setTaskRecurrence(taskId: number, input: RecurringTaskInpu
 /** Stop a task repeating: its rule is switched off for good (soft-deleted) and
  *  every occurrence is unlinked, so none of them reads as recurring any more. */
 export async function stopTaskRecurrence(taskId: number): Promise<Result> {
-  await guardOwner();
+  // Said, not thrown: the task page shows this as a toast.
+  try { await guardOwner(); } catch { return { ok: false, error: "Only the administrator can change how a task repeats." }; }
   const { data: t } = await sb.from("tasks").select("id,recurring_rule_id").eq("id", taskId).maybeSingle();
   if (!t) return { ok: false, error: "Task not found." };
   const ruleId = t.recurring_rule_id as number | null;

@@ -124,14 +124,19 @@ function Panel({ task, rows, onClose }: { task: TaskRow; rows: TaskRow[]; onClos
         setNonce((n) => n + 1);
         router.refresh();
       } catch (e) {
-        toast(e instanceof Error ? e.message : "Couldn't post the update.", { tone: "warn" });
+        // Not the thrown message — in production that is Next's generic
+        // "An error occurred…". The draft stays in the box.
+        void e;
+        toast("Couldn't post the update — your words are still in the box.", { tone: "warn" });
       }
     });
   }
 
   async function act(kind: "complete" | "escalate") {
     setBusy(kind);
-    const res = await inlineUpdateTask(task.code, kind === "complete" ? "status" : "escalation", kind === "complete" ? "Completed" : "Yes");
+    // A dropped connection throws — without the catch the button spun for ever.
+    const res = await inlineUpdateTask(task.code, kind === "complete" ? "status" : "escalation", kind === "complete" ? "Completed" : "Yes")
+      .catch(() => ({ ok: false as const, error: "That didn't go through — check the connection and try again.", undoToken: undefined }));
     setBusy(null);
     if (!res.ok) return toast(res.error ?? "That didn't work.", { tone: "warn" });
     toast(`${task.code} ${kind === "complete" ? "completed" : "escalated"}`, {
@@ -144,7 +149,7 @@ function Panel({ task, rows, onClose }: { task: TaskRow; rows: TaskRow[]; onClos
 
   async function remind() {
     setBusy("remind");
-    const res = await adminRemindTask(task.id);
+    const res = await adminRemindTask(task.id).catch(() => ({ ok: false as const, error: "That didn't go through — check the connection and try again." }));
     setBusy(null);
     if (!res.ok) return toast(res.error, { tone: "warn" });
     if (res.link) window.open(res.link, "_blank");

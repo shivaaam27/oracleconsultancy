@@ -202,6 +202,14 @@ async function updateActor(updateId: number): Promise<Viewer> {
   return guardViewer({ taskId: data.task_id as number });
 }
 
+/** The words for a refusal (not signed in, not your company, not allowed).
+ *  Actions whose callers read `{ ok, error }` RETURN this instead of letting
+ *  the guard's throw escape: a thrown refusal never reached a toast — the
+ *  button that asked stayed spinning, or the page fell to its error screen. */
+function refusal(e: unknown): string {
+  return e instanceof Error && e.message ? e.message : "You can't change that task.";
+}
+
 
 
 
@@ -213,7 +221,7 @@ export async function adminRemindTask(
   | { ok: true; link: string | null; name: string; channel: string; contactMissing: boolean }
   | { ok: false; error: string }
 > {
-  await taskActor({ taskId }, "messageOnTasks");
+  try { await taskActor({ taskId }, "messageOnTasks"); } catch (e) { return { ok: false, error: refusal(e) }; }
   const { data: t } = await sb
     .from("tasks")
     .select("id,code,action_item,owner_id,company_id")
@@ -626,13 +634,13 @@ export async function adminAddUpdate(formData: FormData): Promise<void> {
 export async function adminTogglePin(formData: FormData): Promise<void> {
   const updateId = Number(formData.get("updateId"));
   if (!Number.isFinite(updateId)) return;
-  await updateActor(updateId);
+  const v = await updateActor(updateId);
   const { data: u } = await sb.from("task_updates").select("task_id,pinned_at").eq("id", updateId).maybeSingle();
   const wasPinned = Boolean(u?.pinned_at);
   const res = await toggleUpdatePin(updateId);
   if (res.ok && !wasPinned && u) {
     const { data: t } = await sb.from("tasks").select("code").eq("id", u.task_id as number).maybeSingle();
-    if (t) await notifyPinned(u.task_id as number, t.code as string, "Management", null);
+    if (t) await notifyPinned(u.task_id as number, t.code as string, "Management", null, { byAdmin: v.kind === "owner" });
   }
 }
 
@@ -701,7 +709,7 @@ export async function editTaskUpdate(
   reason?: string,
   by = "web-ui",
 ): Promise<{ ok: boolean; error?: string }> {
-  by = stampOf(await updateActor(updateId), by);
+  try { by = stampOf(await updateActor(updateId), by); } catch (e) { return { ok: false, error: refusal(e) }; }
   const trimmed = newBody.trim();
   if (!trimmed) return { ok: false, error: "Body cannot be empty." };
 
@@ -751,7 +759,7 @@ export async function deleteTaskUpdate(
   reason?: string,
   by = "web-ui",
 ): Promise<{ ok: boolean; error?: string }> {
-  by = stampOf(await updateActor(updateId), by);
+  try { by = stampOf(await updateActor(updateId), by); } catch (e) { return { ok: false, error: refusal(e) }; }
   const u = await loadUpdate(updateId);
   if (!u) return { ok: true }; // already gone
   if (u.deleted_at) return { ok: true }; // already removed
@@ -811,7 +819,7 @@ export async function adminDeleteUpdate(formData: FormData): Promise<void> {
 }
 
 export async function restoreTaskUpdate(updateId: number, by = "web-ui"): Promise<{ ok: boolean; error?: string }> {
-  by = stampOf(await updateActor(updateId), by);
+  try { by = stampOf(await updateActor(updateId), by); } catch (e) { return { ok: false, error: refusal(e) }; }
   const u = await loadUpdate(updateId);
   if (!u) return { ok: false, error: "Update not found." };
   const t = await findTaskMeta(u.task_id);
@@ -835,7 +843,7 @@ export async function restoreTaskUpdate(updateId: number, by = "web-ui"): Promis
 }
 
 export async function toggleUpdatePin(updateId: number, by = "web-ui"): Promise<{ ok: boolean; pinned?: boolean; error?: string }> {
-  by = stampOf(await updateActor(updateId), by);
+  try { by = stampOf(await updateActor(updateId), by); } catch (e) { return { ok: false, error: refusal(e) }; }
   const u = await loadUpdate(updateId);
   if (!u) return { ok: false, error: "Update not found." };
   if (u.deleted_at) return { ok: false, error: "Update is deleted." };
@@ -899,8 +907,9 @@ export async function bulkUpdateTasks(
   action: BulkAction,
   createdBy = "web-ui",
 ): Promise<BulkResult> {
-  const v = await guardViewer();
-  needCap(v, "bulkTaskActions");
+  let v: Viewer;
+  try { v = await guardViewer(); needCap(v, "bulkTaskActions"); }
+  catch (e) { return { ok: false, applied: 0, skipped: 0, errors: [{ code: "", error: refusal(e) }] }; }
   createdBy = stampOf(v, createdBy);
   // A director's bulk touches only tasks in their companies: anything else in
   // the list is refused by name, never silently applied.
@@ -1064,7 +1073,8 @@ export async function inlineUpdateTask(
   field: "status" | "priority" | "deadline" | "category" | "escalation",
   value: string | null
 ): Promise<{ ok: boolean; undoToken?: string; error?: string }> {
-  const v = await taskActor({ code });
+  let v: Viewer;
+  try { v = await taskActor({ code }); } catch (e) { return { ok: false, error: refusal(e) }; }
   const by = stampOf(v);
   const result = await mutate({
     kind: "task.update",
@@ -1165,7 +1175,7 @@ export async function setTaskArchived(
   archived: boolean,
   createdBy = "web-ui",
 ): Promise<{ ok: boolean; error?: string }> {
-  createdBy = stampOf(await taskActor({ code }, "manageAnyTask"), createdBy);
+  try { createdBy = stampOf(await taskActor({ code }, "manageAnyTask"), createdBy); } catch (e) { return { ok: false, error: refusal(e) }; }
   const { data: t, error } = await sb.from("tasks").select("id,company_id").eq("code", code).maybeSingle();
   if (error) return { ok: false, error: error.message };
   if (!t) return { ok: false, error: "Task not found" };
@@ -1190,7 +1200,7 @@ export async function setTaskArchived(
  *  setting the cookie as well made `UndoBanner` fire a SECOND one — on the next
  *  full page load, up to a minute later, on whatever page that happened to be. */
 export async function deleteTaskQuick(code: string): Promise<{ ok: boolean; undoToken?: string; error?: string }> {
-  await taskActor({ code }, "manageAnyTask");
+  try { await taskActor({ code }, "manageAnyTask"); } catch (e) { return { ok: false, error: refusal(e) }; }
   const result = await mutate({
     kind: "task.delete",
     run: async () => {
@@ -1224,8 +1234,8 @@ export async function copyTaskToCompany(
   code: string,
   companyId: number,
 ): Promise<{ ok: true; code: string; taskId: number } | { ok: false; error: string }> {
-  const v = await taskActor({ code }, "crossCompanyTasks");
-  needCompany(v, companyId);
+  let v: Viewer;
+  try { v = await taskActor({ code }, "crossCompanyTasks"); needCompany(v, companyId); } catch (e) { return { ok: false, error: refusal(e) }; }
   const t = await findTaskByCode(code);
   if (!t) return { ok: false, error: "Task not found." };
   if (t.company_id === companyId) return { ok: false, error: "The task is already in that company." };
@@ -1281,7 +1291,7 @@ export async function setTaskAccountability(taskId: number, mode: "shared" | "le
 
 /** Raise a documented blocker — overdue is SUSPENDED for everyone until cleared. */
 export async function setTaskBlocker(taskId: number, personId: number, reason: string, by = "web-ui") {
-  by = stampOf(await taskActor({ taskId }), by);
+  try { by = stampOf(await taskActor({ taskId }), by); } catch (e) { return { ok: false as const, error: refusal(e) }; }
   const r = (reason || "").trim();
   if (!r) return { ok: false as const, error: "A reason is required to raise a blocker." };
   const { data: p } = await sb.from("people").select("name").eq("id", personId).maybeSingle();
@@ -1296,7 +1306,7 @@ export async function setTaskBlocker(taskId: number, personId: number, reason: s
 
 /** Clear the blocker — the task is live again and overdue blame resumes. */
 export async function clearTaskBlocker(taskId: number, note?: string, by = "web-ui") {
-  by = stampOf(await taskActor({ taskId }), by);
+  try { by = stampOf(await taskActor({ taskId }), by); } catch (e) { return { ok: false as const, error: refusal(e) }; }
   await sb.from("tasks").update({
     blocked_on_person_id: null, blocked_reason: null, blocked_since: null, status: "In Progress",
   }).eq("id", taskId);
@@ -1308,7 +1318,7 @@ export async function clearTaskBlocker(taskId: number, note?: string, by = "web-
 
 /** Toggle a person's "my part is done" flag — spares them this task's overdue blame. */
 export async function toggleMyPartDone(taskId: number, personId: number, done: boolean, by = "web-ui") {
-  by = stampOf(await taskActor({ taskId }), by);
+  try { by = stampOf(await taskActor({ taskId }), by); } catch (e) { return { ok: false as const, error: refusal(e) }; }
   const { data: p } = await sb.from("people").select("name").eq("id", personId).maybeSingle();
   await sb.from("task_assignees")
     .update({ part_done_at: done ? new Date().toISOString() : null })
@@ -1486,7 +1496,7 @@ export async function createTaskStudio(input: StudioNewTask): Promise<
     const up = await addTaskUpdateCore({ taskId, taskCode: code, body: instructions, createdBy: by });
     if (up.ok && input.pinInstructions) {
       const pin = await toggleUpdatePin(up.result.taskUpdateId);
-      if (pin.ok) await notifyPinned(taskId, code, "Management", null);
+      if (pin.ok) await notifyPinned(taskId, code, "Management", null, { byAdmin: v.kind === "owner" });
     }
   }
 

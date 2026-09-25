@@ -98,7 +98,7 @@ export function DeadlineEditor({
 
   function apply(iso: string | null, msg: string) {
     start(async () => {
-      const res = await inlineUpdateTask(code, "deadline", iso);
+      const res = await inlineUpdateTask(code, "deadline", iso).catch(() => ({ ok: false as const, error: "That didn't go through — check the connection and try again.", undoToken: undefined }));
       if (res.ok) {
         toast(msg, { tone: "success", duration: 6000, action: res.undoToken ? { label: "Undo", onClick: async () => { await callUndo(res.undoToken!); router.refresh(); } } : undefined });
         setOpen(false);

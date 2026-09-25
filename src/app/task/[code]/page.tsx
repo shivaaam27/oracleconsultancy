@@ -21,5 +21,7 @@ export default async function TaskPage({ params }: { params: Promise<{ code: str
   // refuses a task outside their companies.
   if (!(await getViewer())) redirect("/portal");
   const { code } = await params;
-  return <TaskRecordPage code={decodeURIComponent(code)} />;
+  // `stamp` is new on every server render, so a router.refresh() after an
+  // in-place edit makes the record read itself again (see TaskRecord).
+  return <TaskRecordPage code={decodeURIComponent(code)} stamp={Date.now()} />;
 }

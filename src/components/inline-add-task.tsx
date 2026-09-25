@@ -159,7 +159,9 @@ export function InlineAddTask({
         deadline: deadline || null,
         assignees: names.join(", ") || undefined,
         createdBy: "web-ui",
-      });
+        // A dropped connection throws — inside this transition that took the
+        // page to its error screen and lost the line. Now it gives it back.
+      }).catch(() => ({ ok: false as const, code: undefined, error: "That didn't go through — check the connection and try again." }));
       if (!res.ok || !res.code) {
         setAction(text); // give the line back
         toast(res.error || "Couldn't add the task.", { tone: "danger" });

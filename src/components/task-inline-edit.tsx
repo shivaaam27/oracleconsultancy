@@ -47,7 +47,9 @@ export function useInlineField(code: string, field: "status" | "priority", label
 
   function save(value: string) {
     start(async () => {
-      const res = await inlineUpdateTask(code, field, value);
+      // A dropped connection throws; inside a transition that would take the
+      // page down to its error screen, so it becomes a toast instead.
+      const res = await inlineUpdateTask(code, field, value).catch(() => ({ ok: false as const, error: "That didn't go through — check the connection and try again.", undoToken: undefined }));
       if (!res.ok) { toast(res.error || `Couldn't update ${label.toLowerCase()}.`, { tone: "danger" }); return; }
       toast(`${label} updated.`, {
         tone: "success",

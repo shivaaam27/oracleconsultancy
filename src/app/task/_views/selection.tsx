@@ -27,7 +27,7 @@ import {
   CalendarDays,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { bulkUpdateTasks, type BulkAction } from "@/app/task/actions";
+import { bulkUpdateTasks, type BulkAction, type BulkResult } from "@/app/task/actions";
 import { callUndo } from "@/components/undo-banner";
 import { useToast } from "@/components/toast";
 import { Button, Select } from "@/components/ui";
@@ -177,9 +177,13 @@ export function BulkBar() {
   const run = (action: BulkAction, label: string) => {
     const inverse: BulkAction | null = action.kind === "archive" ? { kind: "restore" } : action.kind === "restore" ? { kind: "archive" } : null;
     start(async () => {
-      const res = await bulkUpdateTasks(codes, action);
+      // A dropped connection throws — inside this transition that would take
+      // the whole page down, so it is reported like any other failure.
+      const res = await bulkUpdateTasks(codes, action).catch((): BulkResult => ({ ok: false, applied: 0, skipped: 0, errors: [{ code: "", error: "That didn't go through — check the connection and try again." }] }));
       if (res.errors.length > 0) {
-        toast(`${label}: ${res.applied} applied, ${res.errors.length} failed`, { tone: "danger" });
+        // Say WHY — "0 applied, 1 failed" left him guessing.
+        const why = res.errors[0]?.error;
+        toast(`${label}: ${res.applied} applied, ${res.errors.length} failed${why ? ` — ${why}` : ""}`, { tone: "danger" });
       } else {
         toast(
           `${label}: ${res.applied} applied${res.skipped > 0 ? `, ${res.skipped} unchanged` : ""}`,

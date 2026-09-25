@@ -70,7 +70,9 @@ export function StudioDetails({
   departments: string[];
   recurrenceLabel: string | null;
   onChanged: () => void;
-  onOpenRepeat: () => void;
+  /** Absent for a director: repeat rules are the administrator's (the server
+   *  refuses anyone else), so they see how it repeats but no button. */
+  onOpenRepeat?: () => void;
   onOpenForm: () => void;
 }) {
   const router = useRouter();
@@ -80,7 +82,7 @@ export function StudioDetails({
 
   function save(patch: Patch, what: string) {
     start(async () => {
-      const res = await patchTaskField(t.code, patch);
+      const res = await patchTaskField(t.code, patch).catch(() => ({ ok: false as const, error: "That didn't go through — check the connection and try again.", code: undefined, undoToken: undefined }));
       if (!res.ok) { toast(res.error || "Couldn't save that.", { tone: "warn" }); return; }
       setEditing(null);
       toast(`${what} saved.`, {
@@ -89,7 +91,15 @@ export function StudioDetails({
         action: res.undoToken ? { label: "Undo", onClick: async () => { await callUndo(res.undoToken!); onChanged(); } } : undefined,
       });
       // Moving the company re-issues the code: follow it to its new address.
-      if (res.code && res.code !== t.code) router.replace(taskHref(res.code));
+      // Keep the rest of the address (?back= and the ‹ › list) — dropping it
+      // sent "Back" to a bare task list instead of the one he came from.
+      if (res.code && res.code !== t.code) {
+        const q = new URLSearchParams(window.location.search);
+        const tl = q.get("tl");
+        if (tl) q.set("tl", tl.split(",").map((c) => (c === t.code ? res.code! : c)).join(","));
+        const rest = q.toString();
+        router.replace(rest ? `${taskHref(res.code)}?${rest}` : taskHref(res.code));
+      }
       else onChanged();
     });
   }
@@ -223,9 +233,13 @@ export function StudioDetails({
         on={!!t.requiresAttachment}
         onToggle={() => save({ requiresAttachment: !t.requiresAttachment }, "Rule")}
       />
-      <button type="button" onClick={onOpenRepeat} className={cn(stBtn.ghost, "mt-3 h-9 w-full justify-center text-xs")}>
-        <Repeat size={13} />{recurrenceLabel ? `Repeats — ${recurrenceLabel}` : "Make it repeat…"}
-      </button>
+      {onOpenRepeat ? (
+        <button type="button" onClick={onOpenRepeat} className={cn(stBtn.ghost, "mt-3 h-9 w-full justify-center text-xs")}>
+          <Repeat size={13} />{recurrenceLabel ? `Repeats — ${recurrenceLabel}` : "Make it repeat…"}
+        </button>
+      ) : recurrenceLabel ? (
+        <div className="mt-3 flex items-center justify-center gap-1.5 text-xs text-[var(--st-muted)]"><Repeat size={13} />Repeats — {recurrenceLabel}</div>
+      ) : null}
       <button type="button" onClick={onOpenForm} className="mt-2 w-full text-center text-xs text-[var(--st-muted)] hover:text-[var(--st-ink)]">
         Change several fields at once
       </button>

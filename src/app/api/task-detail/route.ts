@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAllTasks } from "@/lib/queries";
+import { getTaskRowFresh } from "@/lib/queries";
 import { sb } from "@/db/supabase";
 import { recordTaskView, personCanSeeTask } from "@/lib/portal-auth";
 import { getViewer, type Viewer } from "@/lib/viewer";
@@ -47,9 +47,12 @@ export async function GET(req: NextRequest) {
   const code = req.nextUrl.searchParams.get("code");
   if (!code) return NextResponse.json({ error: "Missing code" }, { status: 400 });
 
-  const all = await getAllTasks();
-  // Accept the current code or a legacy code (old links).
-  const task = all.find((t) => t.code === code) || all.find((t) => t.legacyCode === code);
+  // Accept the current code or a legacy code (old links). Read FRESH, one task:
+  // ⚠️ this used to search getAllTasks, whose 30-second memo is per server
+  // instance — so right after a change the record could show the OLD value —
+  // and which leaves archived tasks out, so an archived task opened as "No
+  // task …" and its Restore button could never be reached.
+  const task = await getTaskRowFresh(code);
   if (!task) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   // Stamp the owner's view so portal users see "Seen by Management" — and so
