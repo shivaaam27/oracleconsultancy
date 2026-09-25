@@ -50,20 +50,18 @@ export function StudioSignIn({ firstRun, defaultAs = "staff" }: { firstRun: bool
 
   return (
     <div className="studio fixed inset-0 z-[60] overflow-y-auto bg-[var(--st-page)] text-[var(--st-ink)] [font-family:var(--font-geist),var(--font-sans)]">
-      <ThemeButton />
+      <span className="hidden lg:contents"><ThemeButton /></span>
       <div className="mx-auto grid min-h-full max-w-[1280px] grid-cols-1 gap-5 p-3 sm:p-4 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] lg:p-5">
         <BrandPanel />
 
-        <div className="flex flex-col items-center justify-center px-2 py-10 sm:py-14">
-          <div className="flex w-full max-w-[400px] flex-col gap-6">
-            {/* Phone and tablet: the brand sits above the form. */}
-            <div className="flex items-center gap-3 lg:hidden">
-              <LogoTile size={44} />
-              <div className="text-[15px] font-semibold leading-tight">Oracle Consultancy<span className="block text-xs font-normal text-[var(--st-muted)]">Chief of Staff</span></div>
-            </div>
+        <div className="flex flex-col items-center justify-center px-1 pb-10 pt-3 sm:px-2 sm:py-14">
+          <div className="flex w-full max-w-[440px] flex-col gap-6 lg:max-w-[400px]">
+            {/* Phone and tablet: the brand panel, compact, above the form. */}
+            <BrandCompact />
 
+            <div className="flex flex-col gap-6 rounded-[22px] bg-[var(--st-surface)] p-5 sm:p-6 lg:bg-transparent lg:p-0">
             <div>
-              <h1 className="m-0 text-[40px] font-medium leading-none tracking-[-0.035em]">{firstRun && as === "admin" ? "Set up" : "Sign in"}</h1>
+              <h1 className="m-0 text-[34px] font-medium leading-none tracking-[-0.035em] sm:text-[40px]">{firstRun && as === "admin" ? "Set up" : "Sign in"}</h1>
               <p className="m-0 mt-2.5 text-[14px] text-[var(--st-sub)]">
                 {firstRun && as === "admin" ? "Choose the administrator password to begin." : "Welcome back. Who are you signing in as?"}
               </p>
@@ -98,6 +96,7 @@ export function StudioSignIn({ firstRun, defaultAs = "staff" }: { firstRun: bool
                 ? "No access yet? Ask your administrator to switch the portal on for you."
                 : firstRun ? "You can add Face ID or a fingerprint from Settings afterwards." : "Forgot it? Reset it from Settings on a device that is already signed in."}
             </p>
+            </div>
           </div>
         </div>
       </div>
@@ -198,6 +197,29 @@ function LogoTile({ size }: { size: number }) {
 /* The desk's left half: the brand, a line on what COS is, and the Studio's own
    motif — a row of bars, one per open task on Home — drawn from a fixed pattern
    (nothing here is data: this screen is before anyone signs in). */
+// The owner's words (25 Sept 2026).
+const TAGLINE = "In-house, and the first in Tanzania — an advanced task management system for a group of companies.";
+
+/** Phone and tablet: the same dark panel, sized to sit above the form. */
+function BrandCompact() {
+  return (
+    <div className="st-tex-rings relative overflow-hidden rounded-[22px] bg-[#141517] px-5 pb-5 pt-5 text-[#F2F2F0] lg:hidden">
+      <div className="flex items-center gap-2.5">
+        <LogoTile size={36} />
+        <div className="text-[13px] font-semibold leading-tight">Oracle Consultancy Limited<span className="block text-[11px] font-normal text-[#A3A6AB]">Chief of Staff</span></div>
+        <ThemeButton inline />
+      </div>
+      <div className="mt-5 text-[32px] font-medium leading-[0.95] tracking-[-0.035em]">Every company.<br />One desk.</div>
+      <p className="m-0 mt-3 text-[13px] leading-relaxed text-[#A3A6AB]">{TAGLINE}</p>
+      <div className="mt-4 flex h-[34px] items-end gap-[3px]" aria-hidden>
+        {BARS.map((h, i) => (
+          <span key={i} className="st-rise block min-w-0 flex-1 rounded-[2px]" style={{ height: Math.round(h / 2), maxWidth: 7, background: BAR_C(i), animationDelay: `${i * 18}ms` }} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 const BARS = [34, 52, 40, 60, 46, 66, 38, 58, 44, 64, 50, 36, 62, 48, 56, 42, 66, 40, 54, 46, 60, 38, 52, 44, 58, 36, 62, 50, 46, 64, 42, 56, 40, 60, 48, 54];
 const BAR_C = (i: number) => (i > 29 ? "#E0479E" : i > 26 ? "#F5A524" : i > 5 ? "#19C37D" : "#CFE05A");
 
@@ -210,9 +232,7 @@ function BrandPanel() {
       </div>
       <div>
         <div className="text-[64px] font-medium leading-[0.95] tracking-[-0.04em]">Every company.<br />One desk.</div>
-        <p className="m-0 mt-5 max-w-[38ch] text-[15px] leading-relaxed text-[#A3A6AB]">
-          Tasks and their updates, the diary, people, companies and their files — for the whole group, in one place.
-        </p>
+        <p className="m-0 mt-5 max-w-[40ch] text-[15px] leading-relaxed text-[#A3A6AB]">{TAGLINE}</p>
       </div>
       <div>
         <div className="flex h-[70px] items-end gap-[3px]" aria-hidden>
@@ -228,14 +248,16 @@ function BrandPanel() {
   );
 }
 
-function ThemeButton() {
+function ThemeButton({ inline = false }: { inline?: boolean }) {
   const { resolvedTheme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   const dark = mounted && resolvedTheme === "dark";
   return (
     <button type="button" onClick={() => setTheme(dark ? "light" : "dark")} aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
-      className="fixed right-4 top-[calc(16px+env(safe-area-inset-top))] z-10 flex h-10 w-10 items-center justify-center rounded-[12px] border border-[var(--st-line)] bg-[var(--st-surface)] text-[var(--st-sub)] hover:text-[var(--st-ink)] lg:right-8 lg:top-8">
+      className={inline
+        ? "ml-auto flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] border border-[#2E3035] text-[#C9CBCF] hover:text-white"
+        : "fixed right-8 top-8 z-10 flex h-10 w-10 items-center justify-center rounded-[12px] border border-[var(--st-line)] bg-[var(--st-surface)] text-[var(--st-sub)] hover:text-[var(--st-ink)]"}>
       {dark ? <Sun size={16} /> : <Moon size={16} />}
     </button>
   );

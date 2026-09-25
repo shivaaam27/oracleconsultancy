@@ -227,7 +227,6 @@ export function StudioPerson({ data, backHref, readOnly = false }: { data: Studi
         <Link href={backHref} className="inline-flex h-9 items-center gap-1.5 rounded-[9px] bg-[#F2F2F0] px-3 text-xs font-medium text-[#111214] sm:h-[30px] sm:rounded-lg sm:px-2.5">
           <Minimize2 size={13} strokeWidth={2.2} />People
         </Link>
-        <span className="hidden sm:contents">{pills}</span>
         <span className="flex-1" />
         <div className="hidden max-w-full gap-1.5 overflow-x-auto [scrollbar-width:none] sm:flex">
           {contacts}
@@ -265,20 +264,24 @@ export function StudioPerson({ data, backHref, readOnly = false }: { data: Studi
         <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-base font-semibold text-[#111214]" style={{ background: avatarTint(p.name) }}>{initials(shortName(p.name))}</span>
         <div className="min-w-0 flex-1">
           <h1 className="m-0 truncate text-[26px] font-medium leading-none tracking-[-0.03em] sm:text-[30px]">{p.name}</h1>
-          <div className="mt-1.5 truncate text-[13px] text-[#A3A6AB]">{subLine || PERSON_TYPE_LABELS[p.personType]}</div>
+          {/* Desk: the labels sit with the facts, as on a company (not floating in the top row). */}
+          <div className="mt-1.5 flex min-w-0 items-center gap-2">
+            <span className="truncate text-[13px] text-[#A3A6AB]">{subLine || PERSON_TYPE_LABELS[p.personType]}</span>
+            <span className="hidden shrink-0 items-center gap-1.5 sm:flex">{pills}</span>
+          </div>
         </div>
         {/* Phone (mockup M_Person): big round buttons to reach them, then the labels. */}
         <div className="flex w-full justify-between gap-2 px-1 sm:hidden">
           {([
-            ["Call", <Phone key="i" size={18} />, p.phone || p.whatsapp ? `tel:${p.phone ?? p.whatsapp}` : null, false],
-            ["WhatsApp", <MessageCircle key="i" size={18} />, p.whatsapp ? waHref(p.whatsapp) : null, true],
-            ["Email", <Mail key="i" size={18} />, p.email ? `mailto:${p.email}` : null, false],
-            ...(!readOnly ? [["Chat", <MessagesSquare key="i" size={18} />, `/chat?dm=${p.id}`, false] as const] : []),
-            ["New task", <Plus key="i" size={18} />, newTaskHref, false],
+            ["Call", <Phone key="i" size={16} />, p.phone || p.whatsapp ? `tel:${p.phone ?? p.whatsapp}` : null, false],
+            ["WhatsApp", <MessageCircle key="i" size={16} />, p.whatsapp ? waHref(p.whatsapp) : null, true],
+            ["Email", <Mail key="i" size={16} />, p.email ? `mailto:${p.email}` : null, false],
+            ...(!readOnly ? [["Chat", <MessagesSquare key="i" size={16} />, `/chat?dm=${p.id}`, false] as const] : []),
+            ["New task", <Plus key="i" size={16} />, newTaskHref, false],
           ] as const).map(([label, icon, href, external]) => (
             <a key={label} href={href ?? undefined} aria-disabled={!href} target={external ? "_blank" : undefined} rel={external ? "noreferrer" : undefined}
               className="flex min-w-0 flex-1 flex-col items-center gap-1.5 text-[11px] text-[#C9CBCF] aria-disabled:pointer-events-none aria-disabled:opacity-35">
-              <span className="flex h-12 w-12 items-center justify-center rounded-full bg-[#26282C] text-[#F2F2F0]">{icon}</span>
+              <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#26282C] text-[#F2F2F0]">{icon}</span>
               <span className="truncate">{label}</span>
             </a>
           ))}
@@ -287,7 +290,7 @@ export function StudioPerson({ data, backHref, readOnly = false }: { data: Studi
           {pills}
           {!readOnly && <Link href={addDocHref} className={BAND_BTN}><FileText size={13} />Add a file</Link>}
         </div>
-        <div className="-mx-1 flex max-w-full gap-0.5 overflow-x-auto px-1 [scrollbar-width:none]" role="tablist">
+        <div className="-mx-1 flex w-full max-w-full gap-0.5 overflow-x-auto px-1 [scrollbar-width:none]" role="tablist">
           {tabs.map((t) => (
             <button key={t} type="button" role="tab" aria-selected={tab === t} onClick={() => setTab(t)}
               className={cn("flex h-8 shrink-0 items-center gap-1.5 rounded-[9px] px-3 text-[13px] transition-colors", tab === t ? "bg-[#F2F2F0] text-[#111214]" : "text-[#C9CBCF] hover:text-white")}>

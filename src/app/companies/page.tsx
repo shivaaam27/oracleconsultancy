@@ -1,4 +1,5 @@
 import { getAllTasks } from "@/lib/queries";
+import { getCompanyLogoMap } from "@/lib/company-brand";
 import { computeCompanyKpisForCompanies } from "@/lib/company-kpis";
 import { getPersonCompaniesMap } from "@/lib/people-queries";
 import { sb } from "@/db/supabase";
@@ -19,13 +20,14 @@ export default async function CompaniesPage() {
   if (!viewer) redirect("/portal");
   const director = viewer.kind === "director";
   const none = <T,>(v: T) => Promise.resolve(v);
-  const [rows, departments, sites, roles, allCompanies, personCompanies] = await Promise.all([
+  const [rows, departments, sites, roles, allCompanies, personCompanies, logos] = await Promise.all([
     getAllTasks(),
     director ? none([] as Awaited<ReturnType<typeof getDepartmentsAdmin>>) : getDepartmentsAdmin(),
     director ? none([] as Awaited<ReturnType<typeof getSitesAdmin>>) : getSitesAdmin(),
     director ? none([] as Awaited<ReturnType<typeof getRolesAdmin>>) : getRolesAdmin(),
     sb.from("companies").select("id,name,accent_color,code_prefix").eq("active", true).order("name"),
     getPersonCompaniesMap(),
+    getCompanyLogoMap(),
   ]);
   // Each task counts once, under the company it is filed under (see
   // company-kpis.ts for why not its people's companies). Every active company
@@ -59,6 +61,7 @@ export default async function CompaniesPage() {
       companies: companies.map((c) => ({
         id: c.id, name: c.name, prefix: prefixById.get(c.id) || c.name.slice(0, 2).toUpperCase(),
         staff: staffByCompany.get(c.id) ?? 0, open: c.open, late: c.overdue, done: doneByCompany.get(c.id) ?? 0,
+        logo: logos.get(c.id) ?? null,
       })),
       departments, sites, roles, readOnly: director,
     }} />

@@ -37,6 +37,8 @@ export type StudioCompanyData = {
   id: number;
   name: string;
   prefix: string;
+  /** The company's own logo (a signed URL), when one is set. */
+  logo?: string | null;
   open: number;
   late: number;
   people: number;
@@ -101,12 +103,19 @@ export function StudioCompany({ data, children }: { data: StudioCompanyData; chi
       </div>
       <div className="flex items-center gap-3 sm:flex-wrap sm:items-end sm:gap-x-[18px] sm:gap-y-3">
         <span className="st-mono flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-2xl text-base font-semibold sm:h-16 sm:w-16 sm:text-xl"
-          style={{ background: st.tile, color: st.text }}>{data.prefix}</span>
+          style={data.logo ? { background: "#FFFFFF" } : { background: st.tile, color: st.text }}>
+          {data.logo
+            // eslint-disable-next-line @next/next/no-img-element -- a signed storage URL
+            ? <img src={data.logo} alt="" className="h-full w-full rounded-2xl object-contain p-1.5" />
+            : data.prefix}
+        </span>
         <div className="min-w-0 flex-1">
           <h1 className="m-0 truncate text-[26px] font-medium leading-none tracking-[-0.03em] sm:text-[36px]">{data.name}</h1>
-          <div className="mt-1.5 truncate text-xs text-[#A3A6AB] sm:mt-2 sm:whitespace-normal sm:text-sm">Task codes {data.prefix}-… · {data.open} open · {data.people} {data.people === 1 ? "person" : "people"}</div>
+          <div className="mt-1.5 flex min-w-0 items-center gap-3 sm:mt-2.5">
+            <span className="truncate text-xs text-[#A3A6AB] sm:text-sm">Code {data.prefix} · {data.open} open {data.open === 1 ? "task" : "tasks"} · {data.people} {data.people === 1 ? "person" : "people"}</span>
+            <span className="hidden sm:contents">{standingPill}</span>
+          </div>
         </div>
-        <span className="hidden sm:contents">{standingPill}</span>
       </div>
       <div className="-mx-4 flex gap-1.5 overflow-x-auto px-4 [scrollbar-width:none] sm:hidden">{standingPill}{doors}</div>
       <div className="-mx-1 flex gap-0.5 overflow-x-auto px-1 [scrollbar-width:none]" role="tablist">
@@ -171,12 +180,13 @@ function Overview({ data, o, tasksHref }: { data: StudioCompanyData; o: NonNulla
 
   return (
     <div ref={fit} className="flex flex-col gap-4">
-      {/* Phone: the tiles in one sliding row (mockup M_Company). */}
-      <div className="-mx-4 flex shrink-0 gap-2 overflow-x-auto px-4 [scrollbar-width:none] sm:mx-0 sm:grid sm:grid-cols-5 sm:gap-2.5 sm:px-0">
+      {/* Phone (owner, 25 Sept 2026): ONE card, five equal columns, the whole
+          screen width — the sliding row cut the last tile off. */}
+      <div className="grid shrink-0 grid-cols-5 divide-x divide-[var(--st-line-soft)] rounded-[18px] bg-[var(--st-surface)] sm:gap-2.5 sm:divide-x-0 sm:rounded-none sm:bg-transparent">
         {tiles.map(([n, l, c, href]) => (
-          <Link key={l} href={href} className="min-w-[92px] shrink-0 rounded-[14px] bg-[var(--st-surface)] px-3.5 py-3 transition-colors hover:bg-[var(--st-cal-busy)] sm:min-w-0">
-            <div className="text-[24px] leading-none tracking-[-0.03em] tabular-nums sm:text-[28px]" style={{ color: c }}>{n}</div>
-            <div className="mt-1.5 text-xs text-[var(--st-label)]">{l}</div>
+          <Link key={l} href={href} className="min-w-0 px-1 py-3 text-center transition-colors hover:bg-[var(--st-cal-busy)] sm:rounded-[14px] sm:bg-[var(--st-surface)] sm:px-3.5 sm:text-left">
+            <div className="text-[22px] leading-none tracking-[-0.03em] tabular-nums sm:text-[28px]" style={{ color: c }}>{n}</div>
+            <div className="mt-1.5 truncate text-[11px] text-[var(--st-label)] sm:text-xs"><span className="sm:hidden">{l === "open tasks" ? "open" : l === "files expired" ? "expired" : l}</span><span className="hidden sm:inline">{l}</span></div>
           </Link>
         ))}
       </div>

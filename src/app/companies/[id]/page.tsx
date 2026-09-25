@@ -284,7 +284,7 @@ export default async function CompanyPage({
       {tab === "overview" && <ViewPublisher codes={openRows.map((r) => r.code)} label={`${name} · open tasks`} />}
       <StudioCompany data={{
         readOnly: director,
-        id: companyId, name, prefix: ((prefixRow?.code_prefix as string | null) ?? name.slice(0, 2)).toUpperCase(),
+        id: companyId, name, prefix: ((prefixRow?.code_prefix as string | null) ?? name.slice(0, 2)).toUpperCase(), logo: logoUrl,
         open: openRows.length, late: overdueCount, people: teamCount, tab, overview, tf, doneCount: completedRows.length,
         chips: {
           overdue: overdueCount,

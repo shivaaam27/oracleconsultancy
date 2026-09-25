@@ -32,7 +32,7 @@ import type { RoleAdminRow } from "@/lib/roles";
 import { createDepartment, renameDepartment, mergeDepartments, deleteDepartment } from "@/app/companies/department-actions";
 import { createSite, renameSite, mergeSites, deleteSite, createRole, renameRole, mergeRoles, deleteRole } from "@/app/companies/reference-actions";
 
-export type HubCompany = { id: number; name: string; prefix: string; staff: number; open: number; late: number; done: number };
+export type HubCompany = { id: number; name: string; prefix: string; staff: number; open: number; late: number; done: number; logo?: string | null };
 export type StudioCompaniesData = {
   /** A director: their companies to open — no Add company, and not the
    *  owner's reference lists (departments, sites, roles). */
@@ -168,7 +168,10 @@ export function StudioCompanies({ data }: { data: StudioCompaniesData }) {
                     "border-b border-[var(--st-line-soft)] px-3 py-3 last:border-b-0 min-[480px]:rounded-2xl min-[480px]:border-0 min-[480px]:p-3.5",
                     s === 3 && "opacity-75")}>
                   <span className="flex min-w-0 items-center gap-2.5">
-                    <span className="st-mono flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] text-xs font-semibold" style={{ background: st.tile, color: st.text }}>{c.prefix}</span>
+                    {c.logo
+                      // eslint-disable-next-line @next/next/no-img-element -- a signed storage URL
+                      ? <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-[10px] bg-white ring-1 ring-[var(--st-line-soft)]"><img src={c.logo} alt="" className="h-full w-full object-contain p-1" /></span>
+                      : <span className="st-mono flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] text-xs font-semibold" style={{ background: st.tile, color: st.text }}>{c.prefix}</span>}
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-medium">{c.name}</span>
                       <span className="flex items-center gap-1.5 text-[11px] max-[479px]:hidden" style={{ color: st.text }}>

@@ -558,6 +558,15 @@ export function CalendarBoard({
         </StudioCard>
       </StudioCardRow>
 
+      {view === "agenda" && (
+        <PhoneWeekStrip pickedKey={pickedKey} evByDay={evByDay} overlayByDay={overlayByDay}
+          onPick={(d) => {
+            pick(d);
+            // Bring that day's things into view in the agenda below.
+            requestAnimationFrame(() => document.getElementById(`agenda-${keyOfDate(d)}`)?.scrollIntoView({ behavior: "smooth", block: "start" }));
+          }} />
+      )}
+
       <div ref={studioGrid} className="grid min-h-0 grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_232px]">
         <div className="flex min-h-[480px] min-w-0 flex-col overflow-hidden rounded-[20px] bg-[var(--st-surface)] lg:min-h-0">
           {view === "agenda" ? (
@@ -863,6 +872,59 @@ function ChevronDownIcon() {
 
 /** Studio's Agenda (mockup board Calendar, view "Agenda"): every coming day that
  *  has anything, as a heading and rows — time, dot, title, kind, Open. */
+/* Phone, Agenda (mockup M_Calendar): the week as a strip — a letter, the date
+   and a dot per kind of thing on it. Tap a day to pick it (the Today card and the
+   agenda follow); ‹ › or a sideways swipe move a week. */
+function PhoneWeekStrip({ pickedKey, evByDay, overlayByDay, onPick }: {
+  pickedKey: string;
+  evByDay: Map<string, CalendarEventView[]>;
+  overlayByDay: Map<string, OverlayItem[]>;
+  onPick: (d: Date) => void;
+}) {
+  const [start, setStart] = useState(() => startOfWeekMon(new Date(`${pickedKey}T12:00:00`)));
+  const days = Array.from({ length: 7 }, (_, i) => addDays(start, i));
+  const x0 = useRef<number | null>(null);
+  const month = days[3].toLocaleDateString("en-GB", { timeZone: EAT, month: "long", year: "numeric" });
+  const ARROW = "flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] text-[var(--st-sub)] active:bg-[var(--st-page)]";
+  return (
+    <div className="rounded-[18px] bg-[var(--st-surface)] p-1.5 md:hidden"
+      onTouchStart={(e) => { x0.current = e.touches[0].clientX; }}
+      onTouchEnd={(e) => {
+        if (x0.current == null) return;
+        const dx = e.changedTouches[0].clientX - x0.current; x0.current = null;
+        if (Math.abs(dx) > 48) setStart((s) => addDays(s, dx < 0 ? 7 : -7));
+      }}>
+      <div className="flex items-center justify-between px-1">
+        <button type="button" aria-label="Previous week" onClick={() => setStart((s) => addDays(s, -7))} className={ARROW}><ChevronLeft size={16} /></button>
+        <span className="text-[13px] font-medium">{month}</span>
+        <button type="button" aria-label="Next week" onClick={() => setStart((s) => addDays(s, 7))} className={ARROW}><ChevronRight size={16} /></button>
+      </div>
+      <div className="grid grid-cols-7 gap-0.5">
+        {days.map((d) => {
+          const k = keyOfDate(d);
+          const on = k === pickedKey;
+          const today = k === todayKeyGlobal;
+          const kinds = [
+            ...((evByDay.get(k)?.length ?? 0) > 0 ? ["var(--st-ink)"] : []),
+            ...[...new Set((overlayByDay.get(k) ?? []).map((o) => STUDIO_LAYER[o.kind].c))],
+          ].slice(0, 3);
+          return (
+            <button key={k} type="button" onClick={() => onPick(d)} aria-pressed={on}
+              aria-label={d.toLocaleDateString("en-GB", { timeZone: EAT, weekday: "long", day: "numeric", month: "long" })}
+              className={cn("flex h-[64px] flex-col items-center justify-center gap-1 rounded-[12px] transition-colors", on ? "bg-[var(--st-ink)] text-[var(--st-page)]" : "active:bg-[var(--st-page)]")}>
+              <span className={cn("text-[11px]", on ? "opacity-70" : "text-[var(--st-muted)]")}>{d.toLocaleDateString("en-GB", { timeZone: EAT, weekday: "narrow" })}</span>
+              <span className={cn("text-[16px] leading-none tabular-nums", today && !on && "font-semibold text-[var(--st-ok-text)]")}>{d.toLocaleDateString("en-GB", { timeZone: EAT, day: "numeric" })}</span>
+              <span className="flex h-[5px] gap-[3px]">
+                {kinds.map((c) => <span key={c} className="h-[5px] w-[5px] rounded-full" style={{ background: on && c === "var(--st-ink)" ? "var(--st-page)" : c }} />)}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function StudioAgenda({ evByDay, overlayByDay, onEdit }: {
   evByDay: Map<string, CalendarEventView[]>;
   overlayByDay: Map<string, OverlayItem[]>;
@@ -888,7 +950,7 @@ function StudioAgenda({ evByDay, overlayByDay, onEdit }: {
         const n = evs.length + ovs.length;
         const today = k === todayKeyGlobal;
         return (
-          <div key={k}>
+          <div key={k} id={`agenda-${k}`} className="scroll-mt-4">
             <div className="mb-2 flex items-baseline gap-2.5">
               <span className="text-[15px] font-semibold">{d.toLocaleDateString("en-GB", { timeZone: EAT, weekday: "short", day: "numeric", month: "short" })}</span>
               <span className={cn("text-xs", today ? "text-[var(--st-ok-text)]" : "text-[var(--st-muted)]")}>{today ? "Today · " : ""}{n} {n === 1 ? "thing" : "things"}</span>
