@@ -23,6 +23,8 @@ import { StaffIdChip } from "@/components/staff-id-chip";
 import { portalAddUpdate, portalTogglePin, portalAcknowledge, portalEditUpdate, portalDeleteUpdate, portalRestoreUpdate } from "../../../actions";
 import { taskStatusTone as statusTone, priorityTone } from "@/lib/badge-tones";
 import type { TaskRow } from "@/lib/queries";
+import { StaffTaskRecord } from "@/components/studio/tasks/staff-task-record";
+import { deadlineWords } from "@/components/studio/tasks/task-words";
 
 export const dynamic = "force-dynamic";
 
@@ -63,7 +65,7 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
   // another company still resolve to its new home).
   const { data: task } = await sb
     .from("tasks")
-    .select("id,code,action_item,status,priority,deadline,comments,created_date,owner_id,created_by_person_id,requires_attachment,companies(name)")
+    .select("id,code,action_item,status,priority,deadline,comments,created_date,owner_id,created_by_person_id,requires_attachment,blocked_on_person_id,blocked_reason,companies(name)")
     .or(`code.eq.${decodedCode},legacy_code.eq.${decodedCode}`)
     .maybeSingle();
   if (!task) notFound();
@@ -266,6 +268,67 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
   const srcMeeting = srcRow?.meetings
     ? (Array.isArray(srcRow.meetings) ? srcRow.meetings[0] : srcRow.meetings) as { title: string; kind: string | null } | null
     : null;
+
+  // Staff are on Studio (26 Sept 2026, mockup S_Task): the owner's task page in
+  // three columns, with exactly what they could already do here.
+  if (me.portalRole === "staff") {
+    const co = task.companies as unknown as { name: string } | null;
+    const accountable = team.find((p) => p.accountable) ?? null;
+    const others = team.filter((p) => p !== accountable);
+    const nameOf = (p: { id: number; name: string }) => (p.id === me.id ? "You" : p.name);
+    const dl = task.deadline ? new Date(task.deadline as string) : null;
+    const eatDay = (ms: number) => Math.floor((ms + 3 * 3_600_000) / 86_400_000);
+    const days = dl ? eatDay(dl.getTime()) - eatDay(Date.now()) : null;
+    const due = dl ? deadlineWords({ deadline: dl, daysToDeadline: days, flag: days != null && days >= 0 && days <= 7 ? "due-soon" : "on-track", status: task.status as string } as Parameters<typeof deadlineWords>[0]) : null;
+    const raiserId = task.created_by_person_id as number | null;
+    const blockPeople = [...team.filter((p) => p.id !== me.id).map((p) => ({ id: p.id, name: p.name }))];
+    if (raiserId && raiserId !== me.id && assignedByName && !blockPeople.some((p) => p.id === raiserId)) blockPeople.push({ id: raiserId, name: assignedByName });
+    return (
+      <>
+        <LiveSync taskId={task.id as number} seconds={12} />
+        <StaffTaskRecord t={{
+          id: task.id as number,
+          code: task.code as string,
+          title: task.action_item as string,
+          status: task.status as string,
+          priority: task.priority as string,
+          companyName: co?.name ?? null,
+          deadline: due && due.tone !== "done" && due.tone !== "none" ? { words: days != null && days < 0 ? `Due ${dl!.toLocaleDateString("en-GB", { day: "numeric", month: "short" })} · ${due.words}` : `Due ${due.words}`, tone: due.tone } : null,
+          closed,
+          canComplete,
+          canEdit: canEdit && me.caps.manageAnyTask,
+          requiresAttachment: (task.requires_attachment as boolean) ?? false,
+          blockedOnPersonId: (task.blocked_on_person_id as number | null) ?? null,
+          blockedReason: (task.blocked_reason as string | null) ?? null,
+          details: [
+            { label: "Company", value: co?.name ?? "—" },
+            { label: "Accountable", value: accountable ? nameOf(accountable) : "Nobody yet" },
+            ...(others.length ? [{ label: "Also on it", value: others.map(nameOf).join(" · ") }] : []),
+            { label: "Status", value: task.status as string },
+            { label: "Priority", value: task.priority as string },
+            { label: "Deadline", value: dl ? dl.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }) : "No date" },
+            { label: "Raised by", value: assignedByName ?? "Administrator" },
+            { label: "Proof needed", value: task.requires_attachment ? "Yes — a file to complete" : "No" },
+            ...(srcMeeting ? [{ label: srcMeeting.kind === "note" ? "From note" : "From meeting", value: srcMeeting.title }] : []),
+          ],
+          description: ((task.comments as string | null) ?? "").trim() || null,
+          people: [...team].sort((a, b) => Number(b.accountable) - Number(a.accountable)).map((p) => ({ id: p.id, name: p.name, role: p.accountable ? "Accountable" : "Also on it", me: p.id === me.id })),
+          blockPeople,
+          convo: {
+            statusOptions: STAFF_STATUSES.filter((st) => st !== task.status),
+            // Only their own posts sit on the right; the studio thread otherwise
+            // treats "management" as the reader's side, which is the owner's view.
+            messages: messages.map((m) => ({ ...m, management: false })),
+            events,
+            latestId: latest?.id ?? null,
+            seenLabel,
+            team: team.map((p) => ({ id: p.id, name: p.name })),
+          },
+          history: events.map((e) => ({ at: e.at, text: e.text })),
+        }} />
+      </>
+    );
+  }
 
   const isModerator = me.portalRole === "director" || me.portalRole === "hr";
   let deletedUpdates: { id: number; body: string; author: string; at: string }[] = [];

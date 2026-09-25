@@ -4,15 +4,30 @@
  * Subtasks — a to-do list inside one task (owner, 25 Sept 2026: "let me create
  * subtasks for each task … editable, and can be deleted also. It will behave
  * like a to-do list within the main task"). Table `task_subtasks`, migration
- * 0170. The owner and a director (over their companies' tasks) may use them;
- * every action checks the task through `guardViewer`.
+ * 0170. The owner and a director (over their companies' tasks) may use them,
+ * and so may a member of STAFF on a task they can see (26 Sept 2026 — "tick,
+ * add and rename subtasks on their tasks"). Every action checks the task.
  *
  * Deleting a subtask is a real delete (it is a line on a list, not a record
  * with a history), and deleting the task deletes its list (ON DELETE CASCADE).
  */
 import { sb } from "@/db/supabase";
-import { guardViewer } from "@/lib/viewer";
+import { getViewer, guardViewer } from "@/lib/viewer";
+import { getPortalPerson, personCanSeeTask } from "@/lib/portal-auth";
 import type { Subtask } from "@/lib/subtasks-shared";
+
+/** The owner or a director (guardViewer), else a portal person who can see this
+ *  task. Staff are deliberately NOT a Viewer (lib/viewer.ts), so they are
+ *  checked here, against the one task, and nowhere wider. */
+async function guard(taskId: number): Promise<{ actor: string }> {
+  if (await getViewer()) return guardViewer({ taskId });
+  const me = await getPortalPerson();
+  // Nobody signed in on the portal either: guardViewer decides (it trusts the
+  // server's own callers — MCP — and refuses a browser).
+  if (!me) return guardViewer({ taskId });
+  if (!(await personCanSeeTask(me, taskId))) throw new Error("That task isn't one of yours.");
+  return { actor: `portal:${me.name}` };
+}
 
 const clean = (t: string) => t.replace(/\s+/g, " ").trim().slice(0, 300);
 
@@ -23,14 +38,14 @@ async function taskOf(id: number): Promise<number> {
 }
 
 export async function listSubtasks(taskId: number): Promise<Subtask[]> {
-  await guardViewer({ taskId });
+  await guard(taskId);
   const { data } = await sb.from("task_subtasks").select("id,title,done_at,sort_order")
     .eq("task_id", taskId).order("sort_order").order("id");
   return (data ?? []).map((r) => ({ id: r.id as number, title: r.title as string, done: !!r.done_at }));
 }
 
 export async function addSubtask(taskId: number, title: string): Promise<Subtask> {
-  const v = await guardViewer({ taskId });
+  const v = await guard(taskId);
   const t = clean(title);
   if (!t) throw new Error("Write the subtask first.");
   const { data: last } = await sb.from("task_subtasks").select("sort_order").eq("task_id", taskId)
@@ -44,24 +59,24 @@ export async function addSubtask(taskId: number, title: string): Promise<Subtask
 
 /** Several at once, in order — the new-task form hands over its list here. */
 export async function addSubtasks(taskId: number, titles: string[]): Promise<void> {
-  const v = await guardViewer({ taskId });
+  const v = await guard(taskId);
   const rows = titles.map(clean).filter(Boolean).map((title, i) => ({ task_id: taskId, title, sort_order: i + 1, created_by: v.actor }));
   if (rows.length) await sb.from("task_subtasks").insert(rows);
 }
 
 export async function renameSubtask(id: number, title: string): Promise<void> {
-  await guardViewer({ taskId: await taskOf(id) });
+  await guard(await taskOf(id));
   const t = clean(title);
   if (!t) throw new Error("A subtask needs words.");
   await sb.from("task_subtasks").update({ title: t }).eq("id", id);
 }
 
 export async function tickSubtask(id: number, done: boolean): Promise<void> {
-  await guardViewer({ taskId: await taskOf(id) });
+  await guard(await taskOf(id));
   await sb.from("task_subtasks").update({ done_at: done ? new Date().toISOString() : null }).eq("id", id);
 }
 
 export async function deleteSubtask(id: number): Promise<void> {
-  await guardViewer({ taskId: await taskOf(id) });
+  await guard(await taskOf(id));
   await sb.from("task_subtasks").delete().eq("id", id);
 }

@@ -69,6 +69,9 @@ type Props = {
    *  Same actions, same capabilities — only the layout differs. The staff
    *  portal never passes it, so it is untouched. */
   variant?: "studio";
+  /** The studio composer's starter phrases — staff finish with "ready for
+   *  review", since only whoever runs the task closes it. */
+  starters?: [string, string][];
 };
 
 const STARTERS: [string, string][] = [
@@ -97,7 +100,7 @@ export function PortalConversation(props: Props) {
   const {
     taskId, code, closed, statusOptions, currentStatus, messages, events, latestId, seenLabel, team,
     addAction, pinAction, ackAction, editAction, deleteAction, canPin, canAck, canModerate, composerHint, onPosted,
-    variant,
+    variant, starters = STARTERS,
   } = props;
   // Which message is being edited / confirming deletion (moderation controls).
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -447,7 +450,7 @@ export function PortalConversation(props: Props) {
         {!closed && (
           <div className="flex shrink-0 flex-col gap-2 border-t border-[var(--st-line-soft)] pt-3">
             <div className="flex flex-wrap gap-1.5">
-              {STARTERS.map(([label, text]) => (
+              {starters.map(([label, text]) => (
                 <button
                   key={label}
                   type="button"
@@ -515,6 +518,7 @@ export function PortalConversation(props: Props) {
                 </button>
               </div>
             </form>
+            {composerHint && <p className="text-xs text-[var(--st-muted)]">{composerHint}</p>}
           </div>
         )}
       </div>

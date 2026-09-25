@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { sb } from "@/db/supabase";
 import { getViewer } from "@/lib/viewer";
+import { getPortalPerson } from "@/lib/portal-auth";
 import { viewerPeopleIds } from "@/lib/viewer-scope";
 import { getAllTasks } from "@/lib/queries";
 import { faceKey, moodFor, type FaceMood, type FaceRole, type FaceStats } from "@/lib/face-mood";
@@ -36,7 +37,13 @@ function allFaces(): Promise<Entry[]> {
 
 export async function GET() {
   const v = await getViewer();
-  if (!v) return NextResponse.json({ error: "Sign in first." }, { status: 401 });
+  if (!v) {
+    // A member of staff (26 Sept 2026) is on the Studio screens too, but a mood
+    // says something about someone's work, so they get none: every face calm.
+    // An answer rather than a 401, so no staff page logs an error per load.
+    if (await getPortalPerson()) return NextResponse.json({ faces: { [faceKey("Administrator")]: ["owner", "idle"] } }, { headers: { "Cache-Control": "private, max-age=300" } });
+    return NextResponse.json({ error: "Sign in first." }, { status: 401 });
+  }
   const [entries, allowed] = await Promise.all([allFaces(), viewerPeopleIds(v)]);
   const faces: Record<string, [FaceRole, FaceMood]> = {};
   for (const e of entries) if (!allowed || allowed.has(e.id)) faces[e.key] = e.face;

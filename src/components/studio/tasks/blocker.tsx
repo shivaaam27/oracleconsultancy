@@ -12,6 +12,7 @@
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import { setTaskBlocker, clearTaskBlocker } from "@/app/task/actions";
+import { portalRaiseBlocker, portalClearBlocker } from "@/app/portal/actions";
 import { useToast } from "@/components/toast";
 import { SelectField } from "@/components/select-field";
 import { FIELD } from "@/components/ui";
@@ -25,7 +26,14 @@ export function StudioBlocker({
   blockedReason,
   people,
   onChanged,
+  portal = false,
+  startOpen = false,
 }: {
+  /** Open straight on the form (inside a sheet that was opened to raise one). */
+  startOpen?: boolean;
+  /** A member of staff (26 Sept 2026): the portal's own blocker actions, which
+   *  check they are on the task. */
+  portal?: boolean;
   taskId: number;
   closed: boolean;
   blockedOnPersonId: number | null;
@@ -34,7 +42,7 @@ export function StudioBlocker({
   onChanged: () => void;
 }) {
   const { toast } = useToast();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(startOpen);
   const [busy, setBusy] = useState(false);
   const who = blockedOnPersonId != null ? people.find((p) => p.id === blockedOnPersonId)?.name ?? "someone" : null;
 
@@ -43,7 +51,9 @@ export function StudioBlocker({
     const reason = String(fd.get("reason") ?? "");
     if (!personId) return toast("Pick who it is waiting on.", { tone: "warn" });
     setBusy(true);
-    const res = await setTaskBlocker(taskId, personId, reason);
+    const res = portal
+      ? await portalRaiseBlocker(taskId, personId, reason).then((r) => (r.error ? { ok: false as const, error: r.error } : { ok: true as const }))
+      : await setTaskBlocker(taskId, personId, reason);
     setBusy(false);
     if (!res.ok) return toast(res.error, { tone: "warn" });
     toast("Marked as waiting. Overdue is paused until it is cleared.", { tone: "success" });
@@ -53,7 +63,7 @@ export function StudioBlocker({
 
   async function clear() {
     setBusy(true);
-    await clearTaskBlocker(taskId);
+    await (portal ? portalClearBlocker(taskId) : clearTaskBlocker(taskId));
     setBusy(false);
     toast("Blocker cleared — the task is live again.", { tone: "success" });
     onChanged();
