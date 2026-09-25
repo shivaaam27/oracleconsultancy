@@ -16,7 +16,10 @@ import { SplashController } from "./app-splash-controller";
  *  shared sign-in — it put the previous design over the screen for 1.7s on
  *  every reload (owner, 25 Sept 2026: "the old system never shows up"). This
  *  runs in <head>, before the splash is parsed, so it never paints at all. */
-export const SPLASH_GATE = `(function(){try{var p=location.pathname;var portal=p==="/portal"||p.indexOf("/portal/")===0;if(!portal||p.indexOf("/portal/login")===0)document.documentElement.setAttribute("data-no-splash","")}catch(e){}})()`;
+/*  Staff's rebuilt pages (26 Sept 2026) are Studio too — the same list as
+ *  `isStaffStudioPath` in lib/director-routes.ts, which cannot be imported
+ *  into a <head> string. */
+export const SPLASH_GATE = `(function(){try{var p=location.pathname;if(p.length>1&&p.charAt(p.length-1)==="/")p=p.slice(0,-1);var portal=p==="/portal"||p.indexOf("/portal/")===0;var studio=p==="/portal"||p==="/portal/tasks"||p==="/portal/profile"||(p.indexOf("/portal/task/")===0&&p!=="/portal/task/new");if(!portal||studio||p.indexOf("/portal/login")===0)document.documentElement.setAttribute("data-no-splash","")}catch(e){}})()`;
 
 export function SplashGateScript() {
   return <script dangerouslySetInnerHTML={{ __html: SPLASH_GATE }} />;
