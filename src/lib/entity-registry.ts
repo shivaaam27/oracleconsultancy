@@ -203,8 +203,6 @@ const fmtDate = (v: unknown): string | null => {
 // case-insensitively, the same way both of those do.
 const CLOSED_TASK_STATUSES = new Set(["completed", "closed"]);
 const RISK_DONE = new Set(["closed", "resolved", "mitigated", "accepted", "done"]);
-const PIPELINE_DONE = new Set(["issued", "receipt received", "paid", "completed", "done", "closed"]);
-const COMMITMENT_DONE = new Set(["expired", "ended", "terminated", "lapsed", "closed", "renewed"]);
 
 // ── Governance composite-id scheme ───────────────────────────────────────────
 //
@@ -709,88 +707,6 @@ export const ENTITY_DEFS: EntityDef[] = [
           badge: done ? (band ?? sx(r.status) ?? "Closed") : (band ?? sx(r.status) ?? undefined),
           lifecycle: done ? "history" : "active",
           scoreParts: [r.title as string, sx(r.code), sx(r.category), sx(r.status), sx(r.owner)],
-        };
-      },
-    },
-  },
-  {
-    // Pipeline — terminal stage OR archived = history.
-    type: "pipeline",
-    table: "pipeline",
-    idColumn: "id",
-    selectColumns: ["id", "subject", "type", "stage", "archived"],
-    textFor: (r) => join(str(r.subject), str(r.type), str(r.stage)),
-    lifecycleFor: (r) =>
-      (r.archived as boolean) || PIPELINE_DONE.has(lc(r.stage)) ? "history" : "active",
-    uiLabel: "Applications",
-    searchOrder: 9,
-    trace: { mode: "generic", table: "pipeline" },
-    search: {
-      select: "id,subject,type,stage,control_no,company_id,archived, companies(name)",
-      ilikeColumns: ["subject", "type", "stage", "control_no", "next_action", "owner"],
-      limit: 200,
-      toResult: (r, ctx) => {
-        const company = ctx.one<{ name?: string }>(r.companies as never)?.name ?? null;
-        const archived = (r.archived as boolean) === true;
-        const terminal = PIPELINE_DONE.has(lc(r.stage));
-        const isHistory = archived || terminal;
-        if (isHistory && !ctx.includeHistory) return null;
-        const title = (r.type as string) || (r.subject as string) || "Application";
-        const stage = sx(r.stage);
-        return {
-          type: "pipeline", id: r.id as number,
-          title,
-          subtitle: [sx(r.subject), company, stage].filter(Boolean).join(" · ") || "Pipeline",
-          href: "/hrms/pipeline",
-          // live badge = stage; history badge = base(stage) ?? (archived?"Archived":"Issued").
-          badge: isHistory ? (stage ?? (archived ? "Archived" : "Issued")) : (stage ?? undefined),
-          lifecycle: isHistory ? "history" : "active",
-          scoreParts: [title, sx(r.subject), company, stage, sx(r.control_no)],
-        };
-      },
-    },
-  },
-  {
-    // Commitments — archived OR ended/expired/terminated/etc. = history.
-    type: "commitment",
-    table: "commitments",
-    idColumn: "id",
-    selectColumns: ["id", "title", "counterparty", "reference", "status", "archived"],
-    textFor: (r) => join(str(r.title), str(r.counterparty), str(r.reference)),
-    lifecycleFor: (r) =>
-      (r.archived as boolean) || COMMITMENT_DONE.has(lc(r.status)) ? "history" : "active",
-    uiLabel: "Commitments",
-    searchOrder: 10,
-    trace: { mode: "generic", table: "commitments" },
-    search: {
-      select: "id,kind,title,counterparty,reference,company_id,end_date,notice_days,status,archived, companies(name)",
-      ilikeColumns: ["title", "counterparty", "reference", "kind", "status"],
-      limit: 200,
-      toResult: (r, ctx) => {
-        const company = ctx.one<{ name?: string }>(r.companies as never)?.name ?? null;
-        const archived = (r.archived as boolean) === true;
-        const ended = COMMITMENT_DONE.has(lc(r.status));
-        const isHistory = archived || ended;
-        if (isHistory && !ctx.includeHistory) return null;
-        // notice-by = end − notice_days (the date the renewal/notice window opens).
-        let noticeBy: string | null = null;
-        if (r.end_date) {
-          const end = new Date(r.end_date as string);
-          if (!Number.isNaN(end.getTime())) {
-            const nd = (r.notice_days as number | null) ?? 0;
-            noticeBy = fmtDate(new Date(end.getTime() - nd * 86_400_000));
-          }
-        }
-        const kind = sx(r.kind);
-        return {
-          type: "commitment", id: r.id as number,
-          title: r.title as string,
-          subtitle: [company, noticeBy ? `notice by ${noticeBy}` : null].filter(Boolean).join(" · ") || (r.kind as string) || "Commitment",
-          href: "/hrms/commitments",
-          // live badge = kind; history badge = base(kind) ?? (ended?"Expired":"Archived").
-          badge: isHistory ? (kind ?? (ended ? "Expired" : "Archived")) : (kind ?? undefined),
-          lifecycle: isHistory ? "history" : "active",
-          scoreParts: [r.title as string, sx(r.counterparty), sx(r.reference), company, kind],
         };
       },
     },

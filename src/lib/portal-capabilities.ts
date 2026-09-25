@@ -46,10 +46,6 @@ export type PortalCapabilities = {
     outbox: boolean;
     /** Glanceable portfolio/team Insights — management only. */
     insights: boolean;
-    /** Activity feed — everyone. */
-    activity: boolean;
-    /** Chat — everyone. */
-    chat: boolean;
     /** Own profile — everyone. */
     profile: boolean;
     /** Meetings/events — everyone (scoped server-side). */
@@ -94,8 +90,6 @@ export function portalCapabilities(role: PortalRole | string | undefined): Porta
       directory: !isReceptionist,
       outbox: isManagement,
       insights: isManagement,
-      activity: !isReceptionist,
-      chat: !isReceptionist,
       profile: true,
       meetings: !isReceptionist,
       // Cleaning: the receptionist logs it; managers/HR/directors see the overview.

@@ -2,7 +2,7 @@ import "server-only";
 import { sb } from "@/db/supabase";
 import { insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
 import { getAppSettings } from "@/lib/settings";
-import { postSystemMessage } from "@/lib/chat";
+import { createNotification, personRecipient } from "@/lib/notifications";
 import { expandRecurrence, normaliseRecurrence } from "@/lib/ics";
 import { removeEntityIndex } from "@/lib/index-hooks";
 import type { CalendarEvent } from "@/lib/calendar";
@@ -211,13 +211,14 @@ export async function advanceDueMeetingTasks(opts?: { force?: boolean }): Promis
       try {
         const { data: assignees } = await sb.from("task_assignees").select("person_id").eq("task_id", t.id);
         for (const a of assignees ?? []) {
-          await postSystemMessage({
-            personId: a.person_id as number,
-            kind: "reminders",
-            title: "Task reminders",
-            body: `🟢 "${t.action_item}" is starting now — the task is open for updates (${t.code}).`,
+          await createNotification({
+            recipient: personRecipient(a.person_id as number),
+            kind: "meeting",
+            taskId: t.id as number,
             taskCode: t.code as string,
-            push: { title: "Meeting starting", body: `${t.action_item} — tap to update` },
+            title: "Meeting starting",
+            body: `"${t.action_item}" is starting now — the task is open for updates (${t.code}).`,
+            urgent: true,
           });
         }
       } catch { /* pings are best-effort */ }

@@ -1,8 +1,8 @@
 // S6 — semantic-search freshness safety net (history-aware, all-entity).
 //
 // reindexAll() re-indexes EVERY entity the system holds — tasks, meetings,
-// documents, people, companies, letters, vendors, assets, governance, risks,
-// pipeline cases and commitments — both CURRENT and HISTORICAL. Unchanged rows
+// documents, people, companies, letters, vendors, assets, governance and risks
+// — both CURRENT and HISTORICAL. Unchanged rows
 // are skipped via content_hash (+ lifecycle), so it stays cheap. Each row is
 // stamped lifecycle "active" (live) or "history" (archived/closed/inactive); the
 // owner asked that the past be KEPT and labelled, not deleted, so old records

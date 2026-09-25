@@ -32,7 +32,6 @@ import { computeClosedDate, isClosedStatus } from "@/lib/task-status";
 import { canManageTask } from "@/lib/task-permissions";
 import { reindexEntity } from "@/lib/index-hooks";
 import { occursToday, shouldCreateTodaysCopy, todaysOccurrenceInstant } from "@/lib/recurring-task-rules";
-import { createGroup, getOrCreateDm, personParticipant, sendMessage, threadFromTask } from "@/lib/chat";
 import { callerIp, lockMessage, loginLockState, recordLoginFailure, recordLoginSuccess } from "@/lib/login-throttle";
 
 /* Staff portal actions. Every mutation re-verifies the session AND that
@@ -421,114 +420,6 @@ export async function portalDirectorDraftMessage(input: {
   await recordEvent("portal.director.message", "ok", { by: me.name, to: person.name, channel, task: input.taskCode ?? null });
   revalidatePath("/outbox");
   return { ok: true, link, contactMissing: !to, channel };
-}
-
-/** Auto-title for an ad-hoc group from recipient first names — editable later
- *  in chat (e.g. "Ravi & Asha", "Ravi, Asha & 2 others"). */
-function autoGroupTitle(firstNames: string[]): string {
-  const names = firstNames.filter(Boolean);
-  if (names.length === 0) return "Group";
-  if (names.length <= 2) return names.join(" & ");
-  const rest = names.length - 2;
-  return `${names.slice(0, 2).join(", ")} & ${rest} other${rest === 1 ? "" : "s"}`;
-}
-
-/**
- * Director: message one or more people through the built-in CHAT.
- * - One recipient  → continues (or opens) the 1:1 DM with that person.
- * - Many recipients → creates an ad-hoc group (auto-named, renameable in chat).
- * Returns the threadId so the client can jump straight into the conversation.
- * Internal messaging, so it is NOT gated by the external outreach pause.
- */
-export async function portalDirectorChatMessage(input: {
-  personIds: number[];
-  body: string;
-  title?: string | null;
-}): Promise<{ ok: true; threadId: number; group: boolean } | { ok: false; error: string }> {
-  const me = await getPortalPerson();
-  if (!me) redirect("/portal/login");
-  if (!me.caps.bulkOutreach) return { ok: false, error: "You don't have permission to send outreach." };
-
-  const body = (input.body ?? "").trim();
-  if (!body) return { ok: false, error: "Write a message." };
-
-  const ids = [...new Set(input.personIds.filter((n) => Number.isFinite(n) && n > 0 && n !== me.id))];
-  if (ids.length === 0) return { ok: false, error: "Choose at least one recipient." };
-
-  const mine = personParticipant(me.id);
-  let threadId: number;
-  const group = ids.length > 1;
-  if (!group) {
-    threadId = await getOrCreateDm(mine, personParticipant(ids[0]), mine);
-  } else {
-    const { data: names } = await sb.from("people").select("id,name").in("id", ids);
-    const order = new Map(ids.map((id, i) => [id, i]));
-    const firstNames = (names ?? [])
-      .sort((a, b) => (order.get(a.id as number) ?? 0) - (order.get(b.id as number) ?? 0))
-      .map((r) => (r.name as string).split(/\s+/)[0]);
-    const title = input.title?.trim() || autoGroupTitle(firstNames);
-    threadId = await createGroup({ title, createdBy: mine, participants: ids.map(personParticipant) });
-  }
-
-  await sendMessage({ threadId, sender: mine, body });
-  await recordEvent("portal.director.chat", "ok", { by: me.name, recipients: ids.length, group });
-  revalidatePath("/portal/chat");
-  return { ok: true, threadId, group };
-}
-
-/**
- * Management (director / HR / manager): open the task's GROUP chat and drop a
- * short nudge into it. Reuses threadFromTask (deduped per task, seeds owner +
- * assignees + the admin owner), so everyone working the task can pick it up.
- * Re-checks the task is in the sender's view — staff get an error. Returns the
- * threadId so the client can jump straight into /portal/chat/{threadId}.
- */
-export async function portalMessageTaskGroup(
-  taskId: number
-): Promise<{ ok: true; threadId: number } | { ok: false; error: string }> {
-  const me = await getPortalPerson();
-  if (!me) redirect("/portal/login");
-  if (!me.caps.messageOnTasks) return { ok: false, error: "You don't have permission to do this." };
-  if (!(await personCanSeeTask(me, taskId))) return { ok: false, error: "That task isn't in your view." };
-
-  const { data: t } = await sb.from("tasks").select("code,action_item").eq("id", taskId).maybeSingle();
-  if (!t) return { ok: false, error: "Task not found." };
-  const code = t.code as string;
-  const title = (t.action_item as string | null)?.trim();
-
-  // The sender (createdBy) is added as a participant by threadFromTask, so the
-  // group thread also appears in the sender's own chat list.
-  const createdBy = personParticipant(me.id);
-  const threadId = await threadFromTask(taskId, code, createdBy);
-  await sendMessage({
-    threadId,
-    sender: createdBy,
-    body: `🔔 Reminder on *${code}*${title ? ` — "${title}"` : ""}. Please share an update when you can. Thank you.`,
-    taskCode: code,
-  });
-
-  await recordEvent("portal.task.chat", "ok", { by: me.name, role: me.portalRole, task: code });
-  revalidatePath("/portal/chat");
-  return { ok: true, threadId };
-}
-
-/**
- * Open (or continue) a one-to-one chat DM with a person — used by the per-person
- * "message in chat" action on a task. Returns the threadId so the client jumps to
- * /portal/chat/{threadId}. Chat is everyone↔everyone, so any signed-in portal
- * person may DM a colleague (the existing DM is reused, never duplicated).
- */
-export async function portalOpenDm(
-  personId: number
-): Promise<{ ok: true; threadId: number } | { ok: false; error: string }> {
-  const me = await getPortalPerson();
-  if (!me) redirect("/portal/login");
-  if (!Number.isFinite(personId) || personId <= 0) return { ok: false, error: "Unknown person." };
-  if (personId === me.id) return { ok: false, error: "You can't message yourself." };
-  const mine = personParticipant(me.id);
-  const threadId = await getOrCreateDm(mine, personParticipant(personId), mine);
-  revalidatePath("/portal/chat");
-  return { ok: true, threadId };
 }
 
 /**
@@ -2257,7 +2148,7 @@ export async function portalCompleteTask(
   await sb.from("tasks").update({ status: "Completed", closed_date: computeClosedDate("Completed", null, now), latest_update: body, last_updated_at: now }).eq("id", taskId);
   await logChangeSb(taskId, t.code as string, t.company_id as number, "status", current, "Completed", "Completed from portal (with note)", createdBy);
   void reindexEntity("task", taskId); // Completed → lifecycle="history" (best-effort)
-  // Cross-process cascade: if this task drives a pipeline case, advance it. Guarded.
+  // Cross-process cascade (e.g. a probation review ticks its onboarding step). Guarded.
   try { const m = await import("@/lib/automation-reactions"); await m.reactToTaskStatusChange(taskId, current, "Completed"); } catch { /* best-effort */ }
 
   revalidatePath(`/portal/task/${code}`);

@@ -20,7 +20,7 @@ export const maxDuration = 60;
 // moved, skip the whole sweep (no PostgREST reads, no re-embed). `?full=1` forces it.
 const WATERMARK_TABLES = [
   "tasks", "documents", "people", "companies",
-  "vendors", "assets", "pipeline", "commitments",
+  "vendors", "assets",
 ] as const;
 
 /** True if any watermark table has a row with updated_at > since. One 1-row probe

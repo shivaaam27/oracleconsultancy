@@ -226,7 +226,6 @@ export function StudioNotificationsPanel({
       <div className="border-t border-[var(--sh-line)] pt-2.5"><DeviceAlertsRow /></div>
       <div className="flex items-center justify-between px-1 pt-1 text-[11px] text-[var(--sh-muted)]">
         <span>Read notifications clear themselves after 14 days</span>
-        <Link href="/activity" onClick={onClose} className="text-[var(--sh-sub)] hover:text-[var(--sh-fg)]">See everything in Activity →</Link>
       </div>
     </div>
   );

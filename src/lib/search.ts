@@ -2,8 +2,8 @@
 //
 // One pass over the high-value entities — people, companies, documents,
 // vendors, assets — plus the board/governance/process data
-// (cap table, beneficial owners, signatories, key persons, risk register,
-// pipeline applications, commitments) with typo-tolerant, relevance-ranked
+// (cap table, beneficial owners, signatories, key persons, risk register)
+// with typo-tolerant, relevance-ranked
 // matching. Tasks are handled separately (they keep their rich action rows in
 // the palette), so they're not duplicated here.
 //
@@ -43,7 +43,7 @@ export type SearchResultType =
   // ⚠️ This union is maintained BY HAND and is separate from the entity
   // registry — adding an EntityDef alone is not enough, as the Notes module
   // found out. A type missing here compiles and then never appears.
-  | "governance" | "risk" | "pipeline" | "commitment";
+  | "governance" | "risk";
 
 export type SearchResult = {
   type: SearchResultType;
@@ -441,7 +441,7 @@ export async function unifiedSearch(
   // falls to the end (by searchOrder), so a new EntityDef still surfaces.
   const LEGACY_PUSH_ORDER = [
     "person", "company", "document", "vendor", "asset",
-    "governance", "risk", "pipeline", "commitment",
+    "governance", "risk",
   ];
   const pushRank = (type: string) => {
     const i = LEGACY_PUSH_ORDER.indexOf(type);

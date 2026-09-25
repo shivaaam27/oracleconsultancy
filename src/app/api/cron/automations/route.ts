@@ -7,8 +7,8 @@ import { runTimeAutomations } from "@/lib/automation-time";
 export const dynamic = "force-dynamic";
 
 // Phase 2 time automations: each day, create the work that a passing date implies
-// — a renewal task for an expiring/expired document, a notice task for a lease /
-// insurance / contract entering its notice window. Idempotent (dedup guards), so
+// — a renewal task for an expiring/expired document, a probation review, a
+// recurring Tax & Legal obligation. Idempotent (dedup guards), so
 // a daily run never piles up duplicates. Everything it creates is logged to the
 // Automations feed and is undoable.
 export async function GET(req: NextRequest) {

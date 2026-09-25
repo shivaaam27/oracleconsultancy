@@ -95,7 +95,6 @@ export async function listAutomationHistory(opts: { kind?: string; status?: stri
 function revalidateAll() {
   revalidatePath("/approvals");
   revalidatePath("/files");
-  revalidatePath("/hrms/pipeline");
   revalidatePath("/");
 }
 
@@ -117,18 +116,12 @@ export async function applyAutomationSuggestion(id: number): Promise<{ ok: boole
     if (row.kind === "task-create") {
       // The task doesn't exist yet — create it from the remembered source, then
       // repoint the event at the new task so Undo can archive it (a time-sweep
-      // renewal/notice/probation created from its source row).
+      // renewal/probation/obligation created from its source row).
       const created = await createTaskFromSuggestion(row);
       await sb.from("automation_events").update({ status: "applied", acted_at: new Date().toISOString(), target_table: "tasks", target_id: created.taskId, new_value: created.code }).eq("id", id);
-    } else if (row.kind === "pipeline-create") {
-      // The application case doesn't exist yet — create it from the source document,
-      // then repoint the event at the new case so Undo can archive it.
-      const docId = (row as Row & { document_id: number | null }).document_id;
-      if (!docId) return { ok: false, error: "Source document missing." };
-      const { createPipelineFromDocument } = await import("@/lib/pipeline");
-      const created = await createPipelineFromDocument(docId);
-      if (!created.ok) return { ok: false, error: created.error };
-      await sb.from("automation_events").update({ status: "applied", acted_at: new Date().toISOString(), target_table: "pipeline", target_id: created.id, new_value: created.stage }).eq("id", id);
+    } else if (row.kind === "pipeline-create" || row.kind === "pipeline-advance") {
+      // Old suggestions from Applications, removed 26 Sept 2026.
+      return { ok: false, error: "Applications has been removed — dismiss this suggestion instead." };
     } else {
       await performAutomationMove(toMoveRow(row));
       await sb.from("automation_events").update({ status: "applied", acted_at: new Date().toISOString() }).eq("id", id);
@@ -231,8 +224,8 @@ export async function setAutomationModeAction(kind: string, mode: AutomationMode
 }
 
 /** Run the time-based automations on demand (the daily cron runs them too) —
- *  creates renewal/notice tasks for dates that have passed. Returns the counts. */
-export async function runTimeAutomationsNow(): Promise<{ ok: boolean; renewals: number; commitments: number; probations: number }> {
+ *  creates renewal/probation/obligation tasks for dates that have passed. Returns the counts. */
+export async function runTimeAutomationsNow(): Promise<{ ok: boolean; renewals: number; probations: number; obligations: number }> {
   await guardOwner();
   if (!(await isAdminSession())) throw new Error("Not signed in.");
   try {
@@ -240,6 +233,6 @@ export async function runTimeAutomationsNow(): Promise<{ ok: boolean; renewals: 
     revalidateAll();
     return { ok: true, ...res };
   } catch {
-    return { ok: false, renewals: 0, commitments: 0, probations: 0 };
+    return { ok: false, renewals: 0, probations: 0, obligations: 0 };
   }
 }

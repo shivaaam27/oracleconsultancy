@@ -1,6 +1,6 @@
 // Entity knowledge graph (no AI): assembles everything the system knows about a
 // company or person and how it connects — people, companies, documents, facts,
-// compliance, in-flight applications, and other companies that share a director.
+// compliance, and other companies that share a director.
 // Read-only and traversable: every connected entity links to its own graph.
 
 import { sb } from "@/db/supabase";
@@ -8,7 +8,7 @@ import { getCompanyRelationships, getPersonRelationships } from "@/lib/relations
 import { listDocuments } from "@/lib/documents";
 import { currentFacts } from "@/lib/facts";
 
-export type GraphNode = { kind: "company" | "person" | "document" | "fact" | "pipeline"; id: string; label: string; sub?: string | null; href?: string };
+export type GraphNode = { kind: "company" | "person" | "document" | "fact"; id: string; label: string; sub?: string | null; href?: string };
 export type GraphGroup = { title: string; nodes: GraphNode[] };
 export type EntityGraph = { center: { kind: "company" | "person"; id: number; label: string; sub?: string | null }; groups: GraphGroup[] };
 
@@ -60,10 +60,6 @@ async function companyGraph(id: number): Promise<EntityGraph | null> {
   // Facts (current values).
   const facts = await currentFacts({ type: "company", id });
   if (facts.length) groups.push({ title: "Facts", nodes: facts.slice(0, 10).map((f) => ({ kind: "fact", id: `f${f.id}`, label: f.field, sub: f.display })) });
-
-  // In-flight applications.
-  const { data: pipe } = await sb.from("pipeline").select("id,type,stage").eq("company_id", id).eq("archived", false);
-  if (pipe && pipe.length) groups.push({ title: "Applications in progress", nodes: pipe.map((p) => ({ kind: "pipeline", id: `pl${p.id}`, label: p.type as string, sub: p.stage as string, href: "/hrms/pipeline" })) });
 
   return { center: { kind: "company", id, label: name, sub: (co.legal_name as string | null) ?? null }, groups };
 }

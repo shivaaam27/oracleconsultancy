@@ -68,13 +68,13 @@ describe("returnLabel", () => {
   it("names a portal destination", () => {
     expect(returnLabel("/portal/board")).toBe("Board");
     expect(returnLabel("/portal/tasks?f=overdue")).toBe("Tasks");
-    expect(returnLabel("/portal/activity")).toBe("Activity");
+    expect(returnLabel("/portal/meetings")).toBe("Briefings");
     expect(returnLabel("/portal")).toBe("Home");
   });
 
   it("names an administrator destination", () => {
     expect(returnLabel("/hrms/assets")).toBe("Assets, Tools & Vendors");
-    expect(returnLabel("/hrms/commitments")).toBe("Commitments");
+    expect(returnLabel("/hrms/cleaning")).toBe("Cleaning");
     // Longest match wins: /notes/21 is still "Notes", not the last segment.
     expect(returnLabel("/notes")).toBe("Notes");
   });

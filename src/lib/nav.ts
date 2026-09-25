@@ -25,7 +25,6 @@ import {
   Sparkles,
   Building2,
   BarChart3,
-  FileWarning,
   Megaphone,
   LayoutGrid,
   Camera,
@@ -34,11 +33,8 @@ import {
   AtSign,
   ListChecks,
   History as HistoryIcon,
-  Activity,
   Zap,
-  MessageSquare,
   ClipboardList,
-  KanbanSquare,
   UserSearch,
   StickyNote,
   DraftingCompass,
@@ -90,7 +86,6 @@ export const NAV_ROUTES: NavRoute[] = [
   { id: "supplies",    href: "/hrms/supplies",       label: "Supplies",            icon: Package },
   { id: "assets",      href: "/hrms/assets",         label: "Assets, Tools & Vendors", icon: Laptop },
   { id: "leave",       href: "/hrms/leave",          label: "Attendance",          icon: CalendarDays },
-  { id: "commitments", href: "/hrms/commitments",    label: "Commitments",         icon: FileWarning },
   // The PES trading and import business — Stage 1 is its master lists; the
   // order screens follow. See memory/pes_ops_module.md.
   /* Orders & Imports — the PES trading and import business. ⚠️ ONE ROUTE PER
@@ -103,8 +98,6 @@ export const NAV_ROUTES: NavRoute[] = [
   // and the real Brief had no entry at all.
   { id: "calendar",    href: "/calendar",            label: "Calendar",            icon: CalendarClock },
   { id: "brief",       href: "/brief",               label: "Report",              icon: ClipboardList }, // opens the Report panel (was the Director Brief page)
-  { id: "chat",        href: "/chat",                label: "Chat",                icon: MessageSquare },
-  { id: "pipeline",    href: "/hrms/pipeline",       label: "Applications",        icon: KanbanSquare },
   { id: "cleaning",    href: "/hrms/cleaning",       label: "Cleaning",            icon: Sparkles },
   // See memory/recruitment_module_plan.md.
   { id: "companies",   href: "/companies",           label: "Companies",           icon: Building2 },
@@ -112,7 +105,6 @@ export const NAV_ROUTES: NavRoute[] = [
   { id: "documents",   href: "/files",               label: "Files Management",    icon: FileText },
   { id: "notes",       href: "/notes",               label: "Notes",               icon: StickyNote },
   { id: "outbox",      href: "/outbox",              label: "Outbox",              icon: Send },
-  { id: "activity",    href: "/activity",            label: "Activity log",        icon: Activity },
   { id: "ori-automations", href: "/ori-automations", label: "ORI Automation",      icon: Zap },
   { id: "insights",    href: "/insights",            label: "Insights",            icon: BarChart3 },
   { id: "settings",    href: "/settings",            label: "Settings",            icon: Settings },
@@ -236,7 +228,7 @@ export type NavModule = {
  *  every rail. Burying Settings inside one business would be wrong. */
 export const SYSTEM_GROUP: NavGroup = {
   label: "System",
-  ids: ["insights", "activity", "ori-automations", "settings"],
+  ids: ["insights", "ori-automations", "settings"],
 };
 
 export const MODULES: NavModule[] = [
@@ -255,7 +247,7 @@ export const MODULES: NavModule[] = [
     ],
     quick: ["approvals", "people", "documents", "calendar"],
     groups: [
-      { label: "Work", ids: ["approvals", "recurring", "notes", "outbox", "chat", "calendar", "brief", "announcements"] },
+      { label: "Work", ids: ["approvals", "recurring", "notes", "outbox", "calendar", "brief", "announcements"] },
       { label: "Records", ids: ["people", "companies", "documents", "assets"] },
       // Was "Registers" until Aug 2026 — the word meant three things at once (this
       // group, the commitments page, and the legacy /registry task list). The pages
@@ -263,7 +255,7 @@ export const MODULES: NavModule[] = [
       // ⚠️ `ops` LEFT THIS GROUP when Orders & Imports became a module of its
       // own. A route filed in two modules fails `nav.test.ts`, which is the
       // guard that exists for exactly this.
-      { label: "Operations", ids: ["tax-legal", "commitments", "pipeline", "leave", "supplies", "cleaning"] },
+      { label: "Operations", ids: ["tax-legal", "leave", "supplies", "cleaning"] },
     ],
   },
 
@@ -383,7 +375,8 @@ export function ungroupedRouteIds(): string[] {
 
 // "inbox" was pinned here until Aug 2026, when the intake page was removed —
 // a pin for a route that no longer exists just silently vanishes from the rail.
-export const DEFAULT_PINS = ["approvals", "outbox", "chat"];
+// "chat" too, until Chat was removed on 26 Sept 2026.
+export const DEFAULT_PINS = ["approvals", "outbox"];
 
 /**
  * Renamed route ids → their new id.
@@ -398,7 +391,7 @@ export const DEFAULT_PINS = ["approvals", "outbox", "chat"];
 export const LEGACY_ROUTE_IDS: Record<string, string> = {
   ocr: "cleaning",        // Office Cleaning Registry → Cleaning (Aug 2026)
   oecr: "supplies",       // Office Equipment Control Registry → Supplies (Aug 2026)
-  registers: "commitments", // Commitments register → Commitments (Aug 2026)
+  // registers → commitments lived here until Commitments was removed (26 Sept 2026).
 };
 
 /** A stored id resolved to a live one, following any rename. */

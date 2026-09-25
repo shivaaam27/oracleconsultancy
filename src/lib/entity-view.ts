@@ -289,28 +289,6 @@ export const ENTITY_VIEWS: Partial<Record<EntityType, EntityView>> = {
 
 
 
-  commitment: {
-    listColumns: [
-      { key: "title", label: "Commitment", width: "minmax(0,1fr)", format: "text", sortable: true },
-      { key: "companyName", label: "Company", width: "160px", format: "company", hideBelow: "md", sortable: true },
-      { key: "endDate", label: "Ends", width: "116px", format: "date", align: "right", hideBelow: "sm", sortable: true },
-      { key: "noticeBy", label: "Notice by", width: "116px", format: "date", align: "right", sortable: true },
-    ],
-    defaultSort: { key: "noticeBy", dir: "asc" },
-    create: { label: "Commitment", href: "/hrms/commitments?new=1" },
-  },
-
-  pipeline: {
-    listColumns: [
-      { key: "title", label: "Application", width: "minmax(0,1fr)", format: "text", sortable: true },
-      { key: "companyName", label: "Company", width: "160px", format: "company", hideBelow: "md", sortable: true },
-      { key: "stage", label: "Stage", width: "150px", format: "status", hideBelow: "sm", sortable: true },
-      { key: "dueDate", label: "Due", width: "116px", format: "date", align: "right", sortable: true },
-    ],
-    defaultSort: { key: "dueDate", dir: "asc" },
-    create: { label: "Application", href: "/hrms/pipeline?new=1" },
-  },
-
   /* Notes (Phase 1 — memory/notes_module_plan.md). The `create` line is the whole
      reason this entry earns its place today: it puts "Note" in the global New menu
      and in ⌘K at the same moment, with nothing else to edit. `?new=1` is the same
@@ -346,7 +324,7 @@ const EXTRA_CREATES: { id: string; create: CreateDef }[] = [
  * ⚠️ IT IS A SHORTLIST, NOT EVERYTHING CREATABLE (owner, 21 Sept 2026). The menu
  * had grown to twenty-odd entries — every record type in COS, module ones
  * included — which made the seven things actually raised from scratch hard to
- * find. Vendor, Asset, Commitment and Application are still created, on their
+ * find. Vendor and Asset are still created, on their
  * own pages where the rest of that work happens; they are simply not worth a
  * line in a global menu.
  *

@@ -253,64 +253,13 @@ registerUndoHandler("ori.announcement.delete", async (raw) => {
   await sb.from("announcements").delete().eq("id", p.announcementId);
 });
 
-/* ------------------------- governance / pipeline / commitments ------ */
+/* ------------------------- governance ----------------------------- */
 
 // Risk status — restore the prior status.
 registerUndoHandler("ori.risk.status", async (raw) => {
   const p = raw as { riskId: number; before: string | null };
   const { setRiskStatusAction } = await import("@/app/governance/actions");
   if (p.before) await setRiskStatusAction(p.riskId, p.before);
-});
-
-// Pipeline stage move — restore the prior stage.
-registerUndoHandler("ori.pipeline.stage", async (raw) => {
-  const p = raw as { itemId: number; before: string | null };
-  if (!p.before) return;
-  const { movePipelineStageAction } = await import("@/app/hrms/pipeline/actions");
-  const { normalizeStage } = await import("@/lib/pipeline-shared");
-  await movePipelineStageAction(p.itemId, normalizeStage(p.before));
-});
-
-// Pipeline field update — re-apply the snapshotted prior fields.
-registerUndoHandler("ori.pipeline.update", async (raw) => {
-  const p = raw as { itemId: number; before: Record<string, unknown> };
-  const { updatePipelineItemAction } = await import("@/app/hrms/pipeline/actions");
-  await updatePipelineItemAction(p.itemId, p.before as never);
-});
-
-// Pipeline archive — un-archive.
-registerUndoHandler("ori.pipeline.archive", async (raw) => {
-  const p = raw as { itemId: number };
-  const { archivePipelineItem } = await import("@/lib/pipeline");
-  await archivePipelineItem(p.itemId, false);
-});
-
-// Pipeline document link — restore the prior linked document (or clear it).
-registerUndoHandler("ori.pipeline.link", async (raw) => {
-  const p = raw as { itemId: number; before: number | null };
-  const { linkPipelineDocumentAction } = await import("@/app/hrms/pipeline/actions");
-  await linkPipelineDocumentAction(p.itemId, p.before);
-});
-
-// Commitment field update — re-apply the snapshotted prior fields.
-registerUndoHandler("ori.commitment.update", async (raw) => {
-  const p = raw as { commitmentId: number; before: Record<string, unknown> };
-  const { updateCommitmentAction } = await import("@/app/hrms/commitments/actions");
-  await updateCommitmentAction(p.commitmentId, p.before as never);
-});
-
-// Commitment archive — un-archive.
-registerUndoHandler("ori.commitment.archive", async (raw) => {
-  const p = raw as { commitmentId: number };
-  const { archiveCommitment } = await import("@/lib/commitments");
-  await archiveCommitment(p.commitmentId, false);
-});
-
-// Commitment document link — restore the prior linked document (or clear it).
-registerUndoHandler("ori.commitment.link", async (raw) => {
-  const p = raw as { commitmentId: number; before: number | null };
-  const { linkCommitmentDocumentAction } = await import("@/app/hrms/commitments/actions");
-  await linkCommitmentDocumentAction(p.commitmentId, p.before);
 });
 
 /* ----------------------------- assets / vendors / ops -------------- */

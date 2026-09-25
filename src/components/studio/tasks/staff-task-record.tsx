@@ -15,7 +15,7 @@
  */
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, Loader2, MessageCircle, PauseCircle, Pencil, Send } from "lucide-react";
+import { CheckCircle2, Loader2, PauseCircle, Pencil, Send } from "lucide-react";
 import { StudioScope, stBtn } from "@/components/studio/kit";
 import { StudioSheet } from "@/components/studio/sheet";
 import { PersonFace } from "@/components/studio/face";
@@ -26,7 +26,7 @@ import { STATUS_DOT } from "./task-words";
 import { BackLink } from "@/components/back-link";
 import { CompleteTaskSheet } from "@/components/complete-task-sheet";
 import { PortalConversation, type ConvoMessage, type ConvoEvent } from "@/components/portal-conversation";
-import { portalAddUpdate, portalTogglePin, portalAcknowledge, portalEditUpdate, portalDeleteUpdate, portalOpenDm, portalEditTask } from "@/app/portal/actions";
+import { portalAddUpdate, portalTogglePin, portalAcknowledge, portalEditUpdate, portalDeleteUpdate, portalEditTask } from "@/app/portal/actions";
 import { useToast } from "@/components/toast";
 import { getGivenName } from "@/lib/names";
 import { cn } from "@/lib/cn";
@@ -141,7 +141,6 @@ export function StaffTaskRecord({ t }: { t: StaffTaskData }) {
                 <span className="block truncate text-[13px] font-medium">{p.me ? "You" : p.name}</span>
                 <span className="block text-[11px] text-[var(--st-muted)]">{p.role}</span>
               </span>
-              {!p.me && <MessageButton id={p.id} name={p.name} />}
             </div>
           ))}
         </div>
@@ -308,23 +307,6 @@ function ReviewSheet({ open, onClose, taskId, code }: { open: boolean; onClose: 
           className="bare-field w-full resize-y rounded-xl border border-[var(--sh-chip-line,var(--st-line))] bg-transparent px-3.5 py-2.5 text-[13px] outline-none" />
       </label>
     </StudioSheet>
-  );
-}
-
-function MessageButton({ id, name }: { id: number; name: string }) {
-  const router = useRouter();
-  const { toast } = useToast();
-  const [busy, start] = useTransition();
-  return (
-    <button type="button" disabled={busy} title={`Message ${getGivenName(name)}`}
-      onClick={() => start(async () => {
-        const res = await portalOpenDm(id);
-        if (!res.ok) { toast(res.error, { tone: "warn" }); return; }
-        router.push(`/portal/chat/${res.threadId}`);
-      })}
-      className={cn(stBtn.ghost, "h-8 shrink-0 gap-1.5 px-2.5 text-xs")}>
-      {busy ? <Loader2 size={12} className="animate-spin" /> : <MessageCircle size={13} />}Message
-    </button>
   );
 }
 

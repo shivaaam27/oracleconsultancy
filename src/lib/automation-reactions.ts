@@ -9,8 +9,6 @@
 
 import { sb } from "@/db/supabase";
 import { getDocument } from "@/lib/documents";
-import { setPipelineStage, pipelineForTask, createPipelineFromDocument } from "@/lib/pipeline";
-import { PIPELINE_STAGES, inferPipelineStage, type PipelineStage } from "@/lib/pipeline-shared";
 import { toggleTodo } from "@/app/todos/actions";
 import { addTaskUpdate } from "@/app/task/actions";
 import { trusted } from "@/lib/viewer";
@@ -19,8 +17,10 @@ import { reindexEntity } from "@/lib/index-hooks";
 import { DEFAULT_AUTOMATION_MODE, type AutomationMode } from "@/lib/automation-rules";
 import type { DocumentRow } from "@/lib/documents-shared";
 
-export type AutomationKind = "task-complete" | "pipeline-advance" | "onboarding-tick" | "pipeline-create";
-export type AutomationTable = "tasks" | "pipeline" | "todos" | "documents";
+// "pipeline-advance" / "pipeline-create" went with Applications (removed 26 Sept
+// 2026); old automation_events rows keep those kinds and are simply inert.
+export type AutomationKind = "task-complete" | "onboarding-tick";
+export type AutomationTable = "tasks" | "todos" | "documents";
 
 type LogInput = {
   kind: AutomationKind;
@@ -180,9 +180,6 @@ export async function performAutomationMove(row: MoveRow): Promise<void> {
       if (code) await trusted(() => addTaskUpdate(row.targetId, code, `Auto-completed — ${row.summary}`, row.newValue || "Completed"));
       return;
     }
-    case "pipeline-advance":
-      if (row.newValue) await setPipelineStage(row.targetId, row.newValue as PipelineStage);
-      return;
     case "onboarding-tick":
       await trusted(() => toggleTodo(row.targetId, true));
       return;
@@ -197,19 +194,11 @@ export async function undoAutomationMove(row: MoveRow): Promise<void> {
       await sb.from("tasks").update({ archived: true, last_updated_at: new Date().toISOString() }).eq("id", row.targetId);
       void reindexEntity("task", row.targetId); // archive re-stamps lifecycle="history"
       return;
-    case "pipeline-create":
-      // Undo an auto-started application by archiving the case (recoverable).
-      await sb.from("pipeline").update({ archived: true, updated_at: new Date().toISOString() }).eq("id", row.targetId);
-      void reindexEntity("pipeline", row.targetId); // archive re-stamps lifecycle="history"
-      return;
     case "task-complete": {
       const code = await taskCode(row.targetId);
       if (code) await trusted(() => addTaskUpdate(row.targetId, code, "Reopened — automation undone", row.prevValue || "In Progress"));
       return;
     }
-    case "pipeline-advance":
-      if (row.prevValue) await setPipelineStage(row.targetId, row.prevValue as PipelineStage);
-      return;
     case "onboarding-tick":
       await trusted(() => toggleTodo(row.targetId, false));
       return;
@@ -227,12 +216,10 @@ export async function reactToFiledDocument(documentId: number): Promise<void> {
     const who = await ownerName(doc);
     // Each reaction is independently guarded so one failure never stops the rest.
     // The recursion guard keys on this document so a reaction that ticks a todo /
-    // advances a pipeline (which may itself spawn work) can't re-enter the same
+    // spawns work can't re-enter the same
     // document's reaction set and loop.
     await withCascadeGuard(`doc-filed:${doc.id}`, () => Promise.allSettled([
       reactLinkedTasks(doc, who),
-      reactPipeline(doc, who),
-      reactStartPipeline(doc, who),
       reactOnboarding(doc, who),
     ]).then(() => undefined));
   } catch (e) {
@@ -260,29 +247,15 @@ async function reactLinkedTasks(doc: DocumentRow, who: string): Promise<void> {
   } catch { /* best-effort */ }
 }
 
-/** Pipeline: advance the application a document belongs to. CERTAIN when the item
- *  is linked to this exact document or its control number matches; else suggest. */
-// Pipeline retired (Jul 2026, owner request): the Applications-in-progress module
-// was removed, so a filed document no longer advances or starts any case. These two
-// reactions are now no-ops (kept in the cascade list so re-enabling is a one-file
-// change if the module ever returns). The original advance/create logic lived here
-// and used inferPipelineStage + setPipelineStage/createPipelineFromDocument.
-async function reactPipeline(_doc: DocumentRow, _who: string): Promise<void> {
-  return;
-}
-
-async function reactStartPipeline(_doc: DocumentRow, _who: string): Promise<void> {
-  return;
-}
-
 /* ------------------------------------------------------------------ */
 /* Phase 3 — cross-process cascades (one process completing nudges the */
 /* next). Both reuse the onboarding-tick kind + undo (toggleTodo).     */
 /* ------------------------------------------------------------------ */
 
-/** When a task is COMPLETED (open → closed), run the state-driven cascade chains:
- *   • a task that DRIVES a pipeline case → advance that case one stage;
+/** When a task is COMPLETED (open → closed), run the state-driven cascade chain:
  *   • a probation-review task → tick the person's "confirm probation/review" step.
+ *  (A task that drove an Applications case used to advance it; Applications was
+ *  removed 26 Sept 2026.)
  *  Called after a task's status is written. Each chain is independently guarded,
  *  deduped, logged + undoable, and protected by the recursion guard so a chain
  *  can't re-enter itself. A renewal task completing is intentionally NOT handled
@@ -290,36 +263,11 @@ async function reactStartPipeline(_doc: DocumentRow, _who: string): Promise<void
 export async function reactToTaskStatusChange(taskId: number, wasStatus: string, nowStatus: string): Promise<void> {
   const isClosed = (s: string) => s === "Completed" || s === "Closed";
   if (!isClosed(nowStatus) || isClosed(wasStatus)) return; // only on open → closed
-  // One guard signature per task-completion so the two chains below, and anything
+  // One guard signature per task-completion so the chain below, and anything
   // they touch, can't re-enter this same completion and loop.
   await withCascadeGuard(`task-done:${taskId}`, async () => {
-    await Promise.allSettled([
-      cascadeTaskDrivesPipeline(taskId),
-      cascadeProbationReviewDone(taskId),
-    ]);
+    await Promise.allSettled([cascadeProbationReviewDone(taskId)]);
   });
-}
-
-/** A task that DRIVES a pipeline case is completed → advance that case one stage.
- *  CERTAIN — the link is explicit (pipeline.task_id), so it auto-applies. Deduped
- *  per (case, from-stage) so it advances once per completion, not on every path. */
-async function cascadeTaskDrivesPipeline(taskId: number): Promise<void> {
-  try {
-    const p = await pipelineForTask(taskId);
-    if (!p) return;
-    const curIdx = PIPELINE_STAGES.indexOf(p.stage as PipelineStage);
-    if (curIdx < 0 || curIdx >= PIPELINE_STAGES.length - 1) return; // unknown or already Issued
-    const next = PIPELINE_STAGES[curIdx + 1];
-    // Dedup THIS advance (same case, same from-stage) so two write paths firing for
-    // one completion don't double-advance — but later stages can still advance.
-    const { data: dup } = await sb
-      .from("automation_events")
-      .select("id").eq("kind", "pipeline-advance").eq("target_table", "pipeline").eq("target_id", p.id).eq("prev_value", p.stage).in("status", ["applied", "suggested"]).limit(1);
-    if (dup && dup.length) return;
-    const code = await taskCode(taskId);
-    const base = { kind: "pipeline-advance" as const, documentId: null, targetTable: "pipeline" as const, targetId: p.id, personId: p.personId, companyId: p.companyId, summary: `Advance ${p.type} → ${next}${code ? ` (task ${code} done)` : ""}`, detail: `Driving task completed — advanced from ${p.stage}`, prevValue: p.stage, newValue: next };
-    await commit(base, true, `Advanced ${p.type} → ${next}${code ? ` (task ${code} done)` : ""}`);
-  } catch { /* best-effort */ }
 }
 
 /** Identify the subject of a completed probation-review task and return it.

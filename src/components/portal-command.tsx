@@ -59,7 +59,7 @@ import { HighlightSnippet, WhyTag } from "./command-palette-bits";
 /** Wider entity results from unifiedSearch, hard-scoped server-side. */
 type OriResultType =
   | "person" | "company" | "document" | "letter" | "meeting" | "vendor" | "asset"
-  | "governance" | "risk" | "pipeline" | "commitment";
+  | "governance" | "risk";
 
 type OriResult = {
   type: OriResultType;
@@ -111,8 +111,6 @@ const TYPE_ICON: Record<string, typeof ClipboardList> = {
   asset: ClipboardList,
   governance: Building2,
   risk: Sparkles,
-  pipeline: ClipboardList,
-  commitment: FileText,
 };
 
 /** Best-effort deep link for a wider-entity result when the route omits href. */

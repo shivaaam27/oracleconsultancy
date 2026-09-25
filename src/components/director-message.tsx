@@ -1,14 +1,12 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { MessageSquarePlus, Loader2, Send, Bell, Search, Check, X } from "lucide-react";
 import { BottomSheet } from "@/components/bottom-sheet";
 import { channelLabel } from "@/lib/outbox/links";
 import { getGivenName } from "@/lib/names";
 import { useToast } from "./toast";
 import {
-  portalDirectorChatMessage,
   portalDirectorDraftMessage,
   portalDirectorGroupEmail,
 } from "@/app/portal/actions";
@@ -20,7 +18,6 @@ const inputCls = "bare-field w-full rounded-xl ring-1 ring-border px-3.5 py-3 te
 const fieldLabel = "mb-1.5 block text-xs font-medium text-fg-muted";
 
 const CHANNELS = [
-  { value: "CHAT", label: "Chat" },
   { value: "WHATSAPP", label: "WhatsApp" },
   { value: "EMAIL", label: "Email" },
   { value: "SMS", label: "SMS" },
@@ -30,12 +27,11 @@ const CHANNELS = [
 // Channels that can address several people at once. WhatsApp / SMS / Auto stay
 // one-to-one (Auto picks each person's single best channel).
 function isMulti(channel: string): boolean {
-  return channel === "CHAT" || channel === "EMAIL";
+  return channel === "EMAIL";
 }
 
 function recipientHint(channel: string): string {
   switch (channel) {
-    case "CHAT": return "One person opens a direct chat; several start a group.";
     case "EMAIL": return "Email one or several people (all share the To line).";
     case "WHATSAPP": return "WhatsApp opens for one person.";
     case "SMS": return "SMS opens for one person.";
@@ -44,8 +40,6 @@ function recipientHint(channel: string): string {
 }
 
 /** Director: message any person. Channels:
- *  - Chat  → posts into the built-in chat (continues an existing DM, or starts a
- *    group for several people) and jumps you into the conversation.
  *  - WhatsApp / Email / SMS / Auto → opens the message PRE-FILLED for a one-tap
  *    manual send and logs an owner-visible Outbox record. Email can address
  *    several people at once; WhatsApp + SMS stay one-to-one. */
@@ -56,13 +50,12 @@ export function DirectorMessage({
   open?: boolean; onOpenChange?: (v: boolean) => void; seedBody?: string;
 }) {
   const { toast } = useToast();
-  const router = useRouter();
   const isControlled = controlledOpen !== undefined;
   const [internalOpen, setInternalOpen] = useState(false);
   const open = isControlled ? controlledOpen : internalOpen;
   const setOpen = (v: boolean) => { if (isControlled) onOpenChange?.(v); else setInternalOpen(v); };
   const [picked, setPicked] = useState<number[]>([]);
-  const [channel, setChannel] = useState<string>("CHAT");
+  const [channel, setChannel] = useState<string>("WHATSAPP");
   const [query, setQuery] = useState("");
   const [body, setBody] = useState("");
   const [busy, setBusy] = useState(false);
@@ -95,7 +88,7 @@ export function DirectorMessage({
   }
 
   function reset() {
-    setBody(""); setPicked([]); setChannel("CHAT"); setQuery("");
+    setBody(""); setPicked([]); setChannel("WHATSAPP"); setQuery("");
   }
 
   // When the board's smart bar opens this in controlled mode, prime the textarea.
@@ -110,20 +103,8 @@ export function DirectorMessage({
     setBusy(true);
     // For link-opening channels, open a blank tab synchronously inside the tap so
     // mobile browsers don't block it; we set its location once the link returns.
-    // Chat navigates internally with router.push, so it never opens a blank tab.
-    const win = channel !== "CHAT" ? window.open("", "_blank") : null;
+    const win = window.open("", "_blank");
     startTransition(async () => {
-      // ---- Chat: post into the built-in messenger (DM or group) ----
-      if (channel === "CHAT") {
-        const res = await portalDirectorChatMessage({ personIds: picked, body });
-        setBusy(false);
-        if (!res.ok) { toast(res.error, { tone: "danger" }); return; }
-        toast(res.group ? "Group chat started." : "Message sent.", { tone: "success" });
-        setOpen(false); reset();
-        router.push(`/portal/chat/${res.threadId}`);
-        return;
-      }
-
       // ---- Email to several people: one mail to all ----
       if (channel === "EMAIL" && picked.length > 1) {
         const res = await portalDirectorGroupEmail({ personIds: picked, body });
@@ -158,9 +139,7 @@ export function DirectorMessage({
     });
   }
 
-  const sendLabel = channel === "CHAT"
-    ? (picked.length > 1 ? "Send to group" : "Send message")
-    : channel === "EMAIL" && picked.length > 1 ? "Open group email" : "Send message";
+  const sendLabel = channel === "EMAIL" && picked.length > 1 ? "Open group email" : "Send message";
 
   return (
     <>

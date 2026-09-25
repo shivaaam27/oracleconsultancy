@@ -36,12 +36,6 @@ export const AUTOMATION_RULES: AutomationRule[] = [
     retired: true,
   },
   {
-    kind: "pipeline-advance",
-    label: "Advance applications",
-    description: "Move a permit, visa or licence application forward when the task driving it is completed.",
-    supportsSuggest: true,
-  },
-  {
     kind: "onboarding-tick",
     label: "Tick onboarding & offboarding steps",
     description: "Tick a joining or leaving step when its task is done, probation is confirmed, or equipment comes back.",
@@ -49,8 +43,8 @@ export const AUTOMATION_RULES: AutomationRule[] = [
   },
   {
     kind: "task-create",
-    label: "Create renewal & notice tasks",
-    description: "Create a task when a document is expiring, a lease, insurance or contract nears its notice date, probation is ending, a Tax & Legal obligation falls due, or an issued document needs collecting.",
+    label: "Create renewal & review tasks",
+    description: "Create a task when a document is expiring, probation is ending, or a Tax & Legal obligation falls due.",
     supportsSuggest: true,
   },
   {

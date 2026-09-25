@@ -156,7 +156,7 @@ async function snapshotForDelete(t: TaskRowRaw): Promise<Record<string, unknown>
 }
 
 /** Fire the cross-process cascade when a task's status changes: completing a task
- *  that DRIVES a pipeline case (pipeline.task_id) advances that case a stage.
+ *  that is a probation review ticks the person's onboarding step.
  *  Guarded + dynamic-imported (avoids cycles); never affects the task write. */
 async function fireTaskCascade(taskId: number, wasStatus: string, nowStatus: string) {
   if (wasStatus === nowStatus) return;

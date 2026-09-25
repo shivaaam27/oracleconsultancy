@@ -13,8 +13,6 @@ describe("studioPathForDirector", () => {
     expect(to("/portal/task/new")).toBe("/task/new");
     expect(to("/portal/people/12")).toBe("/people/12");
     expect(to("/portal/companies/3")).toBe("/companies/3");
-    expect(to("/portal/chat/9")).toBe("/chat/9");
-    expect(to("/portal/chat", "?dm=4")).toBe("/chat?dm=4");
   });
   it("maps the retired pages", () => {
     expect(to("/portal/directory")).toBe("/people");
@@ -22,6 +20,7 @@ describe("studioPathForDirector", () => {
     expect(to("/portal/meetings", "?tab=announcements")).toBe("/announcements");
     expect(to("/portal/team")).toBe("/outbox");
     expect(to("/portal/insights")).toBe("/");
+    expect(to("/portal/chat")).toBe("/");
     expect(to("/portal/whatever")).toBe("/");
   });
   it("leaves the one page not rebuilt yet", () => {
@@ -34,6 +33,6 @@ describe("isStaffStudioPath", () => {
     for (const p of ["/portal", "/portal/", "/portal/tasks", "/portal/task/TG-002", "/portal/profile", "/portal/people", "/portal/people/19", "/portal/companies", "/portal/companies/3", "/portal/meetings", "/portal/announcements"]) expect(isStaffStudioPath(p)).toBe(true);
   });
   it("leaves the pages not rebuilt yet in the old frame", () => {
-    for (const p of ["/portal/chat", "/portal/chat/4", "/portal/directory", "/portal/task/new", "/portal/cleaning", "/portal/people/x"]) expect(isStaffStudioPath(p)).toBe(false);
+    for (const p of ["/portal/directory", "/portal/task/new", "/portal/cleaning", "/portal/people/x"]) expect(isStaffStudioPath(p)).toBe(false);
   });
 });

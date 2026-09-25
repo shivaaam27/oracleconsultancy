@@ -176,10 +176,6 @@ export function StudioShell({ needs, director = null }: { needs: NonNullable<Stu
   const own = pageNote && pageNote.path === pathname ? pageNote.note : null;
   const items = own ? [own, ...needs] : needs;
 
-  // Chat is a full-screen app on a phone; the footer steps aside there, as the
-  // pill did.
-  const chat = pathname.startsWith("/chat");
-
   return (
     <>
       {/* The frame. Click-through; paints only OUTSIDE the rounded panel. */}
@@ -190,7 +186,6 @@ export function StudioShell({ needs, director = null }: { needs: NonNullable<Stu
         className={cn(
           "fixed inset-x-0 bottom-0 z-[41] h-[calc(var(--foot-h)+env(safe-area-inset-bottom))] bg-[#0E0F10] pb-[env(safe-area-inset-bottom)] text-[#F2F2F0]",
           "[font-family:var(--font-geist),var(--font-sans)]",
-          chat && "max-md:hidden",
         )}
       >
         {/* Phone: every button is a direct child of ONE row spaced evenly

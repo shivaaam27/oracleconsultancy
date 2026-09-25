@@ -34,8 +34,8 @@ import {
   RISKS, ESCALATIONS, ACCOUNTABILITY, TASK_ACTIONS,
 } from "@/lib/mcp/writes";
 import {
-  mcpListRecords, mcpManageTodo, mcpMarkAttendance, mcpManagePipeline, mcpDraftAnnouncement,
-  RECORD_TYPES, ATTENDANCE_STATUSES, PIPELINE_STAGE_NAMES,
+  mcpListRecords, mcpManageTodo, mcpMarkAttendance, mcpDraftAnnouncement,
+  RECORD_TYPES, ATTENDANCE_STATUSES,
 } from "@/lib/mcp/records";
 import { getAllTasks, computeCompanyKpis, computeGlobalKpis, type TaskRow } from "@/lib/queries";
 import { getAllPeopleWithWorkload, getPersonDetail } from "@/lib/people-queries";
@@ -718,8 +718,6 @@ export const MCP_TOOLS: McpTool[] = [
       "• todos — the to-do list\n" +
       "• risks / decisions — the board-level risk register and decision log\n" +
       "• governance — one company's shareholding, directors, signatories, resolutions (needs a company)\n" +
-      "• pipeline — applications in progress: permits, visas, licences and where each has got to\n" +
-      "• commitments — leases, insurance and contracts, with when notice is due\n" +
       "• vendors — suppliers and contractors\n" +
       "• stock — the office consumables register (Supplies)\n" +
       "• cleaning — the daily cleaning log (Cleaning)\n" +
@@ -770,30 +768,6 @@ export const MCP_TOOLS: McpTool[] = [
     capability: "navTasks",
     write: true,
     run: async (args, caller) => await mcpMarkAttendance(caller, args as Parameters<typeof mcpMarkAttendance>[1]),
-  },
-
-  {
-    name: "manage_pipeline",
-    title: "Applications in progress",
-    description:
-      "Track a permit, visa or licence through the stages: To Apply → Applied → Control No. Issued → " +
-      "Paid → Receipt Received → Issued. Create a new case, move one to the next stage, or update its " +
-      "control number, deadline, next action or notes.",
-    schema: z.object({
-      action: z.enum(["create", "advance", "update"]),
-      id: z.number().int().optional().describe("For 'advance'/'update' — from list_records type 'pipeline'"),
-      subject: z.string().optional().describe("For 'create' — who or what it's for"),
-      type: z.string().optional().describe("For 'create' — e.g. 'Work permit', 'Business licence'"),
-      company: z.string().optional(),
-      stage: z.enum(PIPELINE_STAGE_NAMES).optional().describe("For 'advance' — the stage to move to"),
-      controlNo: z.string().optional(),
-      deadline: z.string().optional().describe("yyyy-mm-dd"),
-      nextAction: z.string().optional(),
-      notes: z.string().optional(),
-    }),
-    capability: "navTasks",
-    write: true,
-    run: async (args, caller) => await mcpManagePipeline(caller, args as Parameters<typeof mcpManagePipeline>[1]),
   },
 
   {

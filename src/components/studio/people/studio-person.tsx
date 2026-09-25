@@ -17,7 +17,7 @@ import { useMemo, useRef, useState, useTransition, type ReactNode } from "react"
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
-  Minimize2, Mail, MessageCircle, Phone, MessagesSquare, Plus, FileText, Bell, MoreHorizontal, ChevronDown, Loader2,
+  Minimize2, Mail, MessageCircle, Phone, Plus, FileText, Bell, MoreHorizontal, ChevronDown, Loader2,
   Clock, UserMinus, UserCheck, Copy, PackageCheck, Check, ExternalLink,
 } from "lucide-react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
@@ -214,7 +214,6 @@ export function StudioPerson({ data, backHref, readOnly = false }: { data: Studi
           <a href={p.email ? `mailto:${p.email}` : undefined} aria-disabled={!p.email} title={p.email ?? "No email on file"} className={BAND_BTN}><Mail size={13} />Email</a>
           <a href={p.whatsapp ? waHref(p.whatsapp) : undefined} target="_blank" rel="noreferrer" aria-disabled={!p.whatsapp} title={p.whatsapp ?? "No WhatsApp on file"} className={BAND_BTN}><MessageCircle size={13} />WhatsApp</a>
           <a href={p.phone || p.whatsapp ? `tel:${p.phone ?? p.whatsapp}` : undefined} aria-disabled={!(p.phone || p.whatsapp)} className={BAND_BTN}><Phone size={13} />Call</a>
-          {(!readOnly || staff) && <Link href={paths.chat(p.id)} className={BAND_BTN}><MessagesSquare size={13} />Chat</Link>}
           {!staff && <Link href={newTaskHref} className={BAND_BTN}><Plus size={13} />New task</Link>}
           {!readOnly && <Link href={addDocHref} className={BAND_BTN}><FileText size={13} />Add a file</Link>}
     </>
@@ -287,7 +286,6 @@ export function StudioPerson({ data, backHref, readOnly = false }: { data: Studi
             ["Call", <Phone key="i" size={16} />, p.phone || p.whatsapp ? `tel:${p.phone ?? p.whatsapp}` : null, false],
             ["WhatsApp", <MessageCircle key="i" size={16} />, p.whatsapp ? waHref(p.whatsapp) : null, true],
             ["Email", <Mail key="i" size={16} />, p.email ? `mailto:${p.email}` : null, false],
-            ...(!readOnly || staff ? [["Chat", <MessagesSquare key="i" size={16} />, paths.chat(p.id), false] as const] : []),
             ...(!staff ? [["New task", <Plus key="i" size={16} />, newTaskHref, false] as const] : []),
           ] as const).map(([label, icon, href, external]) => (
             <a key={label} href={href ?? undefined} aria-disabled={!href} target={external ? "_blank" : undefined} rel={external ? "noreferrer" : undefined}

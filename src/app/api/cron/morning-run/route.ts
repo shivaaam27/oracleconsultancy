@@ -24,8 +24,8 @@ export async function GET(req: NextRequest) {
   if (!auth.ok) return NextResponse.json({ ok: false, message: auth.message }, { status: auth.status });
 
   try {
-    // 1. Chase the dates — create/suggest renewals, notices, probation reviews.
-    let work = { renewals: 0, commitments: 0, probations: 0 };
+    // 1. Chase the dates — create/suggest renewals, probation reviews, obligations.
+    let work = { renewals: 0, probations: 0, obligations: 0 };
     try {
       work = await runTimeAutomations();
     } catch (e) {

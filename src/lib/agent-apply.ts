@@ -47,16 +47,12 @@ export async function applyResult(job: AiJob, result: Record<string, unknown>): 
   }
 }
 
-/** Post ORI's answer into the chat thread (if any). */
+/** ORI's answer is stored on the job. (It used to post into a chat thread;
+ *  chat was removed 26 Sept 2026.) */
 async function applyAsk(job: AiJob, result: Record<string, unknown>): Promise<ApplyOutcome> {
   const answer = String(result.answer ?? "").trim();
   if (!answer) return { applied: false, detail: { note: "empty answer" } };
-  if (job.threadId) {
-    const { sendMessage } = await import("@/lib/chat");
-    const msgId = await sendMessage({ threadId: job.threadId, sender: "admin", body: answer });
-    return { applied: true, detail: { posted: true, messageId: msgId } };
-  }
-  return { applied: true, detail: { answer } }; // no thread — answer stored on the job
+  return { applied: true, detail: { answer } };
 }
 
 /** Create a meeting / task, or PROPOSE a reminder (Tier-3 send needs confirm). */

@@ -365,7 +365,7 @@ export default async function SettingsPage({
                 name="eventAttendeePings"
                 defaultChecked={s.eventAttendeePings}
                 label="Ping attendees before each meeting"
-                hint="A push + a message in their Reminders channel, at every reminder time set on the event."
+                hint="A notification and a push to their phone, at every reminder time set on the event."
               />
               <FormSwitch
                 name="eventReminderEmail"
@@ -450,7 +450,7 @@ export default async function SettingsPage({
               <div className="space-y-2">
                 <PortalAccessList people={portalEnabled} companies={companies} scope={portalPermsMatrix.scope} />
                 <p className="text-xs text-fg-subtle">
-                  Changing the access level here doesn&apos;t change their password. <strong className="text-fg-muted">Revoking</strong> only stops them signing in — everything they created (tasks, updates, chat messages, documents, attendance, leave) stays in the system, and you can grant access again at any time.
+                  Changing the access level here doesn&apos;t change their password. <strong className="text-fg-muted">Revoking</strong> only stops them signing in — everything they created (tasks, updates, documents, attendance, leave) stays in the system, and you can grant access again at any time.
                 </p>
               </div>
             )}
@@ -866,7 +866,7 @@ export default async function SettingsPage({
                     </div>
                   </div>
                 </div>
-                <FormSwitch name="notifyDigest" defaultChecked={s.notifyDigest} label="Batch routine alerts into a digest" hint="Everyday alerts arrive together once an hour (chat messages still come one by one). Urgent ones buzz straight away." />
+                <FormSwitch name="notifyDigest" defaultChecked={s.notifyDigest} label="Batch routine alerts into a digest" hint="Everyday alerts arrive together once an hour. Urgent ones buzz straight away." />
               </div>
             </SettingsCard>
             <SaveBar />

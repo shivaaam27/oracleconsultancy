@@ -1,7 +1,8 @@
 // Phase 2 of "the system moves on its own" — TIME spawns work. On a daily tick
 // (cron) or on demand, this CREATES the work a passing date implies, instead of
-// only alerting: a renewal task for an expiring/expired renewable document, and a
-// notice task for a lease/insurance/contract entering its notice window.
+// only alerting: a renewal task for an expiring/expired renewable document, a
+// probation review, and the recurring Tax & Legal obligations. (A notice task for
+// a commitment entering its notice window went with Commitments, 26 Sept 2026.)
 //
 // Same rails as Phase 1: every creation is logged to automation_events (kind
 // "task-create", undoable = archive the task), so it shows in the Automations feed
@@ -11,7 +12,6 @@ import { sb } from "@/db/supabase";
 import { listDocuments, getDocument, linkDocumentTask, type DocumentRow } from "@/lib/documents";
 import { getDocumentRenewalCandidates } from "@/lib/automation-suggestions";
 import { insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
-import { commitmentUrgency, noticeByDate, KIND_LABEL, type CommitmentKind } from "@/lib/commitments-shared";
 import { getAutomationMode } from "@/lib/automation-reactions";
 import { getAppSettings } from "@/lib/settings";
 import { recordEvent } from "@/lib/system-events";
@@ -69,8 +69,6 @@ async function getOrInitBaseline(): Promise<Date> {
   return midnight;
 }
 
-type CommitmentRow = { id: number; kind: string; title: string; company_id: number | null; end_date: string | null; notice_days: number | null; status: string };
-
 /** Create + link the renewal task for a renewable document. Shared by the Auto
  *  path and the "Apply" of a renewal suggestion. */
 async function createRenewalTask(document: DocumentRow): Promise<{ taskId: number; code: string }> {
@@ -90,28 +88,9 @@ async function createRenewalTask(document: DocumentRow): Promise<{ taskId: numbe
   return { taskId: task.id, code: task.code };
 }
 
-/** Create the notice task for a commitment. Shared by Auto + Apply. */
-async function createCommitmentTask(c: CommitmentRow, urgent: boolean): Promise<{ taskId: number; code: string; title: string }> {
-  const now = new Date();
-  const companyId = c.company_id as number;
-  const prefix = await companyPrefix(companyId);
-  const label = KIND_LABEL[c.kind as CommitmentKind] ?? "Commitment";
-  const title = `${label} notice: ${c.title}`;
-  const nb = noticeByDate({ endDate: c.end_date, noticeDays: c.notice_days });
-  const task = await insertTaskWithUniqueCodeSb(companyId, prefix, {
-    actionItem: title, status: "Not Started", priority: urgent ? "Critical" : "High", category: "Admin",
-    deadline: nb, createdDate: now, lastUpdatedAt: now, archived: false,
-  });
-  await sb.from("audit_log").insert({
-    task_id: task.id, task_code: task.code, company_id: companyId, entry_type: "CREATE", field: "Task",
-    old_value: null, new_value: title, change_reason: "Created by automation — commitment notice", created_at: now.toISOString(), created_by: "automation",
-  });
-  return { taskId: task.id, code: task.code, title };
-}
-
 /** Record a "create a task" SUGGESTION (Suggest mode) that remembers its source —
- *  a document (renewal) or a commitment (notice) — so Apply can create it later. */
-async function suggestTaskCreate(opts: { source: "documents" | "commitments"; sourceId: number; documentId: number | null; companyId: number | null; personId: number | null; summary: string; detail: string }): Promise<void> {
+ *  a document (renewal) — so Apply can create it later. */
+async function suggestTaskCreate(opts: { source: "documents"; sourceId: number; documentId: number | null; companyId: number | null; personId: number | null; summary: string; detail: string }): Promise<void> {
   const now = new Date().toISOString();
   await sb.from("automation_events").insert({
     kind: "task-create", status: "suggested", document_id: opts.documentId, target_table: opts.source, target_id: opts.sourceId,
@@ -194,24 +173,15 @@ export async function createTaskFromSuggestion(row: { target_table: string; targ
     if (!doc || !doc.companyId) throw new Error("That document is no longer available.");
     return createRenewalTask(doc);
   }
-  if (row.target_table === "commitments") {
-    const { data } = await sb.from("commitments").select("id,kind,title,company_id,end_date,notice_days,status").eq("id", row.target_id).maybeSingle();
-    const c = data as CommitmentRow | null;
-    if (!c || !c.company_id) throw new Error("That commitment is no longer available.");
-    const urg = commitmentUrgency({ endDate: c.end_date, noticeDays: c.notice_days, status: c.status });
-    return createCommitmentTask(c, urg === "overdue");
-  }
   if (row.target_table === "people") {
     const { data } = await sb.from("people").select("id,name,company_id,manager_id,probation_end_date").eq("id", row.target_id).maybeSingle();
     const p = data as ProbationPerson | null;
     if (!p || !p.company_id) throw new Error("That person is no longer available.");
     return createProbationTask(p);
   }
-  if (row.target_table === "pipeline") {
-    const { data } = await sb.from("pipeline").select("id,type,company_id,stage").eq("id", row.target_id).maybeSingle();
-    const c = data as PipelineLite | null;
-    if (!c || !c.company_id) throw new Error("That application is no longer available.");
-    return createCollectionTask(c);
+  if (row.target_table === "commitments" || row.target_table === "pipeline") {
+    // Old suggestions from Commitments / Applications, both removed 26 Sept 2026.
+    throw new Error("That feature has been removed — dismiss this suggestion instead.");
   }
   throw new Error("Unknown suggestion source.");
 }
@@ -219,28 +189,9 @@ export async function createTaskFromSuggestion(row: { target_table: string; targ
 /* ------------------------------------------------------------------ */
 /* Phase 4 — cross-process cascades. One process finishing spawns the  */
 /* next step. Each is gated by the task-create mode, deduped, logged,  */
-/* and undoable; they create TASKS only (never toggle a todo or move a */
-/* pipeline), so they can't loop back into their own trigger.          */
+/* and undoable; they create TASKS only (never toggle a todo), so they */
+/* can't loop back into their own trigger.                             */
 /* ------------------------------------------------------------------ */
-
-type PipelineLite = { id: number; type: string; company_id: number | null; stage: string };
-
-/** Create the "collect & file the issued document" task for an Issued application. */
-async function createCollectionTask(c: PipelineLite): Promise<{ taskId: number; code: string; title: string }> {
-  const now = new Date();
-  const companyId = c.company_id as number;
-  const prefix = await companyPrefix(companyId);
-  const title = `Collect & file: ${c.type}`;
-  const task = await insertTaskWithUniqueCodeSb(companyId, prefix, {
-    actionItem: title, status: "Not Started", priority: "High", category: "Admin",
-    deadline: null, createdDate: now, lastUpdatedAt: now, archived: false,
-  });
-  await sb.from("audit_log").insert({
-    task_id: task.id, task_code: task.code, company_id: companyId, entry_type: "CREATE", field: "Task",
-    old_value: null, new_value: title, change_reason: "Created by automation — application issued", created_at: now.toISOString(), created_by: "automation",
-  });
-  return { taskId: task.id, code: task.code, title };
-}
 
 /** Onboarding all done → schedule the probation review (shares the `probation:<id>`
  *  dedup key with the time sweep, so the two never double-create). */
@@ -271,47 +222,19 @@ export async function cascadeOnboardingComplete(personId: number): Promise<void>
   }
 }
 
-/** Pipeline reached "Issued" → spawn the task to collect & file the issued document. */
-export async function cascadePipelineIssued(pipelineId: number): Promise<void> {
-  try {
-    const mode = await getAutomationMode("task-create");
-    if (mode === "off") return;
-    const { data: c } = await sb.from("pipeline").select("id,type,company_id,stage,archived").eq("id", pipelineId).maybeSingle();
-    if (!c || c.archived || !c.company_id || c.stage !== "Issued") return;
-    const { data: ex } = await sb.from("automation_events").select("id").eq("kind", "task-create").ilike("detail", `pipeline-issued:${pipelineId}|%`).limit(1);
-    if (ex && ex.length) return;
-    const row = c as PipelineLite;
-    if (mode === "suggest") {
-      await sb.from("automation_events").insert({
-        kind: "task-create", status: "suggested", document_id: null, target_table: "pipeline", target_id: pipelineId,
-        person_id: null, company_id: c.company_id, summary: `Create task — collect & file ${c.type}`,
-        detail: `pipeline-issued:${pipelineId}| Application issued — collect the document`, prev_value: null, new_value: null,
-        created_at: new Date().toISOString(), acted_at: null, created_by: "automation",
-      });
-    } else {
-      const t = await createCollectionTask(row);
-      await logTaskCreate({ documentId: null, companyId: c.company_id, personId: null, taskId: t.taskId, taskCode: t.code,
-        summary: `Created task ${t.code} — collect & file ${c.type}`, detail: `pipeline-issued:${pipelineId}| Application issued — auto-created the collection task` });
-    }
-  } catch (e) {
-    await recordEvent("automation.cascade", "error", { step: "pipeline-issued", pipelineId, message: e instanceof Error ? e.message : String(e) });
-  }
-}
-
 // Cap how many obligation tasks one sweep can spawn — a safety bound so a fresh
 // install (or a wide lead window) can't dump a huge batch in one tick.
 const MAX_OBLIGATION_TASKS_PER_RUN = 40;
 
 /** Run the time-based automations. Returns how many work items were created. */
-export async function runTimeAutomations(): Promise<{ renewals: number; commitments: number; probations: number; obligations: number }> {
+export async function runTimeAutomations(): Promise<{ renewals: number; probations: number; obligations: number }> {
   let renewals = 0;
-  let commitments = 0;
   let probations = 0;
   let obligations = 0;
   // Respect the control-room mode: "off" disables spawning work entirely;
   // "suggest" records a one-click suggestion instead of creating the task.
   const mode = await getAutomationMode("task-create");
-  if (mode === "off") return { renewals, commitments, probations, obligations };
+  if (mode === "off") return { renewals, probations, obligations };
   const suggesting = mode === "suggest";
   const baseline = await getOrInitBaseline(); // forward-only: skip the existing backlog
 
@@ -346,40 +269,7 @@ export async function runTimeAutomations(): Promise<{ renewals: number; commitme
     await recordEvent("automation.time", "error", { step: "renewals", message: e instanceof Error ? e.message : String(e) });
   }
 
-  // 2. Notices for commitments entering (or past) their notice window.
-  try {
-    const { data: rows } = await sb.from("commitments").select("id,kind,title,company_id,end_date,notice_days,status").eq("archived", false);
-    for (const c of (rows ?? []) as CommitmentRow[]) {
-      const companyId = c.company_id;
-      if (!companyId) continue;
-      const urg = commitmentUrgency({ endDate: c.end_date, noticeDays: c.notice_days, status: c.status });
-      if (urg !== "overdue" && urg !== "soon") continue;
-      const nbForward = noticeByDate({ endDate: c.end_date, noticeDays: c.notice_days });
-      if (!nbForward || nbForward < baseline) continue; // forward-only
-      // Dedup across ALL statuses, keyed by the commitment id in detail.
-      const { data: existing } = await sb.from("automation_events").select("id").eq("kind", "task-create").ilike("detail", `commitment:${c.id}|%`).limit(1);
-      if (existing && existing.length) continue;
-      const label = KIND_LABEL[c.kind as CommitmentKind] ?? "Commitment";
-      const word = urg === "overdue" ? "overdue" : "due soon";
-      if (suggesting) {
-        await suggestTaskCreate({
-          source: "commitments", sourceId: c.id, documentId: null, companyId, personId: null,
-          summary: `Create ${label.toLowerCase()} notice task — ${word}: “${c.title}”`, detail: `commitment:${c.id}| Notice ${urg} — act to renew or exit`,
-        });
-      } else {
-        const t = await createCommitmentTask(c, urg === "overdue");
-        await logTaskCreate({
-          documentId: null, companyId, personId: null, taskId: t.taskId, taskCode: t.code,
-          summary: `Created task ${t.code} — ${label.toLowerCase()} notice ${word}: “${c.title}”`, detail: `commitment:${c.id}| Notice ${urg} — act to renew or exit`,
-        });
-      }
-      commitments++;
-    }
-  } catch (e) {
-    await recordEvent("automation.time", "error", { step: "commitments", message: e instanceof Error ? e.message : String(e) });
-  }
-
-  // 3. Probation reviews — a person whose probation ends within 14 days (or has
+  // 2. Probation reviews — a person whose probation ends within 14 days (or has
   //    just passed, forward-only) and has no review task yet. Manager owns it.
   try {
     const horizon = new Date(); horizon.setHours(0, 0, 0, 0); horizon.setDate(horizon.getDate() + 14);
@@ -416,7 +306,7 @@ export async function runTimeAutomations(): Promise<{ renewals: number; commitme
     await recordEvent("automation.time", "error", { step: "probations", message: e instanceof Error ? e.message : String(e) });
   }
 
-  // 4. Recurring obligations — the Tax & Legal cadence grid. For each obligation
+  // 3. Recurring obligations — the Tax & Legal cadence grid. For each obligation
   //    now DUE (inside its lead window, this period) and applicable to a company
   //    that hasn't ticked it, spawn a task to do it. Due-ness + per-company
   //    applicability + "done this period" all come from dueObligationInstances
@@ -462,6 +352,6 @@ export async function runTimeAutomations(): Promise<{ renewals: number; commitme
     await recordEvent("automation.time", "error", { step: "obligations", message: e instanceof Error ? e.message : String(e) });
   }
 
-  await recordEvent("automation.time", "ok", { renewals, commitments, probations, obligations });
-  return { renewals, commitments, probations, obligations };
+  await recordEvent("automation.time", "ok", { renewals, probations, obligations });
+  return { renewals, probations, obligations };
 }

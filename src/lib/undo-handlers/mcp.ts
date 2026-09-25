@@ -103,19 +103,6 @@ registerUndoHandler("mcp.attendance.record", async (raw) => {
   await recordAttendanceAction(p.personId, p.date, p.before);
 });
 
-// A new application in progress — remove it.
-registerUndoHandler("mcp.pipeline.create", async (raw) => {
-  const p = raw as { pipelineId: number };
-  await sb.from("pipeline").delete().eq("id", p.pipelineId);
-});
-
-// Stage move — step it back to where it was.
-registerUndoHandler("mcp.pipeline.stage", async (raw) => {
-  const p = raw as { pipelineId: number; before: string };
-  const { movePipelineStageAction } = await import("@/app/hrms/pipeline/actions");
-  await movePipelineStageAction(p.pipelineId, p.before as never);
-});
-
 // A drafted announcement — delete it. It was never published, so it reached nobody.
 registerUndoHandler("mcp.announcement.draft", async (raw) => {
   const p = raw as { announcementId: number };

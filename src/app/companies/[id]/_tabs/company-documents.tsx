@@ -56,7 +56,6 @@ export function CompanyDocuments({
   staffGroups,
   companies,
   people,
-  stageByDoc = {},
 }: {
   companyId: number;
   companyName: string;
@@ -64,8 +63,6 @@ export function CompanyDocuments({
   staffGroups: StaffFileGroup[];
   companies: Array<{ id: number; name: string }>;
   people: Array<{ id: number; name: string }>;
-  /** Pipeline stage per document id, so a doc shows where it is at a glance. */
-  stageByDoc?: Record<number, string>;
 }) {
   const router = useRouter();
   const { toast } = useToast();
@@ -141,7 +138,7 @@ export function CompanyDocuments({
   // attention-first then by title (same order as the old flat list).
   const q = query.trim().toLowerCase();
   const visibleDocs = q
-    ? sortedDocs.filter((d) => [d.title, d.category, d.issuer, d.referenceNo, stageByDoc[d.id]].filter(Boolean).join(" ").toLowerCase().includes(q))
+    ? sortedDocs.filter((d) => [d.title, d.category, d.issuer, d.referenceNo].filter(Boolean).join(" ").toLowerCase().includes(q))
     : sortedDocs;
   // Grouped by the category the owner picked; anything left blank collects
   // under "Uncategorised" rather than being guessed into a folder.
@@ -157,7 +154,6 @@ export function CompanyDocuments({
   function renderDocRow(doc: DocumentRow) {
     const status = deriveDocStatus(doc);
     const exp = expiryLabel(doc);
-    const stage = stageByDoc[doc.id];
     const renaming = renamingId === doc.id;
     return (
       <li key={doc.id} className="px-3.5 py-2.5 bg-bg-elev/40">
@@ -183,11 +179,6 @@ export function CompanyDocuments({
               {[doc.category, doc.issuer, doc.referenceNo, exp, fmtUpdated(doc.updatedAt)].filter(Boolean).join(" · ")}
             </span>
           </div>
-          {stage && (
-            <span className="shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-info-soft/60 ring-1 ring-info/30 text-info" title="Application stage">
-              {stage}
-            </span>
-          )}
           <span className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_BADGE[status]}`}>
             {status}
           </span>

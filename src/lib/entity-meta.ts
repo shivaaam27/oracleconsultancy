@@ -30,8 +30,6 @@ export const ENTITY_LABELS_ORDER: Record<EntityType, { uiLabel: string; searchOr
   // position. (searchOrder −1 still means "has a screen, nothing indexed yet".)
   vendor:     { uiLabel: "Vendors",      searchOrder: 7 },
   asset:      { uiLabel: "Assets",       searchOrder: 8 },
-  pipeline:   { uiLabel: "Applications", searchOrder: 9 },
-  commitment: { uiLabel: "Commitments",  searchOrder: 10 },
   // The recruitment desk. searchOrder −1 = has a screen, nothing indexed yet
   // (the same state Projects was in at its Phase 1).
   /* searchOrder -1 = not offered in search yet; the EntityDefs arrive with the

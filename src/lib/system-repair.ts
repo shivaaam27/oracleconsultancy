@@ -44,7 +44,7 @@ const REPAIRABLE: Record<string, { label: string; run: () => Promise<string> }> 
     run: async () => {
       const { runTimeAutomations } = await import("@/lib/automation-time");
       const r = await runTimeAutomations();
-      return `renewals ${r.renewals}, commitments ${r.commitments}, probations ${r.probations}`;
+      return `renewals ${r.renewals}, probations ${r.probations}, obligations ${r.obligations}`;
     },
   },
   "cron.snapshots": {

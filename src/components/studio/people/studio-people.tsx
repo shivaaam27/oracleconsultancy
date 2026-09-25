@@ -17,7 +17,7 @@ import { PersonFace } from "@/components/studio/face";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Plus, Search, Maximize2, X, Mail, MessageCircle, Phone, MessagesSquare, CheckSquare, Check, Clock, SkipForward, ArrowUpRight, Loader2, LayoutGrid, Columns3, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Search, Maximize2, X, Mail, MessageCircle, Phone, CheckSquare, Check, Clock, SkipForward, ArrowUpRight, Loader2, LayoutGrid, Columns3, ChevronLeft, ChevronRight } from "lucide-react";
 import { StudioScope, StudioHeader, StudioCardRow, StudioCard, CardHead, BigNumber, Ring, stBtn, stFloatBar } from "@/components/studio/kit";
 import { StudioMenu } from "@/components/studio/tasks/controls";
 import { StudioChoiceMenu } from "@/components/studio/tasks/cells";
@@ -345,7 +345,6 @@ export function StudioPeople({ people, companies, hints = {}, readOnly = false }
                 {selP.email && <a href={`mailto:${selP.email}`} aria-label="Email" title={selP.email} className={ICON_BTN}><Mail size={14} /></a>}
                 {selP.whatsapp && <a href={waHref(selP.whatsapp)} target="_blank" rel="noreferrer" aria-label="WhatsApp" title="WhatsApp" className={ICON_BTN}><MessageCircle size={14} /></a>}
                 {(selP.phone || selP.whatsapp) && <a href={`tel:${selP.phone ?? selP.whatsapp}`} aria-label="Call" title="Call" className={ICON_BTN}><Phone size={14} /></a>}
-                {(!readOnly || staff) && <Link href={paths.chat(selP.id)} aria-label="Chat" title="Chat" className={ICON_BTN}><MessagesSquare size={14} /></Link>}
                 {!readOnly && <button type="button" disabled={!selP.workload.open || reminding} onClick={() => remind(selP, selP.topTasks)}
                   title={selP.workload.open ? "Saves a reminder in the Outbox for you to send" : "No open tasks"}
                   className={cn(stBtn.onCard, "h-8 rounded-[9px] disabled:opacity-50")}>{reminding && <Loader2 size={12} className="animate-spin" />}Remind about open work</button>}

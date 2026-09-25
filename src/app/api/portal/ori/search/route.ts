@@ -16,7 +16,7 @@ import { scopePortalSearchResults } from "@/lib/ori/portal-scope";
  *      core (visibleTaskIds / directory company-set intersection). Reused
  *      verbatim so ORI search can never out-see the plain ⌘K overlay.
  *   2. unifiedSearch (the wider entity types: documents, vendors, assets,
- *      governance, risk, pipeline, commitments, letters, meetings) →
+ *      governance, risk, letters, meetings) →
  *      POST-FILTERED by scopePortalSearchResults, which drops any result
  *      whose owning company isn't in companyScope(me) (and, for plain
  *      staff, keeps only results they personally own). COARSE but SAFE:

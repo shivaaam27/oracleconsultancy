@@ -8,6 +8,8 @@ import {
   listAutomationHistory, type AutomationFeedItem, type AutomationHistoryItem,
 } from "@/app/automations/actions";
 
+// The two "pipeline-*" labels stay for old rows — Applications was removed
+// 26 Sept 2026 and makes no new ones.
 const KIND_LABEL: Record<string, string> = {
   "compliance-verify": "Compliance",
   "task-complete": "Task",
@@ -19,7 +21,7 @@ const KIND_LABEL: Record<string, string> = {
 
 const KIND_FILTERS: Array<[string, string]> = [
   ["all", "All"], ["compliance-verify", "Compliance"], ["task-complete", "Tasks"],
-  ["pipeline-advance", "Pipeline"], ["onboarding-tick", "Onboarding"], ["task-create", "Renewals"],
+  ["onboarding-tick", "Onboarding"], ["task-create", "Renewals"],
 ];
 const STATUS_FILTERS: Array<[string, string]> = [
   ["all", "All"], ["applied", "Done"], ["suggested", "Suggested"], ["dismissed", "Dismissed"], ["undone", "Undone"],
@@ -78,8 +80,8 @@ export function AutomationFeed({
     setCheckMsg(null);
     startCheck(async () => {
       const r = await runTimeAutomationsNow();
-      const made = r.renewals + r.commitments + r.probations;
-      setCheckMsg(r.ok ? (made ? `${made} renewal/notice item${made === 1 ? "" : "s"} from passing dates.` : "Nothing due — all caught up.") : "Couldn't run the checks.");
+      const made = r.renewals + r.probations + r.obligations;
+      setCheckMsg(r.ok ? (made ? `${made} item${made === 1 ? "" : "s"} from passing dates.` : "Nothing due — all caught up.") : "Couldn't run the checks.");
       router.refresh();
     });
   }

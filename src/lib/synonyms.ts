@@ -78,13 +78,12 @@ export const SYNONYM_GROUPS: string[][] = [
     "sick", "sickness", "attendance", "attend", "off", "vacation",
     "compassionate", "maternity", "paternity",
   ],
-  // Pipeline & applications
+  // Permits & licences (as documents). The "applications in progress" words
+  // went with Applications, removed 26 Sept 2026.
   [
-    "application", "applications", "applied", "apply", "permit", "permits",
-    "visa", "visas", "licence", "licences", "license", "progress", "inprogress",
-    "pending", "control", "controlnumber",
+    "permit", "permits", "visa", "visas", "licence", "licences", "license",
   ],
-  // Commitments & contracts
+  // Contracts & renewals (as documents — Commitments was removed 26 Sept 2026)
   [
     "commitment", "commitments", "contract", "contracts", "agreement",
     "agreements", "renewal", "renewals", "renew", "notice", "expiry",

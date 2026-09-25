@@ -1,6 +1,6 @@
 // The rules behind "your 3 o'clock is in an hour" — pure, so they can be tested
 // without a database (see event-reminders-core.test.ts). The delivery half
-// (chat, push, email) lives in event-reminders.ts, which is server-only.
+// (bell, push, email) lives in event-reminders.ts, which is server-only.
 
 import { expandRecurrence } from "@/lib/ics";
 import { getGivenName } from "@/lib/names";
@@ -49,25 +49,22 @@ export function fmtWhen(iso: string, allDay: boolean): string {
   });
 }
 
-/** The chat message: what, when, where, how to join. Chat renders plain text. */
-export function buildChatBody(
+/** The bell/push line: what, when, where, how to join. Plain text, one line
+ *  (a notification body is capped at 200 characters). */
+export function buildReminderBody(
   ev: CalendarEvent,
   occurrenceIso: string,
   minutes: number,
   name: string
 ): string {
   const first = getGivenName(name);
-  const lines = [
+  const parts = [
     `Hi ${first} — ${ev.title} starts ${leadPhrase(minutes)}.`,
-    "",
-    `🗓 ${fmtWhen(occurrenceIso, ev.allDay)}`,
+    fmtWhen(occurrenceIso, ev.allDay),
   ];
-  if (ev.location) lines.push(`📍 ${ev.location}`);
-  if (ev.meetLink) lines.push(`🔗 Join: ${ev.meetLink}`);
-  const guests = ev.attendees.map((a) => a.name).filter(Boolean);
-  if (guests.length > 1) lines.push(`👥 ${guests.join(", ")}`);
-  if (ev.description) lines.push("", ev.description);
-  return lines.join("\n").trim();
+  if (ev.location) parts.push(ev.location);
+  if (ev.meetLink) parts.push(`Join: ${ev.meetLink}`);
+  return parts.join(" · ").trim();
 }
 
 /* ------------------------------- the rules ------------------------------- */

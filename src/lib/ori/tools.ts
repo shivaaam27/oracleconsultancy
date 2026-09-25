@@ -1008,7 +1008,7 @@ export const TOOLS: ToolDef[] = [
   },
 
   /* ==================== DOMAIN WAVES (people/HR · documents · meetings &
-   * letters · calendar & announcements · governance/pipeline/commitments ·
+   * letters · calendar & announcements · governance ·
    * assets/ops/reference/settings). Each array lives in its own tools-*.ts and
    * reuses existing server actions — spread here so they register into
    * TOOL_BY_NAME with the same shape/order semantics as the core tools. ==== */

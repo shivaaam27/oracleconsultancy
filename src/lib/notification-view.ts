@@ -36,7 +36,9 @@ export function isSystemDigest(n: Pick<NotifRow, "actor" | "taskCode">): boolean
 
 /** The daily 9am "Your tasks · <Company>" reminder mirrored from its chat
  *  channel. Kept in the bell (owner's call) but filed as a reminder, not as a
- *  message from a colleague — it repeats ~30× per person otherwise. */
+ *  message from a colleague — it repeats ~30× per person otherwise.
+ *  Chat and that reminder were removed on 26 Sept 2026, so no NEW row matches;
+ *  this stays so the old rows still file correctly until they age out. */
 export function isDailyReminder(n: Pick<NotifRow, "kind" | "title">): boolean {
   return n.kind === "chat" && /^your tasks\b/i.test(n.title ?? "");
 }

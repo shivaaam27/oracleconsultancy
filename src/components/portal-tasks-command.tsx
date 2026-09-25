@@ -9,7 +9,7 @@ import Link from "next/link";
 import {
   Search, Plus, Loader2, ListTodo, ChevronRight, ChevronDown,
   Send, Users, ExternalLink, CalendarClock, Flag, User, Mail, MessageCircle,
-  MessageSquarePlus, Check, Building2, MessagesSquare, X, Pencil, Trash2,
+  MessageSquarePlus, Check, Building2, X, Pencil, Trash2,
   AlertTriangle, Tag, ShieldAlert, Square, CheckSquare, CalendarPlus,
 } from "lucide-react";
 import { Panel } from "@/components/surface-kit";
@@ -22,7 +22,7 @@ import { CompanyAvatar } from "@/components/company-avatar";
 import { type BoardPerson, type BoardCompany } from "@/components/director-board-client";
 import { useToast } from "@/components/toast";
 import { DirectorTaskForm, type ComposerRole } from "@/components/director-task-form";
-import { portalEditTask, portalAddUpdate, portalMessageTaskGroup, portalSendTaskSummaryWhatsApp, portalSendReminderEmail, portalOpenDm, portalSetTaskLeads, portalRemoveTaskPerson, portalDeleteTask, portalBulkTaskAction } from "@/app/portal/actions";
+import { portalEditTask, portalAddUpdate, portalSendTaskSummaryWhatsApp, portalSendReminderEmail, portalSetTaskLeads, portalRemoveTaskPerson, portalDeleteTask, portalBulkTaskAction } from "@/app/portal/actions";
 import { getGivenName } from "@/lib/names";
 import { useAnchored } from "@/lib/use-anchored";
 import { canEditTask, canCompleteTask } from "@/lib/task-permissions";
@@ -946,15 +946,6 @@ function TaskRow({
   const changePriority = (v: string) => { if (v !== t.priority) save({ priority: v }, `Priority → ${v}`); };
   const changeDue = (v: string) => { if (v !== (t.deadlineInput ?? "")) save({ deadline: v || null }, "Due date updated"); };
 
-  // "Remind all" on a task = remind the GROUP in the in-built chat (one message to
-  // everyone on the task), not a pile of individual drafts.
-  function remindAll() {
-    startTransition(async () => {
-      const res = await portalMessageTaskGroup(t.taskId);
-      if (!res.ok) { toast(res.error, { tone: "danger" }); return; }
-      router.push(`/portal/chat/${res.threadId}`);
-    });
-  }
   function postUpdate() {
     const body = updateBody.trim();
     if (!body) return;
@@ -979,21 +970,17 @@ function TaskRow({
 
 
   const dueTone = t.overdue ? "text-danger" : t.withinSoon ? "text-warn" : "text-fg-muted";
-  const involved = t.assignees.length || (t.accountableName ? 1 : 0);
   // Collapsed cards show ONE short preview (clamped to 2 lines): the description if
   // there is one, otherwise the latest update. Company + owner and the full text
   // are revealed on expand to keep the glance clean.
   const collapsedPreview = t.description
     ? t.description
     : t.note ? `${t.updateAuthor ? `${t.updateAuthor}: ` : ""}${t.note}` : null;
-  // Swipe-left reveals Update (+ Remind-all when shared); swipe-right reveals
-  // Complete (only when this viewer may complete). Trays kept narrow so they don't
-  // eat a small phone's width; thresholds below stay in sync (64px per action).
+  // Swipe-left reveals Update; swipe-right reveals Complete (only when this
+  // viewer may complete). Trays kept narrow so they don't eat a small phone's
+  // width; thresholds below stay in sync (64px per action).
   // Axis-locked + finger-following.
-  // Bulk "Message everyone on the task" is a management affordance (canRemind) —
-  // staff just post updates / open the conversation, so they never get the tray.
-  const canMessageAll = canRemind && involved > 1;
-  const swipe = useSwipeRow({ leftWidth: canComplete ? 64 : 0, rightWidth: canMessageAll ? 128 : 64 });
+  const swipe = useSwipeRow({ leftWidth: canComplete ? 64 : 0, rightWidth: 64 });
 
   // A row of bordered pill controls — all matching the status dropdown
   // (FluidSelect with `fieldShell`) — then the "On this task" people panel,
@@ -1235,7 +1222,7 @@ function TaskRow({
     );
   }
 
-  // mobile card — swipe left for Update + Remind all, right to Complete; tap to expand.
+  // mobile card — swipe left for Update, right to Complete; tap to expand.
   return (
     <div className={cn("relative overflow-hidden rounded-2xl", t.isDone && "opacity-60")}>
       {/* Revealed on swipe-left */}
@@ -1243,11 +1230,6 @@ function TaskRow({
         <button type="button" onClick={() => { swipe.reset(); setOpen(true); }} className="flex w-[64px] flex-col items-center justify-center gap-1 bg-accent-soft text-xs font-medium text-accent">
           <MessageSquarePlus size={17} /> Update
         </button>
-        {canMessageAll && (
-          <button type="button" onClick={() => { swipe.reset(); remindAll(); }} disabled={busy} className="flex w-[64px] flex-col items-center justify-center gap-1 bg-success-soft/70 text-xs font-medium text-success">
-            <MessagesSquare size={17} /> Message
-          </button>
-        )}
       </div>
       {/* Revealed on swipe-right — only when this viewer may complete the task. */}
       {canComplete && (
@@ -1314,9 +1296,8 @@ type Member = { id: number | null; name: string; lead: boolean };
  * "On this task" — everyone involved, beautifully. The leads show first with a
  * "Lead" badge; the other assignees follow as "Working", de-duplicated. A task
  * may have more than one lead. Each row carries quick contact actions
- * (NotifyPerson: WhatsApp/Email summary of the person's open tasks). A "Message
- * all · N" button opens the task's group chat (portalMessageTaskGroup) when more
- * than one person is involved. Directors/HR can edit the lead set inline.
+ * (NotifyPerson: WhatsApp/Email summary of the person's open tasks).
+ * Directors/HR can edit the lead set inline.
  */
 export function TaskPeoplePanel({
   t, people, canEditLeads, canRemind,
@@ -1330,7 +1311,6 @@ export function TaskPeoplePanel({
 }) {
   const { toast } = useToast();
   const router = useRouter();
-  const [chatBusy, startChat] = useTransition();
   const [leadBusy, startLeads] = useTransition();
   const [removeBusy, startRemove] = useTransition();
 
@@ -1376,14 +1356,6 @@ export function TaskPeoplePanel({
   }, [leadIds, leadSet, t.accountableId, t.accountableName, t.assignees, t.assigneeIds, people]);
 
   const total = members.length;
-
-  function messageAll() {
-    startChat(async () => {
-      const res = await portalMessageTaskGroup(t.taskId);
-      if (!res.ok) { toast(res.error, { tone: "danger" }); return; }
-      router.push(`/portal/chat/${res.threadId}`);
-    });
-  }
 
   function setLeads(next: number[]) {
     // Never allow clearing to zero — the panel keeps the last lead.
@@ -1437,16 +1409,6 @@ export function TaskPeoplePanel({
         <span className="inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-[0.08em] text-fg-subtle">
           <Users size={12} /> On this task{total > 0 && <span className="text-fg-muted">· {total}</span>}
         </span>
-        {total > 1 && canRemind && (
-          <button
-            type="button"
-            onClick={messageAll}
-            disabled={chatBusy}
-            className={ACTION_BOX}
-          >
-            {chatBusy ? <Loader2 size={13} className="animate-spin" /> : <MessagesSquare size={13} />} Message all in chat
-          </button>
-        )}
       </div>
 
       <ul className="divide-y divide-border/50">
@@ -1490,8 +1452,8 @@ export function TaskPeoplePanel({
                 </span>
               )}
             </span>
-            {/* Per-person reachability — minimal icons: WhatsApp / Email this task +
-                a direct chat DM. Only the id-backed people. */}
+            {/* Per-person reachability — minimal icons: WhatsApp / Email this
+                task. Only the id-backed people. */}
             {canRemind && m.id != null && <MemberActions personId={m.id} name={m.name} taskId={t.taskId} />}
             {/* Remove from the task — director/HR or the creator (even the last one). */}
             {canEditLeads && m.id != null && (
@@ -1735,11 +1697,10 @@ function LeadMultiSelect({
 }
 
 /** Minimal per-person action icons on a task: WhatsApp + Email a summary of that
- *  person's open tasks (Outbox-backed, mobile-safe), and a direct chat DM. Icon-only
+ *  person's open tasks (Outbox-backed, mobile-safe). Icon-only
  *  so the row stays tidy on mobile; meaning carried by title/aria-label. */
 function MemberActions({ personId, name, taskId }: { personId: number; name: string; taskId?: number }) {
   const { toast } = useToast();
-  const router = useRouter();
   const [busy, start] = useTransition();
   const first = getGivenName(name);
 
@@ -1771,13 +1732,6 @@ function MemberActions({ personId, name, taskId }: { personId: number; name: str
         : res.error || "Couldn't send the email.";
       toast(msg, { tone: "warn" });
     });
-  const chat = () =>
-    start(async () => {
-      const res = await portalOpenDm(personId);
-      if (!res.ok) { toast(res.error, { tone: "danger" }); return; }
-      router.push(`/portal/chat/${res.threadId}`);
-    });
-
   /* ⚠️ ONE SHAPE, NOT THREE FILLS. These were a GREEN WhatsApp button, a BLUE
      email button and a GREY chat button sitting shoulder to shoulder — three
      treatments for three actions of exactly equal weight, with the remove X
@@ -1790,9 +1744,6 @@ function MemberActions({ personId, name, taskId }: { personId: number; name: str
       </button>
       <button type="button" onClick={email} disabled={busy} title="Email this task" aria-label={`Email ${first} about this task`} className={ACTION_ICON}>
         <Mail size={15} />
-      </button>
-      <button type="button" onClick={chat} disabled={busy} title="Message in chat" aria-label={`Message ${first} in chat`} className={ACTION_ICON}>
-        <MessageSquarePlus size={15} />
       </button>
     </div>
   );

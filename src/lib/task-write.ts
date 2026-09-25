@@ -323,7 +323,7 @@ export async function createTaskCore(
  *
  * Mirrors the web conversation box: the update row, the task's latest_update /
  * last_updated_at, a Status audit row when the status actually moves, and the
- * pipeline cascade. Returns the undo token so a wrong update can be pulled back.
+ * completion cascade. Returns the undo token so a wrong update can be pulled back.
  */
 export async function addTaskUpdateCore(input: {
   taskId: number;
@@ -426,7 +426,7 @@ export async function addTaskUpdateCore(input: {
 }
 
 /** Fire the cross-process cascade when a task's status changes: completing a task
- *  that DRIVES a pipeline case (pipeline.task_id) advances that case a stage.
+ *  that is a probation review ticks the person's onboarding step.
  *  Guarded + dynamic-imported (avoids cycles); never affects the task write. */
 async function fireTaskCascade(taskId: number, wasStatus: string, nowStatus: string) {
   if (wasStatus === nowStatus) return;

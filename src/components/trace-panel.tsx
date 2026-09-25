@@ -62,8 +62,6 @@ function typeLabel(type: string): string {
     letter: "Letter",
     vendor: "Vendor",
     asset: "Asset",
-    pipeline: "Application",
-    commitment: "Commitment",
     risk: "Risk",
     governance: "Governance",
     meeting: "Meeting",

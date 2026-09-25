@@ -119,18 +119,8 @@ export default async function CompanyPage({
       .sort((a, b) => a.personName.localeCompare(b.personName));
   })();
 
-  // Profile-only: the pipeline stage of any document (so the Documents list shows
-  // it at a glance) plus the company's relationships.
-  const [pipelineRows, relationships] = tab === "profile"
-    ? await Promise.all([
-        sb.from("pipeline").select("document_id,stage").eq("company_id", companyId).eq("archived", false),
-        getCompanyRelationships(companyId),
-      ])
-    : [{ data: [] as Array<{ document_id: number | null; stage: string }> }, []];
-  const stageByDoc: Record<number, string> = {};
-  for (const r of (pipelineRows as { data: Array<{ document_id: number | null; stage: string }> }).data ?? []) {
-    if (r.document_id != null) stageByDoc[r.document_id] = r.stage;
-  }
+  // Profile-only: the company's relationships.
+  const relationships = tab === "profile" ? await getCompanyRelationships(companyId) : [];
 
   // Overview-only: assets at this company + its suppliers (heavier, so lazy).
   let overviewExtras: null | { assets: AssetRow[]; vendors: VendorRow[] } = null;
@@ -246,7 +236,7 @@ export default async function CompanyPage({
             </div>
             <Link href={`/files?co=${companyId}`} className="inline-flex h-8 items-center rounded-[9px] border border-[var(--st-line)] px-3 text-xs hover:bg-[var(--st-page)]">Open {name}&apos;s files</Link>
           </div>
-        ) : <CompanyDocuments companyId={companyId} companyName={name} documents={companyDocs} staffGroups={staffGroups} companies={companiesList} people={peopleList} stageByDoc={stageByDoc} />}
+        ) : <CompanyDocuments companyId={companyId} companyName={name} documents={companyDocs} staffGroups={staffGroups} companies={companiesList} people={peopleList} />}
       />
     ) : tab === "tasks" ? (
       (tf === "done" ? completedRows : openRows).length === 0 ? (

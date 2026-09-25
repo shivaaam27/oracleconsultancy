@@ -3,7 +3,7 @@
 import { useSearchParams, usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
 import {
-  X, Mail, Phone, MessageCircle, MessagesSquare, MoonStar, UserX, AlertCircle,
+  X, Mail, Phone, MessageCircle, MoonStar, UserX, AlertCircle,
   Briefcase, Building2, ExternalLink, Activity, ListTodo, Pencil, Archive,
   RotateCcw, Clock, Send, FileText, ShieldCheck, Package, Route as RouteIcon,
   LayoutDashboard, IdCard, CheckCircle2, AlertTriangle, PackageCheck, CalendarDays, Plane, Cake, Users,
@@ -1012,7 +1012,6 @@ export function PersonDrawer() {
           {person.email && <IconButton icon={<Mail size={16} />} label={person.email} href={`mailto:${person.email}`} className="h-11 w-11 sm:h-9 sm:w-9" />}
           {person.whatsapp && <IconButton icon={<MessageCircle size={16} />} label={`WhatsApp ${person.whatsapp}`} href={whatsappHref(person.whatsapp)} external className="h-11 w-11 sm:h-9 sm:w-9" />}
           {person.phone && <IconButton icon={<Phone size={16} />} label={person.phone} href={`tel:${person.phone}`} className="h-11 w-11 sm:h-9 sm:w-9" />}
-          <IconButton icon={<MessagesSquare size={16} />} label="Message in chat" href={`/chat?dm=${person.id}`} className="h-11 w-11 sm:h-9 sm:w-9" />
         </div>
         <div className="ml-auto flex items-center gap-2 sm:gap-1.5">
           {hasOpenTasks && <IconButton icon={<Send size={16} />} label="Remind about open work" onClick={handleRemind} tone="accent" className="h-11 w-11 sm:h-9 sm:w-9" />}

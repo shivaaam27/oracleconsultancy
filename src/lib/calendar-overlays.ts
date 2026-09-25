@@ -6,7 +6,6 @@
 import { sb } from "@/db/supabase";
 import { taskHref } from "@/lib/task-href";
 import type { OverlayItem } from "@/lib/calendar-overlays-shared";
-import { noticeByDate, KIND_LABEL, type CommitmentKind } from "@/lib/commitments-shared";
 
 const EAT = "Africa/Dar_es_Salaam";
 
@@ -38,7 +37,7 @@ export async function listOverlayItems(fromKey: string, toKey: string): Promise<
   const toIso = `${addDaysKey(toKey, 1)}T00:00:00Z`;
   const items: OverlayItem[] = [];
 
-  const [tasksRes, leaveRes, holRes, docRes, peopleRes, commitRes] = await Promise.all([
+  const [tasksRes, leaveRes, holRes, docRes, peopleRes] = await Promise.all([
     sb.from("tasks").select("id,code,action_item,company_id,deadline,status")
       .eq("archived", false).not("deadline", "is", null).gte("deadline", fromIso).lt("deadline", toIso),
     sb.from("leave_requests").select("id,person_id,start_date,end_date,status, person:people!leave_requests_person_id_people_id_fk(name)")
@@ -47,9 +46,6 @@ export async function listOverlayItems(fromKey: string, toKey: string): Promise<
     sb.from("documents").select("id,title,category,company_id,expiry_date")
       .eq("archived", false).not("expiry_date", "is", null).gte("expiry_date", fromIso).lt("expiry_date", toIso),
     sb.from("people").select("id,name,date_of_birth,start_date,probation_end_date").eq("active", true),
-    // Commitments are placed on their NOTICE-BY date (end − notice_days), which is
-    // the actionable deadline — filtered to the window after computing it.
-    sb.from("commitments").select("id,kind,title,company_id,end_date,notice_days").eq("archived", false).not("end_date", "is", null),
   ]);
 
   // Task deadlines (open tasks only).
@@ -127,16 +123,6 @@ export async function listOverlayItems(fromKey: string, toKey: string): Promise<
       const k = dayKey(p.probation_end_date as string);
       if (inRange(k, fromKey, toKey)) items.push({ id: `prob-${p.id}`, kind: "probation", title: `${name} — probation ends`, dayKey: k, href: `/people/${p.id}`, companyId: null });
     }
-  }
-
-  // Commitments — placed on the notice-by date (lease/insurance/contract).
-  for (const c of commitRes.data ?? []) {
-    const nb = noticeByDate({ endDate: c.end_date as string, noticeDays: (c.notice_days as number | null) ?? null });
-    if (!nb) continue;
-    const k = dayKey(nb);
-    if (!inRange(k, fromKey, toKey)) continue;
-    const label = KIND_LABEL[(c.kind as CommitmentKind)] ?? "Commitment";
-    items.push({ id: `commit-${c.id}`, kind: "commitment", title: `${c.title as string} — give ${label.toLowerCase()} notice`, dayKey: k, href: c.company_id ? `/hrms/commitments?company=${c.company_id}` : "/hrms/commitments", companyId: (c.company_id as number) ?? null });
   }
 
   return items;

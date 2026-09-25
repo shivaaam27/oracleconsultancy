@@ -22,6 +22,7 @@ const RECORD_KIND_LABEL: Record<string, string> = {
   "new-shelf": "New shelf",
   "new-structure": "New department",
 };
+// "pipeline-*" stay for old rows (Applications removed 26 Sept 2026).
 const PROCESS_KIND_LABEL: Record<string, string> = {
   "compliance-verify": "Compliance",
   "task-complete": "Task",

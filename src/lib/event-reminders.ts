@@ -6,8 +6,8 @@
 // CREATED. This module is the missing half. It sweeps the calendar, works out
 // which reminder lead times fell due since the last sweep, and delivers them:
 //
-//   • a push + a line in the person's Reminders chat channel (attendees who are
-//     people in the system), gated by `eventAttendeePings`;
+//   • a bell notification + push (attendees who are people in the system),
+//     gated by `eventAttendeePings`;
 //   • the branded "coming up" email (attendees with an address), gated by
 //     `eventReminderEmail`.
 //
@@ -23,15 +23,14 @@
 import { sb } from "@/db/supabase";
 import { canAutoSend } from "@/lib/guardrails";
 import { getAppSettings } from "@/lib/settings";
-import { postSystemMessage } from "@/lib/chat";
+import { createNotification, personRecipient } from "@/lib/notifications";
 import { sendEmail } from "@/lib/email/send";
 import { buildEventEmail } from "@/lib/event-email";
 import { eventAttachmentLinks } from "@/lib/event-documents";
 import { listCalendarEvents, type CalendarEvent } from "@/lib/calendar";
 import {
-  buildChatBody,
+  buildReminderBody,
   dueReminders,
-  fmtWhen,
   leadPhrase,
   DEFAULT_WINDOW_MS,
   LEDGER_TTL_MS,
@@ -218,22 +217,20 @@ export async function runEventReminders(opts?: { now?: Date }): Promise<EventRem
         : null,
     };
 
-    // ── push + Reminders channel ──────────────────────────────────────────
+    // ── bell + push ───────────────────────────────────────────────────────
+    // (Chat was removed 26 Sept 2026; the ping now lands in the bell, which
+    // pushes. Urgent, because a "starts in an hour" held for the digest is
+    // useless by the time it arrives.)
     if (wantPing) {
       for (const a of ev.attendees) {
         if (typeof a.personId !== "number") continue;
         try {
-          await postSystemMessage({
-            personId: a.personId,
-            kind: "reminders",
-            title: "Task reminders",
-            body: buildChatBody(shifted, occurrenceIso, minutes, a.name || ""),
-            push: {
-              title: `${ev.title} · ${leadPhrase(minutes)}`,
-              body: ev.allDay
-                ? fmtWhen(occurrenceIso, true)
-                : `${fmtWhen(occurrenceIso, false)}${ev.location ? ` · ${ev.location}` : ""}`,
-            },
+          await createNotification({
+            recipient: personRecipient(a.personId),
+            kind: "meeting",
+            title: `${ev.title} · ${leadPhrase(minutes)}`,
+            body: buildReminderBody(shifted, occurrenceIso, minutes, a.name || ""),
+            urgent: true,
           });
           pushed += 1;
         } catch { /* one bad recipient must not stop the sweep */ }

@@ -24,9 +24,7 @@ export type FindingKind =
   | "stale-fact"
   | "incomplete-fact"
   | "asset-on-leaver"
-  | "missing-company-id"
-  | "commitment-notice"
-  | "pipeline-deadline";
+  | "missing-company-id";
 
 export const SEVERITY_RANK: Record<FindingSeverity, number> = { high: 3, medium: 2, low: 1 };
 

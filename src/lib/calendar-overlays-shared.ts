@@ -7,9 +7,7 @@ export type OverlayKind =
   | "renewal"
   | "birthday"
   | "anniversary"
-  | "probation"
-  | "commitment"
-  | "pipeline";
+  | "probation";
 
 export type OverlayItem = {
   id: string;
@@ -28,8 +26,6 @@ export const OVERLAY_LABELS: Record<OverlayKind, string> = {
   birthday: "Birthdays",
   anniversary: "Anniversaries",
   probation: "Probation ends",
-  commitment: "Lease/insurance notice",
-  pipeline: "Applications due",
 };
 
 /** The kinds shown as toggleable layers, in display order. */
@@ -41,6 +37,4 @@ export const OVERLAY_KINDS: OverlayKind[] = [
   "birthday",
   "anniversary",
   "probation",
-  "commitment",
-  "pipeline",
 ];

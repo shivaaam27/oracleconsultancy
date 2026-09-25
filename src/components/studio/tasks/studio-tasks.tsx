@@ -152,7 +152,7 @@ export function StudioLaneNote({ kind }: { kind: "archived" | "auto" }) {
       {kind === "archived" ? <Archive size={12} /> : <Sparkles size={12} />}
       {kind === "archived"
         ? "Showing archived tasks — retire a task without losing its history. Switch it off in Filters to go back."
-        : "Made by the system from expiring documents and commitments. Complete or undo them like any task."}
+        : "Made by the system from expiring documents, probation reviews and Tax & Legal obligations. Complete or undo them like any task."}
     </p>
   );
 }

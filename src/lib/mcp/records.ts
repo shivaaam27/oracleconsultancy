@@ -5,11 +5,12 @@
 // fifty would make the assistant slower, dearer and measurably worse at choosing
 // between them. So the twelve remaining modules are read through ONE tool with a
 // `type` argument, not one tool each. `list_records` costs a single description
-// and covers to-dos, risks, decisions, governance, applications in progress,
-// commitments, vendors, stock, cleaning, announcements, holidays and facts.
+// and covers to-dos, risks, decisions, governance, vendors, stock, cleaning,
+// announcements, holidays and facts. (Applications and commitments were removed
+// 26 Sept 2026.)
 //
 // Writes are the opposite: they get their own typed tools, because a generic
-// "write anything" tool is exactly how an assistant mangles a record. Only four
+// "write anything" tool is exactly how an assistant mangles a record. Only three
 // modules are writable here, chosen because they are things the owner actually
 // asks for day to day. Everything else is read-only through this door — see the
 // note at the bottom for what was deliberately left out and why.
@@ -30,7 +31,7 @@ import type { WriteResult } from "@/lib/mcp/writes";
  * --------------------------------------------------------------- */
 
 export const RECORD_TYPES = [
-  "todos", "risks", "decisions", "governance", "pipeline", "commitments",
+  "todos", "risks", "decisions", "governance",
   "vendors", "stock", "cleaning", "announcements", "holidays", "facts",
 ] as const;
 export type RecordType = (typeof RECORD_TYPES)[number];
@@ -153,29 +154,6 @@ export async function mcpListRecords(
       return { ok: true, type, company: args.company, governance: g };
     }
 
-    case "pipeline": {
-      const { listPipeline } = await import("@/lib/pipeline");
-      let rows = await listPipeline();
-      rows = scoped(byCompany(rows), scope);
-      if (openOnly) rows = rows.filter((p) => p.stage !== "Issued");
-      if (search) rows = rows.filter((p) => matches(search, p.subject, p.type, p.companyName, p.owner));
-      return out(rows.map((p) => ({
-        id: p.id, subject: p.subject, type: p.type, stage: p.stage, company: p.companyName,
-        controlNo: p.controlNo, deadline: isoDay(p.deadline), nextAction: p.nextAction, owner: p.owner,
-      })));
-    }
-
-    case "commitments": {
-      const { listCommitments } = await import("@/lib/commitments");
-      let rows = await listCommitments();
-      rows = scoped(byCompany(rows), scope);
-      if (search) rows = rows.filter((c) => matches(search, c.title, c.counterparty, c.companyName));
-      return out(rows.map((c) => ({
-        id: c.id, title: c.title, kind: c.kind, company: c.companyName, counterparty: c.counterparty,
-        ends: isoDay(c.endDate), noticeDays: c.noticeDays, status: c.status,
-      })));
-    }
-
     case "vendors": {
       const { listVendors } = await import("@/lib/vendors");
       let rows = await listVendors();
@@ -238,7 +216,7 @@ export async function mcpListRecords(
 }
 
 /* --------------------------------------------------------------- *
- * Writes — four modules, each with its own typed tool
+ * Writes — three modules, each with its own typed tool
  * --------------------------------------------------------------- */
 
 function actorFor(caller: McpCaller): Actor {
@@ -321,92 +299,6 @@ export async function mcpMarkAttendance(
     personId: person.id, date, before: (before?.status as string | null) ?? null,
   });
   return { ok: true, person: person.name, date, status, undoToken };
-}
-
-/* ---- applications in progress (pipeline) ---- */
-
-export const PIPELINE_STAGE_NAMES = [
-  "To Apply", "Applied", "Control No. Issued", "Paid", "Receipt Received", "Issued",
-] as const;
-
-export async function mcpManagePipeline(
-  caller: McpCaller,
-  args: {
-    action: "create" | "advance" | "update";
-    id?: number;
-    subject?: string;
-    type?: string;
-    company?: string;
-    stage?: (typeof PIPELINE_STAGE_NAMES)[number];
-    controlNo?: string;
-    deadline?: string;
-    nextAction?: string;
-    notes?: string;
-  },
-): Promise<WriteResult> {
-  const stageOf = (v: string | undefined) =>
-    PIPELINE_STAGE_NAMES.find((s) => s.toLowerCase() === String(v ?? "").toLowerCase());
-
-  if (args.action === "create") {
-    const subject = (args.subject ?? "").trim();
-    const kind = (args.type ?? "").trim();
-    if (!subject || !kind) return { ok: false, error: "An application needs a subject (who/what it's for) and a type (permit, visa, licence…)." };
-    let companyId: number | null = null;
-    if (args.company) {
-      const { resolveCompany } = await import("@/lib/mcp/writes");
-      const c = await resolveCompany(caller, args.company);
-      if ("error" in c) return { ok: false, error: c.error };
-      companyId = c.id;
-    } else if (caller.kind === "person") {
-      return { ok: false, error: "Which company is this application for?" };
-    }
-    const { createPipelineItemAction } = await import("@/app/hrms/pipeline/actions");
-    const res = await createPipelineItemAction({
-      subject, type: kind, companyId,
-      stage: stageOf(args.stage) ?? "To Apply",
-      controlNo: args.controlNo ?? null,
-      deadline: args.deadline ?? null,
-      nextAction: args.nextAction ?? null,
-      notes: args.notes ?? null,
-    });
-    if (!res.ok) return { ok: false, error: res.error ?? "Could not create it." };
-    const { data: fresh } = await sb.from("pipeline").select("id").order("id", { ascending: false }).limit(1);
-    const id = (fresh?.[0]?.id as number | undefined) ?? null;
-    const undoToken = id ? await withUndo(caller, "mcp.pipeline.create", { pipelineId: id }) : null;
-    return { ok: true, id, subject, stage: stageOf(args.stage) ?? "To Apply", undoToken };
-  }
-
-  const id = Number(args.id);
-  if (!Number.isFinite(id) || id <= 0) return { ok: false, error: "Which application? Give me its id from list_records." };
-
-  const { data: row } = await sb.from("pipeline").select("id,subject,stage,company_id").eq("id", id).maybeSingle();
-  if (!row) return { ok: false, error: `No application with id ${id}.` };
-  const scope = await scopeFor(caller);
-  if (scope != null) {
-    const cid = row.company_id as number | null;
-    if (cid == null || !scope.includes(cid)) return { ok: false, error: "That application isn't one of yours." };
-  }
-
-  if (args.action === "advance") {
-    const stage = stageOf(args.stage);
-    if (!stage) return { ok: false, error: `Which stage? One of: ${PIPELINE_STAGE_NAMES.join(" → ")}.` };
-    const { movePipelineStageAction } = await import("@/app/hrms/pipeline/actions");
-    const res = await movePipelineStageAction(id, stage);
-    if (!res.ok) return { ok: false, error: res.error ?? "Could not move it." };
-    const undoToken = await withUndo(caller, "mcp.pipeline.stage", { pipelineId: id, before: row.stage as string });
-    return { ok: true, id, subject: row.subject, stage, was: row.stage, undoToken };
-  }
-
-  const { updatePipelineItemAction } = await import("@/app/hrms/pipeline/actions");
-  const patch: Record<string, unknown> = {};
-  if (args.controlNo !== undefined) patch.controlNo = args.controlNo;
-  if (args.deadline !== undefined) patch.deadline = args.deadline;
-  if (args.nextAction !== undefined) patch.nextAction = args.nextAction;
-  if (args.notes !== undefined) patch.notes = args.notes;
-  if (Object.keys(patch).length === 0) return { ok: false, error: "What should I change? (control number, deadline, next action or notes)" };
-  const res = await updatePipelineItemAction(id, patch);
-  if (!res.ok) return { ok: false, error: res.error ?? "Could not update it." };
-  return { ok: true, id, subject: row.subject, changed: Object.keys(patch) };
 }
 
 /* ---- announcements — DRAFT ONLY ---- */

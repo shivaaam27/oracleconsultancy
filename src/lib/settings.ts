@@ -194,7 +194,7 @@ export type AppSettings = {
   autoAdvanceMeetingTasks: boolean;
   /** Grace period after the start before advancing (in case a meeting begins late). */
   meetingTaskGraceMinutes: number;
-  /** Ping attendees (push + chat "Reminders" channel) at each event reminder lead
+  /** Ping attendees (bell notification + push) at each event reminder lead
    *  time, on top of the calendar's own device alarm. */
   eventAttendeePings: boolean;
   /** A recurring meeting spawns a fresh task per occurrence ("occurrence", rolling —

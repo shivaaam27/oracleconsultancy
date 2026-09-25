@@ -8,7 +8,7 @@ import { useMediaQuery } from "@/lib/use-media-query";
 import {
   CalendarPlus, Video, MapPin, Users, Bell, Building2, Download, Copy, Check,
   Pencil, Trash2, MessageCircle, CalendarDays, Mail, ChevronLeft, ChevronRight, 
-  CheckSquare, Plane, Flag, RefreshCw, Cake, Award, UserCheck, Repeat, ExternalLink, Reply, MoreHorizontal, FileWarning, ClipboardList, X,
+  CheckSquare, Plane, Flag, RefreshCw, Cake, Award, UserCheck, Repeat, ExternalLink, Reply, MoreHorizontal, X,
   Plus, Paperclip, Send, Link2, Globe, Eye, Undo2, Clock, FolderClosed, Loader2, type LucideIcon,
 } from "lucide-react";
 import { createPortal } from "react-dom";
@@ -61,8 +61,6 @@ const OVERLAY_META: Record<OverlayKind, { icon: LucideIcon; tone: string; dot: s
   birthday: { icon: Cake, tone: "text-accent", dot: "hsl(var(--accent))" },
   anniversary: { icon: Award, tone: "text-accent", dot: "hsl(var(--accent))" },
   probation: { icon: UserCheck, tone: "text-warn", dot: "hsl(var(--warn))" },
-  commitment: { icon: FileWarning, tone: "text-danger", dot: "hsl(var(--danger))" },
-  pipeline: { icon: ClipboardList, tone: "text-info", dot: "hsl(var(--info))" },
 };
 
 export type CalendarEventView = CalendarEvent & {
@@ -587,7 +585,7 @@ export function CalendarBoard({
           <div className="rounded-[20px] bg-[var(--st-surface)] px-4 pb-3 pt-4">
             <div className="flex min-h-[26px] items-center text-[15px] font-semibold">Layers</div>
             <div className="mt-1.5 flex flex-col gap-0.5">
-              {([["events", "Events", "var(--st-ink)"] as const, ...STUDIO_LAYER_ORDER.map((k) => [k, k === "commitment" ? "Lease / insurance notice" : OVERLAY_LABELS[k], STUDIO_LAYER[k].c] as const)]).map(([k, label, c]) => {
+              {([["events", "Events", "var(--st-ink)"] as const, ...STUDIO_LAYER_ORDER.map((k) => [k, OVERLAY_LABELS[k], STUDIO_LAYER[k].c] as const)]).map(([k, label, c]) => {
                 const on = k === "events" ? !hideEvents : enabledLayers.has(k as OverlayKind) && !meetingsOnly;
                 return (
                   <button key={k} type="button" aria-pressed={on}
@@ -841,11 +839,9 @@ const STUDIO_LAYER: Record<OverlayKind, { c: string; tint: string }> = {
   holiday: { c: "#19C37D", tint: "#E4F7EE" },
   anniversary: { c: "#F0703A", tint: "#FDEEE6" },
   probation: { c: "#5B5E63", tint: "#EEEEEA" },
-  commitment: { c: "#B7700A", tint: "#FBF1DF" },
-  pipeline: { c: "#0E9F8A", tint: "#E0F4F1" },
 };
 /** The legend's order, as the mockup lists it. */
-const STUDIO_LAYER_ORDER: OverlayKind[] = ["task", "renewal", "birthday", "leave", "holiday", "anniversary", "probation", "commitment", "pipeline"];
+const STUDIO_LAYER_ORDER: OverlayKind[] = ["task", "renewal", "birthday", "leave", "holiday", "anniversary", "probation"];
 const chipVars = (c: string, tint: string) =>
   ({ "--chip-l": tint, "--chip-d": `color-mix(in srgb, ${c} 22%, #17181B)` }) as React.CSSProperties;
 const ST_CHIP = "st-cal-chip flex h-[18px] w-full min-w-0 shrink-0 items-center gap-[5px] rounded-[5px] px-[5px] text-left text-[10.5px] leading-none";

@@ -273,7 +273,7 @@ Fact ledger (transfer-pack): **facts** — append-only, source-linked facts (sal
 
 Governance & Risk (board-level, transfer-pack; kept out of daily/weekly): **cap_table**, **beneficial_owners**, **key_persons**, **signatories**, **resolutions**, **risks** (L×I band), **decisions** (+ companies.`authorised_shares`/`issued_shares`). Surfaced on the company profile (the standalone `/brief/board` board pack was removed June 2026).
 
-In-flight + commitments: **pipeline** (bureaucracy stages To Apply→Issued), **commitments** (leases/insurance/contracts; notice-by = end − notice_days). Both link a supporting `document_id`.
+In-flight + commitments: **pipeline**, **commitments** — ⚠️ **REMOVED 26 Sept 2026** (screens, code and automations); the tables are KEPT, unreachable.
 
 Governance audit: audit_log, corrections
 
@@ -307,7 +307,7 @@ Cleaning (OCR): cleaning_areas, cleaning_days, cleaning_checks
 
 Outreach: reminders, outbox (persisted drafts: `source`/`person_id`/`todo_id`/`scheduled_for`)
 
-Chat: chat_threads (`dm`/`group`; `dm_key` dedup), chat_participants (`last_read_at`/`muted_at`), chat_messages (soft-delete, `attachments` JSON, `task_code`), chat_message_mentions. `notifications.thread_id` deep-links chat. See `memory/chat_system.md`.
+Chat: chat_threads, chat_participants, chat_messages, chat_message_mentions, chat_message_hidden — ⚠️ **Chat was REMOVED 26 Sept 2026**; the tables and `notifications.thread_id` are KEPT, unreachable. Event-attendee and "meeting starting" pings now go to the bell + push (`createNotification`, kind `meeting`); the daily Task-reminders chat cron was retired.
 
 Analytics/config/system: daily_snapshots, settings, system_events, undo_tokens
 
@@ -445,8 +445,7 @@ tables, **permission changes** in Settings (re-resolved per request), and a new
 - `/hrms/assets` - **Asset & Vendor Register** — durable equipment (assign to person/team, auto-return on offboarding) + vendor/supplier register; segmented Assets/Vendors toggle
 - `/hrms/leave` - **Attendance** — segmented **Register | Holidays** tabs. Month grid, brush-to-paint status, company filter, "mark all Present today"; Holiday auto-filled from `public_holidays` (editable on the Holidays tab). The wider Leave module (types/requests/approvals/balances) was REMOVED Jul 2026 — mark "On leave" directly on the register. See `memory/hrms.md`.
 - `/hrms/cleaning` - **Cleaning** — daily cleaning checklist. Renamed Aug 2026 from `/hrms/ocr` "OCR", which collided with OCR the document-reading sense; the old path redirects.
-- `/hrms/pipeline` - **Applications in progress** (transfer-pack) — kanban of in-flight bureaucracy (permits/visas/licences): To Apply → Applied → Control No. Issued → Paid → Receipt Received → Issued; attach a supporting document. See `memory/localsystemautomationtooracle.md`.
-- `/hrms/commitments` - **Commitments** (transfer-pack; renamed Aug 2026 from `/hrms/registers`, old path redirects) — leases/insurance/commercial contracts with **notice-by = end − notice_days** (flagged when notice is due soon); attach a supporting document.
+- ~~`/hrms/pipeline`~~ and ~~`/hrms/commitments`~~ (and `/hrms/registers`) — **removed 26 Sept 2026**; the addresses redirect to Home (`redirects()` in `next.config.ts`), tables kept.
 - `/companies` - **Companies hub = reference-data centre**: tabs **Companies · Departments · Sites · Roles** (`companies-hub-tabs.tsx`); each ref list has add/rename/**merge**/delete. `/companies/[id]` = company detail (Overview/Profile/Tasks/Timeline/Org).
 - `/people` - person record now has HR profile fields inc. **Work site + Residence** (shared `sites` list, combobox), a glanceable drawer (hero tiles + accordion sections), manager + N-direct-reports on cards, a **Direct reports** list + an **All Locations** directory filter. Bulk "also reports to" in the select bar.
 - `/files` - **Files Management** (24 Sept 2026, replaces `/documents`, which redirects): folders (migration 0169), Dropbox-style list/grid, animated folders, drag-drop upload, preview, Deleted kept 30 days. **Read `memory/file_manager_plan.md` first.** ⚠️ Links use `?co=` / `?pe=` / `?open=`, never `?company=` (that opens the global drawer).
@@ -472,7 +471,7 @@ tables, **permission changes** in Settings (re-resolved per request), and a new
     puts `pointer-events: none` on `<body>`, and a menu portalled INTO body
     inherits it, so it drew above everything and ignored every click. That is the
     THIRD bug in the same family as the clipping and the z-index. Directors: NO Directory Attendance tab. Shared task list = `portal-tasks-command.tsx` (Home inlines it via its `houseList` scroll-housing prop). Nav pill (`portal-pill.tsx`): frosted for legibility, hover shows a floating name label + icon bounce, create `+` sits after the divider next to the theme toggle, Board/Home tabs use layout-preview icons. Full reference: `memory/company_scoped_roles.md`. **⚠️ adding a 2nd FK from a table to `companies` breaks PostgREST `companies(name)` embeds on that table — disambiguate with `companies!company_id(name)`.**
-- `/chat`, `/chat/[threadId]` - **Chat**: free-standing messaging (DMs + ad-hoc groups), separate from task updates. Portal twin at `/portal/chat`. WhatsApp-style messenger UI: full-screen app on mobile (page header + nav pill hidden on chat routes), two-pane glass card on desktop; optimistic send, read receipts, typing indicator, inline image previews. Supabase Realtime broadcast (anon key set) with polling fallback. Primary tab on both nav pills. Plus per-person **read-only `kind="system"` channels** (Jun 2026): **Task reminders** (daily 9am cron + pushes) and **Announcements** (published announcements mirror in, silent). See `memory/chat_system.md` + `memory/reminders_outbox_chat_jun2026.md`.
+- ~~`/chat`~~, ~~`/portal/chat`~~, ~~`/activity`~~, ~~`/portal/activity`~~ — **Chat and the Activity log were removed 26 Sept 2026** (redirect to Home / `/portal`). `lib/activity.ts` (Home's "Latest activity" card) and the activity telemetry stay.
 - `/outbox` - **live, per-person** (Jun 2026): generated fresh from open tasks each load (one card per person, full task list + WhatsApp/Email send); reminders are NOT stored as drafts anymore. Per-task vs all-tasks toggle under each task. See `memory/reminders_outbox_chat_jun2026.md`.
 - `/insights`
 - `/settings`
@@ -1147,8 +1146,8 @@ searched, found and **traced** from one place. Built across 7 verified waves (fu
 `memory/ori_brain.md`); DEPLOYED to master (commit 415ef46); migrations 0094/0095/0096 applied.
 
 - **Entity registry = single source of truth** (`src/lib/entity-registry.ts`): one `EntityDef`
-  per the indexable types (task/person/company/vendor/asset/governance/risk/pipeline/
-  commitment; documents are searched but NOT embedded) — table, columns, indexable text, lifecycle rule, search
+  per the indexable types (task/person/company/vendor/asset/governance/risk;
+  documents are searched but NOT embedded) — table, columns, indexable text, lifecycle rule, search
   mapping, trace mode. **FORWARD RULE: to make a new entity (incl. future ERP modules)
   searchable/traceable/answerable, add ONE `EntityDef`** — indexing, deep search, the command
   palette and trace all derive from it automatically.

@@ -29,13 +29,9 @@ export function studioPathForDirector(path: string, search = ""): string | null 
   if ((m = /^\/portal\/companies\/(\d+)$/.exec(p))) return `/companies/${m[1]}`;
   if (p === "/portal/meetings") return q.get("tab") === "announcements" ? "/announcements" : "/calendar";
   if (p === "/portal/announcements") return "/announcements";
-  if (p === "/portal/chat") {
-    const dm = q.get("dm");
-    return dm ? `/chat?dm=${encodeURIComponent(dm)}` : "/chat";
-  }
-  if ((m = /^\/portal\/chat\/(\d+)$/.exec(p))) return `/chat/${m[1]}`;
   if (p === "/portal/outbox" || p === "/portal/team") return "/outbox";
-  // Activity, Insights, Cleaning and anything unknown: not a director screen.
+  // Insights, Cleaning and anything unknown (Chat and Activity were removed
+  // 26 Sept 2026): not a director screen.
   return "/";
 }
 

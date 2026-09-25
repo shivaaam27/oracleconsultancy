@@ -23,7 +23,6 @@ export type StudioPaths = {
   company: (id: number, tab?: string) => string;
   companies: () => string;
   task: (code: string) => string;
-  chat: (personId: number) => string;
 };
 
 const withQuery = (base: string, q?: string) => (q ? `${base}?${q.replace(/^\?/, "")}` : base);
@@ -35,7 +34,6 @@ const OWNER: StudioPaths = {
   company: (id, tab) => (tab && tab !== "overview" ? `/companies/${id}?tab=${tab}` : `/companies/${id}`),
   companies: () => "/companies",
   task: (code) => taskHref(code),
-  chat: (id) => `/chat?dm=${id}`,
 };
 
 const STAFF: StudioPaths = {
@@ -45,7 +43,6 @@ const STAFF: StudioPaths = {
   company: (id, tab) => (tab && tab !== "overview" ? `/portal/companies/${id}?tab=${tab}` : `/portal/companies/${id}`),
   companies: () => "/portal/companies",
   task: (code) => portalTaskHref(code),
-  chat: (id) => `/portal/chat?dm=${id}`,
 };
 
 const Ctx = createContext<StudioPaths>(OWNER);

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
-import { BarChart3, CalendarClock, ClipboardList, Contact, Home, ListTodo, MessageCircle, Plus, Send, Sparkles, SprayCan, User } from "lucide-react";
+import { BarChart3, CalendarClock, ClipboardList, Contact, Plus, Send, Sparkles, SprayCan, User } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { rootZoom } from "@/lib/zoom";
 import { portalCapabilities } from "@/lib/portal-capabilities";
@@ -226,7 +226,7 @@ export function PortalPill({ canCreate = false, canOri = false, role, tabOverrid
 }) {
   const pathname = usePathname() || "/portal";
   // Role capabilities come from the single registry (src/lib/portal-capabilities.ts)
-  // for the STRUCTURAL tabs (board/home/directory/chat/…). The three configurable
+  // for the STRUCTURAL tabs (board/home/directory/…). The three configurable
   // tabs (tasks/outbox/insights) honour the owner's per-role toggles when provided
   // via tabOverrides.
   const caps = portalCapabilities(role);
@@ -246,8 +246,6 @@ export function PortalPill({ canCreate = false, canOri = false, role, tabOverrid
   const onInsights = pathname.startsWith("/portal/insights");
   const onHome = pathname === "/portal" || pathname.startsWith("/portal/task/");
   const onMeetings = pathname.startsWith("/portal/meetings");
-  const onActivity = pathname.startsWith("/portal/activity");
-  const onChat = pathname.startsWith("/portal/chat");
   const onProfile = pathname.startsWith("/portal/profile");
 
   // Honour reduced-motion — both the OS setting AND the portal's own manual toggle
@@ -310,15 +308,10 @@ export function PortalPill({ canCreate = false, canOri = false, role, tabOverrid
 
   return (
     <>
-    {/* On mobile, chat is a full-screen app of its own — the pill steps aside. */}
     {/* From lg up the PortalSidebar takes over, so the pill hides — the same
         arrangement the administrator uses. Below lg the pill is still the
-        navigation. (`lg:hidden` has to come last so it wins over the `md:flex`
-        that the chat case sets.) */}
-    <div className={cn(
-      "fixed inset-x-0 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] md:bottom-5 z-40 justify-center px-2 pointer-events-none lg:hidden",
-      onChat ? "hidden md:flex" : "flex"
-    )}>
+        navigation. */}
+    <div className="fixed inset-x-0 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] md:bottom-5 z-40 flex justify-center px-2 pointer-events-none lg:hidden">
       <motion.div
         ref={pillRef}
         layout={!reduce}
@@ -343,15 +336,12 @@ export function PortalPill({ canCreate = false, canOri = false, role, tabOverrid
           {/* The contact book / company list — scoped per role server-side
               (group-wide for HR/directors, own-company for managers/staff). */}
           {caps.tabs.directory && <PillTab href="/portal/directory" icon={Contact} label="Directory" active={onDirectory} labelled={labelFor(onDirectory)} reduce={reduce} onTip={setTip} />}
-          {/* Chat sits right after Directory — it's a primary, everyday destination. */}
-          {caps.tabs.chat && <PillTab href="/portal/chat" icon={MessageCircle} label="Chat" active={onChat} labelled={labelFor(onChat)} reduce={reduce} onTip={setTip} tourTag="nav-chat" />}
           {/* Briefings = meetings + announcements — everyone (scoped server-side). */}
           {caps.tabs.meetings && <PillTab href="/portal/meetings" icon={CalendarClock} label="Briefings" active={onMeetings} labelled={labelFor(onMeetings)} reduce={reduce} onTip={setTip} />}
           {/* Drafted messages/announcements — management only. */}
           {showOutbox && <PillTab href="/portal/outbox" icon={Send} label="Outbox" active={onOutbox} labelled={labelFor(onOutbox)} reduce={reduce} onTip={setTip} />}
           {/* Glanceable portfolio/team Insights — management only. */}
           {showInsights && <PillTab href="/portal/insights" icon={BarChart3} label="Insights" active={onInsights} labelled={labelFor(onInsights)} reduce={reduce} onTip={setTip} />}
-          {caps.tabs.activity && <PillTab href="/portal/activity" icon={ListTodo} label="Activity" active={onActivity} labelled={labelFor(onActivity)} reduce={reduce} onTip={setTip} />}
           <PillTab href="/portal/profile" icon={User} label="Profile" active={onProfile} labelled={labelFor(onProfile)} reduce={reduce} onTip={setTip} tourTag="nav-profile" />
         </div>
         <span className="nav-divider w-px h-6 md:h-7 mx-0.5 md:mx-1 shrink-0" aria-hidden />
@@ -388,17 +378,6 @@ export function PortalPill({ canCreate = false, canOri = false, role, tabOverrid
         </div>
       </motion.div>
     </div>
-    {/* When chat hides the pill on mobile, keep a way back. */}
-    {onChat && (
-      <Link
-        href={showBoard ? "/portal/board" : "/portal"}
-        aria-label="Home"
-        title="Home"
-        className="md:hidden fixed bottom-[calc(0.75rem+env(safe-area-inset-bottom))] right-3 z-40 inline-flex h-12 w-12 items-center justify-center rounded-full glass elevated shadow-pill text-fg-muted transition-transform active:scale-95"
-      >
-        <Home size={20} />
-      </Link>
-    )}
     </>
   );
 }

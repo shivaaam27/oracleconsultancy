@@ -213,10 +213,9 @@ export function NotificationBell({
 
   function navigateTo(n: NotifRow) {
     setOpen(false);
-    if ((n.kind === "chat" || n.kind === "chat_mention") && n.threadId) {
-      const chatBase = to.startsWith("/portal") ? "/portal/chat" : "/chat";
-      router.push(`${chatBase}/${n.threadId}`);
-    } else if (n.kind === "meeting") {
+    // (Old "chat" rows used to open their thread; Chat was removed 26 Sept
+    // 2026, so they open their task if they carry one, else nothing.)
+    if (n.kind === "meeting" && !n.taskCode) {
       router.push(to.startsWith("/portal") ? "/portal/meetings" : "/calendar");
     } else if (n.taskCode) {
       if (to === "/task" && pathname && !pathname.startsWith("/portal")) {

@@ -471,7 +471,7 @@ async function traceDocument(id: number, events: TraceEvent[]): Promise<string> 
 }
 
 /* ── GENERIC FALLBACK ────────────────────────────────────────────────────── */
-/* letter | vendor | asset | pipeline | commitment | risk | meeting | decision —
+/* letter | vendor | asset | risk | meeting | decision —
  * pull created/updated/status info off the row, plus any audit_log /
  * system_events / automation_events that reference it.
  *

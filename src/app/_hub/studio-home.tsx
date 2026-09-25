@@ -210,7 +210,7 @@ export async function StudioHomeServer({ rows: allRows, viewer }: { rows: TaskRo
         { kind: "list", kicker: "Tasks", title: "No updates yet", sub: "Nobody has said a word", more: silent.length ? { label: "Quiet tasks", href: "/?tab=tasks&quiet=1" } : undefined,
           items: silent.map((r) => ({ title: r.actionItem, sub: `${r.code} · ${r.companyName}`, right: r.deadline ? shortDay(r) : "No date", dot: "#CFE05A", href: href(r.code) })),
           empty: "Every open task has had an update." },
-        { kind: "list", kicker: "Tasks", title: "Latest activity", sub: "What moved, newest first", more: { label: "The whole activity log", href: "/activity" },
+        { kind: "list", kicker: "Tasks", title: "Latest activity", sub: "What moved, newest first",
           items: activity.map((a) => ({ title: `${a.isOri ? "ORI" : clean(a.author)} · ${a.actionItem}`, sub: `“${a.body.length > 90 ? `${a.body.slice(0, 90)}…` : a.body}”`, right: ago(a.createdAt), dot: a.isOri ? "#8B5CF6" : "#2490EF", href: href(a.code) })),
           empty: "Nothing has moved yet today." },
       ],

@@ -146,6 +146,19 @@ const nextConfig: NextConfig = {
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },
+  // Chat, the Activity log, Applications and Commitments were removed on
+  // 26 Sept 2026 (their tables are kept, unreachable). Old links and bookmarks
+  // land on Home rather than a 404.
+  async redirects() {
+    const home = (source: string, destination = "/") => ({ source, destination, permanent: false });
+    return [
+      home("/chat"), home("/chat/:path*"),
+      home("/activity"),
+      home("/hrms/pipeline"), home("/hrms/commitments"), home("/hrms/registers"),
+      home("/portal/chat", "/portal"), home("/portal/chat/:path*", "/portal"),
+      home("/portal/activity", "/portal"),
+    ];
+  },
   async rewrites() {
     return [
       { source: "/.well-known/oauth-authorization-server", destination: "/api/mcp/oauth/authorization-server" },

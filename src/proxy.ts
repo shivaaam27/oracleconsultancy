@@ -173,7 +173,6 @@ const DIRECTOR_PATHS: RegExp[] = [
   /^\/companies(\/\d+)?$/,                  // their companies, view-only (tasks: full)
   /^\/calendar$/,                          // their companies' events, view-only
   /^\/outbox$/,                            // reminders for their companies' people
-  /^\/chat(\/\d+)?$/,                      // their own messages (portal identity)
   /^\/announcements$/,                     // the feed, and posting their own
   /^\/api\/faces$/,                        // the avatars' moods (scoped to their people)
 ];

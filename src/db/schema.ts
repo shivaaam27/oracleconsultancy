@@ -477,6 +477,7 @@ export const risks = pgTable("risks", {
 // In-flight bureaucracy pipeline (transfer-pack 03 §processes): permits/visas/
 // licence/lease/tax-clearance renewals moving through government stages. A small
 // kanban so nothing stalls mid-application unnoticed.
+// kept, unreachable — feature removed 26 Sept 2026
 export const pipeline = pgTable(
   "pipeline",
   {
@@ -512,6 +513,7 @@ export const pipeline = pgTable(
 // matter. Drives a commitments calendar: notice-by = end_date − notice_days, so a
 // lease auto-renewal or an insurance lapse is flagged before it bites. (Assets &
 // vendors already live in their own tables; this covers the rest.)
+// kept, unreachable — feature removed 26 Sept 2026
 export const commitments = pgTable(
   "commitments",
   {
@@ -747,6 +749,7 @@ export const taskUpdates = pgTable("task_updates", {
  * ------------------------------------------------------------------ */
 
 // A conversation. `dm` = 1:1 (deduped via dmKey), `group` = ad-hoc many.
+// kept, unreachable — feature removed 26 Sept 2026
 export const chatThreads = pgTable("chat_threads", {
   id: serial("id").primaryKey(),
   kind: text("kind").notNull().default("dm"), // dm | group
@@ -761,6 +764,7 @@ export const chatThreads = pgTable("chat_threads", {
   archivedAt: timestamp("archived_at", { mode: "date", withTimezone: true }),
 }, (t) => [uniqueIndex("chat_threads_dm_key_idx").on(t.dmKey)]);
 
+// kept, unreachable — feature removed 26 Sept 2026
 export const chatParticipants = pgTable(
   "chat_participants",
   {
@@ -781,6 +785,7 @@ export const chatParticipants = pgTable(
 );
 
 // "Delete message for me" — hide a single message for one participant only.
+// kept, unreachable — feature removed 26 Sept 2026
 export const chatMessageHidden = pgTable(
   "chat_message_hidden",
   {
@@ -791,6 +796,7 @@ export const chatMessageHidden = pgTable(
   (t) => [primaryKey({ columns: [t.messageId, t.participant] })]
 );
 
+// kept, unreachable — feature removed 26 Sept 2026
 export const chatMessages = pgTable("chat_messages", {
   id: serial("id").primaryKey(),
   threadId: integer("thread_id").notNull().references(() => chatThreads.id, { onDelete: "cascade" }),
@@ -807,6 +813,7 @@ export const chatMessages = pgTable("chat_messages", {
 }, (t) => [index("chat_messages_thread_idx").on(t.threadId)]);
 
 // People @mentioned in a chat message — mirrors update_mentions.
+// kept, unreachable — feature removed 26 Sept 2026
 export const chatMessageMentions = pgTable(
   "chat_message_mentions",
   {

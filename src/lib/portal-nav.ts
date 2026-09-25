@@ -1,6 +1,6 @@
 import {
   BarChart3, CalendarClock, ClipboardList, Contact, ListTodo,
-  MessageCircle, Send, SprayCan, User, type LucideIcon,
+  Send, SprayCan, User, type LucideIcon,
 } from "lucide-react";
 import { portalCapabilities } from "./portal-capabilities";
 
@@ -26,7 +26,7 @@ import { portalCapabilities } from "./portal-capabilities";
 
 export type PortalTabKey =
   | "board" | "home" | "tasks" | "cleaning" | "directory"
-  | "chat" | "meetings" | "outbox" | "insights" | "activity" | "profile";
+  | "meetings" | "outbox" | "insights" | "profile";
 
 export type PortalNavItem = {
   id: PortalTabKey;
@@ -48,11 +48,9 @@ export const PORTAL_NAV: PortalNavItem[] = [
   { id: "tasks",     href: "/portal/tasks",     label: "Tasks",     icon: ClipboardList, group: "Work" },
   { id: "meetings",  href: "/portal/meetings",  label: "Briefings", icon: CalendarClock, group: "Work" },
   { id: "outbox",    href: "/portal/outbox",    label: "Outbox",    icon: Send,          group: "Work" },
-  { id: "chat",      href: "/portal/chat",      label: "Chat",      icon: MessageCircle, group: "People", tourTag: "nav-chat" },
   { id: "directory", href: "/portal/directory", label: "Directory", icon: Contact,       group: "People" },
   { id: "cleaning",  href: "/portal/cleaning",  label: "Cleaning",  icon: SprayCan,      group: "More" },
   { id: "insights",  href: "/portal/insights",  label: "Insights",  icon: BarChart3,     group: "More" },
-  { id: "activity",  href: "/portal/activity",  label: "Activity",  icon: ListTodo,      group: "More" },
   { id: "profile",   href: "/portal/profile",   label: "Profile",   icon: User,          group: "More", tourTag: "nav-profile" },
 ];
 

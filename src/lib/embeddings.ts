@@ -27,8 +27,6 @@ export type SourceType =
   | "asset"
   | "governance"
   | "risk"
-  | "pipeline"
-  | "commitment"
   /** Notes (Phase 1). Not indexed yet — the EntityDef arrives in Phase 6; this
    *  member exists so the module can have an ENTITY_VIEWS entry like every other
    *  record type. */
