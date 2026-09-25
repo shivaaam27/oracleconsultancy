@@ -1,5 +1,5 @@
 // Oracle service worker — bump CACHE_VERSION to force clients onto new assets.
-const CACHE_VERSION = "cos-v16"; // v16 = the offline screen in the Studio look. v15 = a cached page keeps its own JS (one visit is now enough). v14 = the offline screen matches the real one.
+const CACHE_VERSION = "cos-v17"; // v17 = quick start: the last Home is shown at once and refreshed. v16 = the offline screen in the Studio look. v15 = a cached page keeps its own JS (one visit is now enough). v14 = the offline screen matches the real one.
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const OFFLINE_URL = "/offline.html";
 
@@ -13,6 +13,42 @@ const OFFLINE_URL = "/offline.html";
  * cached HTML. If that page ever starts loading real records, it stops being
  * safe to keep here. */
 const WRITE_OFFLINE_URL = "/notes/offline";
+
+/* QUICK START (owner, 26 Sept 2026: "when I force close the app, in iOS, it
+ * takes a long time to load — can we cache it"). The app's front door — "/"
+ * and the staff "/portal", exactly, with no query — is shown from the copy
+ * kept on the device the moment the app opens, while the real page is fetched
+ * behind it. When that arrives the copy is replaced, and the open page is told:
+ *   - "oracle:fresh"  → it quietly refreshes its data (router.refresh),
+ *   - "oracle:reload" → the session ended or the page moved: it reloads, and
+ *                        the network sends it to the sign-in screen.
+ * The page also asks ("oracle:hello") when it has loaded, in case the answer
+ * came back before it was listening.
+ *
+ * ⚠️ This is the ONE deliberate exception to "HTML is never cached" below, and
+ * it is guarded the same way: only a 200 that was not redirected and landed on
+ * the same address is ever kept, so a sign-in screen or a 404 cannot be frozen
+ * in. The copy is deleted by the sign-in screen (forget-offline-notes.tsx), so
+ * signing out leaves nothing of it on the device. */
+const HOME_CACHE = `${CACHE_VERSION}-home`;
+const QUICK_START = new Set(["/", "/portal"]);
+const quickStatus = new Map(); // path -> { at, kind: "fresh" | "reload" }
+
+async function tellPages(path, kind) {
+  quickStatus.set(path, { at: Date.now(), kind });
+  const wins = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+  for (const w of wins) {
+    try { if (new URL(w.url).pathname === path) w.postMessage({ type: `oracle:${kind}`, path }); } catch { /* ignore */ }
+  }
+}
+
+self.addEventListener("message", (event) => {
+  const d = event.data || {};
+  if (d.type !== "oracle:hello" || !event.source) return;
+  const st = quickStatus.get(d.path);
+  // Only an answer from the last half minute belongs to this launch.
+  if (st && Date.now() - st.at < 30000) event.source.postMessage({ type: `oracle:${st.kind}`, path: d.path });
+});
 
 const PRECACHE = [OFFLINE_URL, "/manifest.json", "/icon-192.png", "/apple-touch-icon.png"];
 
@@ -96,6 +132,33 @@ self.addEventListener("fetch", (event) => {
   // frozen into the cache and served back forever as "not found" in the installed
   // PWA. Always hit the network; fall back to the offline page only when genuinely
   // offline.
+  if (request.mode === "navigate" && QUICK_START.has(url.pathname) && !url.search) {
+    event.respondWith((async () => {
+      const cache = await caches.open(HOME_CACHE);
+      const kept = await cache.match(url.pathname);
+      const network = fetch(request).then(async (res) => {
+        const same = res.ok && !res.redirected && new URL(res.url).pathname === url.pathname;
+        if (same) {
+          const forCache = res.clone();
+          const forAssets = res.clone();
+          await cache.put(url.pathname, forCache);
+          caches.open(STATIC_CACHE).then(async (c) => cacheOwnAssets(c, await forAssets.text())).catch(() => {});
+          if (kept) tellPages(url.pathname, "fresh");
+        } else {
+          await cache.delete(url.pathname);
+          if (kept) tellPages(url.pathname, "reload");
+        }
+        return res;
+      });
+      if (kept) {
+        event.waitUntil(network.catch(() => {}));
+        return kept;
+      }
+      return network.catch(async () => (await caches.match(OFFLINE_URL)) || Response.error());
+    })());
+    return;
+  }
+
   if (request.mode === "navigate") {
     event.respondWith(
       fetch(request)

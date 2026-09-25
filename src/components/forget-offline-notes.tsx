@@ -23,6 +23,11 @@ import { forgetCachedNotes } from "@/lib/offline-notes";
 export function ForgetOfflineNotes() {
   useEffect(() => {
     void forgetCachedNotes();
+    // And the quick-start copy of Home (public/sw.js, HOME_CACHE): the sign-in
+    // screen showing means nobody's Home should be sitting on this device.
+    try {
+      if ("caches" in window) void caches.keys().then((ks) => Promise.all(ks.filter((k) => k.endsWith("-home")).map((k) => caches.delete(k))));
+    } catch { /* storage blocked — nothing was kept either */ }
   }, []);
   return null;
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 /**
  * Registers the service worker AND auto-recovers from the two blank-screen
@@ -22,6 +23,25 @@ import { useEffect } from "react";
  * error, we stop and let the error boundary show its message instead).
  */
 export function ServiceWorkerRegister() {
+  const router = useRouter();
+  // Quick start (public/sw.js): the app may have opened on the device's copy
+  // of Home. When the worker has the real page it says so — refresh the data
+  // in place, or reload if the session has ended.
+  useEffect(() => {
+    if (process.env.NODE_ENV !== "production" || !("serviceWorker" in navigator)) return;
+    const path = window.location.pathname;
+    let done = false;
+    const on = (e: MessageEvent) => {
+      const d = e.data as { type?: string; path?: string } | null;
+      if (!d || d.path !== window.location.pathname || done) return;
+      if (d.type === "oracle:fresh") { done = true; router.refresh(); }
+      else if (d.type === "oracle:reload") { done = true; window.location.reload(); }
+    };
+    navigator.serviceWorker.addEventListener("message", on);
+    if (path === "/" || path === "/portal") navigator.serviceWorker.controller?.postMessage({ type: "oracle:hello", path });
+    return () => navigator.serviceWorker.removeEventListener("message", on);
+  }, [router]);
+
   useEffect(() => {
     if (process.env.NODE_ENV !== "production") return;
     if (typeof window === "undefined") return;
