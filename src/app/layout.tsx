@@ -23,6 +23,7 @@ import { PortalPrefsScript } from "@/components/portal-prefs";
 import { InstallPromptScript } from "@/components/install-app";
 import { ShellThemeScript } from "@/components/shell-theme";
 import { PageTransition } from "@/components/page-transition";
+import { NavProgress } from "@/components/nav-progress";
 import { ContextActionsProvider } from "@/components/context-actions";
 import { GlobalDrawers } from "@/components/global-drawers";
 import { ServiceWorkerRegister } from "@/components/service-worker-register";
@@ -115,6 +116,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           rule was lost the same way and is set inline for the same reason. */}
       <body style={{ scrollbarGutter: "stable" }}>
         <AppSplash />
+        {/* The hairline that says "your click registered, the page is coming". */}
+        <Suspense fallback={null}><NavProgress /></Suspense>
         {!asDirector && <ActivityPinger />}
         <ThemeProvider>
           <MotionConfig reducedMotion="user">

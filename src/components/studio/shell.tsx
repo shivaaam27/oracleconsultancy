@@ -31,6 +31,7 @@ import { useTheme } from "next-themes";
 import { useNavVisibility, isHiddenNavHref } from "@/components/nav-visibility";
 import { cn } from "@/lib/cn";
 import { FOOT_NOTE_EVENT, type PageFootNote } from "./foot-note";
+import { startNavProgress } from "@/components/nav-progress";
 
 export type StudioFootNote = { label: string; text: string; href?: string; tone?: "late" | "soon" | "info" } | null;
 
@@ -121,7 +122,7 @@ export function StudioShell({ needs, director = null }: { needs: NonNullable<Stu
   useEffect(() => {
     const el = pill.current;
     if (!el || stops.length < 2) return;
-    const go = (to: number) => { if (to !== i) router.push(stops[to].href); else setPending(null); };
+    const go = (to: number) => { if (to !== i) { startNavProgress(); router.push(stops[to].href); } else setPending(null); };
     const step = (d: 1 | -1) => {
       const to = (wheel.current.at + d + stops.length) % stops.length;
       wheel.current.at = to;
@@ -338,7 +339,7 @@ export function StudioShell({ needs, director = null }: { needs: NonNullable<Stu
           prev={prev}
           next={next}
           onClose={() => setGoTo(false)}
-          onGo={(href) => { setGoTo(false); router.push(href); }}
+          onGo={(href) => { setGoTo(false); startNavProgress(); router.push(href); }}
           onSearch={director ? undefined : () => { setGoTo(false); openPalette(); }}
           me={director
             ? { name: director.name, role: director.role, profile: "/portal/profile", profileLabel: "Profile", logout: portalLogout }

@@ -80,7 +80,13 @@ export default async function SettingsPage({
 }: {
   searchParams: Promise<{ saved?: string; portal?: string; owner?: string; google?: string; section?: string; note?: string }>;
 }) {
-  const [s, sp, googleStatus, { data: peopleRows }, { data: companyRows }, ownerIdentity] = await Promise.all([
+  // ONE parallel round (26 Sept 2026): these were a dozen awaits one after
+  // another, and the page took ~5 s to answer.
+  const [
+    s, sp, googleStatus, { data: peopleRows }, { data: companyRows }, ownerIdentity,
+    ownerPasskeys, securityChecks, mcpKeys, mcpConnections, geminiKey, emailCfg,
+    { data: dirKill }, emailAuto, { data: tmRow }, automationStatuses, portalPerms,
+  ] = await Promise.all([
     getAppSettings(),
     searchParams,
     getGoogleStatus(),
@@ -91,19 +97,23 @@ export default async function SettingsPage({
       .order("name"),
     sb.from("companies").select("id,name").eq("active", true).order("name"),
     getOwnerIdentity(),
+    listCredentials({ kind: "admin" }),
+    getSecurityStatus(),
+    listMcpKeys(),
+    listMcpConnections(),
+    getGeminiKeyPreview(),
+    getEmailConfig(),
+    sb.from("settings").select("value").eq("key", "director.outreachPaused").maybeSingle(),
+    getAutomationConfig(),
+    sb.from("settings").select("value").eq("key", "email.testMode").maybeSingle(),
+    getAutomationRuleStatuses(),
+    getPortalPermissions(),
   ]);
   const companies = (companyRows ?? []).map((c) => ({ id: c.id as number, name: c.name as string }));
-  const ownerPasskeys = await listCredentials({ kind: "admin" });
-  const securityChecks = await getSecurityStatus();
-  const mcpKeys = await listMcpKeys();
-  const mcpConnections = await listMcpConnections();
   const appUrl = appBaseUrl();
-  // Live counts for the Danger-zone confirmation screen.
-  const geminiKey = await getGeminiKeyPreview();
   const signatureImageUrl = s.emailSignatureImagePath
     ? await signDocumentFile(s.emailSignatureImagePath, 3600)
     : null;
-  const emailCfg = await getEmailConfig();
   const portalPeople = (peopleRows ?? []).map((p) => ({
     id: p.id as number,
     name: p.name as string,
@@ -114,17 +124,13 @@ export default async function SettingsPage({
     companyIds: [...new Set([p.company_id as number | null, ...((p.person_companies as { company_id: number }[] | null) ?? []).map((x) => x.company_id)].filter((n): n is number => n != null))],
   }));
   const portalEnabled = portalPeople.filter((p) => p.enabled);
-  const { data: dirKill } = await sb.from("settings").select("value").eq("key", "director.outreachPaused").maybeSingle();
   const directorPaused = (dirKill?.value as string | null) === "1";
   const whatsAppOn = whatsAppConfigured();
-  const emailAuto = await getAutomationConfig();
-  const { data: tmRow } = await sb.from("settings").select("value").eq("key", "email.testMode").maybeSingle();
   const emailTestMode = (tmRow?.value as string | null) === "1";
-  const automationStatuses = await getAutomationRuleStatuses();
   // Tax & Legal only creates tasks while the task-create rule is on — the card
   // used to say "can spawn tasks" regardless (audit 24 Sept 2026).
   const taskCreateOff = automationStatuses.find((r) => r.kind === "task-create")?.mode === "off";
-  const portalPermsMatrix = resolveMatrix(await getPortalPermissions());
+  const portalPermsMatrix = resolveMatrix(portalPerms);
   // Mockup board Settings: the cards in the Studio frame, restyled by .st-settings.
   const studioFrame = {
     title: "Settings",

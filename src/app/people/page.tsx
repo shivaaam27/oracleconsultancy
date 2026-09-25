@@ -14,11 +14,18 @@ export default async function PeoplePage() {
   const viewer = await getViewer();
   if (!viewer) redirect("/portal");
   const director = viewer.kind === "director";
-  const [peopleAll, { data: companiesAll }, logoMap, inScope] = await Promise.all([
+  // Directory hints (2f): who's on leave today + this-month attendance — read in
+  // the SAME round as the people (it was a second trip after them).
+  const mNow = new Date();
+  const monthStart = new Date(Date.UTC(mNow.getUTCFullYear(), mNow.getUTCMonth(), 1)).toISOString();
+  const monthEnd = new Date(Date.UTC(mNow.getUTCFullYear(), mNow.getUTCMonth() + 1, 1)).toISOString();
+  const [peopleAll, { data: companiesAll }, logoMap, inScope, { data: leaveRows }, { data: attRows }] = await Promise.all([
     getAllPeopleWithWorkload({ taskScope: viewer.scope }),
     sb.from("companies").select("id,name,accent_color").order("name"),
     getCompanyLogoMap(),
     viewerPeopleIds(viewer),
+    sb.from("leave_requests").select("person_id,start_date,end_date").eq("status", "Approved"),
+    sb.from("attendance").select("person_id,status").gte("date", monthStart).lt("date", monthEnd),
   ]);
   const companiesRaw = (companiesAll ?? []).filter((c) => viewer.scope == null || viewer.scope.includes(c.id as number));
   // Blanked, not hidden: what a director may not see never reaches the page.
@@ -38,13 +45,6 @@ export default async function PeoplePage() {
   // Directory hints (2f): who's on leave today + this-month attendance. Attendance
   // is empty until the register is used, so its chip simply lights up when there's data.
   const todayKey = new Date().toISOString().slice(0, 10);
-  const mNow = new Date();
-  const monthStart = new Date(Date.UTC(mNow.getUTCFullYear(), mNow.getUTCMonth(), 1)).toISOString();
-  const monthEnd = new Date(Date.UTC(mNow.getUTCFullYear(), mNow.getUTCMonth() + 1, 1)).toISOString();
-  const [{ data: leaveRows }, { data: attRows }] = await Promise.all([
-    sb.from("leave_requests").select("person_id,start_date,end_date").eq("status", "Approved"),
-    sb.from("attendance").select("person_id,status").gte("date", monthStart).lt("date", monthEnd),
-  ]);
   const directoryHints: Record<number, { onLeave: boolean; present: number; absent: number }> = {};
   for (const r of leaveRows ?? []) {
     if ((r.start_date as string).slice(0, 10) <= todayKey && (r.end_date as string).slice(0, 10) >= todayKey) {
