@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import type { ReactNode } from "react";
 import type { LinkCandidate } from "@/lib/note-unlinked-shared";
 
 /**
@@ -24,7 +25,7 @@ const NoteEditor = dynamic(() => import("@/components/note-editor").then((m) => 
      than measured, because this renders before any of the editor's own code. */
   loading: () => (
     <div
-      className="h-[100dvh] bg-bg-elev lg:h-auto lg:min-h-[70vh] lg:rounded-lg lg:border lg:border-border lg:shadow-sm"
+      className="h-[100dvh] bg-[var(--st-surface)] lg:h-auto lg:min-h-[70vh] lg:rounded-[20px]"
       aria-hidden
     />
   ),
@@ -37,6 +38,8 @@ export function NoteEditorMount(props: {
   initialUpdatedAt: string;
   /** Names to watch for in the text — see lib/note-unlinked-shared.ts. */
   candidates: LinkCandidate[];
+  /** Pills above the title (folder, kind, updated). */
+  meta?: ReactNode;
 }) {
   return <NoteEditor {...props} />;
 }

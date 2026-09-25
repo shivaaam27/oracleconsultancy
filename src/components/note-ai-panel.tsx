@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Link2, ListChecks, Loader2, Sparkles, Text, Wand2, X } from "lucide-react";
+import { Check, History, Link2, ListChecks, Loader2, PenLine, Sparkles, Text, Wand2, X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useToast } from "@/components/toast";
 import {
@@ -14,6 +14,12 @@ import type { ExtractedTask } from "@/lib/note-ai";
 
 /**
  * The AI strip inside a note. Phase 5 of memory/notes_module_plan.md.
+ *
+ * TWO LOOKS, ONE PANEL (Studio, 26 Sept 2026). `variant="card"` is the mockup's
+ * dark "ORI on this note" card in the note page's right rail — the editor
+ * portals it there, so every callback still reaches the editor. `"strip"` is
+ * the old strip along the foot of the sheet, kept for the phone and for full
+ * screen, where the sheet covers the rail.
  *
  * ⚠️ NOTHING HERE CHANGES THE NOTE UNTIL THE OWNER PRESSES ACCEPT. Every action
  * produces a proposal shown beside what is already there; Discard leaves the note
@@ -39,8 +45,10 @@ export function NoteAiPanel({
   onInsertSummary,
   onApplyTitle,
   onLinkSuggestion,
+  variant = "strip",
 }: {
   noteId: number;
+  variant?: "strip" | "card";
   /** Read live from the editor — the note is being typed in while this is open. */
   getText: () => string;
   /** True when the note holds a table, picture or callout that a whole-note
@@ -98,50 +106,20 @@ export function NoteAiPanel({
 
   const act = "inline-flex h-6 items-center gap-1.5 rounded-md px-2 text-xs font-medium transition-colors disabled:opacity-40";
 
-  return (
-    <div className="shrink-0 border-t border-border bg-bg-subtle/60">
-      {/* ⚠️ ONE ROW ON A PHONE, wrapping only from `sm` up — the same treatment
-          the writing toolbar above already gets, and for the same reason. At
-          375px these six actions wrapped to two rows: 65px of buttons standing
-          permanently between the writing and the bottom of the screen, on the
-          device with the least room to give. Sideways, every action is still
-          reachable and the paper keeps 32px of it. */}
-      <div className="slim-scroll flex items-center gap-1 overflow-x-auto px-2 py-1.5 sm:flex-wrap sm:overflow-x-visible">
-        <span className="mr-1 inline-flex shrink-0 items-center gap-1.5 px-1 text-xs font-medium text-fg-muted">
-          <Sparkles size={12} /> AI
-        </span>
+  /* The five actions, drawn as a strip or as the card's grid. */
+  const actions: { key: string; label: string; icon: React.ReactNode; go: () => void }[] = [
+    { key: "polish", label: "Tidy the writing", icon: <Wand2 />, go: () => run("polish", polishNoteAction, (d) => setProposal({ kind: "polish", text: d.text })) },
+    { key: "summary", label: "Summarise", icon: <Text />, go: () => run("summary", summariseNoteAction, (d) => setProposal({ kind: "summary", points: d.points })) },
+    { key: "tasks", label: "Find the jobs", icon: <ListChecks />, go: () => run("tasks", extractTasksAction, (d) =>
+      setProposal({ kind: "tasks", tasks: d.tasks, picked: new Set(d.tasks.map((_, i) => i)) })) },
+    { key: "title", label: "Name it", icon: variant === "card" ? <PenLine /> : <Sparkles />, go: () => run("title", suggestTitleAction, (d) => setProposal({ kind: "title", title: d.title })) },
+    /* The last of §6's actions. The strip below the note already offers names
+       written WITHOUT an @ — this reads the meaning instead, so "the permit
+       chap" finds Sulleiman. It costs a model call, so it is asked for. */
+    { key: "links", label: "Suggest links", icon: <Link2 />, go: () => run("links", suggestLinksAction, (d) => setProposal({ kind: "links", links: d.links })) },
+  ];
 
-        <button type="button" disabled={busy !== null} className={cn(act, "shrink-0 text-fg-muted hover:bg-bg-muted hover:text-fg")}
-          onClick={() => run("polish", polishNoteAction, (d) => setProposal({ kind: "polish", text: d.text }))}>
-          {busy === "polish" ? <Loader2 size={11} className="animate-spin" /> : <Wand2 size={11} />} Tidy the writing
-        </button>
-
-        <button type="button" disabled={busy !== null} className={cn(act, "shrink-0 text-fg-muted hover:bg-bg-muted hover:text-fg")}
-          onClick={() => run("summary", summariseNoteAction, (d) => setProposal({ kind: "summary", points: d.points }))}>
-          {busy === "summary" ? <Loader2 size={11} className="animate-spin" /> : <Text size={11} />} Summarise
-        </button>
-
-        <button type="button" disabled={busy !== null} className={cn(act, "shrink-0 text-fg-muted hover:bg-bg-muted hover:text-fg")}
-          onClick={() => run("tasks", extractTasksAction, (d) =>
-            setProposal({ kind: "tasks", tasks: d.tasks, picked: new Set(d.tasks.map((_, i) => i)) }))}>
-          {busy === "tasks" ? <Loader2 size={11} className="animate-spin" /> : <ListChecks size={11} />} Find the jobs
-        </button>
-
-        <button type="button" disabled={busy !== null} className={cn(act, "shrink-0 text-fg-muted hover:bg-bg-muted hover:text-fg")}
-          onClick={() => run("title", suggestTitleAction, (d) => setProposal({ kind: "title", title: d.title }))}>
-          {busy === "title" ? <Loader2 size={11} className="animate-spin" /> : <Sparkles size={11} />} Name it
-        </button>
-
-        {/* The last of §6's actions. The strip below the note already offers names
-            written WITHOUT an @ — this reads the meaning instead, so "the permit
-            chap" finds Sulleiman. It costs a model call, so it is asked for. */}
-        <button type="button" disabled={busy !== null} className={cn(act, "shrink-0 text-fg-muted hover:bg-bg-muted hover:text-fg")}
-          onClick={() => run("links", suggestLinksAction, (d) => setProposal({ kind: "links", links: d.links }))}>
-          {busy === "links" ? <Loader2 size={11} className="animate-spin" /> : <Link2 size={11} />} Suggest links
-        </button>
-      </div>
-
-      {proposal && (
+  const proposalBlock = proposal && (
         <div className="border-t border-border bg-bg-elev px-3 py-2.5">
           {proposal.kind === "polish" && (
             <Proposed
@@ -253,7 +231,58 @@ export function NoteAiPanel({
             </Proposed>
           )}
         </div>
-      )}
+  );
+
+  if (variant === "card") {
+    return (
+      <div className="st-tex-contour relative flex min-w-0 flex-col overflow-hidden rounded-[20px] bg-[var(--st-card)] p-4 text-[var(--st-on-card)]">
+        <div className="text-[13px] text-[var(--st-on-card-muted)]">ORI on this note</div>
+        <div className="mt-1 text-xs text-[var(--st-on-card-muted)] opacity-80">Every result is a proposal. A version is saved before anything changes.</div>
+        <div className="mt-3 grid grid-cols-2 gap-1.5">
+          {actions.map((a) => (
+            <button key={a.key} type="button" disabled={busy !== null} onClick={a.go}
+              className="flex h-[34px] min-w-0 items-center gap-1.5 rounded-[9px] border border-[#2E3035] bg-[var(--st-card-2)] px-2.5 text-xs text-[var(--st-on-card)] transition-colors hover:bg-[var(--st-card-3)] disabled:opacity-50 [&_svg]:size-[13px] [&_svg]:shrink-0">
+              {busy === a.key ? <Loader2 className="animate-spin" /> : a.icon}<span className="truncate">{a.label}</span>
+            </button>
+          ))}
+          {/* Versions live in their own card further down the rail. */}
+          <button type="button"
+            onClick={() => document.getElementById("note-versions")?.scrollIntoView({ behavior: "smooth", block: "nearest" })}
+            className="flex h-[34px] min-w-0 items-center gap-1.5 rounded-[9px] border border-[#2E3035] bg-[var(--st-card-2)] px-2.5 text-xs text-[var(--st-on-card)] transition-colors hover:bg-[var(--st-card-3)] [&_svg]:size-[13px] [&_svg]:shrink-0">
+            <History /><span className="truncate">Versions</span>
+          </button>
+        </div>
+        {/* A proposal opens on a light sheet inside the card, so it reads as
+            writing rather than as part of the controls. */}
+        {proposalBlock && (
+          <div className="st-desk mt-3 overflow-hidden rounded-[14px] bg-[var(--st-surface)] text-[var(--st-ink)] [&>div]:border-0">
+            {proposalBlock}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="shrink-0 border-t border-border bg-bg-subtle/60">
+      {/* ⚠️ ONE ROW ON A PHONE, wrapping only from `sm` up — the same treatment
+          the writing toolbar above already gets, and for the same reason. At
+          375px these six actions wrapped to two rows: 65px of buttons standing
+          permanently between the writing and the bottom of the screen, on the
+          device with the least room to give. Sideways, every action is still
+          reachable and the paper keeps 32px of it. */}
+      <div className="slim-scroll flex items-center gap-1 overflow-x-auto px-2 py-1.5 sm:flex-wrap sm:overflow-x-visible">
+        <span className="mr-1 inline-flex shrink-0 items-center gap-1.5 px-1 text-xs font-medium text-fg-muted">
+          <Sparkles size={12} /> AI
+        </span>
+        {actions.map((a) => (
+          <button key={a.key} type="button" disabled={busy !== null} onClick={a.go}
+            className={cn(act, "shrink-0 text-fg-muted hover:bg-bg-muted hover:text-fg [&_svg]:size-[11px]")}>
+            {busy === a.key ? <Loader2 className="animate-spin" /> : a.icon} {a.label}
+          </button>
+        ))}
+      </div>
+      {proposalBlock}
     </div>
   );
 }

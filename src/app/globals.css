@@ -2186,3 +2186,17 @@ html[data-no-splash] #aurora-splash { display: none !important; }
   background: var(--sh-field, #FFFFFF) !important; border: 1px solid var(--sh-chip-line, #E4E4E0) !important; box-shadow: none !important;
 }
 .studio .st-form :is(button[aria-haspopup="listbox"], input[autocomplete="off"]:not(.st-field), .st-date > button):hover { border-color: var(--sh-muted, #A9AAA6) !important; }
+
+/* ── One note in Studio (/notes/[id], mockup board Note, 26 Sept 2026) ──────
+   The rail panels are Desk panels inside `.st-desk .st-panel` cards; here their
+   grey header band becomes the mockup's plain 15px title, and the writing
+   takes the mockup's 16px / 1.6. Scoped to `.studio`, so /notes/offline
+   (which has no StudioScope) is untouched. */
+.st-note-card header { background: transparent !important; border: 0 !important; padding: 2px 10px 6px !important; }
+.st-note-card header > svg:first-child, .st-note-card header > span:first-child:has(> svg) { display: none; }
+.st-note-card header h2 { color: var(--st-ink) !important; }
+.st-note-card section { background: transparent; border: 0; border-radius: 0; box-shadow: none; }
+.st-note-card section + section, .st-note-card aside > section + section { margin-top: 6px; }
+.st-note-card .divide-y > * + * { border-color: var(--st-line-soft); }
+.studio .note-canvas { font-size: 16px; line-height: 1.6; color: var(--st-ink); }
+.studio .note-sheet .border-border { border-color: var(--st-line-soft); }

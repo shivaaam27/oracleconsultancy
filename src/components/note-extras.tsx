@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { FileText } from "lucide-react";
 import { BottomSheet } from "@/components/bottom-sheet";
 import { useMediaQuery } from "@/lib/use-media-query";
+import { StudioScope } from "@/components/studio/kit";
 
 /**
  * Everything that is ABOUT a note rather than IN it — the folder, pin, archive,
@@ -52,7 +53,10 @@ export function NoteExtras({ children }: { children: ReactNode }) {
       title="This note"
       icon={<FileText size={16} className="text-accent" />}
     >
-      <div className="space-y-2.5 pb-2">{children}</div>
+      {/* The sheet is portalled to <body>, outside the page's StudioScope, so it
+          carries its own — or the Studio buttons and cards inside lose their
+          colours. */}
+      <StudioScope className="space-y-2.5 pb-2">{children}</StudioScope>
     </BottomSheet>
   );
 }

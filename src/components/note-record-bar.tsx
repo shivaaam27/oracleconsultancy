@@ -1,17 +1,20 @@
 "use client";
 
 import { useTransition } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Archive, ArchiveRestore, ArrowLeft, CalendarDays, LayoutTemplate, Pin, PinOff } from "lucide-react";
+import { Archive, ArchiveRestore, CalendarDays, LayoutTemplate, Pin, PinOff } from "lucide-react";
 import { FluidSelect, type FluidOption } from "@/components/fluid-select";
 import { useToast } from "@/components/toast";
 import { applyTemplateToNote, setDailyTemplate, setNoteArchived, setNoteFolder, setNoteIsTemplate, togglePinNote } from "@/app/notes/actions";
+import { stBtn } from "@/components/studio/kit";
 import { cn } from "@/lib/cn";
 
 /**
- * The thin row above the sheet: back, folder, pin, archive, and when it was last
- * touched. ONE row of quiet controls — the first version stacked a title box and a
+ * The row above the sheet: folder, pin, templates, daily pages, archive — in the
+ * Studio look (mockup board Note, 26 Sept 2026). "All notes" moved into the
+ * writing toolbar and "Updated …" onto the paper, as in the mockup; nothing was
+ * dropped. On a phone the same row sits in the "⋯" sheet (NoteExtras), where it
+ * wraps. ONE row of quiet controls — the first version stacked a title box and a
  * meta box above the paper, which made four bordered rectangles down the screen.
  *
  * The title is not here any more: it lives inside the sheet, where a title belongs.
@@ -22,7 +25,6 @@ export function NoteRecordBar({
   archived,
   folderId,
   folders,
-  updatedAt,
   isTemplate,
   isDailyTemplate,
   templates,
@@ -32,7 +34,6 @@ export function NoteRecordBar({
   archived: boolean;
   folderId: number | null;
   folders: { id: number; name: string }[];
-  updatedAt: string;
   isTemplate: boolean;
   /** Is this the template today's page starts from? */
   isDailyTemplate: boolean;
@@ -42,25 +43,24 @@ export function NoteRecordBar({
   const { toast } = useToast();
   const [, start] = useTransition();
 
-  const act = "inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-xs font-medium transition-colors";
+  /* The mockup's ghost button; "on" (pinned, a template, used every day) is the
+     dark primary, so a state reads at a glance without a colour of its own. */
+  const act = (on: boolean) => cn(on ? stBtn.dark : stBtn.ghost, "max-sm:h-8 max-sm:px-3 max-sm:text-xs");
 
   const folderOptions: FluidOption[] = [
-    { value: "", label: "No folder" },
+    { value: "", label: "Unfiled" },
     ...folders.map((f) => ({ value: String(f.id), label: f.name })),
   ];
 
   return (
-    <div className="flex flex-wrap items-center gap-x-1 gap-y-2 text-fg-muted">
-      <Link href="/notes" className={cn(act, "text-fg-muted hover:bg-bg-muted hover:text-fg")}>
-        <ArrowLeft size={14} /> All notes
-      </Link>
-
-      <span className="mx-1 h-4 w-px bg-border" aria-hidden />
-
+    <div className="flex flex-wrap items-center gap-2">
       {/* The app's own anchored dropdown. This was a native <select>, which draws an
           OS popup that ignores every token in the design system — the same reason
           combobox.tsx replaced the native datalists. */}
-      <FluidSelect
+      {/* "Folder · Unfiled ▾" — a chip, with the app's own dropdown inside it. */}
+      <div className={cn(stBtn.chip, "gap-0 pr-1")}>
+        <span>Folder</span>
+        <FluidSelect
         value={folderId != null ? String(folderId) : ""}
         options={folderOptions}
         onSelect={(v) => start(async () => {
@@ -68,8 +68,9 @@ export function NoteRecordBar({
           if (!res.ok) { toast("Could not move the note.", { tone: "danger" }); return; }
           router.refresh();
         })}
-        buttonClassName="h-7 min-w-[8.5rem] justify-between rounded-md border-0 bg-transparent px-2 text-xs font-medium text-fg-muted hover:bg-bg-muted hover:text-fg"
-      />
+        buttonClassName="h-7 min-w-0 gap-2 rounded-md border-0 bg-transparent px-1.5 text-[13px] font-normal text-[var(--st-muted)] shadow-none hover:bg-transparent hover:text-[var(--st-ink)]"
+        />
+      </div>
 
       <button
         type="button"
@@ -77,7 +78,7 @@ export function NoteRecordBar({
           const res = await togglePinNote(noteId);
           if (res.ok) { toast(res.pinned ? "Pinned to the top." : "Unpinned.", { tone: "success" }); router.refresh(); }
         })}
-        className={cn(act, pinned ? "text-accent hover:bg-accent-soft" : "hover:bg-bg-muted hover:text-fg")}
+        className={act(pinned)}
       >
         {pinned ? <PinOff size={13} /> : <Pin size={13} />} {pinned ? "Unpin" : "Pin"}
       </button>
@@ -90,7 +91,7 @@ export function NoteRecordBar({
           toast(archived ? "Back on the shelf." : "Archived — nothing is deleted.", { tone: "success" });
           router.refresh();
         })}
-        className={cn(act, archived ? "text-success hover:bg-success-soft" : "hover:bg-bg-muted hover:text-fg")}
+        className={cn(act(false), "sm:order-2")}
       >
         {archived ? <ArchiveRestore size={13} /> : <Archive size={13} />} {archived ? "Restore" : "Archive"}
       </button>
@@ -106,7 +107,7 @@ export function NoteRecordBar({
           toast(isTemplate ? "Back to an ordinary note." : "Saved as a template.", { tone: "success" });
           router.refresh();
         })}
-        className={cn(act, isTemplate ? "text-accent hover:bg-accent-soft" : "hover:bg-bg-muted hover:text-fg")}
+        className={act(isTemplate)}
       >
         <LayoutTemplate size={13} /> {isTemplate ? "Template" : "Make a template"}
       </button>
@@ -128,7 +129,7 @@ export function NoteRecordBar({
             router.refresh();
           })}
           title={isDailyTemplate ? "Stop using this for daily pages" : "Start every day from this template"}
-          className={cn(act, isDailyTemplate ? "text-accent hover:bg-accent-soft" : "hover:bg-bg-muted hover:text-fg")}
+          className={act(isDailyTemplate)}
         >
           <CalendarDays size={13} /> {isDailyTemplate ? "Used every day" : "Use for daily pages"}
         </button>
@@ -153,14 +154,13 @@ export function NoteRecordBar({
               window.location.reload();
             });
           }}
-          buttonClassName="h-7 min-w-[8.5rem] justify-between rounded-md border-0 bg-transparent px-2 text-xs font-medium text-fg-muted hover:bg-bg-muted hover:text-fg"
+          buttonClassName={cn(stBtn.ghost, "min-w-0 gap-2 font-normal text-[var(--st-ink)] shadow-none max-sm:h-8 max-sm:px-3 max-sm:text-xs")}
         />
       )}
 
-      <span className="grow" />
-      <span className="px-1 text-xs text-fg-subtle">
-        Updated {new Date(updatedAt).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
-      </span>
+      {/* Archive sits apart at the far end (mockup): ordered after a
+          spacer, so it is never the button beside Pin. */}
+      <span className="hidden grow sm:order-1 sm:block" aria-hidden />
     </div>
   );
 }

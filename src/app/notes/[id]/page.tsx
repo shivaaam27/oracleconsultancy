@@ -10,6 +10,8 @@ import { listTemplates, noteRevisions } from "@/lib/note-versions";
 import { NoteRecordBar } from "@/components/note-record-bar";
 import { NoteExtras } from "@/components/note-extras";
 import { getDailyTemplateId } from "@/app/notes/actions";
+import { StudioScope } from "@/components/studio/kit";
+import { cn } from "@/lib/cn";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +24,11 @@ export const dynamic = "force-dynamic";
  *
  * The layout is deliberately just two things: a thin row of quiet controls, and the
  * paper. The title is inside the paper, where a title belongs.
+ *
+ * STUDIO (26 Sept 2026, mockup board Note): the controls row, then the paper
+ * beside a 320px rail — ORI's card (portalled in by the editor, see
+ * `#note-ori-slot`), To-dos, Links, Versions. Same panels, same actions as
+ * before; only their clothes changed.
  */
 export default async function NotePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -48,7 +55,6 @@ export default async function NotePage({ params }: { params: Promise<{ id: strin
       archived={note.archived}
       folderId={note.folderId}
       folders={folders.map((f) => ({ id: f.id, name: f.name }))}
-      updatedAt={note.updatedAt}
       isTemplate={note.kind === "template"}
       isDailyTemplate={dailyTemplateId === note.id}
       /* A template cannot be applied to itself, and the list is short. */
@@ -59,47 +65,64 @@ export default async function NotePage({ params }: { params: Promise<{ id: strin
   const panels = (
     <>
       {/* To-dos first: a thing you have to DO outranks a thing you linked. */}
-      <NoteTodosPanel noteId={note.id} noteTitle={note.title} todos={todos} />
-      <NoteLinksPanel links={links} incoming={incoming} />
-      <NoteVersionsPanel noteId={note.id} revisions={revisions} />
+      <RailCard><NoteTodosPanel noteId={note.id} noteTitle={note.title} todos={todos} /></RailCard>
+      <RailCard><NoteLinksPanel links={links} incoming={incoming} /></RailCard>
+      <RailCard id="note-versions" className="st-tex-paper-rings"><NoteVersionsPanel noteId={note.id} revisions={revisions} /></RailCard>
+    </>
+  );
+
+  /* The pills above the title (mockup: "Unfiled · Daily page · Updated 1 Sept").
+     "Updated" used to sit at the end of the control row. */
+  const updated = new Date(note.updatedAt).toLocaleString("en-GB", {
+    day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Africa/Dar_es_Salaam",
+  });
+  const meta = (
+    <>
+      <MetaPill>{note.folderName ?? "Unfiled"}</MetaPill>
+      {note.kind === "daily" && <MetaPill>Daily page</MetaPill>}
+      {note.kind === "template" && <MetaPill>{dailyTemplateId === note.id ? "Template · used every day" : "Template"}</MetaPill>}
+      {note.pinnedAt != null && <MetaPill>Pinned</MetaPill>}
+      {note.archived && <MetaPill>Archived</MetaPill>}
+      <span className="text-xs text-[var(--st-muted)]">Updated {updated}</span>
     </>
   );
 
   return (
-    /* A sheet wants room around it, not the full 1600px working width — 58rem is
-       about the widest a page of writing should ever get.
-       From `xl` the links rail sits BESIDE the paper, in space that was empty
-       anyway; below that it stacks underneath, where it costs nothing because the
-       sheet already fills the viewport and you have to scroll to reach it. The
-       writing never gives up a pixel to it.
+    /* From `lg` the rail sits BESIDE the paper (mockup: 320px, 20px apart); the
+       writing never gives up a pixel to it, because below `lg` the rail is not
+       on the screen at all.
 
        ⚠️ BELOW `lg` NONE OF THIS IS ON THE SCREEN. The editor covers the phone
        (see its own note), so the control row and the three panels move behind the
        "⋯" in its toolbar — `NoteExtras`. They are rendered in both places on
        purpose: which one is live is decided by width, and only one ever is. */
-    <div className="mx-auto flex w-full max-w-[58rem] flex-col gap-2.5 xl:max-w-[78rem] xl:flex-row xl:items-start xl:gap-4">
-      <div className="flex min-w-0 flex-1 flex-col gap-2.5">
-        <div className="hidden lg:block">{recordBar}</div>
+    <StudioScope className="flex w-full flex-col gap-4">
+      <div className="hidden lg:block">{recordBar}</div>
 
-        <NoteEditorMount
-          noteId={note.id}
-          initialTitle={note.title}
-          initialBody={note.bodyJson}
-          initialUpdatedAt={note.updatedAt}
-          candidates={candidates}
-        />
+      <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
+        <div className="flex min-w-0 flex-1 flex-col gap-2.5">
+          <NoteEditorMount
+            noteId={note.id}
+            initialTitle={note.title}
+            initialBody={note.bodyJson}
+            initialUpdatedAt={note.updatedAt}
+            candidates={candidates}
+            meta={meta}
+          />
 
-        {note.archived && (
-          <p className="rounded-md border border-border bg-bg-subtle px-3 py-2 text-sm text-fg-muted">
-            This note is archived — off the shelf, but nothing has been deleted. Restore it any time.
-          </p>
-        )}
-      </div>
+          {note.archived && (
+            <p className="rounded-[14px] bg-[var(--st-surface)] px-4 py-2.5 text-sm text-[var(--st-muted)]">
+              This note is archived — off the shelf, but nothing has been deleted. Restore it any time.
+            </p>
+          )}
+        </div>
 
-      {/* Nudged down so its first hairline lines up with the top of the paper
-          rather than with the control row above it. */}
-      <div className="hidden w-full flex-col gap-2.5 lg:flex xl:w-[17.5rem] xl:shrink-0 xl:pt-[2.1rem]">
-        {panels}
+        <aside className="st-note-rail hidden w-[320px] shrink-0 flex-col gap-3.5 lg:flex">
+          {/* ORI's card lands here from the editor (a portal), so it can reach
+              the writing. Empty until the editor has loaded. */}
+          <div id="note-ori-slot" className="empty:hidden" />
+          {panels}
+        </aside>
       </div>
 
       {/* Phone only, and only once the "⋯" in the toolbar asks for it. */}
@@ -107,6 +130,24 @@ export default async function NotePage({ params }: { params: Promise<{ id: strin
         {recordBar}
         {panels}
       </NoteExtras>
-    </div>
+    </StudioScope>
+  );
+}
+
+/** A rail panel as a white Studio card. `.st-desk .st-panel` (globals.css)
+ *  gives the Desk panel inside Studio's greys and dissolves its own box, so
+ *  there is no card in a card; `.st-note-rail` turns its header band into the
+ *  mockup's plain 15px title. */
+function RailCard({ id, className, children }: { id?: string; className?: string; children: React.ReactNode }) {
+  return (
+    <section id={id} className={cn("st-desk st-panel st-note-card min-w-0 scroll-mt-4 rounded-[20px] bg-[var(--st-surface)] px-1.5 py-3 max-lg:border max-lg:border-[var(--st-line)]", className)}>
+      {children}
+    </section>
+  );
+}
+
+function MetaPill({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="inline-flex h-6 items-center whitespace-nowrap rounded-[7px] bg-[var(--st-page)] px-[9px] text-xs text-[var(--st-ink)]">{children}</span>
   );
 }

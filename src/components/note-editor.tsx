@@ -15,8 +15,10 @@ import { NoteImage } from "@/components/note-image";
 import { Callout, CALLOUT_TONES, CALLOUT_TONE_LABELS } from "@/components/note-callout";
 import { NoteAiPanel } from "@/components/note-ai-panel";
 import { attachFileAtCaret, filesFrom } from "@/lib/note-upload";
-import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
+import { createPortal } from "react-dom";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   Bold, Italic, Underline as UnderlineIcon, Strikethrough, List, ListOrdered, ListChecks,
   Quote, Code2, Minus, Undo2, Redo2, Link2, Check, Loader2, AlertTriangle,
@@ -27,7 +29,7 @@ import { DragHandle } from "@tiptap/extension-drag-handle-react";
 import { NoteTouchDrag } from "@/components/note-touch-drag";
 import { NoteCaret } from "@/components/note-caret";
 import { cn } from "@/lib/cn";
-import { useFillViewport } from "@/lib/use-fill-viewport";
+import { safeReturn } from "@/lib/return-to";
 import { BELOW_LG, useMediaQuery } from "@/lib/use-media-query";
 import { FluidSelect, type FluidOption } from "@/components/fluid-select";
 import { extractMentions } from "@/lib/note-links-shared";
@@ -89,14 +91,22 @@ export function NoteEditor({
   initialBody,
   initialUpdatedAt,
   candidates,
+  meta,
 }: {
   noteId: number;
   initialTitle: string;
   initialBody: unknown;
   initialUpdatedAt: string;
   candidates: LinkCandidate[];
+  /** Small pills above the title - folder, kind, when it was last touched.
+   *  Built by the page, which knows them; the editor only places them. */
+  meta?: ReactNode;
 }) {
   const router = useRouter();
+  /* "All notes" goes back to the shelf you came from, filters and all: the
+     `?back=` the shelf put on the link, through the one gate that checks it. */
+  const searchParams = useSearchParams();
+  const backHref = safeReturn(searchParams.get("back")) ?? "/notes";
   const { toast } = useToast();
   const [state, setState] = useState<SaveState>({ kind: "idle" });
   const [title, setTitle] = useState(initialTitle);
@@ -138,6 +148,17 @@ export function NoteEditor({
      needs no change: the sheet simply covers it, exactly as chat does. */
   const immersive = useMediaQuery(BELOW_LG);
   const cover = full || immersive;
+
+  /* -------- ORI's card in the page's rail (Studio, 26 Sept 2026) --------
+     The page leaves an empty `#note-ori-slot` at the head of its right rail and
+     the AI panel is PORTALLED into it, so it is still this editor's child and
+     every callback (accept a rewrite, insert a summary, name it, link words)
+     reaches the editor exactly as before. While the sheet covers the screen
+     (the phone, or full screen) the rail is underneath, so the panel goes back
+     to being a strip along the foot of the sheet. Switching between the two
+     drops an open proposal; nothing in the note is touched by that. */
+  const [oriSlot, setOriSlot] = useState<HTMLElement | null>(null);
+  useEffect(() => { setOriSlot(document.getElementById("note-ori-slot")); }, []);
   const sheet = useRef<HTMLDivElement | null>(null);
   const scroller = useRef<HTMLDivElement | null>(null);
   const [words, setWords] = useState(0);
@@ -522,8 +543,28 @@ export function NoteEditor({
      The measuring now lives in `lib/use-fill-viewport.ts`, shared with every list
      in COS, which had exactly the same dead space under it. `exact` because the
      sheet is a PANE: it is this tall and the paper scrolls inside it. Off while
-     full screen, where `fixed inset-0` already owns the height. */
-  useFillViewport(sheet, { mode: "exact", minimum: MIN_SHEET, enabled: !cover, deps: [editor] });
+     full screen, where `fixed inset-0` already owns the height.
+
+     ⚠️ STUDIO (26 Sept 2026): the page now sits in the Studio frame, whose
+     footer is a fixed 64px bar, and `useFillViewport` (written for the old
+     floating pill) reclaims <main>'s bottom padding from 1280px up — which ran
+     the paper 50px UNDER that footer. So the sheet measures itself here: from
+     its top to 20px above the footer (the mockup's gap), never below
+     MIN_SHEET. The rail beside it is left to scroll with the page. */
+  useEffect(() => {
+    const el = sheet.current;
+    if (!el) return;
+    if (cover) { el.style.height = ""; return; }
+    const fit = () => {
+      const top = el.getBoundingClientRect().top + window.scrollY;
+      const cs = getComputedStyle(document.body);
+      const foot = parseFloat(cs.getPropertyValue("--page-foot")) || parseFloat(cs.getPropertyValue("--foot-h")) || 0;
+      el.style.height = `${Math.max(MIN_SHEET, Math.round(window.innerHeight - top - foot - 20))}px`;
+    };
+    fit();
+    window.addEventListener("resize", fit);
+    return () => { window.removeEventListener("resize", fit); el.style.height = ""; };
+  }, [cover, editor]);
 
   /* Typewriter scrolling, full screen only: hold the line being written inside a
      comfortable band rather than letting it sink to the bottom edge. It only
@@ -632,7 +673,7 @@ export function NoteEditor({
        never shows a bordered card for a frame before the full-screen one. */
     return (
       <div
-        className="h-[100dvh] bg-bg-elev lg:h-auto lg:min-h-[70vh] lg:rounded-lg lg:border lg:border-border"
+        className="h-[100dvh] bg-[var(--st-surface)] lg:h-auto lg:min-h-[70vh] lg:rounded-[20px]"
         aria-hidden
       />
     );
@@ -655,6 +696,62 @@ export function NoteEditor({
   const line = currentTaskItem(editor);
   const linePromoted = line != null && line.todoId != null && livePromotions[line.todoId] !== undefined;
 
+  const aiPanel = (variant: "strip" | "card") => (
+      <NoteAiPanel
+        variant={variant}
+        noteId={noteId}
+        getText={() => editorRef.current?.getText() ?? ""}
+        hasRichBlocks={() => {
+          const ed = editorRef.current;
+          if (!ed) return false;
+          // A whole-note rewrite comes back as plain paragraphs, so anything with
+          // its own shape would be flattened. Warn rather than forbid.
+          let rich = false;
+          ed.state.doc.descendants((node) => {
+            if (rich) return false;
+            if (RICH_BLOCKS.has(node.type.name)) { rich = true; return false; }
+            return true;
+          });
+          return rich;
+        }}
+        /* The editor already knows how to turn words into a mention — the
+           unlinked-mention strip uses the very same function. Reusing it keeps
+           ONE way a link is ever made: by rewriting the writing. */
+        onLinkSuggestion={(l) => linkSuggestion(l)}
+        onApplyPolish={(text) => {
+          const ed = editorRef.current;
+          if (!ed) return;
+          ed.chain().focus().setContent(textToDoc(text)).run();
+          if (timer.current) clearTimeout(timer.current);
+          void flush();
+        }}
+        onInsertSummary={(points) => {
+          const ed = editorRef.current;
+          if (!ed) return;
+          // As a callout at the very top — which is what callouts were built for.
+          ed.chain().focus().insertContentAt(0, {
+            type: "callout",
+            attrs: { tone: "info" },
+            content: [{
+              type: "bulletList",
+              content: points.map((p) => ({
+                type: "listItem",
+                content: [{ type: "paragraph", content: [{ type: "text", text: p }] }],
+              })),
+            }],
+          }).run();
+          if (timer.current) clearTimeout(timer.current);
+          void flush();
+        }}
+        onApplyTitle={(next) => {
+          setTitle(next);
+          titleRef.current = next;
+          if (timer.current) clearTimeout(timer.current);
+          void flush();
+        }}
+      />
+  );
+
   return (
     /* ONE sheet. The toolbar is a strip along its top, separated by a hairline —
        not a floating box of its own. */
@@ -662,7 +759,7 @@ export function NoteEditor({
       ref={sheet}
       data-note-toolbar
       className={cn(
-        "flex flex-col overflow-hidden bg-bg-elev",
+        "note-sheet flex flex-col overflow-hidden bg-[var(--st-surface)]",
         cover
           /* Over the rail, the pill and the bell (all z-40); under the toasts.
              ⚠️ `top-0 h-[100dvh]`, NOT `inset-0`. `bottom-0` on a fixed element
@@ -670,7 +767,7 @@ export function NoteEditor({
              note sits under Safari's address bar — the one place a writing screen
              must never lose. `dvh` follows the bar, and the soft keyboard. */
           ? "fixed inset-x-0 top-0 z-50 h-[100dvh]"
-          : "h-[calc(100dvh-11rem)] min-h-[24rem] rounded-lg border border-border shadow-sm",
+          : "h-[calc(100dvh-11rem)] min-h-[24rem] rounded-[20px]",
       )}
     >
       {/* ⚠️ ONE ROW ON A PHONE, wrapping only from `sm` up. At 375px this toolbar
@@ -680,7 +777,7 @@ export function NoteEditor({
           height. (`slim-scroll` hides the bar until it is used.) */}
       <div
         className={cn(
-          "slim-scroll flex shrink-0 items-center gap-0.5 overflow-x-auto border-b border-border bg-bg-subtle/80 px-2 py-1.5 transition-opacity duration-200 sm:flex-wrap sm:overflow-x-visible",
+          "slim-scroll flex shrink-0 items-center gap-0.5 overflow-x-auto border-b border-[var(--st-line-soft)] px-2 py-1.5 transition-opacity duration-200 sm:flex-wrap sm:overflow-x-visible sm:px-3 sm:py-2",
           /* Covering the screen means clearing the notch as well. */
           cover && "pt-[calc(0.375rem+env(safe-area-inset-top))]",
           /* Full screen: the tools step back until you reach for them. Still
@@ -698,11 +795,22 @@ export function NoteEditor({
             "back" is somewhere else entirely. Chat solved the same problem with
             a floating Home button; a note already has a toolbar, so the way out
             belongs in it rather than hovering over the writing. */}
-        {immersive && (
+        {immersive ? (
           <>
-            <ToolButton title="All notes" onClick={() => router.push("/notes")}>
+            <ToolButton title="All notes" onClick={() => router.push(backHref)}>
               <ArrowLeft size={14} />
             </ToolButton>
+            <Divider />
+          </>
+        ) : (
+          /* The mockup's "All notes" pill, first in the toolbar. It REPLACES
+             the history entry, like every back link in COS, so the browser's
+             own Back does not walk forward into this note again. */
+          <>
+            <Link href={backHref} replace
+              className="inline-flex h-[30px] shrink-0 items-center gap-1.5 rounded-lg bg-[var(--st-page)] px-2.5 text-xs text-[var(--st-ink)] transition-colors hover:bg-[var(--st-seg)]">
+              <ArrowLeft size={12} strokeWidth={2.2} /> All notes
+            </Link>
             <Divider />
           </>
         )}
@@ -719,7 +827,7 @@ export function NoteEditor({
           value={currentStyle}
           options={STYLE_OPTIONS}
           onSelect={setStyle}
-          buttonClassName="h-7 min-w-[6.5rem] justify-between rounded-md border-0 bg-transparent px-2 text-sm font-medium text-fg hover:bg-bg-muted"
+          buttonClassName="h-[30px] min-w-[6.5rem] justify-between rounded-lg border border-[var(--st-line)] bg-transparent px-2.5 text-xs font-normal text-[var(--st-ink)] shadow-none hover:bg-[var(--st-page)]"
         />
 
         <Divider />
@@ -765,7 +873,7 @@ export function NoteEditor({
           }}
         />
 
-        <Divider />
+        {immersive && <Divider />}
 
         {/* Everything that is ABOUT the note rather than IN it — the folder, pin,
             archive, to-dos, links, versions — lives behind here on a phone. They
@@ -780,24 +888,28 @@ export function NoteEditor({
           </ToolButton>
         )}
 
-        {/* Just the writing. Esc comes back — and so does this button, which is
-            why it stays put: on a phone there is no Esc key to press.
+        <span className="grow" />
+        <WordCount words={words} />
+        <SaveBadge state={state} />
+
+        {/* Just the writing. Esc comes back, and so does this button, which is
+            why it stays put: on a phone there is no Esc key to press. Last in
+            the row, after "Saved", as in the mockup.
             ⚠️ Hidden on a phone, where the sheet is ALREADY the screen — a
             button offering what you already have, whose only visible effect
             would be to dim the toolbar. */}
         {!immersive && (
-        <ToolButton
-          title={full ? "Leave full screen (Esc)" : "Full screen — just the writing (⌘⇧F)"}
-          active={full}
-          onClick={() => setFullScreen(!full)}
-        >
-          {full ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-        </ToolButton>
+          <>
+            <Divider />
+            <ToolButton
+              title={full ? "Leave full screen (Esc)" : "Full screen — just the writing (⌘⇧F)"}
+              active={full}
+              onClick={() => setFullScreen(!full)}
+            >
+              {full ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+            </ToolButton>
+          </>
         )}
-
-        <span className="grow" />
-        <WordCount words={words} />
-        <SaveBadge state={state} />
       </div>
 
       {/* A checklist line can become a real to-do — Phase 4. The bar only appears
@@ -932,6 +1044,8 @@ export function NoteEditor({
         style={{ scrollbarGutter: "stable both-edges" }}
         className={cn(
           "note-scroller slim-scroll relative min-h-0 flex-1 cursor-text overflow-y-scroll px-6 py-7 sm:px-10 sm:py-9",
+          /* The mockup's paper: 36px above, 64px in from the left edge. */
+          !cover && "lg:px-16 lg:pb-10 lg:pt-9",
           full && "sm:py-14",
           /* Clears the home indicator, so the last line is never sitting on the
              bar you swipe up from. */
@@ -958,7 +1072,11 @@ export function NoteEditor({
             browsers already scroll a focused caret into view, and a second
             script nudging the same box fights it — the padding gets the benefit
             with nothing to fight. */}
-        <div className={cn("relative mx-auto w-full max-w-[68ch]", cover && (full ? "pb-[45vh]" : "pb-[40vh]"))}>
+        {/* On the desk the writing sits to the LEFT of the paper, as in the
+            mockup; covering the screen it is centred, where there is nothing
+            beside it to line up with. */}
+        <div className={cn("relative mx-auto w-full max-w-[68ch]", !cover && "lg:mx-0 lg:max-w-[72ch]", cover && (full ? "pb-[45vh]" : "pb-[40vh]"))}>
+          {meta && <div className="mb-3.5 flex flex-wrap items-center gap-2">{meta}</div>}
           {/* ⚠️ A TEXTAREA, NOT AN INPUT — the title has to WRAP.
               As a single-line input, a long title just scrolled sideways inside its
               own box: on a 375px phone the field was 294px wide holding 759px of
@@ -980,7 +1098,7 @@ export function NoteEditor({
                focus ring (globals.css). Without it this field draws a stray box and
                flashes blue when clicked — the owner's first complaint.
                22px on a phone: 26px is a lot of the screen when the line is short. */
-            className="bare-field note-title-field mb-1 w-full resize-none overflow-hidden break-words text-[22px] font-semibold leading-tight tracking-[-0.01em] text-fg outline-none placeholder:text-fg-subtle/60 sm:text-[26px]"
+            className="bare-field note-title-field mb-1 w-full resize-none overflow-hidden break-words text-[24px] font-medium leading-[1.12] tracking-[-0.03em] text-[var(--st-ink)] outline-none placeholder:text-[var(--st-muted)]/50 sm:mb-4 sm:text-[38px]"
           />
           <EditorContent editor={editor} />
           {/* The touch half of "move this block". The hover-driven handle above is
@@ -995,58 +1113,7 @@ export function NoteEditor({
 
       {/* AI (Phase 5). Every action is a PROPOSAL — nothing here touches the note
           until Accept, and accepting a rewrite snapshots the old version first. */}
-      <NoteAiPanel
-        noteId={noteId}
-        getText={() => editorRef.current?.getText() ?? ""}
-        hasRichBlocks={() => {
-          const ed = editorRef.current;
-          if (!ed) return false;
-          // A whole-note rewrite comes back as plain paragraphs, so anything with
-          // its own shape would be flattened. Warn rather than forbid.
-          let rich = false;
-          ed.state.doc.descendants((node) => {
-            if (rich) return false;
-            if (RICH_BLOCKS.has(node.type.name)) { rich = true; return false; }
-            return true;
-          });
-          return rich;
-        }}
-        /* The editor already knows how to turn words into a mention — the
-           unlinked-mention strip uses the very same function. Reusing it keeps
-           ONE way a link is ever made: by rewriting the writing. */
-        onLinkSuggestion={(l) => linkSuggestion(l)}
-        onApplyPolish={(text) => {
-          const ed = editorRef.current;
-          if (!ed) return;
-          ed.chain().focus().setContent(textToDoc(text)).run();
-          if (timer.current) clearTimeout(timer.current);
-          void flush();
-        }}
-        onInsertSummary={(points) => {
-          const ed = editorRef.current;
-          if (!ed) return;
-          // As a callout at the very top — which is what callouts were built for.
-          ed.chain().focus().insertContentAt(0, {
-            type: "callout",
-            attrs: { tone: "info" },
-            content: [{
-              type: "bulletList",
-              content: points.map((p) => ({
-                type: "listItem",
-                content: [{ type: "paragraph", content: [{ type: "text", text: p }] }],
-              })),
-            }],
-          }).run();
-          if (timer.current) clearTimeout(timer.current);
-          void flush();
-        }}
-        onApplyTitle={(next) => {
-          setTitle(next);
-          titleRef.current = next;
-          if (timer.current) clearTimeout(timer.current);
-          void flush();
-        }}
-      />
+      {(cover || !oriSlot) && aiPanel("strip")}
 
       {/* Names you wrote without linking. A quiet strip at the FOOT of the sheet,
           so it never pushes the writing about, and every chip can be waved away.
@@ -1092,6 +1159,9 @@ export function NoteEditor({
           </span>
         </p>
       )}
+
+      {/* ORI's card, drawn in the page's rail (see `oriSlot`). */}
+      {!cover && oriSlot && createPortal(aiPanel("card"), oriSlot)}
     </div>
   );
 }
@@ -1189,7 +1259,7 @@ function promptLink(editor: Editor) {
 }
 
 function Divider() {
-  return <span className="mx-1 h-4 w-px shrink-0 bg-border" aria-hidden />;
+  return <span className="mx-1 h-[18px] w-px shrink-0 bg-[var(--st-line)]" aria-hidden />;
 }
 
 /** 28px, 6px corners — the Desk secondary tier. Active is the SOFT accent, not a
@@ -1212,8 +1282,8 @@ function ToolButton({
       disabled={disabled}
       onClick={onClick}
       className={cn(
-        "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors disabled:opacity-40",
-        active ? "bg-accent-soft text-accent" : "text-fg-muted hover:bg-bg-muted hover:text-fg",
+        "inline-flex h-[30px] min-w-[30px] shrink-0 items-center justify-center rounded-lg px-[7px] transition-colors disabled:opacity-40",
+        active ? "bg-[var(--st-seg)] text-[var(--st-ink)]" : "text-[var(--st-sub)] hover:bg-[var(--st-page)] hover:text-[var(--st-ink)]",
       )}
     >
       {children}
@@ -1242,7 +1312,7 @@ function WordCount({ words }: { words: number }) {
 function SaveBadge({ state }: { state: SaveState }) {
   const base = "inline-flex h-7 items-center gap-1.5 px-2 text-xs font-medium";
   if (state.kind === "saving") return <span className={cn(base, "text-fg-muted")}><Loader2 size={12} className="animate-spin" /> Saving…</span>;
-  if (state.kind === "saved") return <span className={cn(base, "text-success")}><Check size={12} /> Saved</span>;
+  if (state.kind === "saved") return <span className={cn(base, "font-normal text-[var(--st-ok-text)]")}><span aria-hidden className="size-1.5 rounded-full bg-[var(--st-ok)]" /> Saved</span>;
   if (state.kind === "dirty") return <span className={cn(base, "text-fg-subtle")}>Editing…</span>;
   if (state.kind === "stale") return <span className={cn(base, "text-warn")}><AlertTriangle size={12} /> Changed elsewhere</span>;
   if (state.kind === "error") return <span className={cn(base, "text-danger")} title={state.message}><AlertTriangle size={12} /> Not saved</span>;
