@@ -1336,15 +1336,16 @@ function useEventActions(event: CalendarEventView | null, onDeleted?: () => void
   const occDateKey = event ? new Date(event.startAt).toISOString().slice(0, 10) : "";
   const [delScope, setDelScope] = useState<"occurrence" | "series">("occurrence");
 
-  const origin = typeof window !== "undefined" ? window.location.origin : "";
-  const shareUrl = event ? `${origin}/e/${event.publicToken}` : "";
-
+  // "Copy link" went with the public event page (26 Sept 2026): there is no
+  // page to link to. WhatsApp shares the details and the Meet link instead.
   function copyLink() {
-    navigator.clipboard.writeText(shareUrl).then(() => {
+    if (!event) return;
+    const text = [event.title, `${fmtDayLabel(event.startAt)}${event.allDay ? "" : ` · ${fmtTime(event.startAt)}`}`, event.location, event.meetLink].filter(Boolean).join("\n");
+    navigator.clipboard.writeText(text).then(() => {
       setCopied(true);
-      toast("Share link copied", { tone: "success" });
+      toast("Details copied", { tone: "success" });
       setTimeout(() => setCopied(false), 1500);
-    });
+    }).catch(() => toast("Couldn't copy.", { tone: "warn" }));
   }
 
   function shareWhatsApp() {
@@ -1353,7 +1354,7 @@ function useEventActions(event: CalendarEventView | null, onDeleted?: () => void
       `📅 ${event.title}`,
       `${fmtDayLabel(event.startAt)}${event.allDay ? "" : ` · ${fmtTime(event.startAt)}`}`,
       event.meetLink ? `Join: ${event.meetLink}` : null,
-      `Details & add to your calendar: ${shareUrl}`,
+      event.location ? `Where: ${event.location}` : null,
     ].filter(Boolean);
     window.open(`https://wa.me/?text=${encodeURIComponent(lines.join("\n"))}`, "_blank");
   }
@@ -1675,7 +1676,7 @@ function EventRow({ event, onEdit, finished = false, onNow = false }: { event: C
                     onSelect={(e) => { e.preventDefault(); copyLink(); }}
                     className="px-2.5 py-2 rounded-md flex items-center gap-2 cursor-pointer outline-none data-[highlighted]:bg-bg-muted"
                   >
-                    {copied ? <Check size={15} /> : <Copy size={15} />} Copy link
+                    {copied ? <Check size={15} /> : <Copy size={15} />} Copy details
                   </DropdownMenu.Item>
                   <DropdownMenu.Item
                     onSelect={(e) => { e.preventDefault(); shareWhatsApp(); }}
@@ -2076,7 +2077,7 @@ function EventForm({
                   : !readOnly && !acts.isPast && <button type="button" onClick={acts.addMeetNow} disabled={acts.pending} className={ACT} title="Add a Google Meet room"><Link2 size={13} />Meet link</button>}
                 <a href={editing.icsPath} className={ACT}><Download size={13} />.ics</a>
                 <a href={editing.googleUrl} target="_blank" rel="noreferrer" className={ACT}><Globe size={13} />Google</a>
-                <button type="button" onClick={acts.copyLink} className={ACT}>{acts.copied ? <Check size={13} /> : <Copy size={13} />}Copy link</button>
+                <button type="button" onClick={acts.copyLink} className={ACT}>{acts.copied ? <Check size={13} /> : <Copy size={13} />}Copy details</button>
                 <button type="button" onClick={acts.shareWhatsApp} className={ACT}><MessageCircle size={13} />WhatsApp</button>
                 {!readOnly && acts.emailCount > 0 && <button type="button" onClick={acts.openPreview} disabled={acts.pending} className={ACT}><Eye size={13} />Preview email</button>}
                 {!readOnly && acts.emailCount > 0 && !acts.isPast && <button type="button" onClick={acts.draftReminders} disabled={acts.pending} className={ACT} title="Draft a reminder to each guest in the Outbox"><Bell size={13} />Remind</button>}

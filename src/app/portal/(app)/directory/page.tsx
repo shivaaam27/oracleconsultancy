@@ -152,7 +152,7 @@ export default async function PortalDirectoryPage({
   // operators) and staff never see other people's attendance. Scoped to the same
   // people the viewer can already see in the directory; enriched with company for
   // the tab's filter/search.
-  const canSeeAttendance = me.portalRole === "manager" || me.portalRole === "hr";
+  const canSeeAttendance = me.portalRole === "manager";
   let attendance: DirectoryAttendance[] = [];
   if (canSeeAttendance && people.length > 0) {
     const rows = await teamAttendanceToday(people.map((p) => p.id));

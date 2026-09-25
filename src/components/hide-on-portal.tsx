@@ -11,7 +11,6 @@ export function HideOnPortal({ children }: { children: React.ReactNode }) {
   if (
     pathname.startsWith("/portal") ||
     pathname.startsWith("/e/") ||
-    pathname.startsWith("/r/") ||
     pathname === "/login"
   )
     return null;

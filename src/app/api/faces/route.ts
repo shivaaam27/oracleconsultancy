@@ -110,7 +110,7 @@ async function computeFaces(): Promise<Entry[]> {
   const out: Entry[] = [];
   for (const p of people ?? []) {
     const role: FaceRole = p.portal_enabled_at
-      ? (["director", "manager", "hr"].includes(p.portal_role as string) ? (p.portal_role as FaceRole) : "staff")
+      ? (["director", "manager"].includes(p.portal_role as string) ? (p.portal_role as FaceRole) : "staff")
       : "none";
     const s = stats.get(faceKey(p.name as string)) ?? { open: 0, overdue: 0, dueSoon: 0, inProgress: 0, doneThisMonth: 0, inMeeting: false };
     s.inMeeting = inMeeting.has(p.id as number);

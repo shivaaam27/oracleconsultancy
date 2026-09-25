@@ -253,9 +253,7 @@ export async function runEventReminders(opts?: { now?: Date }): Promise<EventRem
             organizerName: settings.emailFromName,
             organizerEmail: settings.emailFrom,
             recipientName: a.name,
-            publicUrl: process.env.NEXT_PUBLIC_APP_URL
-              ? `${process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, "")}/e/${ev.publicToken}`
-              : null,
+            publicUrl: null, // the public event page was removed (26 Sept 2026)
             attachments: links.map((x) => ({
               title: x.title,
               fileName: x.fileName,

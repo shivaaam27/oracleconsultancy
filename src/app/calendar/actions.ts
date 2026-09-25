@@ -605,10 +605,11 @@ async function eventCompanyName(companyId: number | null): Promise<string | null
   return (data?.name as string) ?? null;
 }
 
-/** Public share page for an event, if an app URL is configured. */
-function publicEventUrl(token: string): string | null {
-  const base = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "");
-  return base ? `${base}/e/${token}` : null;
+/** The public event page (/e/<token>) was removed on 26 Sept 2026 (owner):
+ *  invitations carry the details, the .ics and any papers themselves. The
+ *  /e/<token>/doc/<id> attachment links stay — guests' tickets live there. */
+function publicEventUrl(_token: string): string | null {
+  return null;
 }
 
 type SendResult =

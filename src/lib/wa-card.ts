@@ -70,16 +70,10 @@ export function waCardImageUrl(personId: number, from?: string): string {
 }
 
 /**
- * Signed, human-friendly reminder link for one person. Crawlers (WhatsApp's link
- * preview) read its Open-Graph tags — the Aurora summary image + that person's live
- * open/overdue counts + top-3 overdue — while real visitors are redirected on to the
- * staff portal. Put this LAST in a WhatsApp message so WhatsApp builds its preview
- * card from it. See src/app/r/[p]/[t]/page.tsx.
- *
- * Uses the SHORT token to keep the link tiny; the "from" label now lives in the
- * message text (a sign-off line), not the URL — so no query string. The `from`
- * parameter is retained for callers but intentionally unused here.
+ * Where a WhatsApp reminder points: the staff portal. The signed /r/<id>/<token>
+ * landing card (with its live preview) was removed on 26 Sept 2026 (owner) —
+ * the portal is where the tasks are, and it asks them to sign in.
  */
-export function waReminderLink(personId: number, _from?: string): string {
-  return `${appBaseUrl()}/r/${personId}/${shortToken(personId)}`;
+export function waReminderLink(_personId: number, _from?: string): string {
+  return `${appBaseUrl()}/portal`;
 }

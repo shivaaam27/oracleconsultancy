@@ -58,7 +58,7 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
   if (!me) redirect("/portal/login");
   const { code } = await params;
   const isManager = me.portalRole === "manager";
-  const isManagement = isManager || me.portalRole === "director" || me.portalRole === "hr";
+  const isManagement = isManager || me.portalRole === "director";
 
   const decodedCode = decodeURIComponent(code);
   // Match the live code OR a legacy code (so links to a task that was moved to
@@ -75,7 +75,7 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
 
   const assignedById = task.created_by_person_id as number | null;
   const groupWide = seesAllCompanies(me);
-  const isModerator = me.portalRole === "director" || me.portalRole === "hr";
+  const isModerator = me.portalRole === "director";
 
   // Everything below needs only the task (and the gate above), so it is read in
   // ONE round rather than one wait after another. Recording my view rides along:
@@ -529,7 +529,7 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
         deleteAction={portalDeleteUpdate}
         canPin={isManagement}
         canAck={true}
-        canModerate={me.portalRole === "director" || me.portalRole === "hr"}
+        canModerate={me.portalRole === "director"}
         composerHint={
           isManagement
             ? "You can mark this task Completed once you're satisfied."

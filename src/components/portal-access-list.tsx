@@ -47,11 +47,10 @@ function roleSummary(role: PortalRoleKey, level: ScopeLevel): string {
   }
   if (role === "receptionist") return `${scopeWords(level)}. Cleaning log only — no tasks.`;
   if (role === "manager") return `${scopeWords(level)} — set by "Also works for" on their own record.`;
-  if (role === "hr") return `${scopeWords(level)}.`;
   return `${scopeWords(level)}.`;
 }
 
-const ORDER: PortalRoleKey[] = ["director", "hr", "manager", "receptionist", "staff"];
+const ORDER: PortalRoleKey[] = ["director", "manager", "receptionist", "staff"];
 
 /** A director's reach, read from what is stored: every company (no scope),
  *  their own companies (scope = their record), or a list that differs. */

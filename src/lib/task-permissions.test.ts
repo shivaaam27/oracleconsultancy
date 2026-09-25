@@ -50,16 +50,14 @@ describe("who may edit a task", () => {
      from the role — which is right for a director and WRONG for a manager whose
      grant is on. Any caller that omits it is reading a different rule from the
      server; this is the case that says so out loud. */
-  it("falls back to director/HR when nobody passes the grant", () => {
+  it("falls back to director when nobody passes the grant", () => {
     expect(canEditTask({ id: 7, portalRole: "director" }, someoneElses)).toBe(true);
-    expect(canEditTask({ id: 7, portalRole: "hr" }, someoneElses)).toBe(true);
     expect(canEditTask({ id: 7, portalRole: "manager" }, someoneElses)).toBe(false);
   });
 
   it("keeps the shipped default in step with the owner's decision", () => {
     expect(DEFAULT_CAPS.manageAnyTask.manager).toBe(true);
     expect(DEFAULT_CAPS.manageAnyTask.director).toBe(true);
-    expect(DEFAULT_CAPS.manageAnyTask.hr).toBe(true);
     expect(DEFAULT_CAPS.manageAnyTask.staff).toBe(false);
     expect(DEFAULT_CAPS.manageAnyTask.receptionist).toBe(false);
     // And a stored override still wins over the default, either way.

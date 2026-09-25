@@ -130,7 +130,7 @@ export default async function PortalProfile() {
 
   const initials = getInitials(me.name);
   const accessLabel =
-    me.portalRole === "director" ? "Director" : me.portalRole === "hr" ? "Admin access" : me.portalRole === "manager" ? "Manager access" : "Staff access";
+    me.portalRole === "director" ? "Director" : me.portalRole === "manager" ? "Manager access" : "Staff access";
 
   // Self-KPI (staff/managers only) — last 4 months of their own scorecard.
   let kpiMonths: React.ComponentProps<typeof PortalKpiCard>["months"] = [];

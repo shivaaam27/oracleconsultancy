@@ -37,7 +37,7 @@ import {
  *  portalDirectorCreateTask stamps, so a person's own recurring rules can be found
  *  by matching this same string. */
 function createdByTag(me: PortalPerson): string {
-  const tag = me.portalRole === "director" ? "portal-dir" : me.portalRole === "hr" ? "portal-hr" : "portal-mgr";
+  const tag = me.portalRole === "director" ? "portal-dir" : "portal-mgr";
   return `${tag}:${me.name}`;
 }
 

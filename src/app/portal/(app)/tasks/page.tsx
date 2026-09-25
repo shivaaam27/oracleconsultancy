@@ -66,7 +66,7 @@ export default async function PortalTasksPage({ searchParams }: { searchParams: 
   const soonCount = cmd.filter((t) => !t.isDone && !t.overdue && t.withinSoon).length;
 
   const scopeNote =
-    me.portalRole === "hr" || me.portalRole === "director"
+    me.portalRole === "director"
       ? "Every task across all companies."
       : me.portalRole === "manager"
         ? "Your company's tasks, plus your own and your team's."

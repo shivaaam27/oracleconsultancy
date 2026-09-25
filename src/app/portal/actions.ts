@@ -257,35 +257,26 @@ export async function portalCreateTask(
 
   let leads: number[];
   let workings: number[];
-  if (me.portalRole === "hr") {
-    // HR is group-wide: any active person, any company.
-    const { data: activeRows } = await sb
-      .from("people").select("id").eq("active", true).in("id", [...leadIds, ...workingIds]);
-    const activeSet = new Set((activeRows ?? []).map((r) => r.id as number));
-    leads = leadIds.filter((id) => activeSet.has(id));
-    if (leads.length === 0) return { error: "The responsible person isn't available." };
-    workings = workingIds.filter((id) => activeSet.has(id) && !leads.includes(id));
-  } else {
-    // Managers: themselves + their whole company team (plus cross-company direct
-    // reports), within those people's companies.
-    const allowedPeople = new Set([me.id, ...(await managerTeamIds(me))]);
-    // Every lead must be within reach — reject the whole request otherwise.
-    if (!leadIds.every((id) => allowedPeople.has(id))) {
-      return { error: "You can only assign to yourself or your team." };
-    }
-    leads = leadIds;
-    workings = workingIds.filter((id) => allowedPeople.has(id) && !leads.includes(id));
-    const { data: peopleRows } = await sb.from("people").select("company_id").in("id", [...allowedPeople]);
-    const allowedCompanies = new Set((peopleRows ?? []).map((p) => p.company_id as number).filter(Boolean));
-    if (!allowedCompanies.has(companyId)) return { error: "You can't create tasks for that company." };
+  // Managers: themselves + their whole company team (plus cross-company direct
+  // reports), within those people's companies.
+  const allowedPeople = new Set([me.id, ...(await managerTeamIds(me))]);
+  // Every lead must be within reach — reject the whole request otherwise.
+  if (!leadIds.every((id) => allowedPeople.has(id))) {
+    return { error: "You can only assign to yourself or your team." };
   }
+  leads = leadIds;
+  workings = workingIds.filter((id) => allowedPeople.has(id) && !leads.includes(id));
+  const { data: peopleRows } = await sb.from("people").select("company_id").in("id", [...allowedPeople]);
+  const allowedCompanies = new Set((peopleRows ?? []).map((p) => p.company_id as number).filter(Boolean));
+  if (!allowedCompanies.has(companyId)) return { error: "You can't create tasks for that company." };
+
 
   const { data: company } = await sb.from("companies").select("code,code_prefix").eq("id", companyId).maybeSingle();
   if (!company) return { error: "Company not found." };
 
   const now = new Date();
   const deadline = deadlineRaw ? new Date(deadlineRaw) : null;
-  const createdBy = `${me.portalRole === "hr" ? "portal-hr" : "portal-mgr"}:${me.name}`;
+  const createdBy = `portal-mgr:${me.name}`;
 
   const task = await insertTaskWithUniqueCodeSb(companyId, (company.code_prefix as string | null) || (company.code as string), {
     actionItem,
@@ -956,7 +947,7 @@ export async function portalDirectorCreateTask(
 
   const now = new Date();
   const deadline = deadlineRaw ? new Date(deadlineRaw) : null;
-  const createdBy = `${isDir ? "portal-dir" : me.portalRole === "hr" ? "portal-hr" : "portal-mgr"}:${me.name}`;
+  const createdBy = `${isDir ? "portal-dir" : "portal-mgr"}:${me.name}`;
 
   // Nothing is due yet: save the standing rule for each chosen company and
   // create no task at all. It appears by itself on the first chosen day.
@@ -1083,7 +1074,7 @@ const ALL_RISKS = ["Critical", "High", "Medium", "Low"];
 const ALL_CATEGORIES = ["Finance", "Operations", "Marketing", "HR", "Legal", "Technology", "Sales", "Admin", "Meetings", "Strategy", "Other"];
 
 function roleTag(role: string): string {
-  return role === "director" ? "dir" : role === "hr" ? "hr" : "mgr";
+  return role === "director" ? "dir" : "mgr";
 }
 
 export async function portalEditTask(input: {
@@ -1712,7 +1703,7 @@ export async function portalEditUpdate(formData: FormData): Promise<void> {
   if (!(await personCanSeeTask(me, taskId))) return;
 
   const mine = updateAuthoredByMe(u.created_by as string | null, me.name);
-  const moderator = role === "director" || role === "hr";
+  const moderator = role === "director";
   if (!mine && !moderator) return;
   if ((u.body as string) === body) return;
 
@@ -1748,7 +1739,7 @@ export async function portalDeleteUpdate(formData: FormData): Promise<void> {
   if (!(await personCanSeeTask(me, taskId))) return;
 
   const mine = updateAuthoredByMe(u.created_by as string | null, me.name);
-  const moderator = role === "director" || role === "hr";
+  const moderator = role === "director";
   if (!mine && !moderator) return;
 
   await sb.from("task_updates").update({ deleted_at: new Date().toISOString() }).eq("id", updateId);
@@ -1763,7 +1754,7 @@ export async function portalRestoreUpdate(formData: FormData): Promise<void> {
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
   const role = me.portalRole;
-  if (role !== "director" && role !== "hr") return; // moderators only
+  if (role !== "director") return; // moderators only
   const updateId = Number(formData.get("updateId"));
   if (!Number.isFinite(updateId)) return;
 
@@ -1954,12 +1945,11 @@ export async function portalAddUpdate(formData: FormData) {
 
   const isManager = me.portalRole === "manager";
   const isDirector = me.portalRole === "director";
-  const isHr = me.portalRole === "hr";
-  const isManagement = isManager || isDirector || isHr;
+  const isManagement = isManager || isDirector;
   // Management roles are stamped distinctly so their posts get the management
   // accent everywhere (see authorOf in the portal task page and actorLabel in
   // timeline-entry.tsx). Directors → portal-dir, HR → portal-hr, managers → portal-mgr.
-  const createdBy = `${isDirector ? "portal-dir" : isHr ? "portal-hr" : isManager ? "portal-mgr" : "portal"}:${me.name}`;
+  const createdBy = `${isDirector ? "portal-dir" : isManager ? "portal-mgr" : "portal"}:${me.name}`;
   const now = new Date().toISOString();
 
   // Store an attached file as a real Document (linked to this task) — run through
@@ -2128,8 +2118,7 @@ export async function portalCompleteTask(
 
   const isManager = me.portalRole === "manager";
   const isDirector = me.portalRole === "director";
-  const isHr = me.portalRole === "hr";
-  const createdBy = `${isDirector ? "portal-dir" : isHr ? "portal-hr" : isManager ? "portal-mgr" : "portal"}:${me.name}`;
+  const createdBy = `${isDirector ? "portal-dir" : isManager ? "portal-mgr" : "portal"}:${me.name}`;
   const now = new Date().toISOString();
 
   let attachmentDocumentId: number | null = null;
@@ -2376,7 +2365,7 @@ export async function portalTogglePin(formData: FormData) {
 
 function portalStamp(me: { portalRole: string; name: string }): string {
   const r = me.portalRole;
-  const prefix = r === "director" ? "portal-dir" : r === "hr" ? "portal-hr" : r === "manager" ? "portal-mgr" : "portal";
+  const prefix = r === "director" ? "portal-dir" : r === "manager" ? "portal-mgr" : "portal";
   return `${prefix}:${me.name}`;
 }
 

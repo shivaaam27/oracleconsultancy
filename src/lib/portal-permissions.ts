@@ -14,12 +14,12 @@
  *   • the Administrator owner/admin bypasses all of this (not a portal person).
  */
 
-export type PortalRoleKey = "staff" | "manager" | "hr" | "director" | "receptionist";
-export const PORTAL_ROLES: PortalRoleKey[] = ["staff", "manager", "hr", "director", "receptionist"];
+export type PortalRoleKey = "staff" | "manager" | "director" | "receptionist";
+// "hr" (Admin) was removed on 26 Sept 2026 — nobody held it (owner).
+export const PORTAL_ROLES: PortalRoleKey[] = ["staff", "manager", "director", "receptionist"];
 export const ROLE_LABEL: Record<PortalRoleKey, string> = {
   staff: "Staff",
   manager: "Manager",
-  hr: "Admin",
   director: "Director",
   receptionist: "Receptionist",
 };
@@ -123,42 +123,41 @@ const ALL_CAP_KEYS: CapabilityKey[] = CAPABILITY_GROUPS.flatMap((g) => g.caps.ma
 export const DEFAULT_SCOPE: Record<PortalRoleKey, ScopeLevel> = {
   staff: "own",
   manager: "companies",
-  hr: "all",
   director: "all",
   receptionist: "own",
 };
 
 // The receptionist is a data-entry-only role: every task/comms/nav power is OFF —
 // her portal is just Home (announcements + to-do) + the cleaning log. Only the two
-// cleaning caps are on. cleaningOverview is on for the oversight roles (manager/hr/
+// cleaning caps are on. cleaningOverview is on for the oversight roles (manager/
 // director) so the Administrator view can be ported to them (e.g. Shivam).
 export const DEFAULT_CAPS: Record<CapabilityKey, Record<PortalRoleKey, boolean>> = {
-  createTasks: { staff: false, manager: true, hr: true, director: true, receptionist: false },
+  createTasks: { staff: false, manager: true, director: true, receptionist: false },
   /* ⚠️ MANAGERS MANAGE ANY TASK (owner, 28 Aug 2026) — "editable by all
      directors and managers". The live settings row had already said so; this
      default was still `false`, so the code and the running system disagreed and
      a fresh deployment would have behaved differently from this one. They agree
      now. The owner can still switch it off per role in Settings → Portals. */
-  manageAnyTask: { staff: false, manager: true, hr: true, director: true, receptionist: false },
-  bulkTaskActions: { staff: false, manager: true, hr: true, director: true, receptionist: false },
-  crossCompanyTasks: { staff: false, manager: true, hr: true, director: true, receptionist: false },
-  recurringTasks: { staff: false, manager: true, hr: true, director: true, receptionist: false },
-  messageOnTasks: { staff: false, manager: true, hr: true, director: true, receptionist: false },
-  bulkOutreach: { staff: false, manager: true, hr: false, director: true, receptionist: false },
-  createEvents: { staff: false, manager: true, hr: true, director: true, receptionist: false },
+  manageAnyTask: { staff: false, manager: true, director: true, receptionist: false },
+  bulkTaskActions: { staff: false, manager: true, director: true, receptionist: false },
+  crossCompanyTasks: { staff: false, manager: true, director: true, receptionist: false },
+  recurringTasks: { staff: false, manager: true, director: true, receptionist: false },
+  messageOnTasks: { staff: false, manager: true, director: true, receptionist: false },
+  bulkOutreach: { staff: false, manager: true, director: true, receptionist: false },
+  createEvents: { staff: false, manager: true, director: true, receptionist: false },
   // Staff: on since the Studio screens (26 Sept 2026) — their tasks are a page of their own now.
-  navTasks: { staff: true, manager: true, hr: true, director: true, receptionist: false },
-  navOutbox: { staff: false, manager: true, hr: true, director: true, receptionist: false },
-  navInsights: { staff: false, manager: true, hr: true, director: true, receptionist: false },
-  oriAsk: { staff: true, manager: true, hr: true, director: true, receptionist: false },
-  oriAct: { staff: false, manager: true, hr: false, director: true, receptionist: false },
-  cleaningLog: { staff: false, manager: false, hr: false, director: false, receptionist: true },
+  navTasks: { staff: true, manager: true, director: true, receptionist: false },
+  navOutbox: { staff: false, manager: true, director: true, receptionist: false },
+  navInsights: { staff: false, manager: true, director: true, receptionist: false },
+  oriAsk: { staff: true, manager: true, director: true, receptionist: false },
+  oriAct: { staff: false, manager: true, director: true, receptionist: false },
+  cleaningLog: { staff: false, manager: false, director: false, receptionist: true },
   // Overview is the manager/receptionist working view (e.g. Shivam) — directors and
   // HR don't need the cleaning register on their portal (flipped off Jul 2026).
-  cleaningOverview: { staff: false, manager: true, hr: false, director: false, receptionist: true },
+  cleaningOverview: { staff: false, manager: true, director: false, receptionist: true },
   // Mirrors today's rule exactly: the brief download was directors-only.
   // Managers match directors (owner, 26 Sept 2026), over their own companies.
-  directorBrief: { staff: false, manager: true, hr: false, director: true, receptionist: false },
+  directorBrief: { staff: false, manager: true, director: true, receptionist: false },
 };
 
 /** The stored (partial) override config — only the cells the owner changed. */
@@ -192,14 +191,14 @@ export function asPortalRole(role: string | null | undefined): PortalRoleKey {
 }
 
 function normaliseRole(role: string | null | undefined): PortalRoleKey {
-  return role === "manager" || role === "hr" || role === "director" || role === "receptionist" ? role : "staff";
+  return role === "manager" || role === "director" || role === "receptionist" ? role : "staff";
 }
 
 /* ── The two safety rules that govern a change of access ──────────────────── */
 
 /** How much a level outranks another. Receptionist is a lateral, low-power role,
- *  not a step above Staff. Admin (hr) and Director are both "everything". */
-const RANK: Record<PortalRoleKey, number> = { staff: 0, receptionist: 0, manager: 1, hr: 2, director: 2 };
+ *  not a step above Staff. */
+const RANK: Record<PortalRoleKey, number> = { staff: 0, receptionist: 0, manager: 1, director: 2 };
 
 /**
  * COMPIP-01 — the level to store when a password is RESET on somebody who

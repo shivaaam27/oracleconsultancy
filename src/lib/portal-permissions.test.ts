@@ -58,7 +58,6 @@ describe("the default scope — what each level SEES", () => {
     expect(DEFAULT_SCOPE).toEqual({
       staff: "own",
       manager: "companies",
-      hr: "all",
       director: "all",
       receptionist: "own",
     });
@@ -69,18 +68,18 @@ describe("the default capabilities — what each level may DO", () => {
   // Written out in full on purpose. A one-cell change anywhere in the app now
   // fails here rather than silently widening somebody's access.
   const expected: Record<CapabilityKey, PortalRoleKey[]> = {
-    createTasks: ["manager", "hr", "director"],
-    manageAnyTask: ["manager", "hr", "director"],
-    bulkTaskActions: ["manager", "hr", "director"],
-    crossCompanyTasks: ["manager", "hr", "director"],
-    recurringTasks: ["manager", "hr", "director"],
-    messageOnTasks: ["manager", "hr", "director"],
+    createTasks: ["manager", "director"],
+    manageAnyTask: ["manager", "director"],
+    bulkTaskActions: ["manager", "director"],
+    crossCompanyTasks: ["manager", "director"],
+    recurringTasks: ["manager", "director"],
+    messageOnTasks: ["manager", "director"],
     bulkOutreach: ["manager", "director"],
-    createEvents: ["manager", "hr", "director"],
-    navTasks: ["staff", "manager", "hr", "director"],
-    navOutbox: ["manager", "hr", "director"],
-    navInsights: ["manager", "hr", "director"],
-    oriAsk: ["staff", "manager", "hr", "director"],
+    createEvents: ["manager", "director"],
+    navTasks: ["staff", "manager", "director"],
+    navOutbox: ["manager", "director"],
+    navInsights: ["manager", "director"],
+    oriAsk: ["staff", "manager", "director"],
     oriAct: ["manager", "director"],
     cleaningLog: ["receptionist"],
     cleaningOverview: ["manager", "receptionist"],
@@ -180,7 +179,7 @@ describe("the owner's overrides", () => {
 
 describe("resolveRolePerms / resolveMatrix", () => {
   it("agree with each other for every role", () => {
-    const cfg = { scope: { manager: "all" as const }, caps: { oriAct: { hr: true } } };
+    const cfg = { scope: { manager: "all" as const }, caps: { oriAct: { manager: true } } };
     const matrix = resolveMatrix(cfg);
     for (const r of PORTAL_ROLES) {
       const one = resolveRolePerms(cfg, r);
@@ -200,7 +199,6 @@ describe("resolveRolePerms / resolveMatrix", () => {
 
 describe("roleAfterReset — a password reset must never demote (COMPIP-01)", () => {
   it("keeps the higher level when a reset form defaults to Staff", () => {
-    expect(roleAfterReset("hr", "staff")).toBe("hr");
     expect(roleAfterReset("director", "staff")).toBe("director");
     expect(roleAfterReset("manager", "staff")).toBe("manager");
   });
@@ -214,11 +212,6 @@ describe("roleAfterReset — a password reset must never demote (COMPIP-01)", ()
   it("treats Receptionist as lateral to Staff, not above it", () => {
     expect(roleAfterReset("receptionist", "staff")).toBe("staff");
     expect(roleAfterReset("staff", "receptionist")).toBe("receptionist");
-  });
-  it("does not let a reset move somebody between the two top levels", () => {
-    // hr and director both rank "everything", so neither pulls rank on the other.
-    expect(roleAfterReset("hr", "director")).toBe("director");
-    expect(roleAfterReset("director", "hr")).toBe("hr");
   });
 });
 

@@ -97,15 +97,6 @@ export async function portalBulkCreateTasks(
     if (leads.length === 0) return { ok: false, error: "The responsible person isn't available." };
     workings = workingIdsRaw.filter((id) => activeSet.has(id) && !leads.includes(id));
     companyIds = companyIdsRaw; // multiple companies allowed
-  } else if (me.portalRole === "hr") {
-    // HR is group-wide for people, but bulk keeps a single company (companyIds[0]).
-    const { data: activeRows } = await sb
-      .from("people").select("id").eq("active", true).in("id", [...leadIdsRaw, ...workingIdsRaw]);
-    const activeSet = new Set((activeRows ?? []).map((r) => r.id as number));
-    leads = leadIdsRaw.filter((id) => activeSet.has(id));
-    if (leads.length === 0) return { ok: false, error: "The responsible person isn't available." };
-    workings = workingIdsRaw.filter((id) => activeSet.has(id) && !leads.includes(id));
-    companyIds = [companyIdsRaw[0]];
   } else {
     // Manager: company-scoped. May fan out across ANY of their own companies, to
     // any active person who belongs to those companies (matches the single-task
@@ -125,7 +116,7 @@ export async function portalBulkCreateTasks(
   }
 
   const now = new Date();
-  const createdBy = `${me.portalRole === "director" ? "portal-dir" : me.portalRole === "hr" ? "portal-hr" : "portal-mgr"}:${me.name}`;
+  const createdBy = `${me.portalRole === "director" ? "portal-dir" : "portal-mgr"}:${me.name}`;
 
   // Resolve each company's prefix once (skip unknown ids — fail those lines).
   const companyInfo = new Map<number, { prefix: string }>();

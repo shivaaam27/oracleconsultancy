@@ -249,9 +249,9 @@ export const config = {
   // api/portal is excluded too: those routes serve portal users and verify
   // the portal (or admin) cookie themselves. api/wa-card is public (Twilio fetches
   // the link-preview image unauthenticated) but carries its own HMAC signature gate.
-  // r/ is the public per-person reminder link — WhatsApp's crawler reads its
-  // Open-Graph card and real visitors land on it; it carries the SAME HMAC gate as
-  // api/wa-card (verifyWaCardToken), so it must NOT be behind the admin cookie.
+  // (r/ — the public reminder landing card — was removed 26 Sept 2026; reminders
+  // now link to /portal. e/ stays excluded for the /e/<token>/doc/<id> papers
+  // guests open from an invitation; the /e/<token> page itself is gone.)
   // NOTE: /portal is intentionally NOT excluded — the proxy runs on portal routes
   // ONLY to slide the cos_portal session forward (refreshPortalSession); it never
   // gates them. api/portal stays excluded (those routes verify their own cookie).
@@ -269,5 +269,5 @@ export const config = {
   // api/csp-report is excluded because a browser posts a Content-Security-Policy
   // violation WITHOUT cookies: inside the gate every report would be redirected
   // to /login and lost. It is public by necessity and rate-limits itself.
-  matcher: ["/((?!login|e/|r/|mcp/connect|api/cron|api/calendar|api/portal|api/mcp|api/notifications|api/push|api/wa-card|api/og-banner|api/csp-report|api/desktop|_next|.*\\..*).*)"],
+  matcher: ["/((?!login|e/|mcp/connect|api/cron|api/calendar|api/portal|api/mcp|api/notifications|api/push|api/wa-card|api/og-banner|api/csp-report|api/desktop|_next|.*\\..*).*)"],
 };

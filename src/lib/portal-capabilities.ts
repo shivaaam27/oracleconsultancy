@@ -9,7 +9,7 @@
  *
  * Goal: replace scattered ad-hoc role checks
  *   role === "director"
- *   role === "manager" || role === "hr" || role === "director"
+ *   role === "manager" || role === "director"
  * with ONE place that names each capability. UI surfaces derive their booleans
  * from `portalCapabilities(role)` so the rules live here, not sprinkled across
  * pages and components.
@@ -65,17 +65,17 @@ export type PortalCapabilities = {
 export function portalCapabilities(role: PortalRole | string | undefined): PortalCapabilities {
   // Normalise to a known role; anything unexpected → "staff" (least privilege).
   const r: PortalRole =
-    role === "director" || role === "manager" || role === "hr" || role === "receptionist" ? role : "staff";
+    role === "director" || role === "manager" || role === "receptionist" ? role : "staff";
 
   const isDirector = r === "director";
   const isManager = r === "manager";
-  const isManagement = r === "manager" || r === "hr" || r === "director";
+  const isManagement = r === "manager" || r === "director";
   // Receptionist — a stripped, data-entry-only shell: Home (announcements + to-do),
   // the Cleaning log, and Profile. Nothing else. She's not board-first, so Home shows.
   const isReceptionist = r === "receptionist";
   // Board-first operators: directors AND managers (each scoped to their companies).
   const boardFirst = isDirector || isManager;
-  const groupWide = r === "hr" || r === "director";
+  const groupWide = r === "director";
   const canCreate = r !== "staff" && !isReceptionist;
 
   return {

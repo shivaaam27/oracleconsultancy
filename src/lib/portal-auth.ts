@@ -219,17 +219,16 @@ export async function clearSessionCookie() {
 
 // "director" = executive operator: a read-only board + create tasks/events/
 // messages across ALL companies (group-wide). See memory/director_surface_plan.md.
-// "hr" = admin/HR: sees and creates tasks across ALL 7 companies (group-wide
-// task visibility), but uses the ordinary staff home/Tasks surface, not the
-// director board.
-export type PortalRole = "staff" | "manager" | "hr" | "director" | "receptionist";
+// ("hr", the admin/HR role, was removed on 26 Sept 2026 — nobody held it.
+// Old "portal-hr:<Name>" authors on existing rows still display.)
+export type PortalRole = "staff" | "manager" | "director" | "receptionist";
 
 // Roles whose powers are group-level (HR or director). NOTE: this is ROLE-only and
 // does NOT account for a company-scoped director — use `seesAllCompanies(person)` for
 // any DATA-visibility decision. Kept for the few UI/role checks that mean "is this a
 // group-level role" regardless of scope.
 export function isGroupWide(role: PortalRole): boolean {
-  return role === "hr" || role === "director";
+  return role === "director";
 }
 
 // ── Company scope ────────────────────────────────────────────────────────────
@@ -344,9 +343,7 @@ function mapPortalPerson(
   const portalRole: PortalRole =
     data.portal_role === "manager"
       ? "manager"
-      : data.portal_role === "hr"
-        ? "hr"
-        : data.portal_role === "director"
+      : data.portal_role === "director"
           ? "director"
           : data.portal_role === "receptionist"
             ? "receptionist"

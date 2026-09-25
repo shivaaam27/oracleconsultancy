@@ -30,7 +30,7 @@ export function isTaskCreator(viewer: TaskPermViewer, task: TaskPermTask): boole
  *  director/HR), or the task's own creator (always — the creator rule is fixed). */
 export function canManageTask(viewer: TaskPermViewer, task: TaskPermTask): boolean {
   const r = (viewer.portalRole ?? "").toLowerCase();
-  const manageAny = viewer.canManageAny ?? (r === "director" || r === "hr");
+  const manageAny = viewer.canManageAny ?? (r === "director");
   if (manageAny) return true;
   return isTaskCreator(viewer, task);
 }
