@@ -22,6 +22,7 @@ import { scopedUpcomingMeetings } from "@/lib/portal-meetings-data";
 import { getPersonAudienceAttrs, feedForPerson } from "@/lib/announcements";
 import { getGivenName } from "@/lib/names";
 import { withReturn } from "@/lib/return-to";
+import { portalTaskHref } from "@/lib/portal-task-href";
 import { StudioHome, type StudioHomeData, type HomeItem } from "@/components/studio/home/studio-home";
 import { StaffCheckinCard, StaffCheckinFold, StaffTodoCard, StaffTodoFold, AnnouncementAck } from "@/components/studio/home/staff-cards";
 
@@ -31,7 +32,6 @@ const eatDay = (ms: number) => Math.floor((ms + 3 * 3_600_000) / DAY);
 const WEEKDAY = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-export const staffTaskHref = (code: string) => `/portal/task/${encodeURIComponent(code)}`;
 
 export async function StaffStudioHome({ me }: { me: PortalPerson }) {
   const [all, ids, today, week, todos, meetings, feed] = await Promise.all([
@@ -58,7 +58,7 @@ export async function StaffStudioHome({ me }: { me: PortalPerson }) {
   const isLate = (r: TaskRow) => r.flag === "overdue" || r.flag === "escalate-now";
   const isSoon = (r: TaskRow) => r.flag === "due-soon";
   const isQuiet = (r: TaskRow) => !r.lastUpdatedAt || nowMs - r.lastUpdatedAt.getTime() >= QUIET_MS;
-  const href = (code: string) => withReturn(staffTaskHref(code), "/portal");
+  const href = (code: string) => withReturn(portalTaskHref(code), "/portal");
   const daysLate = (r: TaskRow) => (typeof r.daysToDeadline === "number" ? Math.abs(Math.min(0, r.daysToDeadline)) : 0);
   const shortDay = (r: TaskRow) => new Date(r.deadline!.getTime() + 3 * 3_600_000).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", timeZone: "UTC" });
 

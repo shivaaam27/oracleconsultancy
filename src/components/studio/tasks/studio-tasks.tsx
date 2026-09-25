@@ -127,7 +127,7 @@ export function StudioTasks(p: StudioTasksProps) {
 }
 
 /** The empty state, in the Studio look. */
-export function StudioEmpty({ archived, done, filtered }: { archived: boolean; done: boolean; filtered: boolean }) {
+export function StudioEmpty({ archived, done, filtered, hint }: { archived: boolean; done: boolean; filtered: boolean; hint?: string }) {
   return (
     <div className="st-tex-paper-dots flex min-h-[220px] items-center justify-center rounded-[20px] border border-dashed border-[var(--st-line)]">
       <div className="rounded-xl bg-[var(--st-page)] px-5 py-3.5 text-center">
@@ -138,7 +138,7 @@ export function StudioEmpty({ archived, done, filtered }: { archived: boolean; d
           {archived ? "No archived tasks." : done ? "Nothing completed yet." : filtered ? "No tasks match these filters." : "No open tasks."}
         </div>
         <div className="mt-0.5 text-xs text-[var(--st-muted)]">
-          {archived ? "Archive a task to retire it without losing its history." : filtered ? "Clear a filter, or pick a different view." : "Add one with the row above."}
+          {hint ?? (archived ? "Archive a task to retire it without losing its history." : filtered ? "Clear a filter, or pick a different view." : "Add one with the row above.")}
         </div>
       </div>
     </div>

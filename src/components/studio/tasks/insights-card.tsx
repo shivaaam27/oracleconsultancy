@@ -27,8 +27,12 @@ export type InsightsData = {
 const TITLES = ["Overview", "By company · open, and how many are late", "By person · who is carrying the most"];
 
 export function InsightsCard({ data }: { data: InsightsData }) {
-  const [i, setI] = useState(0);
-  const step = (d: number) => setI((n) => (n + d + TITLES.length) % TITLES.length);
+  // A view with nothing in it is left out (a member of staff has no "by
+  // person"); with only the Overview left there is nothing to step through.
+  const pages = [0, ...(data.companies.length ? [1] : []), ...(data.people.length ? [2] : [])];
+  const [k, setK] = useState(0);
+  const i = pages[k % pages.length];
+  const step = (d: number) => setK((n) => (n + d + pages.length) % pages.length);
   const total = Math.max(1, data.bar.late + data.bar.soon + data.bar.onSchedule + data.bar.noDate);
   const pct = (n: number) => `${(n / total) * 100}%`;
   const maxCo = Math.max(1, ...data.companies.map((c) => c.open));
@@ -38,10 +42,10 @@ export function InsightsCard({ data }: { data: InsightsData }) {
     <div className="relative flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[20px] bg-[var(--st-card)] px-[18px] py-4 text-[var(--st-on-card)] sm:px-6 sm:py-5 md:min-h-[244px]">
       <CardHead
         label={TITLES[i]}
-        right={
+        right={pages.length < 2 ? undefined :
           <>
-            {TITLES.map((_, k) => (
-              <span key={k} aria-hidden className="h-1.5 rounded-full transition-all" style={{ width: k === i ? 16 : 6, background: k === i ? "var(--st-on-card)" : "#3A3D42" }} />
+            {pages.map((p) => (
+              <span key={p} aria-hidden className="h-1.5 rounded-full transition-all" style={{ width: p === i ? 16 : 6, background: p === i ? "var(--st-on-card)" : "#3A3D42" }} />
             ))}
             <button type="button" aria-label="Previous view" onClick={() => step(-1)} className="ml-1 flex h-[26px] w-[26px] items-center justify-center rounded-lg border border-[var(--st-card-line)] text-[#C9CBCF] hover:bg-[var(--st-card-2)]"><ChevronLeft size={12} /></button>
             <button type="button" aria-label="Next view" onClick={() => step(1)} className="flex h-[26px] w-[26px] items-center justify-center rounded-lg border border-[var(--st-card-line)] text-[#C9CBCF] hover:bg-[var(--st-card-2)]"><ChevronRight size={12} /></button>
@@ -50,7 +54,7 @@ export function InsightsCard({ data }: { data: InsightsData }) {
       />
 
       {i === 0 && (
-        <div key="o" className="st-pop mt-3 grid flex-1 grid-cols-1 items-end gap-4 lg:grid-cols-[minmax(0,1fr)_200px] lg:gap-7">
+        <div key="o" className="st-pop mt-3 grid flex-1 grid-cols-1 items-end gap-4 lg:grid-cols-[minmax(0,1fr)_220px] lg:gap-7">
           <div className="flex flex-col gap-4">
             <div className="flex flex-wrap items-baseline gap-2.5">
               <span className="text-[60px] leading-[0.85] tracking-[-0.045em] tabular-nums lg:text-[76px]">{data.open}</span>
@@ -76,7 +80,7 @@ export function InsightsCard({ data }: { data: InsightsData }) {
             {data.tiles.map((t) => (
               <Link key={t.label} href={t.href} scroll={false} className="min-w-0 rounded-xl border border-[#2A2C30] bg-[var(--st-card-2)] px-2 py-2 transition-colors hover:border-[#3A3D42] lg:px-3 lg:py-2.5">
                 <div className="text-xl leading-tight tracking-[-0.02em] tabular-nums">{t.n}</div>
-                <div className="mt-0.5 truncate text-[11px] text-[var(--st-muted)] lg:whitespace-nowrap">{t.label}</div>
+                <div className="mt-0.5 line-clamp-2 text-[11px] leading-tight text-[var(--st-muted)]">{t.label}</div>
               </Link>
             ))}
           </div>

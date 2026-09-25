@@ -10,6 +10,7 @@
  * top of the page, so a row picked further down had its updates off-screen.
  * The side panel stays in view wherever you have scrolled.
  */
+import Link from "next/link";
 import { PersonFace } from "@/components/studio/face";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { useState } from "react";
@@ -24,7 +25,13 @@ export function UpdateCard({
   fresh,
   unreadCount,
   postedToday,
+  hrefs,
+  title,
 }: {
+  /** Staff (26 Sept 2026): an update opens the task page rather than a side
+   *  panel — code → address (a map, since a function cannot come from the server). */
+  hrefs?: Record<string, string>;
+  title?: string;
   /** Unread updates newest first (or, when nothing is unread, the latest few). */
   fresh: TaskRow[];
   unreadCount: number;
@@ -33,13 +40,13 @@ export function UpdateCard({
   const pick = useStudioPick();
   return (
     <div className="st-tex-rings relative flex min-w-0 flex-col overflow-hidden rounded-[20px] bg-[var(--st-card)] px-[18px] py-4 text-[var(--st-on-card)] sm:px-6 sm:py-5 md:min-h-[244px]">
-      <Idle fresh={fresh} unreadCount={unreadCount} postedToday={postedToday} picked={pick?.code ?? null} onPick={(c) => pick?.setCode(c)} />
+      <Idle fresh={fresh} unreadCount={unreadCount} postedToday={postedToday} picked={pick?.code ?? null} onPick={(c) => pick?.setCode(c)} hrefs={hrefs} title={title} />
     </div>
   );
 }
 
 
-function Idle({ fresh, unreadCount, postedToday, picked, onPick }: { fresh: TaskRow[]; unreadCount: number; postedToday: number; picked: string | null; onPick: (code: string) => void }) {
+function Idle({ fresh, unreadCount, postedToday, picked, onPick, hrefs, title }: { fresh: TaskRow[]; unreadCount: number; postedToday: number; picked: string | null; onPick: (code: string) => void; hrefs?: Record<string, string>; title?: string }) {
   const PER_PAGE = useMediaQuery("(max-width: 639px)") ? 2 : 3;
   const pages = Math.max(1, Math.ceil(fresh.length / PER_PAGE));
   const [page, setPage] = useState(0);
@@ -50,7 +57,7 @@ function Idle({ fresh, unreadCount, postedToday, picked, onPick }: { fresh: Task
   return (
     <div className="st-pop flex h-full flex-1 flex-col">
       <CardHead
-        label={unreadCount > 0 ? "Unread updates" : "Latest updates"}
+        label={title ?? (unreadCount > 0 ? "Unread updates" : "Latest updates")}
         right={pages > 1 ? (
           <span className="flex items-center gap-1.5">
             <span className="tabular-nums">{at + 1} of {pages}</span>
@@ -73,12 +80,13 @@ function Idle({ fresh, unreadCount, postedToday, picked, onPick }: { fresh: Task
           {fresh.length === 0 && <div className="text-[13px] text-[var(--st-muted)]">No updates yet on the open tasks.</div>}
           {shown.map((r) => {
             const a = r.latestActivity!;
+            const to = hrefs?.[r.code];
+            const Row = to ? Link : "button";
             return (
-              <button
+              <Row
                 key={r.code}
-                type="button"
-                onClick={() => onPick(r.code)}
-                aria-pressed={picked === r.code}
+                href={to as string}
+                {...(to ? {} : { type: "button" as const, onClick: () => onPick(r.code), "aria-pressed": picked === r.code })}
                 className={cn("grid min-w-0 grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-2.5 rounded-xl border bg-[rgba(20,21,23,0.85)] px-2.5 py-2 text-left transition-colors hover:border-[#3A3D42]", picked === r.code ? "border-[#5A5D63]" : "border-[var(--st-card-line)]")}
               >
                 {/* Your own update wears your face too (the owner's), "You" under it. */}
@@ -91,7 +99,7 @@ function Idle({ fresh, unreadCount, postedToday, picked, onPick }: { fresh: Task
                   {r.unread && <Dot color="var(--st-blue)" size={6} />}
                   {ago(a.atISO)}
                 </span>
-              </button>
+              </Row>
             );
           })}
         </div>

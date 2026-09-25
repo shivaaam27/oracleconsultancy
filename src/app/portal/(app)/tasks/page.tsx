@@ -8,6 +8,7 @@ import { buildCommandTasks } from "@/lib/portal-command-tasks";
 import { PortalTasksCommand, type Filter } from "@/components/portal-tasks-command";
 import { PortalRecurringTasks } from "@/components/portal-recurring-tasks";
 import { portalListRecurringTasks } from "./automations-actions";
+import { StaffStudioTasks, type StaffTaskParams } from "./staff-tasks";
 
 const FILTERS: Filter[] = ["all", "inprogress", "overdue", "soon", "fromme", "mine", "done", "notstarted"];
 
@@ -30,9 +31,13 @@ function CommandTasks({
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Tasks — Oracle Consultancy" };
 
-export default async function PortalTasksPage({ searchParams }: { searchParams: Promise<{ filter?: string }> }) {
+export default async function PortalTasksPage({ searchParams }: { searchParams: Promise<StaffTaskParams> }) {
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
+  // Staff are on Studio (26 Sept 2026): their tasks have their own page now,
+  // whatever the old "Tasks tab" setting says — it was off only because their
+  // tasks used to live on Home.
+  if (me.portalRole === "staff") return <StaffStudioTasks me={me} sp={await searchParams} />;
   // The Tasks tab is owner-configurable per role (Settings → Portals). By default
   // staff have no Tasks page (tasks live on Home) — bounce anyone without the tab.
   if (!me.caps.navTasks) redirect("/portal");
