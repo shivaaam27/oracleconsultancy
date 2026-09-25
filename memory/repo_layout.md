@@ -78,14 +78,29 @@ search, sync), `prefs` (list-views, nav-pins, nav-recents), `pulse`, `push`
   `cleaning/`, `supplies/`, `assets/`, `tax/`, `insights/`, `notes/`, `ori/`,
   `profile/` (staff profile), `auth/` (sign-in, MCP consent).
 - `files/` — Files Management app (`files-app.tsx`, preview, folder icon).
-- `hrms/`, `ui/` — small leftovers.
-- ~210 loose components: shared kit (`record-list.tsx`, `record-page.tsx` (`RecordBody`),
-  `command-palette.tsx`, `task-drawer.tsx` → `TaskRecordPage`,
-  `timeline-entry.tsx`, `bottom-sheet.tsx`, `fluid-select.tsx`,
-  `combobox.tsx`, `back-link.tsx`),
-  plus old-design components still used by pages not yet rebuilt.
+- Grouped by purpose (Sept 2026): `kit/` (RecordList, RecordBody, surface kit,
+  bottom sheet, drawers, entity cells), `forms/` (FluidSelect, Combobox,
+  SelectField, date pickers, multi-select, voice button), `shell/` (app chrome:
+  back link, toasts, undo banner, theme, notification bell, install, service
+  worker), `tasks/` (task drawer → `TaskRecordPage`, quick update, timeline
+  entry, snooze), `notes/`, `people/`, `companies/`, `portal/` (portal task list,
+  conversation, prefs, session), `search/` (command palette, answers, trace),
+  `settings/`, `calendar/`, `documents/`, `announcements/`; plus `hrms/`, `ui/`.
+- Still at the top level: `ui.tsx` (CONTROL_BOX, FIELD, Card, Badge…).
 
-## Key `src/lib/` files
+## `src/lib/`
+
+Grouped by purpose (Sept 2026): `auth/`, `portal/`, `tasks/`, `notes/`,
+`calendar/`, `ai/`, `search/`, `automation/`, `people/`, `companies/`,
+`documents/`, `operations/` (assets, vendors, supplies, cleaning, Tax & Legal),
+`messaging/` (push, WhatsApp, notifications, announcements), `reports/`
+(Director Brief, PDF), `hooks/` (`use-*`), `nav/`, plus `mcp/`, `ori/`, `outbox/`,
+`email/`, `undo-handlers/`. Core utilities stay at the top: `settings.ts`,
+`db-helpers.ts`, `tx.ts`, `undo.ts`, `cn.ts`, `constants.ts`, `motion.ts`,
+`entity-view.ts`, `system-events.ts`. File names are unchanged; tests sit beside
+their module.
+
+### Key files
 
 | File | Why it matters |
 |---|---|

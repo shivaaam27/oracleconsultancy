@@ -79,6 +79,14 @@ The waste is tool-output volume, not thinking.
   `director_companies` or `director_company_id`. See
   `memory/portal_access.md`.
 
+## Where code lives
+
+`src/lib/` and `src/components/` are grouped by purpose (`lib/tasks`,
+`lib/portal`, `lib/auth`, `components/kit`, `components/forms`, `components/shell`
+…); Studio screens live in `components/studio/<page>/`. **Put a new file in the
+folder for its purpose, not at the top level**, and keep its test beside it. The
+full map is in `memory/repo_layout.md`.
+
 ## ⚠️ Every server action starts with its guard
 
 `guardOwner()` / `guardViewer()` / a portal check. **A server action is callable
