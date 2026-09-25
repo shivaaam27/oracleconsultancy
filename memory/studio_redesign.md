@@ -921,3 +921,16 @@ and directors, limited to "own work only" (his choice, asked and answered).
   under each one they work for). `PeopleColumns` slides with ‹ ›; each column
   scrolls inside itself.
 - Chat is still the old portal page (owner: "dont do chat").
+
+## Manager walk-through (26 Sept 2026, signed in as Shivam — Group Admin Manager)
+Checked Home, Tasks, a task, People (columns), Companies, Calendar, Files,
+Outbox, Profile. Fixed: Profile for directors AND managers is now the Studio
+profile (`PortalFrame studioRole` draws the director footer on /portal/profile;
+a manager checks in there — `CheckinPanel` — because their Home has no check-in;
+a director gets no KPI/attendance/files/equipment); a Profile stop in
+`directorStops`; the task record's Notes tab is owner-only (`ownerView` from
+/api/task-detail) and a director's thread puts only THEIR posts on the right;
+"You" (= the owner) reads "Administrator" for directors in the task table and
+Home's Latest activity. ⚠️ A fragment/array of PCards handed from a server page
+to a client component needs keys (the Profile's guides column).
+Left: /portal/cleaning (a manager's cleaning overview) is still the old page.
