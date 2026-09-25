@@ -48,7 +48,7 @@ export default async function PortalTasksPage({ searchParams }: { searchParams: 
 
   // One scoped source for the create pickers (same helper as home / new-task /
   // board) so every surface shows the SAME permission-scoped companies + people:
-  // director/HR → all; company-scoped director → their companies; manager → the
+  // director → all; company-scoped director → their companies; manager → the
   // companies they belong to + the people in them. Shared by the task list AND
   // (when the cap is on) the Recurring tasks section below.
   const [cmd, { companies, people }, recurring] = await Promise.all([

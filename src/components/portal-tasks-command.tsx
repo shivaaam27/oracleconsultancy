@@ -35,7 +35,7 @@ import { useUrlFilters } from "@/lib/use-url-filters";
 import { QuickUpdate } from "./quick-update";
 
 /* ------------------------------------------------------------------ *
- * Portal command Tasks — manager / HR / director list that mirrors the
+ * Portal command Tasks — manager / director list that mirrors the
  * admin task-management table (Task · Status · Deadline · Who, inline
  * status dropdown, company + description + latest-update lines, assignee
  * avatars) but wired to the portal's role-safe actions. Adds "Remind all
@@ -66,7 +66,7 @@ export type CommandTask = {
   assignees: string[];
   assigneeIds: number[];
   description: string | null;
-  /** Classification (command-centre parity) — editable by director/HR/creator. */
+  /** Classification (command-centre parity) — editable by director/creator. */
   category: string | null;
   risk: string | null;
   escalated: boolean;
@@ -161,7 +161,7 @@ export function PortalTasksCommand({
   canRepeat?: boolean;
   /** Owner-configurable "manage any task" grant for this role (Settings → Portals).
    *  Drives the Edit/Complete affordances so the UI matches the server. Omitted =
-   *  fall back to the built-in default (director/HR). */
+   *  fall back to the built-in default (director). */
   canManageAny?: boolean;
   /** Pre-select a filter (the board's KPI tiles deep-link here, e.g. ?filter=overdue). */
   initialFilter?: Filter;
@@ -891,7 +891,7 @@ function TaskRow({
   // Toggle the inline edit panel from the pencil (open the row if collapsed).
   function toggleEdit() { setOpen(true); setEditDetails((v) => !v); }
 
-  // Per-task permissions (task-permissions.ts): a director/HR or the creator may
+  // Per-task permissions (task-permissions.ts): a director or the creator may
   // edit content + complete; managers limited to open-status moves on others'.
   const viewer = { id: viewerId, portalRole: role, canManageAny };
   const perm = { createdByPersonId: t.createdByPersonId };
@@ -1304,7 +1304,7 @@ export function TaskPeoplePanel({
 }: {
   t: CommandTask;
   people: BoardPerson[];
-  /** May change the task's lead set (director/HR or the creator). */
+  /** May change the task's lead set (director or the creator). */
   canEditLeads: boolean;
   /** May send per-person reminders/messages (any management role). */
   canRemind: boolean;
@@ -1385,7 +1385,7 @@ export function TaskPeoplePanel({
     setLeads([...leadIds, id]);
   }
 
-  // Take a person off the task entirely (director/HR or the creator). Even the
+  // Take a person off the task entirely (director or the creator). Even the
   // last person may be removed — the task simply becomes Unassigned.
   function removePerson(m: Member) {
     if (m.id == null) return;
@@ -1455,7 +1455,7 @@ export function TaskPeoplePanel({
             {/* Per-person reachability — minimal icons: WhatsApp / Email this
                 task. Only the id-backed people. */}
             {canRemind && m.id != null && <MemberActions personId={m.id} name={m.name} taskId={t.taskId} />}
-            {/* Remove from the task — director/HR or the creator (even the last one). */}
+            {/* Remove from the task — director or the creator (even the last one). */}
             {canEditLeads && m.id != null && (
               <button
                 type="button"

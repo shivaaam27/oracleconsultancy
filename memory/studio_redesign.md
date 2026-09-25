@@ -948,8 +948,7 @@ Left: /portal/cleaning (a manager's cleaning overview) is still the old page.
   Notes, Insights, ORI automations, and the HR/operations pages (Tax & Legal,
   Supplies, Assets & Vendors, Attendance register, Cleaning, Applications in
   progress, Commitments). Directors/managers see "being rebuilt" for
-  Announcements and Chat. HR and receptionist portal logins are still on the
-  old portal. Nothing on master yet.
+  Announcements and Chat. Nothing on master yet.
 
 ## THE FINISHING PLAN (owner, 26 Sept 2026) — phases, in order
 Owner: remove Chat, the Activity log, Applications (pipeline) and Commitments
@@ -1009,5 +1008,7 @@ mockup boards, check each against the live site, then retire the old design.
   waiting (lib/cockpit.ts RETIRED_KINDS) — 7 such rows sit in automation_events.
 - LEFT: `ai_jobs` holds 54 unanswered ORI questions + 641 old reading jobs from
   the dead cloud worker (owner not yet asked about clearing them); Tax & Legal is
-  paused live so its full view was only type-checked; HR portal role has no
-  users and still gets the old portal home.
+  paused live so its full view was only type-checked. The HR portal role was
+  REMOVED (commit 4e52325, 25 Sept); its last leftovers (ORI role tools, event
+  author tag, face colour, comments) were cleared later. Old `portal-hr:` authors
+  on existing rows still display.

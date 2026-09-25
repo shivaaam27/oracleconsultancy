@@ -74,13 +74,13 @@ export const PORTAL_TOOLS: ToolDef[] = [
     tier: 3,
     description: "Turn a portal ROLE permission on or off (access-sensitive — always confirmed). E.g. let managers create events, or stop staff from acting with ORI.",
     params: {
-      role: { type: "string", required: true, description: "Which portal role: staff | manager | hr | director." },
+      role: { type: "string", required: true, description: "Which portal role: staff | manager | director | receptionist." },
       capability: { type: "string", required: true, description: "The permission key to toggle (e.g. createTasks, oriAct, navOutbox)." },
       on: { type: "string", required: true, description: "on to grant the permission, off to remove it." },
     },
     async run(args) {
       const role = str(args.role).toLowerCase() as PortalRoleKey;
-      if (!PORTAL_ROLES.includes(role)) return { ok: false, message: `"${str(args.role)}" isn't a portal role — use staff, manager, hr or director.` };
+      if (!PORTAL_ROLES.includes(role)) return { ok: false, message: `"${str(args.role)}" isn't a portal role — use staff, manager, director or receptionist.` };
       const capability = str(args.capability) as CapabilityKey;
       if (!CAP_KEYS.includes(capability)) return { ok: false, message: `"${str(args.capability)}" isn't a known permission. Valid ones: ${CAP_KEYS.join(", ")}.` };
       const on = parseOnOff(args.on);

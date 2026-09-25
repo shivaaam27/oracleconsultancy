@@ -6,7 +6,7 @@ import { getPortalPerson, personCanSeePerson } from "@/lib/portal-auth";
 
 type Result = { ok: true } | { ok: false; error: string };
 
-/** Statuses a manager / HR / director may set on a team member's day. The two
+/** Statuses a manager / director may set on a team member's day. The two
  *  DERIVED states ("On leave"/"Holiday") are filled automatically from approved
  *  leave and the public-holiday calendar, so they must never be set by hand. */
 const MANUAL_STATUSES = ["Present", "Absent", "Remote", "Half-day", "Sick"] as const;
@@ -29,15 +29,14 @@ function dayMidnightISO(dateStr: string): string | null {
  *  ("web-ui") in the register. */
 function roleTag(role: string): string {
   if (role === "director") return "dir";
-  if (role === "hr") return "hr";
   return "mgr";
 }
 
 /**
- * A manager / HR / director corrects ONE team member's attendance for ONE day.
+ * A manager / director corrects ONE team member's attendance for ONE day.
  * status null clears the row (reverts to the derived state). Permission is
  * re-checked server-side: management role required, and the target must be in
- * the caller's scope (manager → own team; director/HR → any active person) — a
+ * the caller's scope (manager → own team; director → any active person) — a
  * staff member can never reach this, and a manager can never touch someone
  * outside their team, regardless of what the client sends.
  */

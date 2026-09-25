@@ -27,7 +27,7 @@ export type PortalCapabilities = {
   isDirector: boolean;
   /** Management tier: manager, HR or director. Gets the Tasks + Outbox tabs. */
   isManagement: boolean;
-  /** Group-wide visibility (HR or director) — sees across all companies. */
+  /** Group-wide visibility (director) — sees across all companies. */
   groupWide: boolean;
   /** May create things (tasks, etc.). Anyone above "staff". Mirrors the
    *  layout's `canCreate = portalRole !== "staff"`. */

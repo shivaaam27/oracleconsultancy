@@ -98,7 +98,7 @@ export async function runPortalSearch(query: string): Promise<PortalSearchResult
 /** TASKS — scoped to the viewer's visible set, matched against task code +
  *  action_item (case-insensitive).
  *
- *  OPTIMISATION: a group-wide viewer (director/HR) can see EVERY non-archived
+ *  OPTIMISATION: a group-wide viewer (director) can see EVERY non-archived
  *  task, so there is no point materialising the full id list with
  *  visibleTaskIds() and then re-querying `.in("id", [huge list])`. We query the
  *  tasks table directly, filtered to archived=false + the ilike — same result
@@ -138,7 +138,7 @@ async function searchTasks(
 }
 
 /** PEOPLE — only people the viewer may see.
- *  director/HR (group-wide) → any active person.
+ *  director (group-wide) → any active person.
  *  manager/staff → people whose company set intersects myCompanyIds(me)
  *    (via getPersonCompaniesMap, to include multi-company colleagues —
  *    mirrors the directory).

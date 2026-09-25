@@ -27,7 +27,7 @@ function toneFor(status: string): "default" | "success" | "warn" | "danger" | "i
 }
 
 /** "Team attendance today" — one row per team member with their status and, for
- *  editable rows, an inline picker so a manager / HR / director can correct the
+ *  editable rows, an inline picker so a manager / director can correct the
  *  day. Derived rows (on approved leave / a public holiday) show read-only with
  *  a quiet note. Optimistic: the chosen status shows immediately, then a refresh
  *  reconciles with the server. */

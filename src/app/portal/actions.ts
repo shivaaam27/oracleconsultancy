@@ -493,7 +493,7 @@ export async function portalSendReminderEmail(
   }
 
   // Team-scope guard (ACTPORTAL-02): managers may only remind themselves or a
-  // direct report; director/HR stay group-wide. Same scope as everywhere else.
+  // direct report; director stay group-wide. Same scope as everywhere else.
   if (!(await personCanSeePerson(me, personId))) {
     return { ok: false, reason: "error", error: "That person isn't on your team." };
   }
@@ -558,7 +558,7 @@ export async function portalSendReminderWhatsApp(
   }
 
   // Team-scope guard (ACTPORTAL-02): managers may only remind themselves or a
-  // direct report; director/HR stay group-wide.
+  // direct report; director stay group-wide.
   if (!(await personCanSeePerson(me, personId))) {
     return { ok: false, reason: "error", error: "That person isn't on your team." };
   }
@@ -827,7 +827,7 @@ export async function portalManagerCreateEvent(formData: FormData): Promise<Port
 }
 
 /** Create an event from the dedicated /portal/meetings page. Works for ANY
- *  management role (manager / HR / director) — staff can't create. Scope is
+ *  management role (manager / director) — staff can't create. Scope is
  *  enforced by `checkEventScope` exactly as the home/board paths. */
 export async function portalCreateEvent(formData: FormData): Promise<PortalEventResult> {
   const me = await getPortalPerson();
@@ -836,7 +836,7 @@ export async function portalCreateEvent(formData: FormData): Promise<PortalEvent
   const scopeError = await checkEventScope(me, formData);
   if (scopeError) return { ok: false, error: scopeError };
   await attachableDocumentIds(me, formData);
-  const tag = me.portalRole === "director" ? "portal-dir" : me.portalRole === "manager" ? "portal-mgr" : "portal-hr";
+  const tag = me.portalRole === "director" ? "portal-dir" : me.portalRole === "manager" ? "portal-mgr" : "portal";
   const res = await portalCreateAndSendEvent(formData, `${tag}:${me.name}`);
   if (res.ok) {
     revalidatePath("/portal/meetings");
@@ -1121,7 +1121,7 @@ export async function portalEditTask(input: {
   if (input.status && input.status !== current) {
     const goingTerminal = isClosedStatus(input.status);
     if (goingTerminal) {
-      // Completing / closing — only a director/HR or the task's creator.
+      // Completing / closing — only a director or the task's creator.
       if (!canManage) return { ok: false, error: "Only the task's creator or a director can complete this." };
       patch.status = input.status;
       patch.closed_date = computeClosedDate(input.status, (t.closed_date as string | null) ?? null, now);
@@ -1165,7 +1165,7 @@ export async function portalEditTask(input: {
     await logChangeSb(t.id as number, t.code as string, t.company_id as number, "owner", String(t.owner_id ?? "—"), p.name as string, `Reassigned from portal (${role})`, createdBy);
   }
 
-  // Title + description — only those who may manage the task (director/HR or the
+  // Title + description — only those who may manage the task (director or the
   // creator). Empty title is rejected; description clears on "".
   if (canManage && input.actionItem !== undefined) {
     const next = input.actionItem.trim();
@@ -1291,7 +1291,7 @@ export async function portalEditTask(input: {
 /* ----------------------------------------------------------------------
  * Bulk action over many tasks at once (the portal's answer to the command
  * centre's multi-select toolbar). Every task is re-checked individually:
- * it must be in the caller's view AND manageable by them (director/HR any
+ * it must be in the caller's view AND manageable by them (director any
  * task; a manager/creator only their own) — tasks that fail are silently
  * skipped and reported in `affected`. Returns an `undo` payload the client
  * can replay through the same action (a longer-lived toast offers "Undo").
@@ -1596,7 +1596,7 @@ export async function portalRemoveTaskPerson(
     .maybeSingle();
   if (!t) return { ok: false, error: "Task not found." };
 
-  // Same rule as editing: director/HR reach any task; everyone else only the
+  // Same rule as editing: director reach any task; everyone else only the
   // tasks they created (task-permissions.ts).
   const canManage = canManageTask(
     { id: me.id, portalRole: role, canManageAny: me.caps.manageAnyTask },
@@ -1948,7 +1948,7 @@ export async function portalAddUpdate(formData: FormData) {
   const isManagement = isManager || isDirector;
   // Management roles are stamped distinctly so their posts get the management
   // accent everywhere (see authorOf in the portal task page and actorLabel in
-  // timeline-entry.tsx). Directors → portal-dir, HR → portal-hr, managers → portal-mgr.
+  // timeline-entry.tsx). Directors → portal-dir, managers → portal-mgr, everyone else → portal.
   const createdBy = `${isDirector ? "portal-dir" : isManager ? "portal-mgr" : "portal"}:${me.name}`;
   const now = new Date().toISOString();
 
@@ -2111,7 +2111,7 @@ export async function portalCompleteTask(
   const current = t.status as string;
   if (current === "Completed" || current === "Closed") return { ok: false, error: "This task is already finished." };
   if ((t.requires_attachment as boolean) && !file) return { ok: false, error: "This task needs a file attached to complete." };
-  // Only a director/HR or the task's creator may complete it (task-permissions.ts).
+  // Only a director or the task's creator may complete it (task-permissions.ts).
   if (!canManageTask({ id: me.id, portalRole: me.portalRole, canManageAny: me.caps.manageAnyTask }, { createdByPersonId: (t.created_by_person_id as number | null) ?? null })) {
     return { ok: false, error: "Only the person who set this task can complete it." };
   }
@@ -2412,7 +2412,7 @@ export async function portalRaiseBlocker(taskId: number, personId: number, reaso
 }
 
 /** Delete a task the signed-in person is authorised to manage (its creator, or a
- *  director/HR). Soft-archives (recoverable) rather than hard-deleting, matching
+ *  director). Soft-archives (recoverable) rather than hard-deleting, matching
  *  the system's reversible-delete philosophy. */
 export async function portalDeleteTask(taskId: number): Promise<{ error?: string }> {
   const me = await getPortalPerson();

@@ -16,7 +16,7 @@ export type TaskPermViewer = {
   portalRole: string | null | undefined;
   /** Owner-configurable "manage any task" grant for this viewer's role (from
    *  Settings → Portals). When provided it wins; when omitted we fall back to the
-   *  built-in default (director/HR) so existing callers behave exactly as before. */
+   *  built-in default (director) so existing callers behave exactly as before. */
   canManageAny?: boolean;
 };
 export type TaskPermTask = { createdByPersonId: number | null };
@@ -27,7 +27,7 @@ export function isTaskCreator(viewer: TaskPermViewer, task: TaskPermTask): boole
 }
 
 /** The core predicate: a role with the "manage any task" grant (config; default
- *  director/HR), or the task's own creator (always — the creator rule is fixed). */
+ *  director), or the task's own creator (always — the creator rule is fixed). */
 export function canManageTask(viewer: TaskPermViewer, task: TaskPermTask): boolean {
   const r = (viewer.portalRole ?? "").toLowerCase();
   const manageAny = viewer.canManageAny ?? (r === "director");

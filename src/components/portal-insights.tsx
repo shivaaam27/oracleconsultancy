@@ -5,7 +5,7 @@ import { TONE, type Tone } from "@/components/surface-kit";
 
 /* ------------------------------------------------------------------ *
  * Portal Insights — presentational charts for the management
- * Insights page (manager / HR / director). CLIENT-ONLY: no server
+ * Insights page (manager / director). CLIENT-ONLY: no server
  * imports (never @/lib/portal-auth or @/db/supabase). All numbers are
  * computed server-side and handed in as plain props; this file only
  * draws CSS bars + a calm count-up on the headline metrics.

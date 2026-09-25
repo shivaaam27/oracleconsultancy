@@ -33,7 +33,7 @@ import {
 // sign in. `tsc` and the tests both pass; only running the app finds it.
 // Types are imported from lib/recurring-task-rules.ts directly.
 
-/** "portal-dir:<Name>" / "portal-mgr:<Name>" / "portal-hr:<Name>" — the exact tag
+/** "portal-dir:<Name>" / "portal-mgr:<Name>" — the exact tag
  *  portalDirectorCreateTask stamps, so a person's own recurring rules can be found
  *  by matching this same string. */
 function createdByTag(me: PortalPerson): string {

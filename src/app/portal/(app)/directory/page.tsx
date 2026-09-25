@@ -18,7 +18,7 @@ const isOverdueFlag = (f: string) => f === "overdue" || f === "escalate-now";
 
 /** Directory — a READ-ONLY contact book: a searchable list of active people with
  *  quick call/WhatsApp/email links, plus a list of companies. Simpler than the
- *  admin /people. Group-wide roles (director/HR) see the whole portfolio; managers
+ *  admin /people. Group-wide roles (director) see the whole portfolio; managers
  *  AND staff are scoped to ALL the companies THEY belong to (a person may work for
  *  more than one — primary company ∪ person_companies) — for staff this is a
  *  colleague contact book (call/WhatsApp/email; no profile links, those page-guard
@@ -76,7 +76,7 @@ export default async function PortalDirectoryPage({
   }
 
   // Active people, ordered by name. Managers/staff see only people who share one
-  // of their companies (the id list above); director/HR see everyone.
+  // of their companies (the id list above); director see everyone.
   let peopleQuery = sb
     .from("people")
     .select("id,name,role,email,phone,whatsapp,company_id,companies!company_id(name)")

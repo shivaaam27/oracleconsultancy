@@ -223,7 +223,7 @@ export async function clearSessionCookie() {
 // Old "portal-hr:<Name>" authors on existing rows still display.)
 export type PortalRole = "staff" | "manager" | "director" | "receptionist";
 
-// Roles whose powers are group-level (HR or director). NOTE: this is ROLE-only and
+// Roles whose powers are group-level (director). NOTE: this is ROLE-only and
 // does NOT account for a company-scoped director — use `seesAllCompanies(person)` for
 // any DATA-visibility decision. Kept for the few UI/role checks that mean "is this a
 // group-level role" regardless of scope.

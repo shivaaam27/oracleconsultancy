@@ -8,7 +8,7 @@
  * due soon → finishing lots → nothing open → getting on with it.
  */
 
-export type FaceRole = "owner" | "director" | "manager" | "hr" | "staff" | "none";
+export type FaceRole = "owner" | "director" | "manager" | "staff" | "none";
 export type FaceMood = "idle" | "happy" | "sad" | "surprised" | "sleepy" | "unsure" | "love" | "sick" | "thinking";
 
 export type FaceStats = {
@@ -25,7 +25,6 @@ export const ROLE_HUE: Record<FaceRole, number> = {
   owner: 212,    // blue
   director: 40,  // gold
   manager: 265,  // violet
-  hr: 330,       // pink
   staff: 165,    // teal
   none: 30,
 };

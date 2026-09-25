@@ -63,7 +63,7 @@ export default async function PortalTeamPage() {
   const { data: allPeople } = await peopleQuery;
 
   // Today's attendance for the same set of people the page is already showing
-  // (manager → team; director/HR → everyone). Derived states (on leave / a
+  // (manager → team; director → everyone). Derived states (on leave / a
   // holiday) are marked read-only so the picker won't offer to override them.
   const peopleIds = (allPeople ?? []).map((p) => p.id as number);
   const todayStr = todayStrUtc();

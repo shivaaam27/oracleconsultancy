@@ -12,7 +12,7 @@ import { googleCalendarUrl } from "@/lib/ics";
  * and the dedicated /portal/meetings page). Scope is decided here so
  * every surface agrees:
  *   • staff            → only meetings they're an attendee of;
- *   • manager / HR /
+ *   • manager /
  *     director         → meetings across their company scope
  *                        (companyScope: null = all companies), PLUS any
  *                        meeting they're personally invited to.

@@ -3,6 +3,7 @@ import { sb } from "@/db/supabase";
 import { escapeLike } from "@/lib/db-helpers";
 import type { ToolDef } from "@/lib/ori/tools";
 import { str, resolveCompany, resolvePerson, resolvePersonStrict } from "@/lib/ori/tools";
+import { PORTAL_ROLES } from "@/lib/portal-permissions";
 
 /* ORI people / HR / org domain tools.
  *
@@ -48,7 +49,7 @@ async function resolveDepartment(name: string, companyId?: number) {
   return data ? { id: data.id as number, name: data.name as string, companyId: data.company_id as number | null } : null;
 }
 
-const QUICK_ROLES = ["staff", "manager", "hr", "director"];
+const QUICK_ROLES: string[] = PORTAL_ROLES;
 
 export const PEOPLE_TOOLS: ToolDef[] = [
   // ── People / HR ───────────────────────────────────────────────────────────

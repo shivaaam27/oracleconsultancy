@@ -130,7 +130,7 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
       .select("meetings(title,kind)")
       .eq("task_id", task.id)
       .maybeSingle(),
-    // Moderators (director/HR) can bring back a wrongly-deleted note: the
+    // Moderators (director) can bring back a wrongly-deleted note: the
     // recently soft-deleted updates, so they can be restored.
     isModerator
       ? sb
@@ -236,7 +236,7 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
   });
 
   const closed = task.status === "Completed" || task.status === "Closed";
-  // Per-task permissions (task-permissions.ts): a director/HR or the creator may
+  // Per-task permissions (task-permissions.ts): a director or the creator may
   // edit content + complete; everyone else cannot.
   /* ⚠️ `canManageAny` MUST BE PASSED, and its absence was a real bug.
    *
@@ -261,7 +261,7 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
   let manageCompanies: { id: number; name: string }[] = [];
   if (manage) {
     const [cmdArr, { data: peopleRaw }, { data: companiesRaw }, personCompanies, reportIds] = manage;
-    // Company move is a group-director/HR power, so only they get the full list;
+    // Company move is a group-director power, so only they get the full list;
     // everyone else sees no company picker (server enforces this too).
     manageCompanies = groupWide ? (companiesRaw ?? []).map((c) => ({ id: c.id as number, name: c.name as string })) : [];
     managePeople = (peopleRaw ?? []).map((p) => {

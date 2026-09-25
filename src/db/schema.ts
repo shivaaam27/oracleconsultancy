@@ -226,7 +226,7 @@ export const people = pgTable("people", {
   portalEnabledAt: timestamp("portal_enabled_at", { mode: "date", withTimezone: true }),
   portalLastLoginAt: timestamp("portal_last_login_at", { mode: "date", withTimezone: true }),
   // "staff" (own tasks only), "manager" (own + direct reports' + own company's
-  // tasks, may complete/pin), "hr" (admin/HR — every company's tasks) or
+  // tasks, may complete/pin), "receptionist" (staff-like, plus the cleaning desk) or
   // "director" (group-wide operator board). Only meaningful with access.
   portalRole: text("portal_role").notNull().default("staff"),
   // Optional display designation shown INSTEAD of the plain role label (portal
@@ -594,7 +594,7 @@ export const tasks = pgTable("tasks", {
   // /task/<code> links still resolve. Null for tasks created after the rename.
   legacyCode: text("legacy_code"),
   // Who raised the task (the person, when known). Set for portal-created tasks
-  // (manager/director/HR); null for owner/web-ui created tasks. Powers the
+  // (manager/director); null for owner/web-ui created tasks. Powers the
   // "raised by" column and the "Tasks I assigned" portal view.
   createdByPersonId: integer("created_by_person_id").references(() => people.id),
   // When true, completing or closing this task requires an attachment (proof) —
