@@ -19,9 +19,9 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
  * cannot drift like that.
  *
  * Two things it gets right that a bare useEffect does not:
- *  - It runs ONCE. React invokes effects twice in development (mount → cleanup →
- *    mount), and a `cancelled` flag makes the first pass undo itself; a ref does
- *    not.
+ *  - It fires ONCE per appearance of the param. React invokes effects twice in
+ *    development, and a `cancelled` flag makes the first pass undo itself; a
+ *    ref does not.
  *  - It strips ONLY its own param. Several of these lists are now filtered
  *    through the URL, so clearing the whole query string would wipe the filters
  *    the caller asked for.
@@ -30,6 +30,17 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
  *   name when a page owns several ("assets" vs "vendors" share /hrms/assets).
  * @param open  called when it matches. Opens the dialog.
  */
+export const CREATE_EVENT = "oracle:create";
+
+/** Open a create form: on the same page by event, otherwise by navigating to
+ *  `href` (whose `?new=` the owning page reads on arrival). */
+export function requestCreate(href: string, currentPath: string, go: (href: string) => void) {
+  const u = new URL(href, "http://x");
+  const token = u.searchParams.get("new");
+  if (token && u.pathname === currentPath) { window.dispatchEvent(new CustomEvent(CREATE_EVENT, { detail: token })); return; }
+  go(href);
+}
+
 export function useCreateParam(token: string, open: () => void) {
   const router = useRouter();
   const pathname = usePathname();
@@ -41,16 +52,29 @@ export function useCreateParam(token: string, open: () => void) {
   const openRef = useRef(open);
   openRef.current = open;
 
+  // ⚠️ NOT mount-only (fixed 26 Sept 2026). The "+" card links to the page
+  // you are ALREADY on nine times out of ten ("Continue to the form" on the
+  // calendar), which is a soft navigation — nothing remounts, so a mount-only
+  // effect never saw the param and the form silently did not open. It now
+  // watches the param: fires once when it appears, re-arms when it is gone.
+  const want = searchParams.get("new") === token;
+  // Already on the page? The "+" card does not navigate at all (a changed
+  // query remounts the page and throws the just-opened form away) — it
+  // raises this event instead, and the page's owner opens its form.
   useEffect(() => {
+    const on = (e: Event) => { if ((e as CustomEvent<string>).detail === token) openRef.current(); };
+    window.addEventListener(CREATE_EVENT, on);
+    return () => window.removeEventListener(CREATE_EVENT, on);
+  }, [token]);
+  useEffect(() => {
+    if (!want) { done.current = false; return; }
     if (done.current) return;
-    if (searchParams.get("new") !== token) return;
     done.current = true;
     openRef.current();
     const keep = new URLSearchParams(searchParams.toString());
     keep.delete("new");
     const qs = keep.toString();
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
-    // Mount-only: the param is one-shot and stripped immediately.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [want]);
 }

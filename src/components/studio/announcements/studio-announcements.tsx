@@ -7,6 +7,7 @@
  * Every action is the one the old page used (announcements/actions.ts).
  */
 import { useState, useTransition } from "react";
+import { useCreateParam } from "@/lib/use-create-param";
 import { useRouter } from "next/navigation";
 import { Eye, Loader2, Plus, Sparkles } from "lucide-react";
 import { StudioScope, StudioHeader, StudioCardRow, StudioCard, CardHead, Ring, stBtn } from "@/components/studio/kit";
@@ -54,6 +55,8 @@ export function StudioAnnouncements({ rows, lists }: { rows: NoticeRow[]; lists:
   const [lane, setLane] = useState<NoticeRow["lane"]>("live");
   const [composing, setComposing] = useState(false);
   const [seed, setSeed] = useState("");
+  // "+" → Announcement → "Continue to the form" lands here with ?new=1.
+  useCreateParam("1", () => { setSeed(""); setComposing(true); });
   const [ask, setAsk] = useState("");
   const [busy, start] = useTransition();
   const [confirmDel, setConfirmDel] = useState<number | null>(null);

@@ -16,18 +16,19 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowRight, Loader2, Maximize2, X } from "lucide-react";
 import { creatables } from "@/lib/entity-view";
+import { requestCreate } from "@/lib/use-create-param";
 import { useRegisteredActions } from "@/components/context-actions";
 import { studioNewTaskOptions } from "@/app/task/actions";
 import { QuickTaskPane, type Options } from "./tasks/new-task";
 import { QuickPersonPane } from "./people/quick-person";
 import { QuickCompanyPane } from "./companies/quick-company";
+import { QuickDocumentPane } from "./files/quick-document";
 import { cn } from "@/lib/cn";
 
 const LATER: Record<string, { phase: string; what: string }> = {
   note: { phase: "Phase 4", what: "A new note opens straight into the writing sheet." },
   event: { phase: "Phase 4", what: "The event form handles guests, invitations and papers that travel." },
   announcement: { phase: "Phase 4", what: "The composer sets who sees it and whether they must confirm." },
-  document: { phase: "Phase 5", what: "Drop the file there — it is read and the fields fill in for you to check." },
 };
 
 /** The tab that fits the page you are on. */
@@ -128,7 +129,8 @@ export function StudioQuickAdd({ onClose, initialTab }: { onClose: () => void; i
           )}
         </div>
         {tab === "company" && <QuickCompanyPane onDone={(again) => { if (!again) onClose(); }} registerSubmit={registerCompany} />}
-        {tab !== "task" && tab !== "person" && tab !== "company" && (
+        {tab === "document" && <QuickDocumentPane onClose={onClose} />}
+        {tab !== "task" && tab !== "person" && tab !== "company" && tab !== "document" && (
           <div className="flex min-h-[150px] flex-col justify-center gap-1.5 rounded-2xl border border-[var(--sh-line)] bg-[var(--sh-card)] px-5 py-5">
             <div className="text-[18px] font-medium tracking-[-0.01em]">New {current?.label.toLowerCase()}</div>
             <p className="max-w-[460px] text-[13px] leading-relaxed text-[var(--sh-sub)]">
@@ -186,8 +188,10 @@ export function StudioQuickAdd({ onClose, initialTab }: { onClose: () => void; i
                 {companyRef.current?.busy && <Loader2 size={13} className="animate-spin" />}Create company
               </button>
             </>
+          ) : tab === "document" ? (
+            <Link href="/files" onClick={onClose} className="inline-flex h-9 items-center gap-1.5 px-1 text-[13px] text-[var(--sh-sub)] hover:text-[var(--sh-fg)]">Go to Files<ArrowRight size={13} /></Link>
           ) : current ? (
-            <Link href={current.href} onClick={onClose} className="inline-flex h-9 items-center gap-1.5 rounded-[10px] bg-[var(--sh-on-bg)] px-4 text-[13px] font-semibold text-[var(--sh-on-fg)] hover:opacity-90">Continue to the form<ArrowRight size={13} /></Link>
+            <button type="button" onClick={() => { onClose(); requestCreate(current.href, pathname, (h) => router.push(h)); }} className="inline-flex h-9 items-center gap-1.5 rounded-[10px] bg-[var(--sh-on-bg)] px-4 text-[13px] font-semibold text-[var(--sh-on-fg)] hover:opacity-90">Continue to the form<ArrowRight size={13} /></button>
           ) : null}
         </div>
       </div>
