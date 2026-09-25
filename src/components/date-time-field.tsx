@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { menuStyle, useAnchoredMenu } from "@/lib/use-anchored-menu";
 import { DatePopover } from "@/components/date-popover";
@@ -178,8 +178,8 @@ export function TimeField({
 }
 
 export const dateOf = (v: string) => (v || "").slice(0, 10);
-export const timeOf = (v: string) => (v && v.length >= 16 ? v.slice(11, 16) : "");
-export const composeDT = (date: string, time: string, allDay: boolean) =>
+const timeOf = (v: string) => (v && v.length >= 16 ? v.slice(11, 16) : "");
+const composeDT = (date: string, time: string, allDay: boolean) =>
   !date ? "" : allDay ? date : `${date}T${time || "09:00"}`;
 
 export function DateTimeField({

@@ -4,7 +4,6 @@ import type { PersonAction, PersonEvent } from "@/lib/person-audit-shared";
 // Append-only audit trail for a person record. Writing never blocks the user
 // action (best-effort). Client-safe types/labels live in person-audit-shared.ts.
 export type { PersonAction, PersonEvent } from "@/lib/person-audit-shared";
-export { PERSON_ACTION_LABEL, personActor } from "@/lib/person-audit-shared";
 
 type LogOpts = {
   field?: string | null;

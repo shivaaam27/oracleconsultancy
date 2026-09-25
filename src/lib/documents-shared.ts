@@ -28,18 +28,6 @@ export const DOC_CATEGORIES = [
 ] as const;
 export type DocCategory = (typeof DOC_CATEGORIES)[number];
 
-/**
- * The name to show for a document. The owner types the title, so that IS the
- * name; docType/category only stand in when a row has no title of its own
- * (e.g. a chat attachment filed under its raw file name).
- */
-export function displayDocName(d: {
-  title?: string | null; docType?: string | null; referenceNo?: string | null; category?: string | null;
-}): string {
-  const clean = (s?: string | null) => (s ?? "").replace(/\s+/g, " ").trim();
-  return clean(d.title) || clean(d.docType) || clean(d.category) || "Document";
-}
-
 /** Keep only safe filename characters; collapse the rest to underscores. The one
  *  shared sanitiser (several server files used to each carry a private copy). */
 export function safeFileName(name: string): string {
@@ -74,7 +62,7 @@ export const DEFAULT_LEAD_DAYS: Record<string, number> = {
 // starts 30 days out and keeps repeating — every 5 days for immigration, every
 // 10 days for everything else — right through the expiry date and ONWARD past
 // expiry until the document is renewed.
-export const ALERT_CONFIG = {
+const ALERT_CONFIG = {
   immigration: { earlyHeadsUp: [120, 90], window: 30, interval: 5 },
   compliance: { earlyHeadsUp: [] as number[], window: 30, interval: 10 },
 } as const;
@@ -86,7 +74,7 @@ const IMMIGRATION_CLASS = /immigration|passport|permit|visa|residence|interim|wo
 export type AlertClass = "immigration" | "compliance";
 
 /** Which alert cadence a document follows, from its category (+ type as a hint). */
-export function alertClassFor(category?: string | null, docType?: string | null): AlertClass {
+function alertClassFor(category?: string | null, docType?: string | null): AlertClass {
   const hay = `${category ?? ""} ${docType ?? ""}`;
   return IMMIGRATION_CLASS.test(hay) ? "immigration" : "compliance";
 }
@@ -113,22 +101,9 @@ export function isReminderDueToday(d: DocStatusInput & { category?: string | nul
 
 /** The widest lead time for a category — used so the "Expiring" window opens
  *  early enough for immigration cases (120d) without per-document tuning. */
-export function widestLeadFor(category?: string | null, docType?: string | null): number {
+function widestLeadFor(category?: string | null, docType?: string | null): number {
   const cfg = ALERT_CONFIG[alertClassFor(category, docType)];
   return cfg.earlyHeadsUp[0] ?? cfg.window; // 120 for immigration, 30 otherwise
-}
-
-// File-kind helpers — used for icons and for choosing a preview renderer.
-export function isPdfFile(nameOrType?: string | null): boolean {
-  return /\.pdf$|application\/pdf/i.test(nameOrType ?? "");
-}
-export function isImageFile(nameOrType?: string | null): boolean {
-  return /\.(jpe?g|png|heic|heif|webp|gif|bmp|tiff?)$|^image\//i.test(nameOrType ?? "");
-}
-/** A Word document (the editable source; a PDF export is the canonical copy). */
-export function isDocFile(nameOrType?: string | null): boolean {
-  const s = (nameOrType ?? "").toLowerCase();
-  return /\.docx?$/.test(s) || s.includes("msword") || s.includes("officedocument.wordprocessing");
 }
 
 export type DocStatus = "Valid" | "Expiring" | "Expired" | "No expiry" | "Archived";
@@ -182,12 +157,6 @@ export function expiryLabel(d: DocStatusInput): string | null {
     return `expired ${n} day${n === 1 ? "" : "s"} ago`;
   }
   return `in ${dte} day${dte === 1 ? "" : "s"}`;
-}
-
-/** The more urgent of two lifecycle statuses (Expired > Expiring > Valid > rest). */
-export function worstDocStatus(a: DocStatus | null, b: DocStatus | null): DocStatus | null {
-  const rank = (s: DocStatus | null) => (s === "Expired" ? 3 : s === "Expiring" ? 2 : s === "Valid" ? 1 : 0);
-  return rank(a) >= rank(b) ? a : b;
 }
 
 export const docStatusColor: Record<DocStatus, string> = {

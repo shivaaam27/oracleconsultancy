@@ -24,9 +24,9 @@ designs. Their tables are kept, unreachable.
   `src/lib/portal-access.ts` (see §3).
 - Password hash on `people.portal_password_hash` (`scrypt:<salt>:<hash>`);
   `portal_enabled_at` / `portal_last_login_at` beside it.
-- **Login**: `/login` is one tabbed screen — **Staff Login** (default) |
-  Administrator. `/portal/login` still exists and shares the shell
-  (`auth-shell.tsx`, `auth-fields.tsx`). Staff sign in with **email or name** +
+- **Login**: `/login` and `/portal/login` are one Studio sign-in screen
+  (`components/studio/auth/`) with a Staff / Administrator switch — see
+  `memory/auth_login.md`. Staff sign in with **email or name** +
   password (`findPortalPersonByIdentifier`, case-insensitive), or a **passkey**
   (Face ID / fingerprint / Windows Hello, `lib/webauthn.ts`; registered on the
   portal Profile). Login attempts are rate-limited per identifier + IP.
@@ -244,10 +244,11 @@ the component it always was:
 
 ## 9. The board
 
-`/portal/board` (`director-board-client.tsx`) was the director/manager landing
-page. **It is no longer reachable**: the layout redirects both roles to `/`
-(Studio Home), and the page itself sends everyone else to `/portal`. Retire it
-with the other portal twins.
+`/portal/board`, `/portal/team` and `/portal/directory` were the old
+director/manager screens. They are now **redirect stubs** (Sept 2026 clean-up):
+directors and managers are sent to the owner's screens by the layout, everyone
+else to `/portal` (or People/Companies for the directory). The board's
+components were deleted.
 
 ## 10. Push and notifications
 
@@ -289,9 +290,9 @@ with the other portal twins.
 
 ## 12. Left to do
 
-- Retire the dead portal twins: `/portal/board`, `/portal/team`,
-  `/portal/directory`, `portal-sidebar.tsx`, `portal-pill.tsx`,
-  `portal-capabilities.ts` once nothing reads them.
+- Retire the old portal chrome (`portal-sidebar.tsx`, `portal-pill.tsx`,
+  `portal-capabilities.ts`) once `/portal/outbox` and `/portal/insights` are
+  rebuilt or removed — they are its last users.
 - `/portal/outbox` and `/portal/insights` are old pages, reachable by staff only
   if the owner grants the capability.
 - A company-scoped director has not been walked through live on Studio.

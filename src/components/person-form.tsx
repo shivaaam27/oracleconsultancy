@@ -13,7 +13,7 @@ import { Button, Select, FieldLabel } from "@/components/ui";
 import type { ReactNode } from "react";
 
 /**
- * One titled section of the form — the SAME chrome RecordPage draws around a
+ * One titled section of the form — the SAME chrome RecordBody draws around a
  * read-only section (bordered card, grey header strip, quiet uppercase title).
  *
  * The person form used to be 26 fields in a single two-column grid with one

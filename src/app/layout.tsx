@@ -137,8 +137,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 {/* The working area uses the WIDTH OF THE SCREEN (Desk / Stage 2):
                     a list is a workspace, and a 1100px column left ~400px of dead
                     grey down each side of a wide monitor. 1600px is the stop, so
-                    a 27" display doesn't stretch rows to absurdity. Records cap
-                    themselves narrower for readability — see RecordPage. */}
+                    a 27" display doesn't stretch rows to absurdity. */}
                 <main
                   className="pt-[max(1.5rem,env(safe-area-inset-top))] px-4 sm:px-6 lg:px-8 pb-28 md:pb-32 xl:pb-12"
                 >

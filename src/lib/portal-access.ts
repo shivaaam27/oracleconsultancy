@@ -36,7 +36,7 @@ export function parsePortalRole(role: unknown): PortalRoleKey {
 /** Persist a director's company scope: replace the join-table rows AND keep
  *  people.director_company_id in sync with the FIRST id (back-compat). Empty
  *  companyIds → cleared (a portfolio-wide director, or any non-director role). */
-export async function writeDirectorScope(personId: number, companyIds: number[]): Promise<void> {
+async function writeDirectorScope(personId: number, companyIds: number[]): Promise<void> {
   const clean = [...new Set(companyIds.filter((n) => Number.isFinite(n) && n > 0))];
   await sb.from("director_companies").delete().eq("person_id", personId);
   if (clean.length > 0) {
@@ -179,14 +179,4 @@ export async function refreshDirectorScope(personId: number, followed: boolean):
   if (now.length === 0) return;
   await writeDirectorScope(personId, now);
   await recordEvent("portal.scope.followed", "ok", { personId, companies: now });
-}
-
-/** The profile's one choice for a director: every company, or only their own. */
-export async function setDirectorReach(personId: number, reach: "all" | "own"): Promise<PortalAccessResult> {
-  const { director } = await currentDirectorScope(personId);
-  if (!director) return { ok: false, error: "Only a Director's reach can be set this way." };
-  if (reach === "all") return changePortalRole(personId, "director", []);
-  const own = await companiesOnRecord(personId);
-  if (own.length === 0) return { ok: false, error: "They don't work for any company yet — add one under Role & companies first." };
-  return changePortalRole(personId, "director", own);
 }

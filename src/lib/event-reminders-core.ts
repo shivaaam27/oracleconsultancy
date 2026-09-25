@@ -6,7 +6,7 @@ import { expandRecurrence } from "@/lib/ics";
 import { getGivenName } from "@/lib/names";
 import type { CalendarEvent } from "@/lib/calendar";
 
-export const EAT_TZ = "Africa/Dar_es_Salaam";
+const EAT_TZ = "Africa/Dar_es_Salaam";
 
 /** Never look further ahead than this, however long a lead time someone types. */
 export const MAX_LOOKAHEAD_DAYS = 45;
@@ -17,7 +17,7 @@ export const DEFAULT_WINDOW_MS = 60 * 60 * 1000;
 /** Forget a fired reminder after this long (keeps the ledger tiny). */
 export const LEDGER_TTL_MS = 3 * 24 * 60 * 60 * 1000;
 /** Don't nag about something that has already started (and may be over). */
-export const STARTED_GRACE_MS = 15 * 60 * 1000;
+const STARTED_GRACE_MS = 15 * 60 * 1000;
 
 /* ------------------------------- wording ------------------------------- */
 
@@ -34,7 +34,7 @@ export function leadPhrase(minutes: number): string {
 }
 
 /** The event's time in the reader's own zone (Dar es Salaam). */
-export function fmtWhen(iso: string, allDay: boolean): string {
+function fmtWhen(iso: string, allDay: boolean): string {
   const d = new Date(iso);
   if (allDay) {
     return d.toLocaleDateString("en-GB", { timeZone: EAT_TZ, weekday: "long", day: "numeric", month: "long" });

@@ -5,11 +5,10 @@
 // a commitment entering its notice window went with Commitments, 26 Sept 2026.)
 //
 // Same rails as Phase 1: every creation is logged to automation_events (kind
-// "task-create", undoable = archive the task), so it shows in the Automations feed
-// and can be reversed in one click. Fully guarded — never throws.
+// "task-create"), so it shows in the Automations feed. Fully guarded — never throws.
 
 import { sb } from "@/db/supabase";
-import { listDocuments, getDocument, linkDocumentTask, type DocumentRow } from "@/lib/documents";
+import { listDocuments, linkDocumentTask, type DocumentRow } from "@/lib/documents";
 import { getDocumentRenewalCandidates } from "@/lib/automation-suggestions";
 import { insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
 import { getAutomationMode } from "@/lib/automation-reactions";
@@ -69,8 +68,7 @@ async function getOrInitBaseline(): Promise<Date> {
   return midnight;
 }
 
-/** Create + link the renewal task for a renewable document. Shared by the Auto
- *  path and the "Apply" of a renewal suggestion. */
+/** Create + link the renewal task for a renewable document (the Auto path). */
 async function createRenewalTask(document: DocumentRow): Promise<{ taskId: number; code: string }> {
   const now = new Date();
   const companyId = document.companyId as number;
@@ -89,7 +87,7 @@ async function createRenewalTask(document: DocumentRow): Promise<{ taskId: numbe
 }
 
 /** Record a "create a task" SUGGESTION (Suggest mode) that remembers its source —
- *  a document (renewal) — so Apply can create it later. */
+ *  a document (renewal) — so it shows in the feed. */
 async function suggestTaskCreate(opts: { source: "documents"; sourceId: number; documentId: number | null; companyId: number | null; personId: number | null; summary: string; detail: string }): Promise<void> {
   const now = new Date().toISOString();
   await sb.from("automation_events").insert({
@@ -101,7 +99,7 @@ async function suggestTaskCreate(opts: { source: "documents"; sourceId: number; 
 
 type ProbationPerson = { id: number; name: string; company_id: number | null; manager_id: number | null; probation_end_date: string | null };
 
-/** Create the probation-review task for a person. Shared by Auto + Apply. */
+/** Create the probation-review task for a person. */
 async function createProbationTask(p: ProbationPerson): Promise<{ taskId: number; code: string; title: string }> {
   const now = new Date();
   const companyId = p.company_id as number;
@@ -130,8 +128,7 @@ function obligationCategory(category: string | null | undefined): string {
   return TASK_CATEGORIES.has(c) ? c : "Admin";
 }
 
-/** Create the "do this recurring obligation" task for one company. Shared by Auto
- *  + Apply. The deadline is the obligation's computed due date for this period. */
+/** Create the "do this recurring obligation" task for one company. The deadline is the obligation's computed due date for this period. */
 async function createObligationTask(o: DueObligationInstance): Promise<{ taskId: number; code: string; title: string }> {
   const now = new Date();
   const companyId = o.companyId;
@@ -150,46 +147,10 @@ async function createObligationTask(o: DueObligationInstance): Promise<{ taskId:
   return { taskId: task.id, code: task.code, title };
 }
 
-/** Resolve one DUE obligation instance from its dedup key (obligation:obId:coId:period).
- *  Re-derives the live instance so Apply uses current dates, not a stale snapshot. */
-async function obligationInstanceFromKey(key: string): Promise<DueObligationInstance | null> {
-  const obligations = await listObligations();
-  const due = await dueObligationInstances(obligations);
-  return due.find((d) => d.key === key) ?? null;
-}
-
-/** Apply a renewal/notice SUGGESTION — create the task now from its remembered
- *  source. Returns the new task so the feed can repoint the event for Undo. */
-export async function createTaskFromSuggestion(row: { target_table: string; target_id: number; detail?: string | null }): Promise<{ taskId: number; code: string }> {
-  if (row.target_table === "recurring_obligations") {
-    // The (company, period) lives in the dedup key, not the row id — read it from detail.
-    const key = (row.detail ?? "").split("|")[0]?.trim() ?? "";
-    const inst = key ? await obligationInstanceFromKey(key) : null;
-    if (!inst) throw new Error("That obligation is no longer due (it may have been done or the period has rolled over).");
-    return createObligationTask(inst);
-  }
-  if (row.target_table === "documents") {
-    const doc = await getDocument(row.target_id);
-    if (!doc || !doc.companyId) throw new Error("That document is no longer available.");
-    return createRenewalTask(doc);
-  }
-  if (row.target_table === "people") {
-    const { data } = await sb.from("people").select("id,name,company_id,manager_id,probation_end_date").eq("id", row.target_id).maybeSingle();
-    const p = data as ProbationPerson | null;
-    if (!p || !p.company_id) throw new Error("That person is no longer available.");
-    return createProbationTask(p);
-  }
-  if (row.target_table === "commitments" || row.target_table === "pipeline") {
-    // Old suggestions from Commitments / Applications, both removed 26 Sept 2026.
-    throw new Error("That feature has been removed — dismiss this suggestion instead.");
-  }
-  throw new Error("Unknown suggestion source.");
-}
-
 /* ------------------------------------------------------------------ */
 /* Phase 4 — cross-process cascades. One process finishing spawns the  */
-/* next step. Each is gated by the task-create mode, deduped, logged,  */
-/* and undoable; they create TASKS only (never toggle a todo), so they */
+/* next step. Each is gated by the task-create mode, deduped and      */
+/* logged; they create TASKS only (never toggle a todo), so they       */
 /* can't loop back into their own trigger.                             */
 /* ------------------------------------------------------------------ */
 

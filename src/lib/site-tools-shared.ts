@@ -8,12 +8,6 @@ export const TOOL_CONDITION_LABELS: Record<ToolCondition, string> = {
   retired: "Retired",
 };
 
-export const TOOL_CONDITION_TONE: Record<ToolCondition, "default" | "success" | "warn" | "danger" | "info"> = {
-  good: "success",
-  needs_repair: "warn",
-  retired: "danger",
-};
-
 export type SiteToolMovementRow = {
   id: number;
   toolId: number | null;

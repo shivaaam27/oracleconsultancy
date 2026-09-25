@@ -29,7 +29,7 @@ export type WhatsAppConfig = {
   defaultLang: string;
 };
 
-export function getWhatsAppConfig(): WhatsAppConfig | null {
+function getWhatsAppConfig(): WhatsAppConfig | null {
   const accountSid = process.env.TWILIO_ACCOUNT_SID;
   const authToken = process.env.TWILIO_AUTH_TOKEN;
   const from = process.env.TWILIO_WHATSAPP_FROM;

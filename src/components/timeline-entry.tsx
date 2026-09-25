@@ -55,7 +55,7 @@ function visual(item: TimelineItem): { Icon: typeof Plus; tone: Tone } {
 /* Time + actor helpers                                                    */
 /* --------------------------------------------------------------------- */
 
-export function relTime(d: Date): string {
+function relTime(d: Date): string {
   const s = Math.round((Date.now() - d.getTime()) / 1000);
   if (s < 45) return "just now";
   const m = Math.round(s / 60);

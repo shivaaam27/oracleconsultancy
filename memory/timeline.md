@@ -75,7 +75,3 @@ hover), and an optional task chip. Its ⋯ menu removes a row
   `restoreTaskUpdate` / `restoreAuditEntry` bring it back.
 - Deleting a **task** (`deleteTaskQuick`) has a ten-minute undo; its audit rows
   survive by `task_code`.
-- `purgeTaskHistory` (permanent wipe) exists but is not called.
-- `scripts/purge-orphan-history.ts --apply` removes orphans left by older
-  permanent deletes. `scripts/tidy-audit-noise.ts` is dry-run only and has not
-  been applied.

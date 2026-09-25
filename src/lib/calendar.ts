@@ -4,7 +4,6 @@
 
 import { randomUUID } from "crypto";
 import { sb } from "@/db/supabase";
-import { hasElapsed } from "@/lib/event-time-shared";
 import type { IcsAttachment, IcsAttendee, IcsEvent } from "@/lib/ics";
 
 export type CalendarAttendee = {
@@ -147,33 +146,6 @@ export async function listCalendarEvents(opts?: {
   const { data, error } = await q;
   if (error) throw new Error(error.message);
   return (data ?? []).map(mapRow);
-}
-
-/** Upcoming events a person is an attendee of (or organiser via created_by),
- *  from `now` forward. Read-only helper for the staff portal "Your meetings"
- *  panel. Attendees are stored as a JSON string, so we filter in JS. */
-export async function upcomingEventsForPerson(
-  personId: number,
-  opts?: { limit?: number; daysAhead?: number }
-): Promise<CalendarEvent[]> {
-  const now = new Date();
-  // A day of slack at the near end so an event that is UNDER WAY is still read
-  // back; `hasElapsed` then drops only what has actually finished. Filtering on
-  // start_at alone made a running meeting disappear at its start time.
-  const from = new Date(now.getTime() - 24 * 3600_000).toISOString();
-  const to = new Date(now.getTime() + (opts?.daysAhead ?? 60) * 86400000).toISOString();
-  const { data, error } = await sb
-    .from("calendar_events")
-    .select("*")
-    .gte("start_at", from)
-    .lt("start_at", to)
-    .order("start_at", { ascending: true });
-  if (error) throw new Error(error.message);
-  const mapped = (data ?? []).map(mapRow);
-  const mine = mapped
-    .filter((ev) => !hasElapsed(ev, now))
-    .filter((ev) => ev.attendees.some((a) => a.personId === personId));
-  return opts?.limit ? mine.slice(0, opts.limit) : mine;
 }
 
 export async function getCalendarEvent(id: number): Promise<CalendarEvent | null> {

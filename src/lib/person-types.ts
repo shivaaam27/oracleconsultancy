@@ -42,7 +42,3 @@ export function normalizePersonType(value: string | null | undefined): PersonTyp
 export function personTypeLabel(value: string | null | undefined): string {
   return PERSON_TYPE_LABELS[normalizePersonType(value)];
 }
-
-export function isPersonType(value: string | null | undefined): value is PersonType {
-  return !!value && (PERSON_TYPES as string[]).includes(value);
-}

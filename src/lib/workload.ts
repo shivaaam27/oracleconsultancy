@@ -36,7 +36,7 @@ export type WorkloadSummary = {
 };
 
 /** A person's own task is OPEN when it is neither Completed nor Closed. */
-export const isOpenTask = (t: TaskRow): boolean => t.status !== "Completed" && t.status !== "Closed";
+const isOpenTask = (t: TaskRow): boolean => t.status !== "Completed" && t.status !== "Closed";
 
 /** Imbalance rule: a person is "overloaded" when they sit well above the team —
  *  ≥ 1.5× the mean open-count AND at least mean + 3 (so a small team where the

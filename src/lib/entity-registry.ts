@@ -776,11 +776,3 @@ export function getTraceDef(type: string): EntityTrace | undefined {
   const table = GENERIC_TRACE_TABLES[t];
   return table ? { mode: "generic", table } : undefined;
 }
-
-/**
- * Ordered list for the command palette's TYPE_ORDER + grouped headings. Re-exported
- * from the CLIENT-SAFE entity-meta module (which has no server/DB import) so the
- * command palette can consume it without dragging this file's Supabase client into
- * the browser bundle. Single source of the palette order lives in entity-meta.ts.
- */
-export { SEARCH_PALETTE_ORDER } from "@/lib/entity-meta";

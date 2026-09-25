@@ -128,7 +128,7 @@ function whenShort(ev: CalendarEvent): string {
 }
 
 /** A human "When" line: "Mon 15 June 2026, 14:00–15:00 (EAT)" or an all-day date. */
-export function whenLine(ev: CalendarEvent): string {
+function whenLine(ev: CalendarEvent): string {
   if (ev.allDay) return `${fmt(ev.startAt, true, false)} · all day`;
   const start = fmt(ev.startAt, false, true);
   const end = ev.endAt ? timeOnly(ev.endAt) : null;

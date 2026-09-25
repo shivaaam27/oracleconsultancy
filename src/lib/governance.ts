@@ -4,8 +4,6 @@ import { GOV_BASE } from "@/lib/entity-registry";
 import {
   riskScore,
   type CompanyGovernance,
-  type Ubo,
-  type KeyPerson,
   type Risk,
   type Decision,
   type Holder,
@@ -51,41 +49,6 @@ export async function getCompanyGovernance(companyId: number): Promise<CompanyGo
     signatories,
     resolutions,
   };
-}
-
-/** Has this company any governance data at all (so the UI can hide an empty panel)? */
-export async function hasCompanyGovernance(companyId: number): Promise<boolean> {
-  const { count } = await sb.from("cap_table").select("id", { count: "exact", head: true }).eq("company_id", companyId);
-  if (count && count > 0) return true;
-  const { count: sc } = await sb.from("signatories").select("id", { count: "exact", head: true }).eq("company_id", companyId);
-  return !!sc && sc > 0;
-}
-
-/** Ultimate beneficial owners (portfolio-wide). */
-export async function getBeneficialOwners(): Promise<Ubo[]> {
-  const { data } = await sb.from("beneficial_owners").select("id,person_name,interests,flag,complete").order("person_name");
-  return (data ?? []).map((r) => ({
-    id: r.id as number,
-    personName: r.person_name as string,
-    interests: (r.interests as string | null) ?? null,
-    flag: (r.flag as string | null) ?? null,
-    complete: Boolean(r.complete),
-  }));
-}
-
-/** Key-person concentration register. */
-export async function getKeyPersons(): Promise<KeyPerson[]> {
-  const { data } = await sb.from("key_persons").select("id,name,director_of,secretary_of,shareholder_of,signatory_of,risk,note").order("name");
-  return (data ?? []).map((r) => ({
-    id: r.id as number,
-    name: r.name as string,
-    directorOf: (r.director_of as number | null) ?? null,
-    secretaryOf: (r.secretary_of as number | null) ?? null,
-    shareholderOf: (r.shareholder_of as number | null) ?? null,
-    signatoryOf: (r.signatory_of as number | null) ?? null,
-    risk: (r.risk as string | null) ?? null,
-    note: (r.note as string | null) ?? null,
-  }));
 }
 
 /** The structural risk register, scored + banded, worst first. */
@@ -144,10 +107,6 @@ export async function addRisk(input: { code: string; title: string; category: st
 export async function setRiskStatus(id: number, status: string): Promise<void> {
   await sb.from("risks").update({ status }).eq("id", id);
   void reindexEntity("risk", id); // status may flip lifecycle active↔history (closed/done)
-}
-export async function deleteRisk(id: number): Promise<void> {
-  await sb.from("risks").delete().eq("id", id);
-  void removeEntityIndex("risk", id); // hard delete — drop from index
 }
 
 export async function addDecision(input: { code: string; title: string; companyId: number | null; type: string | null; context: string | null; due: string | null }): Promise<{ ok: boolean; error?: string }> {

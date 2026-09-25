@@ -29,7 +29,7 @@ function truthy(v: unknown): boolean {
 
 /** Parse a clock-time string into hour+minute (24h, Dar-local). Accepts "11:45pm",
  *  "23:45", "11pm", "9.30am", "0930". Null when it isn't a time. */
-export function parseClockTime(raw: string): { hour: number; minute: number } | null {
+function parseClockTime(raw: string): { hour: number; minute: number } | null {
   const s = raw.trim().toLowerCase().replace(/\s+/g, "");
   if (!s) return null;
   const m = /^(\d{1,2})(?:[:.h](\d{2}))?(am|pm)?$/.exec(s) ?? /^(\d{2})(\d{2})$/.exec(s);
@@ -46,7 +46,7 @@ export function parseClockTime(raw: string): { hour: number; minute: number } | 
 
 /** Parse "every 6 hours" / "15 minutes" / "1h" / "90m" / "2 hrs" → minutes. Null when
  *  it isn't an interval. Bare numbers are read as minutes. */
-export function parseRepeatInterval(raw: string): number | null {
+function parseRepeatInterval(raw: string): number | null {
   const s = raw.trim().toLowerCase().replace(/^every\s+/, "");
   if (!s) return null;
   const m = /^(\d+(?:\.\d+)?)\s*(h|hr|hrs|hour|hours|m|min|mins|minute|minutes|d|day|days)?$/.exec(s);

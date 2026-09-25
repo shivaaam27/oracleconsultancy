@@ -22,9 +22,6 @@ import { getAppSettings } from "./settings";
 import { getAutomationConfig } from "./automation/config";
 import { sb } from "@/db/supabase";
 
-// Re-export so callers have ONE import for the whole Tier-3 surface.
-export { isOverSpendCap, monthlySpend, recordUsage } from "./ai-spend";
-
 export type SendChannel = "email" | "whatsapp" | "sms";
 
 /** Is director/manager outreach (messaging) currently paused? Mirrors the
@@ -76,30 +73,5 @@ export async function canAutoSend(channel: SendChannel): Promise<boolean> {
 //
 // Policy: automated paths NEVER hard-delete. They archive (a reversible, undoable
 // state change) so nothing the system does on its own is unrecoverable. Only an
-// explicit human action may hard-delete. Code that is about to delete on behalf of
-// an automation should call assertReversibleAutoAction() first — it throws if the
-// owner has not deliberately disabled the safeguard (autoHardDeleteForbidden).
-
-export const AUTO_HARD_DELETE_FORBIDDEN = "auto-hard-delete-forbidden" as const;
-
-/**
- * Guard for automated DELETE paths. Throws unless the owner has explicitly turned
- * OFF the safeguard (settings.autoHardDeleteForbidden = false). Use it to fail
- * loudly in development if an automated path ever tries to hard-delete; the
- * correct automated action is to archive instead.
- *
- * @param action short label of what was about to be hard-deleted, for the error.
- */
-export async function assertReversibleAutoAction(action = "record"): Promise<void> {
-  let forbidden = true;
-  try {
-    forbidden = (await getAppSettings()).autoHardDeleteForbidden;
-  } catch {
-    forbidden = true; // unknown → keep the safeguard ON
-  }
-  if (forbidden) {
-    throw new Error(
-      `${AUTO_HARD_DELETE_FORBIDDEN}: automated paths must archive, not hard-delete (${action}).`,
-    );
-  }
-}
+// explicit human action may hard-delete.
+

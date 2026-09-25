@@ -341,7 +341,8 @@ See `memory/database_schema.md`. Latest migration: **0172**.
 ## Workflow
 
 - Type-check: `NODE_OPTIONS=--max-old-space-size=4096 npm exec tsc -- --noEmit`.
-- Build: `npm run build` (already asks for an 8 GB heap).
+- Build: `NODE_OPTIONS=--max-old-space-size=8192 npm run build` — the script's own
+  heap flag does not reach the type-check worker, which otherwise runs out of memory.
 - Tests: `npm test` (Vitest; pure-logic tests sit next to the module as `*.test.ts`).
 - Never clear `.next` while the dev server is running.
 - Update the relevant `memory/*.md` after meaningful changes; don't

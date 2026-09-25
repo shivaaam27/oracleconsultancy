@@ -344,130 +344,6 @@ export async function portalCreateTask(
   return null;
 }
 
-/* ----------------------------------------------------------------------
- * Director messaging — draft a reminder/message to any person. Creates an
- * Outbox draft (owner-visible, audit-tagged) and returns a one-tap deep-link
- * to send via WhatsApp/Email/SMS. Default recipient = a task's assignee when a
- * taskCode is given; otherwise the chosen person. Honours a kill switch.
- * ---------------------------------------------------------------------- */
-export async function portalDirectorDraftMessage(input: {
-  personId: number;
-  channel?: "WHATSAPP" | "EMAIL" | "SMS";
-  subject?: string | null;
-  body: string;
-  taskCode?: string | null;
-}): Promise<{ ok: true; link: string | null; contactMissing: boolean; channel: "WHATSAPP" | "EMAIL" | "SMS" } | { ok: false; error: string }> {
-  const me = await getPortalPerson();
-  if (!me) redirect("/portal/login");
-  if (!me.caps.bulkOutreach) return { ok: false, error: "You don't have permission to send outreach." };
-
-  // Soft kill switch (owner can pause all director outreach from Settings).
-  const { data: killRow } = await sb.from("settings").select("value").eq("key", "director.outreachPaused").maybeSingle();
-  if ((killRow?.value as string | null) === "1") return { ok: false, error: "Director outreach is paused by the administrator." };
-
-  const body = (input.body ?? "").trim();
-  if (!body) return { ok: false, error: "Write a message." };
-
-  const { data: person } = await sb
-    .from("people")
-    .select("id,name,email,phone,whatsapp,preferred_channel,company_id")
-    .eq("id", input.personId)
-    .maybeSingle();
-  if (!person) return { ok: false, error: "Recipient not found." };
-
-  const { pickChannel, contactForChannel, linkFor } = await import("@/lib/outbox/links");
-  const contact = {
-    email: (person.email as string | null) ?? null,
-    phone: (person.phone as string | null) ?? null,
-    whatsapp: (person.whatsapp as string | null) ?? null,
-    preferredChannel: (person.preferred_channel as string | null) ?? null,
-  };
-  const channel = input.channel ?? pickChannel(contact);
-  const to = contactForChannel(contact, channel);
-  const subject = input.subject?.trim() || "A note from the director";
-  const link = linkFor(channel, to, subject, body);
-
-  let companyName: string | null = null;
-  if (person.company_id) {
-    const { data: c } = await sb.from("companies").select("name").eq("id", person.company_id).maybeSingle();
-    companyName = (c?.name as string | null) ?? null;
-  }
-
-  const { error } = await sb.from("outbox").insert({
-    channel,
-    recipient_name: person.name as string,
-    recipient_contact: to,
-    company: companyName,
-    subject: channel === "EMAIL" ? subject : null,
-    body,
-    message_type: input.taskCode ? "DIRECTOR REMINDER" : "DIRECTOR MESSAGE",
-    status: "Draft",
-    source: `portal-dir:${me.name}`,
-    person_id: person.id,
-    created_at: new Date().toISOString(),
-  });
-  if (error) return { ok: false, error: error.message };
-
-  await recordEvent("portal.director.message", "ok", { by: me.name, to: person.name, channel, task: input.taskCode ?? null });
-  revalidatePath("/outbox");
-  return { ok: true, link, contactMissing: !to, channel };
-}
-
-/**
- * Director: one EMAIL to several people at once (all addresses in the To field).
- * Builds a single mailto: deep-link for a one-tap manual send and logs one
- * owner-visible Outbox record. Honours the external outreach pause.
- */
-export async function portalDirectorGroupEmail(input: {
-  personIds: number[];
-  subject?: string | null;
-  body: string;
-}): Promise<{ ok: true; link: string | null; missing: string[] } | { ok: false; error: string }> {
-  const me = await getPortalPerson();
-  if (!me) redirect("/portal/login");
-  if (!me.caps.bulkOutreach) return { ok: false, error: "You don't have permission to send outreach." };
-
-  const { data: killRow } = await sb.from("settings").select("value").eq("key", "director.outreachPaused").maybeSingle();
-  if ((killRow?.value as string | null) === "1") return { ok: false, error: "Director outreach is paused by the administrator." };
-
-  const body = (input.body ?? "").trim();
-  if (!body) return { ok: false, error: "Write a message." };
-
-  const ids = [...new Set(input.personIds.filter((n) => Number.isFinite(n) && n > 0))];
-  if (ids.length === 0) return { ok: false, error: "Choose at least one recipient." };
-
-  const { data: people } = await sb.from("people").select("id,name,email").in("id", ids);
-  const rows = people ?? [];
-  const withEmail = rows.filter((p) => (p.email as string | null)?.trim());
-  const missing = rows.filter((p) => !(p.email as string | null)?.trim()).map((p) => p.name as string);
-  if (withEmail.length === 0) return { ok: false, error: "None of the chosen people have an email on file." };
-
-  const emails = withEmail.map((p) => (p.email as string).trim());
-  const subject = input.subject?.trim() || "A note from the director";
-  // mailto supports comma-separated recipients; build directly so the commas
-  // stay literal (encodeURIComponent would turn them into %2C and break the list).
-  const link = `mailto:${emails.join(",")}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-
-  const { error } = await sb.from("outbox").insert({
-    channel: "EMAIL",
-    recipient_name: withEmail.map((p) => p.name as string).join(", "),
-    recipient_contact: emails.join(", "),
-    company: null,
-    subject,
-    body,
-    message_type: "DIRECTOR MESSAGE",
-    status: "Draft",
-    source: `portal-dir:${me.name}`,
-    person_id: withEmail.length === 1 ? (withEmail[0].id as number) : null,
-    created_at: new Date().toISOString(),
-  });
-  if (error) return { ok: false, error: error.message };
-
-  await recordEvent("portal.director.message", "ok", { by: me.name, channel: "EMAIL", recipients: withEmail.length });
-  revalidatePath("/outbox");
-  return { ok: true, link, missing };
-}
-
 /**
  * Portal: send a person their branded task-reminder email (the same engine the
  * admin Outbox uses) with an optional personal note. Director / Manager / Admin
@@ -530,49 +406,6 @@ export async function portalSendReminderEmail(
   });
   if (res.ok) {
     await recordEvent("portal.reminder.email", "ok", { by: me.name, role, personId });
-    revalidatePath("/outbox");
-    revalidatePath("/portal/team");
-  }
-  return res;
-}
-
-/**
- * Portal: send a person their rich WhatsApp task reminder via Twilio (formatted
- * card + generated summary image). Director / Manager / Admin only; honours the
- * outreach pause. Returns `not-configured` so the caller can fall back to the
- * manual wa.me deep-link when Twilio isn't set up.
- */
-export async function portalSendReminderWhatsApp(
-  personId: number,
-): Promise<{ ok: boolean; reason?: "no-email" | "no-tasks" | "not-configured" | "not-found" | "error"; error?: string }> {
-  const me = await getPortalPerson();
-  if (!me) return { ok: false, reason: "error", error: "Please sign in again." };
-  const role = me.portalRole;
-  if (!me.caps.messageOnTasks) {
-    return { ok: false, reason: "error", error: "You don't have permission to send reminders." };
-  }
-
-  const { data: killRow } = await sb.from("settings").select("value").eq("key", "director.outreachPaused").maybeSingle();
-  if ((killRow?.value as string | null) === "1") {
-    return { ok: false, reason: "error", error: "Outreach is paused by the administrator." };
-  }
-
-  // Team-scope guard (ACTPORTAL-02): managers may only remind themselves or a
-  // direct report; director stay group-wide.
-  if (!(await personCanSeePerson(me, personId))) {
-    return { ok: false, reason: "error", error: "That person isn't on your team." };
-  }
-
-  const tag = role === "director" ? "dir" : role === "manager" ? "mgr" : "admin";
-  const { sendTaskReminderWhatsApp } = await import("@/lib/reminders");
-  const { waFromLabel } = await import("@/lib/wa-card");
-  const res = await sendTaskReminderWhatsApp({
-    personId,
-    sourceTag: `portal-${tag}:${me.name}`,
-    from: waFromLabel({ name: me.name, role }),
-  });
-  if (res.ok) {
-    await recordEvent("portal.reminder.whatsapp", "ok", { by: me.name, role, personId });
     revalidatePath("/outbox");
     revalidatePath("/portal/team");
   }
@@ -812,20 +645,6 @@ export async function portalDirectorCreateEvent(formData: FormData): Promise<Por
   return res;
 }
 
-/** Managers schedule meetings for their own companies, with the same auto-send
- *  Google Meet behaviour. */
-export async function portalManagerCreateEvent(formData: FormData): Promise<PortalEventResult> {
-  const me = await getPortalPerson();
-  if (!me) redirect("/portal/login");
-  if (!me.caps.createEvents) return { ok: false, error: "You don't have permission to create events." };
-  const scopeError = await checkEventScope(me, formData);
-  if (scopeError) return { ok: false, error: scopeError };
-  await attachableDocumentIds(me, formData);
-  const res = await portalCreateAndSendEvent(formData, `portal-mgr:${me.name}`);
-  if (res.ok) revalidatePath("/portal");
-  return res;
-}
-
 /** Create an event from the dedicated /portal/meetings page. Works for ANY
  *  management role (manager / director) — staff can't create. Scope is
  *  enforced by `checkEventScope` exactly as the home/board paths. */
@@ -1061,9 +880,6 @@ export async function portalDirectorCreateTask(
  *                       allowed set), and never on a Completed/Closed task.
  * Every change is audit-logged + stamped by role. Never trusts the form.
  * ---------------------------------------------------------------------- */
-const ALL_STATUSES = [
-  "Not Started", "In Progress", "Under Review", "Blocked", "Waiting External", "Escalated", "Completed", "Closed",
-];
 // The non-terminal statuses (everything except Completed/Closed). Used to keep
 // "move an open task between open statuses" separate from the gated completion.
 const OPEN_STATUSES = ["Not Started", "In Progress", "Under Review", "Blocked", "Waiting External", "Escalated"];
@@ -1837,75 +1653,6 @@ export async function portalRemindTask(
   return { ok: true, link, contactMissing: !to, name };
 }
 
-/** Management: remind EVERYONE involved in a task (accountable + working
- *  assignees, and owner). Drafts one Outbox message per person. Director/HR
- *  group-wide; managers only for tasks in their view. Honours the kill switch. */
-export async function portalRemindTaskAll(
-  taskId: number
-): Promise<{ ok: true; count: number; names: string[]; skipped: number } | { ok: false; error: string }> {
-  const me = await getPortalPerson();
-  if (!me) redirect("/portal/login");
-  const role = me.portalRole;
-  if (!me.caps.messageOnTasks) return { ok: false, error: "You don't have permission to send reminders." };
-  if (!(await personCanSeeTask(me, taskId))) return { ok: false, error: "That task isn't in your view." };
-
-  const { data: killRow } = await sb.from("settings").select("value").eq("key", "director.outreachPaused").maybeSingle();
-  if ((killRow?.value as string | null) === "1") return { ok: false, error: "Outreach is paused by the administrator." };
-
-  const { data: t } = await sb.from("tasks").select("id,code,action_item,owner_id").eq("id", taskId).maybeSingle();
-  if (!t) return { ok: false, error: "Task not found." };
-
-  const { data: assignees } = await sb.from("task_assignees").select("person_id").eq("task_id", taskId);
-  const ids = new Set<number>();
-  if (t.owner_id) ids.add(t.owner_id as number);
-  for (const a of assignees ?? []) if (a.person_id) ids.add(a.person_id as number);
-  ids.delete(me.id); // don't remind yourself
-  if (ids.size === 0) return { ok: false, error: "No one is assigned to this task yet." };
-
-  const { data: people } = await sb
-    .from("people")
-    .select("id,name,email,phone,whatsapp,preferred_channel,company_id,active")
-    .in("id", [...ids]);
-
-  const { pickChannel, contactForChannel, linkFor } = await import("@/lib/outbox/links");
-  const now = new Date().toISOString();
-  const tag = `portal-${roleTag(role)}:${me.name}`;
-  const names: string[] = [];
-  let skipped = 0;
-
-  for (const person of people ?? []) {
-    if (person.active === false) { skipped++; continue; }
-    const name = person.name as string;
-    const first = name.split(" ")[0];
-    const body = `Hi ${first}, a reminder on "${t.action_item}" (${t.code}) — please update when you can. Thank you.`;
-    const contact = {
-      email: (person.email as string | null) ?? null,
-      phone: (person.phone as string | null) ?? null,
-      whatsapp: (person.whatsapp as string | null) ?? null,
-      preferredChannel: (person.preferred_channel as string | null) ?? null,
-    };
-    const channel = pickChannel(contact);
-    const to = contactForChannel(contact, channel);
-    if (!to) { skipped++; continue; }
-    let companyName: string | null = null;
-    if (person.company_id) {
-      const { data: c } = await sb.from("companies").select("name").eq("id", person.company_id).maybeSingle();
-      companyName = (c?.name as string | null) ?? null;
-    }
-    const { error } = await sb.from("outbox").insert({
-      channel, recipient_name: name, recipient_contact: to, company: companyName,
-      subject: channel === "EMAIL" ? "Task reminder" : null, body,
-      message_type: "TASK REMINDER", status: "Draft", source: tag, person_id: person.id as number, created_at: now,
-    });
-    if (error) { skipped++; continue; }
-    names.push(first);
-  }
-
-  await recordEvent("portal.reminder.all", "ok", { by: me.name, role, task: t.code, count: names.length });
-  revalidatePath("/outbox");
-  return { ok: true, count: names.length, names, skipped };
-}
-
 export async function portalAddUpdate(formData: FormData) {
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
@@ -2381,18 +2128,6 @@ async function portalPostUpdate(taskId: number, body: string, by: string) {
   const now = new Date().toISOString();
   await sb.from("task_updates").insert({ task_id: taskId, body, created_at: now, created_by: by });
   await sb.from("tasks").update({ last_updated_at: now, latest_update: body }).eq("id", taskId);
-}
-
-/** Mark/clear the signed-in person's "my part is done" on a task they're on. */
-export async function portalToggleMyPartDone(taskId: number, done: boolean): Promise<{ error?: string }> {
-  const me = await getPortalPerson();
-  if (!me) redirect("/portal/login");
-  if (!(await portalInvolved(taskId, me.id))) return { error: "You're not on this task." };
-  await sb.from("task_assignees").update({ part_done_at: done ? new Date().toISOString() : null })
-    .eq("task_id", taskId).eq("person_id", me.id);
-  await portalPostUpdate(taskId, done ? `✓ ${me.name} marked their part done` : `↺ ${me.name} reopened their part`, portalStamp(me));
-  revalidatePath("/portal"); revalidatePath("/");
-  return {};
 }
 
 /** Raise a documented blocker (Waiting on <person>) — suspends overdue for all. */

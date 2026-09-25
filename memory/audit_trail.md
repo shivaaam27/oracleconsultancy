@@ -44,12 +44,8 @@ gone; `activity.ts` and `/api/trace` still label it "Meeting").
 - **A task** (`deleteTaskQuick`) is deleted with a ten-minute undo: the task,
   its assignees and conversation are snapshotted first; its `audit_log` rows
   survive by `task_code` (the FK only nulls `task_id`).
-- `purgeTaskHistory` in `src/app/task/actions.ts` (permanent wipe) is reserved
-  for a future, explicitly confirmed delete; nothing calls it today.
-- `scripts/purge-orphan-history.ts` cleans orphaned history left by older
-  permanent deletes.
-
-## Where activity shows
+- There is no permanent-wipe path (the unused `purgeTaskHistory` was deleted in
+  the Sept 2026 clean-up; it is in git history if ever needed).
 
 - **Task record** (`/task/[code]`, `TaskRecordPage` in `task-drawer.tsx`) — the
   task's own updates and audit rows, merged by `src/lib/timeline.ts`.

@@ -72,30 +72,6 @@ export function flag(t: DeriveInput, thresholds: Thresholds = DEFAULT_THRESHOLDS
   return "on-track";
 }
 
-export const flagLabel: Record<Flag, string> = {
-  closed: "✅ Closed",
-  escalated: "🚨 Escalated",
-  stalled: "⛔ Stalled",
-  "no-deadline": "⚠️ No Deadline",
-  "escalate-now": "🔴 Escalate Now",
-  overdue: "🔴 Overdue",
-  "due-soon": "🟡 Due Soon",
-  aging: "🟠 Aging",
-  "on-track": "🟢 On Track",
-};
-
-export const flagColor: Record<Flag, string> = {
-  closed: "bg-gray-100 text-gray-700",
-  escalated: "bg-amber-100 text-amber-800",
-  stalled: "bg-red-100 text-red-800",
-  "no-deadline": "bg-yellow-100 text-yellow-800",
-  "escalate-now": "bg-red-200 text-red-900",
-  overdue: "bg-red-100 text-red-800",
-  "due-soon": "bg-yellow-100 text-yellow-800",
-  aging: "bg-orange-100 text-orange-800",
-  "on-track": "bg-green-100 text-green-800",
-};
-
 export function isOpen(status: string): boolean {
   return status !== "Completed" && status !== "Closed";
 }

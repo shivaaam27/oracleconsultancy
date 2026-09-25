@@ -1,9 +1,5 @@
 "use client";
 
-import { useState } from "react";
-import { Download } from "lucide-react";
-import { Button } from "@/components/ui";
-
 /** True inside the Windows app (WPF + WebView2), false in every browser and in
  *  the installed PWA. `window.chrome` exists in Chrome and Edge; `chrome.webview`
  *  is injected only by WebView2, and is the same bridge the app's own offline
@@ -21,16 +17,15 @@ function filenameFrom(res: Response): string {
 }
 
 /**
- * Downloads the server-generated Director Brief PDF. We hit the PDF route with
+ * Downloads the server-generated Director Brief PDF (the Windows-app-safe
+ * route — see below). We hit the PDF route with
  * `?download=1`, which makes the server send `Content-Disposition: attachment`,
  * so the browser saves the file instead of opening it in the PDF viewer. A
  * same-tab navigation to an attachment URL downloads without leaving the page
  * (no blank tab), and works on desktop and mobile alike. We avoid the old
  * blob + synthetic `<a download>` trick — that was silently blocked on iOS
- * Safari and inside the installed app.
+ * Safari and inside the installed app. Used by the Studio Report panel.
  */
-/** Download a report PDF — the Windows-app-safe route (see below). Shared by
- *  the button and the Studio Report panel. */
 export async function downloadPdf(href: string, setBusy: (b: boolean) => void = () => {}): Promise<void> {
   const url = href + (href.includes("?") ? "&" : "?") + "download=1";
 
@@ -75,27 +70,4 @@ export async function downloadPdf(href: string, setBusy: (b: boolean) => void = 
   // Navigating to an `attachment` URL downloads the file in place — the page
   // stays put, no blank tab.
   window.location.href = url;
-}
-
-export function BriefPdfButton({
-  href,
-  label = "Download PDF",
-  variant = "secondary",
-  size = "sm",
-}: {
-  href: string;
-  label?: string;
-  variant?: "primary" | "secondary" | "ghost";
-  size?: "xs" | "sm" | "md" | "lg";
-}) {
-  const [busy, setBusy] = useState(false);
-
-  const download = () => downloadPdf(href, setBusy);
-
-  return (
-    <Button type="button" size={size} variant={variant} onClick={download} loading={busy}>
-      {busy ? null : <Download size={14} />}
-      {busy ? "Preparing…" : label}
-    </Button>
-  );
 }

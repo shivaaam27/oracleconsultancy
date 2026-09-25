@@ -95,13 +95,7 @@ automations cron.
 
 - `src/lib/model-watch.ts` — the Groq deprecation watch; silent while the
   provider is Gemini.
-- `src/lib/ai-jobs.ts` + `/api/agent/trigger` — the old cloud-agent queue. It
-  has no producer any more.
 - `ocrSpaceApiKey` in settings — nothing reads it.
-- The Telegram bridge (`/api/telegram/webhook` → `/api/ask`) — inert without
-  `TELEGRAM_BOT_TOKEN` + `TELEGRAM_WEBHOOK_SECRET`, and `api/telegram` is not in
-  the `src/proxy.ts` exclusion list, so a delivery would be redirected to
-  `/login` today.
 
 ## Prompt rules
 

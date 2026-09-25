@@ -35,7 +35,7 @@ export type EmailTone = "default" | "danger" | "warn" | "accent" | "success" | "
 // "command" = the Administrator / owner — signs plainly as Oracle Consultancy.
 export type EmailOffice = "director" | "manager" | "admin" | "compliance" | "hr" | "command";
 
-export const OFFICE_LABELS: Record<EmailOffice, string> = {
+const OFFICE_LABELS: Record<EmailOffice, string> = {
   director: "Director's Office",
   manager: "Manager's Office",
   admin: "Admin Office",
@@ -118,7 +118,7 @@ export type EmailBrand = {
 
 // MUST stay identical to SIG_MARKER / SIG_SLOT in src/lib/email/send.ts.
 const SIG_MARKER = "<!--cos-signature-->";
-export const SIG_SLOT = "<!--cos-signature-slot-->";
+const SIG_SLOT = "<!--cos-signature-slot-->";
 
 /** Studio's palette, as flat email-safe hex. Exported for the odd bespoke bit. */
 export const EMAIL_C = {

@@ -6,7 +6,7 @@ import { Check, Loader2, Rocket, LogOut, Package, RotateCcw, Pencil, Trash2, Plu
 import { useToast } from "./toast";
 import { cn } from "@/lib/cn";
 import { Button } from "./ui";
-import { SectionCard, ProgressTrack, CollapsibleSection } from "./drawer-kit";
+import { ProgressTrack, CollapsibleSection } from "./drawer-kit";
 import { JOURNEY_LABELS, type Journey, type JourneyKind } from "@/lib/onboarding-shared";
 import {
   startJourneyAction,

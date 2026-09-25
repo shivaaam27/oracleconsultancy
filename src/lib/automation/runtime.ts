@@ -10,17 +10,14 @@ import { renderEmail, senderName, type EmailDoc } from "@/lib/email/layout";
 
 /* --------------------------------- clock --------------------------------- */
 /** EAT (UTC+3) hour right now. */
-export function eatHour(now = new Date()): number {
+function eatHour(now = new Date()): number {
   return new Date(now.getTime() + 3 * 3600 * 1000).getUTCHours();
 }
-export function eatDateKey(now = new Date()): string {
+function eatDateKey(now = new Date()): string {
   return new Date(now.getTime() + 3 * 3600 * 1000).toISOString().slice(0, 10);
 }
 export function eatWeekday(now = new Date()): number {
   return new Date(now.getTime() + 3 * 3600 * 1000).getUTCDay();
-}
-export function eatDayOfMonth(now = new Date()): number {
-  return new Date(now.getTime() + 3 * 3600 * 1000).getUTCDate();
 }
 
 export function withinSendWindow(cfg: AutomationConfig, now = new Date()): boolean {

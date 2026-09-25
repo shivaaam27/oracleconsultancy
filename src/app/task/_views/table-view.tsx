@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { markPush, withReturn } from "@/lib/return-to";
 import { ExternalLink, CheckCircle2, AlertOctagon, Clock, Repeat } from "lucide-react";
 import type { TaskRow } from "@/lib/queries";
@@ -109,8 +109,6 @@ export function TableView({
     }
   }
   const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
   const { toast } = useToast();
   /* ⚠️ Studio is DETECTED, not passed: only the Studio page renders the pick
      provider, so on the old page this is null and every line below behaves

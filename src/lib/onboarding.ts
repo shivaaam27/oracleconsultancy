@@ -19,7 +19,6 @@ import { and, eq } from "drizzle-orm";
 /* Client-safe types + labels live in lib/onboarding-shared.ts.        */
 /* ------------------------------------------------------------------ */
 export type { Journey, JourneyKind, JourneyStep } from "@/lib/onboarding-shared";
-export { JOURNEY_LABELS } from "@/lib/onboarding-shared";
 
 type StepTemplate = {
   label: string;
@@ -69,7 +68,7 @@ function templateFor(kind: JourneyKind): StepTemplate[] {
 type ResolvedStep = { label: string; offsetDays: number };
 
 /** Create per-type rows from the hard-coded defaults if none exist yet. Idempotent. */
-export async function seedJourneyTemplates(): Promise<{ created: number }> {
+async function seedJourneyTemplates(): Promise<{ created: number }> {
   const { count } = await sb
     .from("journey_step_templates")
     .select("id", { count: "exact", head: true });
@@ -401,32 +400,6 @@ export async function syncJourneyToTemplate(
   return { added: rows.length };
 }
 
-/**
- * Propagate onboarding/offboarding template edits to EVERYONE who already has a
- * journey: append any missing template steps for their type. Existing journeys
- * keep their progress. Returns how many journeys changed and steps added.
- */
-export async function syncAllJourneys(): Promise<{ journeys: number; added: number }> {
-  const { data: rows } = await sb.from("todos").select("person_id,kind").not("kind", "is", null);
-  const pairs = new Map<string, { personId: number; kind: JourneyKind }>();
-  for (const r of rows ?? []) {
-    const kind = r.kind as string;
-    if (kind !== "onboarding" && kind !== "offboarding") continue;
-    if (r.person_id == null) continue;
-    pairs.set(`${r.person_id}:${kind}`, { personId: r.person_id as number, kind: kind as JourneyKind });
-  }
-  let journeys = 0;
-  let added = 0;
-  for (const { personId, kind } of pairs.values()) {
-    const res = await syncJourneyToTemplate(personId, kind);
-    if (res.added > 0) {
-      journeys++;
-      added += res.added;
-    }
-  }
-  return { journeys, added };
-}
-
 /* ------------------------------------------------------------------ */
 /* Template CRUD — edited in Documents → Manage onboarding steps.       */
 /* Adds propagate to people on their next journey sync; edits/deletes   */
@@ -472,56 +445,4 @@ export async function listJourneyTemplates(): Promise<JourneyTemplateGroup[]> {
     });
   }
   return groups;
-}
-
-export async function addJourneyTemplateStep(
-  kind: JourneyKind,
-  appliesToType: PersonType,
-  input: { label: string; offsetDays: number }
-): Promise<void> {
-  const label = input.label.trim();
-  if (!label) throw new Error("A step name is required.");
-  const { data: last } = await sb
-    .from("journey_step_templates")
-    .select("sort_order")
-    .eq("kind", kind)
-    .eq("applies_to_type", appliesToType)
-    .order("sort_order", { ascending: false, nullsFirst: false })
-    .limit(1)
-    .maybeSingle();
-  const nextOrder = ((last?.sort_order as number | null) ?? -1) + 1;
-  const now = new Date().toISOString();
-  const { error } = await sb.from("journey_step_templates").insert({
-    kind,
-    applies_to_type: appliesToType,
-    label,
-    offset_days: Number.isFinite(input.offsetDays) ? Math.max(0, Math.trunc(input.offsetDays)) : 0,
-    active: true,
-    sort_order: nextOrder,
-    created_at: now,
-    updated_at: now,
-  });
-  if (error) throw new Error(error.message);
-}
-
-export async function editJourneyTemplateStep(
-  id: number,
-  input: { label: string; offsetDays: number }
-): Promise<void> {
-  const label = input.label.trim();
-  if (!label) throw new Error("A step name is required.");
-  const { error } = await sb
-    .from("journey_step_templates")
-    .update({
-      label,
-      offset_days: Number.isFinite(input.offsetDays) ? Math.max(0, Math.trunc(input.offsetDays)) : 0,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", id);
-  if (error) throw new Error(error.message);
-}
-
-export async function deleteJourneyTemplateStep(id: number): Promise<void> {
-  const { error } = await sb.from("journey_step_templates").delete().eq("id", id);
-  if (error) throw new Error(error.message);
 }

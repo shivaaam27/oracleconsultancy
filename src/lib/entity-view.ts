@@ -5,7 +5,7 @@
 // discipline, it is METADATA: every DocType is a definition, and one list view
 // and one form view are generated for all of them. This file is that definition
 // layer for Oracle — it says what a record's LIST COLUMNS and FORM SECTIONS are,
-// and the two shells (RecordList / RecordPage) are generated from it.
+// and the two shells (RecordList / RecordBody) are generated from it.
 //
 // ⚠️ CLIENT-SAFE, and it must stay that way. `entity-registry.ts` imports the
 // server-only Supabase client, so a client component can never import it (that
@@ -229,45 +229,6 @@ export const ENTITY_VIEWS: Partial<Record<EntityType, EntityView>> = {
     create: { label: "Vendor", href: "/hrms/assets?view=vendors&new=vendor" },
   },
 
-  /* CocoZuri Operations — Phase 1. See memory/cocozuri_ops_plan.md.
-     Two columns carry the work: what it is, and what it costs. Everything else
-     hides on a narrow screen. */
-  /* ⚠️ THESE WIDTHS ADD UP TO FIT A 547px CARD — the width the content area has
-     at 1024px once the desk sidebar takes its 208px. They used to total 480px
-     against a `minmax(0,1fr)` name, which resolved the PRODUCT column to ZERO:
-     127 chocolates listed with no chocolate names on them. `hideBelow` cannot
-     fix that (it folds columns away on SMALL screens, and this breaks on the
-     first LARGE one), so the answer is a smaller budget. Brand is the column
-     that went: the whole catalogue holds two of them, COCOZURI and COCOFIX, so
-     it tells you least — and Columns puts it back. */
-
-
-  /* Phase 3 — the money coming back in. The reference is the thing somebody
-     looks for when a customer says "we paid you last Tuesday". */
-  /* ⚠️ Six columns is one too many for the card at 1024px, so How and Reference
-     start folded and Columns puts them back. Received · Customer · Against ·
-     Amount is what somebody actually scans down. */
-
-  /* Manufacturing Stage 2 — what was bought.
-     ⚠️ FIVE FIXED COLUMNS COME TO 430px, which fits the card at `lg` with the
-     desk sidebar taking 208px. The supplier is the flexible one because it is
-     what somebody scans down; adding a sixth would start squeezing it. */
-
-  /* Manufacturing Stage 3 — recipes.
-     ⚠️ COST PER UNIT IS THE COLUMN SOMEBODY OPENS THIS PAGE FOR, so it is kept
-     at every width; the yield folds away first. */
-  /* Manufacturing Stage 4 — production.
-     ⚠️ MADE and CAME OUT sit next to each other on purpose: the whole reason
-     this record exists is the owner's "inter check", and a variance you have to
-     scroll for is one nobody checks. */
-  /* Manufacturing Stage 5 — kitchen to shop.
-     ⚠️ SENT and ARRIVED sit side by side because the gap between them is the
-     entire reason this record exists. */
-
-
-
-
-
   asset: {
     listColumns: [
       { key: "name", label: "Asset", width: "minmax(0,1fr)", format: "text", sortable: true },
@@ -278,16 +239,6 @@ export const ENTITY_VIEWS: Partial<Record<EntityType, EntityView>> = {
     defaultSort: { key: "name", dir: "asc" },
     create: { label: "Asset", href: "/hrms/assets?view=assets&new=asset" },
   },
-
-
-  /* ─────────────────────────────── the recruitment desk (Phase 1) ─────────
-     Three record types, one shape. The reference and the context live on the
-     row's SECOND LINE rather than in columns of their own — the same trick the
-     tasks and projects lists use, and the only way a dense list still reads on
-     a phone. Fixed width is kept well under 400px for the reason spelled out
-     at the top of this file. */
-
-
 
   /* Notes (Phase 1 — memory/notes_module_plan.md). The `create` line is the whole
      reason this entry earns its place today: it puts "Note" in the global New menu
@@ -357,9 +308,4 @@ export function creatables(): Creatable[] {
   // CREATE_ORDER stays out of the menu — it is still creatable on its own page.
   const rank = (id: string) => CREATE_ORDER.indexOf(id);
   return all.filter((c) => rank(c.id) !== -1).sort((a, b) => rank(a.id) - rank(b.id));
-}
-
-/** The view for an entity, or undefined if it hasn't been given a screen yet. */
-export function entityView(type: EntityType): EntityView | undefined {
-  return ENTITY_VIEWS[type];
 }

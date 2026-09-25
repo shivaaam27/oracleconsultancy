@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { markPush, withReturn } from "@/lib/return-to";
 import { cn } from "@/lib/cn";
 import { HoverPreview } from "./hover-preview";
@@ -65,8 +65,6 @@ function TaskPreviewBody(data: TaskPreview) {
  */
 export function TaskDrawerLink({ code, children, className }: Props) {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const pathname = usePathname();
 
   const open = () => {
     const to = withReturn(taskHref(code), `${window.location.pathname}${window.location.search}`);

@@ -36,7 +36,7 @@ import { useToast } from "@/components/toast";
 import { callUndo } from "@/components/undo-banner";
 import { Dot } from "@/components/studio/kit";
 import { useStudioPick } from "./pick";
-import { STATUS_DOT, deadlineWords, initials, avatarTint, ago } from "./task-words";
+import { STATUS_DOT, deadlineWords, ago } from "./task-words";
 import { cn } from "@/lib/cn";
 
 const STARTERS: [string, string][] = [

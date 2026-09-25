@@ -49,7 +49,8 @@ Stage 2 says MCP never sends. Unattended runs make that stricter still:
 > building.**
 
 `canAutoSend(channel)` in `src/lib/guardrails.ts` already gates every automated
-external send, and `AUTO_HARD_DELETE_FORBIDDEN` already blocks automated deletes.
+external send; automated paths archive rather than delete (a convention, not
+an enforced check — see `memory/open_issues.md`).
 Automatic MCP runs go through those same guardrails — they are not a way around
 them.
 

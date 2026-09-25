@@ -396,7 +396,6 @@ async function traceCompany(id: number, events: TraceEvent[]): Promise<string> {
 
 async function traceDocument(id: number, events: TraceEvent[]): Promise<string> {
   let label = `Document #${id}`;
-  let supersedesId: number | null = null;
 
   await safely(async () => {
     const { data } = await sb

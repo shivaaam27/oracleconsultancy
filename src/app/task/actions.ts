@@ -28,7 +28,6 @@ import { ingestAttachmentDocument } from "@/app/documents/actions";
 import { parseMentionIds } from "@/lib/mentions";
 import { createNotification, notifyMany, notifyPinned, personRecipient, recipientForCreatedBy } from "@/lib/notifications";
 import { broadcastPulse } from "@/lib/cos-pulse";
-import { getGivenName } from "@/lib/names";
 
 function parseDate(v: FormDataEntryValue | null): Date | null {
   if (!v || typeof v !== "string" || v.trim() === "") return null;
@@ -49,10 +48,6 @@ function splitNames(v: string | null): string[] {
   // (e.g. "Rand and Co" → ["R", "Co"]). Users wanting "and" as a separator
   // should use a comma.
   return v.split(/,|\s+&\s+/).map((x) => x.trim()).filter(Boolean);
-}
-
-function isoOrNull(d: Date | null | undefined): string | null {
-  return d ? d.toISOString() : null;
 }
 
 type TaskRowRaw = {
@@ -465,27 +460,6 @@ export async function createTask(formData: FormData) {
   // Land on the new task still knowing which list you were on, so its
   // "‹ Tasks" goes back to that list, filters and all, not a bare one.
   redirect(withReturn(`/task/${result.result.code}`, str(formData.get(BACK_PARAM))));
-}
-
-/**
- * RESERVED for a future explicit, confirmed "permanently delete" action.
- * Routine deletes now KEEP history (recoverable for 10 minutes). This permanently
- * wipes a task's audit history (audit_log doesn't cascade on task delete — the FK
- * only nulls task_id — so we remove it explicitly, along with any corrections that
- * reference those entries). Updates/assignees/meeting-links cascade with the row.
- */
-async function purgeTaskHistory(taskId: number, code: string) {
-  const [r1, r2] = await Promise.all([
-    sb.from("audit_log").select("id").eq("task_id", taskId),
-    sb.from("audit_log").select("id").eq("task_code", code),
-  ]);
-  const ids = [...new Set([...(r1.data ?? []), ...(r2.data ?? [])].map((r) => r.id as number))];
-  if (ids.length) {
-    await sb.from("corrections").delete().in("audit_log_id", ids);
-    await sb.from("corrections").delete().in("corrected_by_entry_id", ids);
-  }
-  await sb.from("audit_log").delete().eq("task_id", taskId);
-  await sb.from("audit_log").delete().eq("task_code", code);
 }
 
 /**
@@ -1275,18 +1249,6 @@ export async function copyTaskToCompany(
 async function postTaskUpdate(taskId: number, body: string, by = "web-ui") {
   await sb.from("task_updates").insert({ task_id: taskId, body, created_at: new Date().toISOString(), created_by: by });
   await sb.from("tasks").update({ last_updated_at: new Date().toISOString(), latest_update: body }).eq("id", taskId);
-}
-
-/** Switch a task between "shared" and "lead" overdue-blame modes. */
-export async function setTaskAccountability(taskId: number, mode: "shared" | "lead") {
-  await taskActor({ taskId });
-  // ⚠️ The column only. `updateTaskCore` is the door that ALSO re-points the
-  // accountable role and tasks.owner_id — reach for that when the assignees may
-  // move with the mode.
-  await sb.from("tasks").update({ accountability: mode }).eq("id", taskId);
-  void reindexEntity("task", taskId);
-  revalidatePath("/"); bustTag("tasks"); invalidateAllTasks();
-  return { ok: true as const };
 }
 
 /** Raise a documented blocker — overdue is SUSPENDED for everyone until cleared. */

@@ -4,7 +4,6 @@
 // builds this, so the brief reflects the work just done. Best-effort: every
 // gather is guarded so a single failure can't sink the brief.
 
-import { sb } from "@/db/supabase";
 import { getAllTasks } from "@/lib/queries";
 import { isOpen } from "@/lib/derive";
 import { listDocuments, deriveDocStatus } from "@/lib/documents";
@@ -24,7 +23,7 @@ export type UrgentSignals = {
 
 /** The "Needs you" band — things only the owner can resolve, today. Mirrors the
  *  notify cron's signals so the cockpit and the morning brief agree. */
-export async function gatherUrgent(): Promise<UrgentSignals> {
+async function gatherUrgent(): Promise<UrgentSignals> {
   const empty: UrgentSignals = { overdue: 0, escalated: 0, dueToday: 0, docsExpired: 0, docsExpiring: 0, remindersDue: 0, total: 0, parts: [] };
   try {
     const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);

@@ -848,7 +848,6 @@ export async function runDueRules(
           continue;
         }
 
-        const scopeTaskId = cfg.scope?.taskId ?? null;
         // Resolve the target task the rule acts on: an explicit scope.taskId, else
         // the scoped person/company's most-overdue open task (best effort).
         const target = await resolveSmartTarget(cfg);

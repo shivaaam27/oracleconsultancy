@@ -59,7 +59,7 @@ function visibleViewport(): { height: number; width: number; offsetTop: number }
  * is that child which gets capped — it already carries `overflow-y-auto`, so a
  * capped menu scrolls its own list rather than spilling down the page.
  */
-export function placeMenu(el: HTMLElement, rect: DOMRect): void {
+function placeMenu(el: HTMLElement, rect: DOMRect): void {
   const zoom = layoutRect(document.body).zoom || 1;
 
   /* Everything below is in LAYOUT pixels, because `position: fixed` is laid out

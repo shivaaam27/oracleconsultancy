@@ -141,7 +141,7 @@ export async function setEventDocumentSendFlag(
  *  "the guests may have this", so it governs the public link exactly as it
  *  governs the email. A reference-only attachment is invisible outside the
  *  admin side, and un-ticking the box withdraws it from both at once. */
-export async function isDocumentOnEvent(
+async function isDocumentOnEvent(
   eventId: number,
   documentId: number,
   opts?: { sharedOnly?: boolean }
@@ -168,7 +168,7 @@ export async function isDocumentOnEvent(
  * reasoning that made the email masthead borrow the production host. A
  * localhost link in an .ics is a dead paperclip.
  */
-export function eventDocumentUrl(publicToken: string, documentId: number): string {
+function eventDocumentUrl(publicToken: string, documentId: number): string {
   return `${emailAssetBaseUrl()}/e/${publicToken}/doc/${documentId}`;
 }
 
@@ -231,7 +231,7 @@ export type LoadedAttachment = {
  *  smaller than the number people quote. Over this, the email carries the
  *  permanent link instead and the caller SAYS SO rather than silently dropping
  *  the file. Override with EVENT_ATTACH_MAX_BYTES if a provider allows more. */
-export const EMAIL_ATTACH_BUDGET_BYTES = (() => {
+const EMAIL_ATTACH_BUDGET_BYTES = (() => {
   const raw = process.env.EVENT_ATTACH_MAX_BYTES;
   const n = raw ? parseInt(raw, 10) : NaN;
   if (Number.isFinite(n) && n > 0) return Math.min(n, 40 * 1024 * 1024);
@@ -239,7 +239,7 @@ export const EMAIL_ATTACH_BUDGET_BYTES = (() => {
 })();
 
 /** Pull an attachment's bytes out of storage. Null when the row has no file. */
-export async function loadAttachmentBytes(doc: DocumentRow): Promise<LoadedAttachment | null> {
+async function loadAttachmentBytes(doc: DocumentRow): Promise<LoadedAttachment | null> {
   if (!doc.storagePath) return null;
   const { data, error } = await sb.storage.from(DOCUMENTS_BUCKET).download(doc.storagePath);
   if (error || !data) return null;

@@ -1,5 +1,4 @@
 import { redirect } from "next/navigation";
-import { BarChart3 } from "lucide-react";
 import { Hero, HeroMetrics } from "@/components/surface-kit";
 import type { Tone } from "@/components/surface-kit";
 import { Reveal } from "@/components/reveal";

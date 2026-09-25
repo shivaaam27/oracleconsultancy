@@ -5,7 +5,6 @@ import { snippetOf, type NoteBody, type NoteFolder, type NoteListRow, type NoteR
 // without dragging this file's `sb` import into the browser bundle. Re-exported here
 // as types only, so existing server imports keep working.
 export type { NoteBody, NoteRow, NoteFolder, NoteListRow };
-export { snippetOf, noteTitle } from "@/lib/notes-shared";
 
 /* ------------------------------------------------------------------ */
 /* Notes — reads. Phase 1 of memory/notes_module_plan.md.              */

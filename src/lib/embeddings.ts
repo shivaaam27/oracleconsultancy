@@ -309,11 +309,3 @@ export async function hybridSearch(
     return [];
   }
 }
-
-/** Back-compat alias — now hybrid (full-text + vector). */
-export async function semanticSearch(
-  query: string,
-  opts?: SearchOpts,
-): Promise<SemanticHit[]> {
-  return hybridSearch(query, opts);
-}

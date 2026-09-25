@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import {
   getCompanyGovernance, type CompanyGovernance,
   addCapHolder, deleteCapHolder, addSignatory, deleteSignatory, addResolution, deleteResolution,
-  addRisk, setRiskStatus, deleteRisk, addDecision, decideDecision,
+  addRisk, setRiskStatus, addDecision, decideDecision,
 } from "@/lib/governance";
 
 /** Load one company's governance (cap table / signatories / resolutions). */
@@ -57,8 +57,6 @@ export async function addRiskAction(input: { code: string; title: string; catego
 }
 export async function setRiskStatusAction(id: number, status: string) {
   await guardOwner(); await setRiskStatus(id, status); revalidateGov(); return { ok: true }; }
-export async function deleteRiskAction(id: number) {
-  await guardOwner(); await deleteRisk(id); revalidateGov(); return { ok: true }; }
 export async function addDecisionAction(input: { code: string; title: string; companyId: number | null; type: string | null; context: string | null; due: string | null }) {
   await guardOwner();
   if (!input.code.trim() || !input.title.trim()) return { ok: false, error: "Code and title required." };

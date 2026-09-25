@@ -36,10 +36,3 @@ export async function listCockpitActivity(limit = 40): Promise<CockpitItem[]> {
   }));
   return fromProcess.sort(byNewest).slice(0, limit);
 }
-
-/** The "While you were away" band counts (Step 1 surfaces two live bands; the
- *  scheduled 3-band brief builds on these in Step 2). */
-export async function cockpitCounts(): Promise<{ waiting: number; doneAutomatically: number }> {
-  const [approvals, activity] = await Promise.all([listApprovals(), listCockpitActivity()]);
-  return { waiting: approvals.length, doneAutomatically: activity.length };
-}

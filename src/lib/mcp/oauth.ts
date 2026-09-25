@@ -33,7 +33,7 @@ import { sb } from "@/db/supabase";
 /** A code is exchanged within seconds; a minute is generous. */
 const CODE_TTL_MS = 60 * 1000;
 /** Short-lived by design: a stolen access token expires on its own. */
-export const ACCESS_TTL_MS = 60 * 60 * 1000; // 1 hour
+const ACCESS_TTL_MS = 60 * 60 * 1000; // 1 hour
 /** The refresh token is the long-lived one, and the one Settings revokes. */
 const REFRESH_TTL_MS = 90 * 24 * 60 * 60 * 1000; // 90 days
 

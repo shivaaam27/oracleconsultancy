@@ -2,29 +2,8 @@
 
 export type LeaveStatus = "Pending" | "Approved" | "Rejected" | "Cancelled";
 
-export const LEAVE_STATUS_TONE: Record<LeaveStatus, "default" | "success" | "warn" | "danger" | "info"> = {
-  Pending: "warn",
-  Approved: "success",
-  Rejected: "danger",
-  Cancelled: "default",
-};
-
 export type AttendanceStatus =
   | "Present" | "Absent" | "On leave" | "Holiday" | "Remote" | "Half-day" | "Sick";
-
-export const ATTENDANCE_STATUSES: AttendanceStatus[] = [
-  "Present", "Absent", "On leave", "Holiday", "Remote", "Half-day", "Sick",
-];
-
-export const ATTENDANCE_TONE: Record<AttendanceStatus, "default" | "success" | "warn" | "danger" | "info"> = {
-  Present: "success",
-  Absent: "danger",
-  "On leave": "info",
-  Holiday: "default",
-  Remote: "info",
-  "Half-day": "warn",
-  Sick: "warn",
-};
 
 /** Statuses a staff member may set for themselves on the portal. */
 export const ATTENDANCE_SELF_STATUSES: AttendanceStatus[] = ["Present", "Remote", "Half-day", "Sick"];

@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 /* ------------------------------------------------------------------ *
@@ -62,9 +61,8 @@ export function Panel({
  *
  * This WAS a 3xl title inside an aurora-lit glass slab, which cost ~190px before
  * a single row of content and was the loudest thing on every page it appeared on.
- * It is now the same compact header the administrator uses (`PageHeader` in
- * ui.tsx — same markup, same `data-page-header` hook), because the portal pass
- * has one goal: the two sides look like one product.
+ * It is now a compact header with the `data-page-header` hook, because the
+ * portal pass has one goal: the two sides look like one product.
  *
  * The PROPS are unchanged on purpose. Eleven portal pages and the admin home
  * render this, and none of them needed editing — the shape changed underneath
@@ -90,7 +88,7 @@ export function Panel({
  * browser). Inline beats both. Shared by all three portal headers so they
  * cannot drift apart.
  */
-export const PORTAL_HEADER_CARD: React.CSSProperties = {
+const PORTAL_HEADER_CARD: React.CSSProperties = {
   background: "hsl(var(--bg-elev))",
   border: "1px solid hsl(var(--border))",
   borderRadius: "8px",
@@ -151,32 +149,5 @@ export function HeroMetrics({ items }: { items: { label: string; value: ReactNod
         );
       })}
     </div>
-  );
-}
-
-/** A tiny ▲/▼ delta pill. `goodWhenDown` flips the colour logic (e.g. overdue
- *  falling is good). Renders nothing when delta is 0 — no noise. */
-export function TrendChip({
-  delta,
-  goodWhenDown = false,
-  suffix = "",
-  className,
-}: {
-  delta: number;
-  goodWhenDown?: boolean;
-  suffix?: string;
-  className?: string;
-}) {
-  if (delta === 0) return null;
-  const up = delta > 0;
-  const good = goodWhenDown ? !up : up;
-  const tone: Tone = good ? "success" : "danger";
-  const Icon = up ? ArrowUpRight : ArrowDownRight;
-  return (
-    <span className={cn("inline-flex items-center gap-0.5 text-xs font-semibold tabular leading-none", TONE[tone].text, className)}>
-      <Icon size={11} />
-      {Math.abs(delta)}
-      {suffix}
-    </span>
   );
 }

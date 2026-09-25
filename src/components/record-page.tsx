@@ -1,19 +1,15 @@
 "use client";
 
-import Link from "next/link";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 /**
- * RecordPage — the ONE record screen (Stage 2 of the ERPNext redesign).
- *
- * ERPNext's form view, in the order the eye expects it:
+ * The record body — ERPNext's form view below the header and tabs:
  *
  *    ┌──────────────────────────────────────────────┬───────────────┐
- *    │ title · status · primary action · ⋯          │               │
- *    ├──────────────────────────────────────────────┤   sidebar     │
- *    │ collapsible sections, 2-column field grid    │   (assigned,  │
+ *    │ collapsible sections, 2-column field grid    │   sidebar     │
+ *    │                                              │   (assigned,  │
  *    │                                              │    files,     │
  *    │                                              │    tags)      │
  *    ├──────────────────────────────────────────────┴───────────────┤
@@ -21,11 +17,8 @@ import { cn } from "@/lib/cn";
  *    └──────────────────────────────────────────────────────────────┘
  *
  * It is layout only — it holds no record state and knows nothing about tasks,
- * people or documents. Props are shaped like the metadata that will drive them
- * in Stage 3 (`formSections` on an EntityDef).
- *
- * It renders happily inside the drawer OR on a full page, which is the point:
- * when a record gets its own URL later, nothing here changes.
+ * people or documents. Props are shaped like the metadata that drives them
+ * (`formSections` on an EntityDef).
  */
 
 export type RecordField = {
@@ -97,187 +90,9 @@ function Section({ section }: { section: RecordSection }) {
   );
 }
 
-/* ---------------------------------------------------------------- page --- */
-
-export function RecordPage({
-  title,
-  subtitle,
-  code,
-  status,
-  primaryAction,
-  actions,
-  tabs,
-  activeTab,
-  onTabChange,
-  sections,
-  sidebar,
-  timeline,
-  main,
-  children,
-  className,
-}: {
-  title: ReactNode;
-  subtitle?: ReactNode;
-  /** The record's identifier, shown as a mono chip beside the title. */
-  code?: string;
-  /** A badge — the record's state in one word. */
-  status?: ReactNode;
-  primaryAction?: ReactNode;
-  /** Secondary buttons and the ⋯ menu. */
-  actions?: ReactNode;
-  /**
-   * A tab. Give it an `href` and it renders as a LINK instead of a button.
-   *
-   * ⚠️ `href` is a STRING on purpose. Records whose tab lives in the URL
-   * (Companies uses `?tab=`) are server components, and React refuses to pass a
-   * FUNCTION from a server component to a client one — an earlier attempt at a
-   * `tabHref: (id) => string` prop crashed the company page with exactly that.
-   * Data crosses the boundary; callbacks do not.
-   */
-  tabs?: { id: string; label: string; count?: number; href?: string }[];
-  activeTab?: string;
-  onTabChange?: (id: string) => void;
-  sections?: RecordSection[];
-  /** Right-hand column: assigned, attachments, tags. Stacks under on mobile. */
-  sidebar?: ReactNode;
-  /** Activity, at the bottom, full width — the last thing, always. */
-  timeline?: ReactNode;
-  /**
-   * Content for the LEFT COLUMN, beside the sidebar — a form, a tab's own panel.
-   *
-   * ⚠️ Not the same as `children`. Children are rendered FULL WIDTH UNDER the
-   * whole body, which is right for a conversation and wrong for a form: a record
-   * with a sidebar and no `sections` left an empty left column and pushed the
-   * form below the sidebar, so on a wide screen the top half of the page was
-   * blank and the fields were off the bottom. If it belongs beside the sidebar,
-   * it is `main`.
-   */
-  main?: ReactNode;
-  /** Free body, rendered FULL WIDTH under the sections. Used when the active tab
-   *  supplies its own content (conversation, history). */
-  children?: ReactNode;
-  className?: string;
-}) {
-  /* The tab strip scrolls sideways on a phone — six tabs come to 405px in a
-   * 343px column — and an earlier round made it scroll but left two things
-   * undone. Nothing said it scrolled (the scrollbar is deliberately hidden), so
-   * "Org" simply appeared not to exist; and the strip never scrolled the ACTIVE
-   * tab into view, so landing on Org from a link showed a strip with nothing
-   * selected in it. That second one is the same defect the portal nav pill had.
-   *
-   * `data-tab-edge` says which side has more to see, and globals.css fades that
-   * edge — only that edge, so the last tab is not permanently half-faded once
-   * you have reached it. Measured with offsetLeft/offsetWidth, which are stable
-   * during a transition in a way getBoundingClientRect() is not. */
-  const tabStrip = useRef<HTMLDivElement>(null);
-  const [tabEdge, setTabEdge] = useState<"none" | "start" | "end" | "both">("none");
-
-  function readTabEdges() {
-    const el = tabStrip.current;
-    if (!el) return;
-    const room = el.scrollWidth - el.clientWidth;
-    if (room <= 2) return setTabEdge("none");
-    const atStart = el.scrollLeft <= 2;
-    const atEnd = el.scrollLeft >= room - 2;
-    setTabEdge(atStart ? "end" : atEnd ? "start" : "both");
-  }
-
-  useEffect(() => {
-    const el = tabStrip.current;
-    if (!el) return;
-    const active = el.querySelector<HTMLElement>('[aria-selected="true"]');
-    if (active && el.scrollWidth > el.clientWidth) {
-      const centred = active.offsetLeft - (el.clientWidth - active.offsetWidth) / 2;
-      el.scrollLeft = Math.max(0, centred);
-    }
-    readTabEdges();
-    const ro = new ResizeObserver(readTabEdges);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [activeTab, tabs]);
-
-  return (
-    <div className={cn("space-y-3", className)}>
-      {/* Header — who am I, what state am I in, what is the one thing to do */}
-      {/* ⚠️ `max-sm:basis-full` is doing real work, not tidying.
-       *
-       * The header is "identity on the left, actions on the right, wrap if you
-       * must" — but it could never wrap, because `flex-1` gives the identity a
-       * flex-basis of ZERO. Nothing ever overflowed the line, so nothing ever
-       * moved to a second one: the identity simply took whatever the actions
-       * left it. On a phone with two buttons and a bin that was 64px, and the
-       * task record — the page a task actually lives on — opened with its title
-       * set one word per line, six lines tall, above a company name broken
-       * across three. Below `sm` the identity claims a full line, which is what
-       * pushes the actions onto their own row underneath. */}
-      <header className="flex flex-wrap items-start gap-x-3 gap-y-2 border-b border-border pb-3">
-        <div className="min-w-0 flex-1 max-sm:basis-full">
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
-            {code && (
-              <span className="tabular shrink-0 rounded-sm bg-bg-subtle px-1.5 py-0.5 font-mono text-xs font-medium text-fg-muted ring-1 ring-border">
-                {code}
-              </span>
-            )}
-            {status}
-          </div>
-          <h2 className="mt-1 text-[18px] font-semibold leading-tight text-fg">{title}</h2>
-          {subtitle && <p className="mt-0.5 text-sm text-fg-muted">{subtitle}</p>}
-        </div>
-        <div className="flex shrink-0 items-center gap-1.5">
-          {actions}
-          {primaryAction}
-        </div>
-      </header>
-
-      {/* Tabs. Five of them come to 357px, and a phone's content column is 343 —
-          so "Edit" hung off the right edge looking clipped, and a record with a
-          sixth tab would lose more. They scroll sideways below `sm` instead;
-          from `sm` up there is room for them all and nothing changes. */}
-      {tabs && tabs.length > 0 && (
-        <div
-          ref={tabStrip}
-          role="tablist"
-          onScroll={readTabEdges}
-          data-tab-edge={tabEdge}
-          className="-mt-1 flex gap-1 border-b border-border [scrollbar-width:none] [&::-webkit-scrollbar]:hidden max-sm:overflow-x-auto"
-        >
-          {tabs.map((t) => {
-            const active = t.id === activeTab;
-            const cls = cn(
-              "-mb-px shrink-0 whitespace-nowrap border-b-2 px-2.5 py-1.5 text-base transition-colors",
-              active ? "border-accent font-medium text-fg" : "border-transparent text-fg-muted hover:text-fg"
-            );
-            const inner = (
-              <>
-                {t.label}
-                {t.count !== undefined && <span className="tabular ml-1.5 text-xs text-fg-subtle">{t.count}</span>}
-              </>
-            );
-            return t.href ? (
-              <Link key={t.id} href={t.href} role="tab" aria-selected={active} className={cls}>
-                {inner}
-              </Link>
-            ) : (
-              <button key={t.id} role="tab" aria-selected={active} type="button" onClick={() => onTabChange?.(t.id)} className={cls}>
-                {inner}
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      <RecordBody sections={sections} sidebar={sidebar} timeline={timeline} main={main} />
-      {children}
-    </div>
-  );
-}
-
 /**
- * The body on its own — sections left, sidebar right, activity last.
- *
- * Split out because the task record currently lives inside the drawer, which
- * already draws its own header and tabs. The drawer uses RecordBody; a full
- * record page uses RecordPage. Same layout either way, which is the point.
+ * The body — sections left, sidebar right, activity last. The task drawer
+ * draws its own header and tabs around it.
  */
 export function RecordBody({
   sections,
@@ -288,7 +103,11 @@ export function RecordBody({
   sections?: RecordSection[];
   sidebar?: ReactNode;
   timeline?: ReactNode;
-  /** Beside the sidebar, under the sections. See RecordPage's note on `main`. */
+  /**
+   * Content for the LEFT COLUMN, beside the sidebar, under the sections — a
+   * form, a tab's own panel. Anything meant to run full width under the whole
+   * body belongs after RecordBody, not here.
+   */
   main?: ReactNode;
 }) {
   return (

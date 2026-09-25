@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { SignOutForm } from "@/components/sign-out-form";
-import { Bell, FileCheck2, LogOut, Settings2, UserRound, CalendarDays, Route as RouteIcon, Package, CheckCircle2, Circle } from "lucide-react";
+import { Bell, FileCheck2, LogOut, Settings2, UserRound, Route as RouteIcon, Package, CheckCircle2, Circle } from "lucide-react";
 import { DevicePushToggle } from "@/components/device-push-toggle";
 import { sb } from "@/db/supabase";
 import { Hero, Panel, SectionLabel, TONE } from "@/components/surface-kit";
@@ -38,7 +38,6 @@ import { PortalKpiCard } from "@/components/portal-kpi-card";
 import { StaffProfile, PCard, KpiCard } from "@/components/studio/profile/staff-profile";
 import { WeekStrip, CheckinPanel } from "@/components/studio/home/staff-cards";
 import { StudioInstall } from "@/components/studio/studio-install";
-import { visibleTaskIds } from "@/lib/portal-auth";
 import { isStaffLikeRole } from "@/lib/director-routes";
 
 export const dynamic = "force-dynamic";

@@ -43,7 +43,7 @@ function trackUsage(model: string, source: string, usage: AiUsage): void {
  *  - a balanced-brace scan so a stray `}` inside a string does not truncate.
  * Returns the JSON substring, or null if no object is present.
  */
-export function extractJsonBlock(raw: string | null | undefined): string | null {
+function extractJsonBlock(raw: string | null | undefined): string | null {
   if (!raw) return null;
   // Scan from the first "{" directly — the balanced-brace scan below skips braces
   // (and backticks) inside strings, so it ignores any leading ```json fence and
@@ -78,7 +78,7 @@ export function extractJsonBlock(raw: string | null | undefined): string | null 
  * returns the object on success, or null on any failure (so callers can route
  * to a rules fallback or a human-review queue instead of crashing).
  */
-export function parseJsonObject(raw: string | null | undefined): Record<string, unknown> | null {
+function parseJsonObject(raw: string | null | undefined): Record<string, unknown> | null {
   const block = extractJsonBlock(raw);
   if (!block) return null;
   try {
@@ -117,7 +117,7 @@ function typeOk(v: unknown, t: FieldType): boolean {
  * (empty = valid). A present-but-wrong-typed optional field is a problem too,
  * so the caller can decide to reject rather than silently store rubbish.
  */
-export function validateShape(obj: Record<string, unknown> | null, shape: ShapeSpec): string[] {
+function validateShape(obj: Record<string, unknown> | null, shape: ShapeSpec): string[] {
   const problems: string[] = [];
   if (!obj) return ["not an object"];
   for (const [k, t] of Object.entries(shape.required ?? {})) {
@@ -231,11 +231,11 @@ function openAiCompatProvider(id: string, url: string, extraBody?: Record<string
   };
 }
 
-export const groqProvider: AIProvider = openAiCompatProvider("groq", GROQ_URL, providerRequestExtras("groq"));
-export const geminiProvider: AIProvider = openAiCompatProvider("gemini", GEMINI_URL, providerRequestExtras("gemini"));
+const groqProvider: AIProvider = openAiCompatProvider("groq", GROQ_URL, providerRequestExtras("groq"));
+const geminiProvider: AIProvider = openAiCompatProvider("gemini", GEMINI_URL, providerRequestExtras("gemini"));
 
 /** Provider registry, keyed by the AiProvider id from settings. */
-export const PROVIDERS: Record<AiProvider, AIProvider> = {
+const PROVIDERS: Record<AiProvider, AIProvider> = {
   groq: groqProvider,
   gemini: geminiProvider,
 };
@@ -255,7 +255,7 @@ async function activeProviderId(): Promise<AiProvider> {
 /** Default per-attempt request timeout. Without it, a hung Groq request blocks
  *  until the platform's 60s function wall. A thrown AbortError is caught as a
  *  transient "network" error, so a timeout simply triggers the existing retry. */
-export const DEFAULT_TIMEOUT_MS = 20000;
+const DEFAULT_TIMEOUT_MS = 20000;
 
 export type GroqJsonError =
   | "no-key"

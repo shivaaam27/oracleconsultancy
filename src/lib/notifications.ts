@@ -180,7 +180,7 @@ export async function createNotification(input: {
 
 /** Where tapping an alert goes. Owner and directors are on the Studio screens;
  *  staff on the portal. Shared by the first push and a snoozed one's return. */
-export function notificationUrl(recipient: string, director: boolean, kind: string, taskCode: string | null): string {
+function notificationUrl(recipient: string, director: boolean, kind: string, taskCode: string | null): string {
   const isAdmin = recipient === "admin";
   const studio = isAdmin || director;
   return taskCode

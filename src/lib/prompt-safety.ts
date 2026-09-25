@@ -35,7 +35,7 @@ const INJECTION_PATTERNS: RegExp[] = [
  * the model reads them as inert text rather than commands. Returns the string
  * unchanged when nothing matches. Non-strings pass through untouched.
  */
-export function neutraliseInjection<T>(value: T): T {
+function neutraliseInjection<T>(value: T): T {
   if (typeof value !== "string") return value;
   let out: string = value;
   for (const re of INJECTION_PATTERNS) {
@@ -45,7 +45,7 @@ export function neutraliseInjection<T>(value: T): T {
 }
 
 /** Recursively neutralise every string inside a JSON-serialisable value. */
-export function neutraliseDeep<T>(value: T): T {
+function neutraliseDeep<T>(value: T): T {
   if (typeof value === "string") return neutraliseInjection(value);
   if (Array.isArray(value)) return value.map((v) => neutraliseDeep(v)) as unknown as T;
   if (value && typeof value === "object") {

@@ -273,7 +273,7 @@ export async function downloadStoredFile(path: string, fileName: string, mimeTyp
 }
 
 /** Remove the stored file (if any) for a document and clear its columns. */
-export async function removeDocumentFile(documentId: number): Promise<void> {
+async function removeDocumentFile(documentId: number): Promise<void> {
   const { data } = await sb.from("documents").select("storage_path").eq("id", documentId).maybeSingle();
   const path = (data?.storage_path as string | null) ?? null;
   if (path) {

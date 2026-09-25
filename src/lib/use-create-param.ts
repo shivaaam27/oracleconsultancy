@@ -30,7 +30,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
  *   name when a page owns several ("assets" vs "vendors" share /hrms/assets).
  * @param open  called when it matches. Opens the dialog.
  */
-export const CREATE_EVENT = "oracle:create";
+const CREATE_EVENT = "oracle:create";
 
 /** Open a create form: on the same page by event, otherwise by navigating to
  *  `href` (whose `?new=` the owning page reads on arrival). */

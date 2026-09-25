@@ -71,15 +71,6 @@ export async function listVendors(): Promise<VendorRow[]> {
   });
 }
 
-export type VendorMetrics = { total: number; withIssues: number };
-
-export function vendorMetrics(rows: VendorRow[]): VendorMetrics {
-  return {
-    total: rows.length,
-    withIssues: rows.filter((v) => v.expiredCount > 0 || v.expiringCount > 0).length,
-  };
-}
-
 /** Vendors as a lightweight list for dropdowns (e.g. asset supplier). */
 export async function listVendorsLite(): Promise<Array<{ id: number; name: string }>> {
   const { data, error } = await sb.from("vendors").select("id,name").eq("active", true).order("name");

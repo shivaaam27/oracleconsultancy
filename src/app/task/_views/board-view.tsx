@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { markPush, withReturn } from "@/lib/return-to";
 import { motion, LayoutGroup, useReducedMotion } from "framer-motion";
 import {
@@ -63,8 +63,6 @@ const PRIORITY_ORDER = ["Critical", "High", "Medium", "Low"];
 
 export function BoardView({ rows, showClosed }: { rows: TaskRow[]; showClosed: boolean }) {
   const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
   const { toast } = useToast();
   const reduce = useReducedMotion();
 
@@ -204,7 +202,7 @@ export function BoardView({ rows, showClosed }: { rows: TaskRow[]; showClosed: b
           NOT on a phone: there the board starts ~460px down the page, and a
           nested vertical scroller that far down fights the page's own scroll
           under a thumb. A phone shows one column at a time and still loses its
-          heading — noted in memory/mobile_sweep_handover.md as open. */}
+          heading — still open. */}
       <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 max-sm:snap-x max-sm:snap-proximity sm:max-h-[calc(100svh-19rem)] sm:min-h-[26rem] sm:overflow-y-hidden">
         {columns.map((col) => (
           <div

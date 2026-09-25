@@ -41,7 +41,7 @@ export default async function CommandCentrePage({
   }));
   const people = new Map((peopleRaw ?? []).map((p) => [p.id as number, p.name as string]));
 
-  const { habits, deadlines } = splitObligations(obligations, now);
+  const { habits } = splitObligations(obligations, now);
   const deadlinesWithCompanies = buildDeadlinesWithCompanies(obligations, companiesLite, ocMap, now);
 
   // Permit Watch — person immigration documents, flagged on the wider bands.

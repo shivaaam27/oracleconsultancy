@@ -217,11 +217,6 @@ function convertGerund(text: string): string {
   return text;
 }
 
-function stripLeadingArticlesAndAdjectives(text: string): string {
-  // Don't strip — keep nouns intact for readability
-  return text;
-}
-
 function capitalise(text: string): string {
   if (!text) return text;
   // If ALL CAPS, convert to title-case-ish

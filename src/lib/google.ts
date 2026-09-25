@@ -18,7 +18,7 @@ export type GoogleAuthClient = InstanceType<typeof google.auth.OAuth2>;
 
 // Create/update events and their Meet conference data. Plus the connected
 // account's email so Settings can show "Connected as …".
-export const GOOGLE_SCOPES = [
+const GOOGLE_SCOPES = [
   "https://www.googleapis.com/auth/calendar.events",
   "https://www.googleapis.com/auth/userinfo.email",
 ];
@@ -31,7 +31,7 @@ export function isGoogleConfigured(): boolean {
 }
 
 /** Redirect URI must exactly match one registered on the OAuth client. */
-export function redirectUri(origin: string): string {
+function redirectUri(origin: string): string {
   return `${origin.replace(/\/$/, "")}/api/google/callback`;
 }
 

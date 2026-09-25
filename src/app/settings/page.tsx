@@ -37,7 +37,7 @@ import { FormSwitch } from "@/components/form-switch";
 import { StudioScope, StudioCard, StudioCardRow, CardHead } from "@/components/studio/kit";
 import { AiUsageDashboard } from "@/components/ai-usage-dashboard";
 import Link from "next/link";
-import { Save, SlidersHorizontal, Sparkles, MessageCircle, Check, Sun, Mic2, Bell, KeyRound, CalendarCheck, ScanFace, Mail, Users, Wrench, Scale, ClipboardList, ShieldCheck, Gauge, Bot } from "lucide-react";
+import { Save, SlidersHorizontal, Sparkles, MessageCircle, Check, Sun, Mic2, Bell, KeyRound, CalendarCheck, ScanFace, Mail, Users, Wrench, Scale, ShieldCheck, Gauge, Bot } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -59,7 +59,7 @@ const SETTINGS_GROUPS: SettingsGroup[] = [
   { id: "general", label: "General", icon: "SlidersHorizontal", cards: ["about", "appearance", "risk", "notifications"] },
   { id: "ai", label: "AI & Voice", icon: "Sparkles", cards: ["ai", "voice", "ai-usage"] },
   { id: "automation", label: "Automation", icon: "Wrench", cards: ["automations", "meeting-tasks", "tax-legal"] },
-  { id: "portals", label: "Portals", icon: "MonitorSmartphone", cards: ["portal", "portal-permissions", "portal-nudges"] },
+  { id: "portals", label: "Portals", icon: "MonitorSmartphone", cards: ["portal", "portal-permissions"] },
   { id: "email", label: "Email & Integrations", icon: "Mail", cards: ["email", "email-automation", "messaging", "google"] },
   { id: "security", label: "Security & Access", icon: "KeyRound", cards: ["security-check", "owner", "passkeys", "mcp-keys"] },
   { id: "alerts", label: "Notifications & More", icon: "Bell", cards: ["quiet-hours", "maintenance"] },
@@ -507,51 +507,9 @@ export default async function SettingsPage({
             </form>
           </SettingsCard>
 
-          <SettingsCard id="portal-permissions" icon={<ShieldCheck size={15} />} title="Roles & permissions" desc="What Staff, Managers, HR and Directors can see and do. Managers match Directors, limited to their companies." keywords="permissions roles staff manager admin hr director scope visibility capabilities create tasks manage complete delete events leave outbox insights requests tabs portal access">
+          <SettingsCard id="portal-permissions" icon={<ShieldCheck size={15} />} title="Roles & permissions" desc="What Staff, Receptionists, Managers and Directors can see and do. Managers match Directors, limited to their companies." keywords="permissions roles staff receptionist manager admin director scope visibility capabilities create tasks manage complete delete events outbox insights tabs portal access">
             <PortalPermissionsEditor initial={portalPermsMatrix} action={savePortalPermissionsAction} />
           </SettingsCard>
-
-          <form action={saveSettings} className="space-y-4">
-            <input type="hidden" name="__keys" value="portalNudges,portalNudgeNotStartedHours,portalNudgeNoUpdateDays,portalNudgeNotStartedMsg,portalNudgeNoUpdateMsg" />
-            <input type="hidden" name="__section" value="portals" />
-
-            <SettingsCard id="portal-nudges" icon={<ClipboardList size={15} />} title="Task nudges" desc="The reminder banner above every portal home & board." keywords="portal nudge banner not started reminder staff manager director tasks hero updates">
-              <FormSwitch
-                name="portalNudges"
-                defaultChecked={s.portalNudges}
-                label="Show the task nudge banner"
-                hint="A calm banner on every portal home / board pointing staff, managers and directors to tasks that need a look."
-              />
-
-              <div className="grid grid-cols-1 gap-4 border-t border-border/60 pt-3.5 sm:grid-cols-2">
-                <div>
-                  <FieldLabel>Not started — remind after (hours)</FieldLabel>
-                  <Input name="portalNudgeNotStartedHours" type="number" min={0} max={168} defaultValue={s.portalNudgeNotStartedHours} />
-                  <p className="mt-1 text-xs text-fg-muted">How long a task can sit at &ldquo;Not Started&rdquo;, untouched, before it&apos;s flagged. Shown to everyone.</p>
-                </div>
-                <div>
-                  <FieldLabel>Raised by me — remind after (days)</FieldLabel>
-                  <Input name="portalNudgeNoUpdateDays" type="number" min={0} max={90} defaultValue={s.portalNudgeNoUpdateDays} />
-                  <p className="mt-1 text-xs text-fg-muted">How long a task someone raised can go without an update before it&apos;s flagged. Managers, directors &amp; admin only.</p>
-                </div>
-              </div>
-
-              <div className="space-y-4 border-t border-border/60 pt-3.5">
-                <div>
-                  <FieldLabel>&ldquo;Not started&rdquo; wording</FieldLabel>
-                  <Input name="portalNudgeNotStartedMsg" defaultValue={s.portalNudgeNotStartedMsg} placeholder="not started yet. Please take a look." />
-                  <p className="mt-1 text-xs text-fg-muted">Appears right after the count — e.g. &ldquo;3 tasks &hellip;&rdquo;. Blank restores the default.</p>
-                </div>
-                <div>
-                  <FieldLabel>&ldquo;No update&rdquo; wording</FieldLabel>
-                  <Input name="portalNudgeNoUpdateMsg" defaultValue={s.portalNudgeNoUpdateMsg} placeholder="you raised with no recent update. Review or send a reminder." />
-                  <p className="mt-1 text-xs text-fg-muted">Appears right after the count — e.g. &ldquo;2 tasks &hellip;&rdquo;. Blank restores the default.</p>
-                </div>
-              </div>
-            </SettingsCard>
-
-            <SaveBar />
-          </form>
 
         </section>
 

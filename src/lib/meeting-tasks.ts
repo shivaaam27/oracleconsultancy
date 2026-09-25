@@ -59,7 +59,7 @@ export async function deleteTaskForOccurrence(eventId: number, dateKey: string):
  * One task PER company (owner's decision), no deadline, meetingDate = the
  * event start. The task links back via tasks.source_event_id; the event's
  * primary task is stored in calendar_events.task_id.
- * See memory/meeting_as_task_jul2026.md.
+ * See memory/meeting_as_task.md.
  * ------------------------------------------------------------------ */
 
 /** Should a meeting with these companies spawn task(s), per the owner's setting? */

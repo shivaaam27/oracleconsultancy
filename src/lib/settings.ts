@@ -10,16 +10,6 @@ import { AI_FAST, AI_SMART, type AiProvider } from "./ai-models";
  */
 /** Actions a row swipe can trigger. Effective immediately when saved. */
 export type SwipeAction = "none" | "complete" | "escalate" | "delete" | "snooze" | "archive" | "open" | "update";
-export const SWIPE_ACTIONS: { value: SwipeAction; label: string }[] = [
-  { value: "none", label: "Nothing" },
-  { value: "complete", label: "Complete" },
-  { value: "escalate", label: "Escalate" },
-  { value: "snooze", label: "Snooze 1 week" },
-  { value: "archive", label: "Archive" },
-  { value: "delete", label: "Delete" },
-  { value: "open", label: "Open / Edit" },
-  { value: "update", label: "Add update" },
-];
 
 export type AppSettings = {
   dueSoonDays: number;
@@ -121,7 +111,7 @@ export type AppSettings = {
    * admin side is behind one owner password (single operator), so an admin-only
    * secret in admin-only storage is an acceptable trade-off for redeploy-free
    * rotation. It is NEVER echoed back to the client — the UI only ever sees a
-   * masked preview (getGroqKeyPreview); the raw value stays server-side.
+   * masked preview; the raw value stays server-side.
    */
   groqApiKey: string;
   /**
@@ -209,20 +199,8 @@ export type AppSettings = {
    *  calendar too — not just the ones with a Meet link. 0 = nobody (off). */
   managedCalendarPersonId: number;
   /** Also email the branded "coming up" reminder at each lead time, on top of
-   *  the push + Reminders-channel ping. */
+   *  the bell + push notification. */
   eventReminderEmail: boolean;
-
-  /* ---- Portal task nudges (the banner above every portal hero) ---- */
-  /** Master switch for the portal "you have tasks to look at" nudge banner. */
-  portalNudges: boolean;
-  /** A Not-Started task nudges once it has sat untouched this many HOURS. */
-  portalNudgeNotStartedHours: number;
-  /** A task the person RAISED nudges once it has had no update for this many DAYS
-   *  (managers/directors/HR only — it's about work they delegated). */
-  portalNudgeNoUpdateDays: number;
-  /** Editable wording. Rendered after the count, e.g. "3 tasks {message}". */
-  portalNudgeNotStartedMsg: string;
-  portalNudgeNoUpdateMsg: string;
 
   /* ---- Built-in ORI signals (the always-on daily checks in the automation cron) ---- */
   /** Quiet-staff check: staff with open tasks not seen in the portal for ≥N days →
@@ -239,7 +217,7 @@ export type AppSettings = {
   starredTasks: string;
 };
 
-export const DEFAULT_SETTINGS: AppSettings = {
+const DEFAULT_SETTINGS: AppSettings = {
   dueSoonDays: DUE_SOON_DAYS,
   stalledDays: BLOCKED_STALLED_DAYS,
   agingDays: AGING_CRITICAL_DAYS,
@@ -293,13 +271,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
   meetingFollowupPrompt: true,
   managedCalendarPersonId: 0, // off until the owner picks the director
   eventReminderEmail: true,
-  portalNudges: true,
-  portalNudgeNotStartedHours: 2,
-  portalNudgeNoUpdateDays: 1,
-  // Count-neutral wording (no verb that must agree with 1 vs many) so it reads
-  // right after both "1 task" and "12 tasks".
-  portalNudgeNotStartedMsg: "not started yet. Please take a look.",
-  portalNudgeNoUpdateMsg: "you raised with no recent update. Review or send a reminder.",
   // Built-in signals — defaults preserve today's behaviour (all on, current thresholds).
   signalQuietStaffEnabled: true,
   signalQuietStaffDays: 5,
@@ -355,11 +326,6 @@ const KEY: Record<keyof AppSettings, string> = {
   meetingFollowupPrompt: "v2.meetingFollowupPrompt",
   managedCalendarPersonId: "v2.managedCalendarPersonId",
   eventReminderEmail: "v2.eventReminderEmail",
-  portalNudges: "v2.portalNudges",
-  portalNudgeNotStartedHours: "v2.portalNudgeNotStartedHours",
-  portalNudgeNoUpdateDays: "v2.portalNudgeNoUpdateDays",
-  portalNudgeNotStartedMsg: "v2.portalNudgeNotStartedMsg",
-  portalNudgeNoUpdateMsg: "v2.portalNudgeNoUpdateMsg",
   signalQuietStaffEnabled: "signals.quietStaff.enabled",
   signalQuietStaffDays: "signals.quietStaff.days",
   signalDecisionReminderEnabled: "signals.decisionReminder.enabled",
@@ -437,12 +403,6 @@ export const getAppSettings = cache(async (): Promise<AppSettings> => {
     meetingFollowupPrompt: toBool(map.get(KEY.meetingFollowupPrompt), d.meetingFollowupPrompt),
     managedCalendarPersonId: toNum(map.get(KEY.managedCalendarPersonId), d.managedCalendarPersonId),
     eventReminderEmail: toBool(map.get(KEY.eventReminderEmail), d.eventReminderEmail),
-    portalNudges: toBool(map.get(KEY.portalNudges), d.portalNudges),
-    portalNudgeNotStartedHours: toNum(map.get(KEY.portalNudgeNotStartedHours), d.portalNudgeNotStartedHours),
-    portalNudgeNoUpdateDays: toNum(map.get(KEY.portalNudgeNoUpdateDays), d.portalNudgeNoUpdateDays),
-    // `|| default` (not `??`): a blank saved message falls back to the default wording.
-    portalNudgeNotStartedMsg: (map.get(KEY.portalNudgeNotStartedMsg) || "").trim() || d.portalNudgeNotStartedMsg,
-    portalNudgeNoUpdateMsg: (map.get(KEY.portalNudgeNoUpdateMsg) || "").trim() || d.portalNudgeNoUpdateMsg,
     // `??`-free bool/num reads: a missing/blank row falls back to the default (= on).
     signalQuietStaffEnabled: toBool(map.get(KEY.signalQuietStaffEnabled), d.signalQuietStaffEnabled),
     signalQuietStaffDays: toNum(map.get(KEY.signalQuietStaffDays), d.signalQuietStaffDays),
@@ -517,25 +477,7 @@ export async function getGroqOnlyKey(): Promise<string | undefined> {
   return groqApiKey.trim() || process.env.GROQ_API_KEY || undefined;
 }
 
-/**
- * A SAFE, client-displayable summary of where the Groq key comes from. Never
- * returns the raw secret — only the last 4 characters of whichever key is in
- * effect, so the owner can confirm which one is live and that a rotation took.
- *
- *  - source "settings": the in-app key is set (takes precedence).
- *  - source "env": no in-app key; falling back to the GROQ_API_KEY env var.
- *  - source "none": no key anywhere → AI runs on manual fallbacks.
- */
-export async function getGroqKeyPreview(): Promise<{ source: "settings" | "env" | "none"; last4: string }> {
-  const { groqApiKey } = await getAppSettings();
-  const inApp = groqApiKey.trim();
-  if (inApp) return { source: "settings", last4: inApp.slice(-4) };
-  const env = process.env.GROQ_API_KEY?.trim();
-  if (env) return { source: "env", last4: env.slice(-4) };
-  return { source: "none", last4: "" };
-}
-
-/** Masked status of the Google Gemini key (mirror of getGroqKeyPreview). */
+/** Masked status of the Google Gemini key: where it comes from + its last 4. */
 export async function getGeminiKeyPreview(): Promise<{ source: "settings" | "env" | "none"; last4: string }> {
   const { geminiApiKey } = await getAppSettings();
   const inApp = geminiApiKey.trim();
@@ -543,26 +485,6 @@ export async function getGeminiKeyPreview(): Promise<{ source: "settings" | "env
   const env = process.env.GEMINI_API_KEY?.trim();
   if (env) return { source: "env", last4: env.slice(-4) };
   return { source: "none", last4: "" };
-}
-
-/** Masked status of the OCR.space scan-reading key (mirror of getGroqKeyPreview).
- *  "none" is not an error — Tesseract still reads scans — but the cloud reader is
- *  the recommended safety net for the Groq vision shutdown (17 Jul 2026). */
-export async function getOcrSpaceKeyPreview(): Promise<{ source: "settings" | "env" | "none"; last4: string }> {
-  const { ocrSpaceApiKey } = await getAppSettings();
-  const inApp = ocrSpaceApiKey.trim();
-  if (inApp) return { source: "settings", last4: inApp.slice(-4) };
-  const env = process.env.OCRSPACE_API_KEY?.trim();
-  if (env) return { source: "env", last4: env.slice(-4) };
-  return { source: "none", last4: "" };
-}
-
-/** The effective OCR.space key (in-app first, env fallback) — for the cloud OCR
- *  engine. Independent of the AI master switch: OCR is a reading floor, not an
- *  AI feature, so it keeps working when Groq/AI is off. */
-export async function getOcrSpaceKey(): Promise<string | undefined> {
-  const { ocrSpaceApiKey } = await getAppSettings();
-  return ocrSpaceApiKey.trim() || process.env.OCRSPACE_API_KEY?.trim() || undefined;
 }
 
 /** Parse an "HH:MM" string to minutes-since-midnight, or null when invalid/empty. */

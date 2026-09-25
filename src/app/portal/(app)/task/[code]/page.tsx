@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { CalendarDays, Crown, MessageSquare, Users } from "lucide-react";
 import { BackLink } from "@/components/back-link";
 import { sb } from "@/db/supabase";
-import { Panel, TONE } from "@/components/surface-kit";
+import { TONE } from "@/components/surface-kit";
 import { Badge } from "@/components/ui";
 import { Reveal } from "@/components/reveal";
 import { LiveSync } from "@/components/live-sync";
@@ -16,9 +16,7 @@ import { PortalTaskEdit } from "@/components/portal-task-edit";
 import { PortalTaskManage } from "@/components/portal-task-manage";
 import { buildCommandTasks } from "@/lib/portal-command-tasks";
 import { getPersonCompaniesMap } from "@/lib/people-queries";
-import { getStaffIdMap } from "@/lib/staff-id";
 import { portalUpdateAuthor } from "@/lib/update-author";
-import { StaffIdChip } from "@/components/staff-id-chip";
 import { portalAddUpdate, portalTogglePin, portalAcknowledge, portalEditUpdate, portalDeleteUpdate, portalRestoreUpdate } from "../../../actions";
 import { taskStatusTone as statusTone, priorityTone } from "@/lib/badge-tones";
 import type { TaskRow } from "@/lib/queries";
@@ -80,7 +78,7 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
   // Everything below needs only the task (and the gate above), so it is read in
   // ONE round rather than one wait after another. Recording my view rides along:
   // the only row it writes is mine, and the "Seen" line leaves me out anyway.
-  const [, { data: assignees }, { data: updates }, { data: views }, staffIds, assignedByName, { data: auditRows }, manage, { data: srcRow }, deletedRaw] = await Promise.all([
+  const [, { data: assignees }, { data: updates }, { data: views }, assignedByName, { data: auditRows }, manage, { data: srcRow }, deletedRaw] = await Promise.all([
     // Record my view — powers the "Seen" indicator for everyone else.
     recordTaskView(task.id as number, `person:${me.id}`),
     sb.from("task_assignees").select("role,people(id,name)").eq("task_id", task.id),
@@ -91,7 +89,6 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
       .is("deleted_at", null)
       .order("created_at", { ascending: false }),
     sb.from("task_views").select("viewer,last_viewed_at").eq("task_id", task.id),
-    getStaffIdMap(),
     // Who assigned this task — when a portal user (typically a director) created
     // it, surface a quiet "Assigned by {Name}" line in the header meta.
     (async (): Promise<string | null> => {

@@ -200,7 +200,7 @@ export async function resolvePerson(
 
 /** A task code → the task, if this caller may see it. Uses the portal's own
  *  visibility test, so MCP can never reach a task the web wouldn't show. */
-export async function resolveTask(
+async function resolveTask(
   caller: McpCaller,
   code: string,
   opts?: { includeArchived?: boolean },

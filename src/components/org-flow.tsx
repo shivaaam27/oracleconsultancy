@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 // elk.bundled bundles its web worker inline — works in the browser with no extra config.
 import ELK from "elkjs/lib/elk.bundled.js";
-import { ZoomIn, ZoomOut, Maximize2, Minimize2, Scaling, Loader2, ShieldCheck, Plane, Printer, Network } from "lucide-react";
+import { ZoomIn, ZoomOut, Maximize2, Minimize2, Scaling, Loader2, Plane, Printer, Network } from "lucide-react";
 import { PersonDrawerLink } from "@/components/person-drawer-link";
 import { cn } from "@/lib/cn";
 import { getInitials } from "@/lib/names";

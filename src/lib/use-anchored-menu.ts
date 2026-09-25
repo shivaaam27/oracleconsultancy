@@ -41,7 +41,7 @@ import { layoutRect } from "@/lib/zoom";
 /** Above every overlay in Oracle. The highest class-based z-index anywhere is 140;
  *  the bottom sheet is 91. `FluidSelect` has used this number since it was
  *  written, and matching it is deliberate — the dropdowns must behave alike. */
-export const MENU_Z = 1000;
+const MENU_Z = 1000;
 
 export type MenuPos = {
   left: number;

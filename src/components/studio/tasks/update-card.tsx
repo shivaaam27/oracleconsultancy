@@ -18,7 +18,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { TaskRow } from "@/lib/queries";
 import { CardHead, Dot } from "@/components/studio/kit";
 import { useStudioPick } from "./pick";
-import { initials, avatarTint, ago } from "./task-words";
+import { ago } from "./task-words";
 import { cn } from "@/lib/cn";
 
 export function UpdateCard({

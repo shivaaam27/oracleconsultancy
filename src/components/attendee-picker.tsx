@@ -6,7 +6,6 @@ import { createPortal } from "react-dom";
 import { menuStyle, useAnchoredMenu } from "@/lib/use-anchored-menu";
 import { X, Check, Mail, MailX, Search } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { avatarTint, initials } from "@/components/studio/tasks/task-words";
 import type { CalendarAttendee } from "@/lib/calendar";
 
 export type AttendeeOption = { id: number; name: string; email: string | null };

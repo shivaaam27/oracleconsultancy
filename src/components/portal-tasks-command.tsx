@@ -3,30 +3,22 @@
 import { PersonFace } from "@/components/studio/face";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
-import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import {
-  Search, Plus, Loader2, ListTodo, ChevronRight, ChevronDown,
-  Send, Users, ExternalLink, CalendarClock, Flag, User, Mail, MessageCircle,
-  MessageSquarePlus, Check, Building2, X, Pencil, Trash2,
+  Search, Plus, Loader2, ListTodo,
+  Users, Mail, MessageCircle,
+  MessageSquarePlus, Check, Building2, X, Trash2,
   AlertTriangle, Tag, ShieldAlert, Square, CheckSquare, CalendarPlus,
 } from "lucide-react";
 import { Panel } from "@/components/surface-kit";
-import { ACTION_BOX, ACTION_DANGER, ACTION_ICON, Avatar, Button, CaretInput, Switch } from "@/components/ui";
-import { useSwipeRow } from "@/lib/use-swipe-row";
+import { ACTION_BOX, ACTION_DANGER, ACTION_ICON, Avatar, Button, Switch } from "@/components/ui";
 import { FluidSelect, type FluidOption } from "@/components/fluid-select";
-import { DatePopover } from "@/components/date-popover";
-import { TaskCopyToCompanies } from "@/components/task-copy-companies";
-import { CompanyAvatar } from "@/components/company-avatar";
-import { type BoardPerson, type BoardCompany } from "@/components/director-board-client";
+import type { BoardPerson, BoardCompany } from "@/lib/portal-picker";
 import { useToast } from "@/components/toast";
 import { DirectorTaskForm, type ComposerRole } from "@/components/director-task-form";
 import { portalEditTask, portalAddUpdate, portalSendTaskSummaryWhatsApp, portalSendReminderEmail, portalSetTaskLeads, portalRemoveTaskPerson, portalDeleteTask, portalBulkTaskAction } from "@/app/portal/actions";
 import { getGivenName } from "@/lib/names";
 import { useAnchored } from "@/lib/use-anchored";
-import { canEditTask, canCompleteTask } from "@/lib/task-permissions";
-import { CompleteTaskSheet } from "@/components/complete-task-sheet";
 import { cn } from "@/lib/cn";
 import { RecordList, type RecordFilter } from "./record-list";
 import { buildColumns } from "./entity-cells";
@@ -97,9 +89,7 @@ const LEGACY_STATUS_FILTER: Record<string, string> = {
 };
 
 const ALL_STATUSES = ["Not Started", "In Progress", "Under Review", "Waiting External", "Blocked", "Escalated", "Completed", "Closed"];
-const MANAGER_STATUSES = ["In Progress", "Under Review", "Blocked", "Completed"];
 const PRIORITIES = ["Critical", "High", "Medium", "Low"];
-const PRIORITY_DOT: Record<string, string> = { Critical: "bg-danger", High: "bg-warn", Medium: "bg-info", Low: "bg-fg-subtle" };
 const PRIORITY_HEX: Record<string, string> = { Critical: "hsl(var(--danger))", High: "hsl(var(--warn))", Medium: "hsl(var(--accent))", Low: "hsl(var(--fg-subtle))" };
 const STATUS_COLOR: Record<string, string> = {
   "Completed": "hsl(var(--success))", "Closed": "hsl(var(--success))",
@@ -107,7 +97,6 @@ const STATUS_COLOR: Record<string, string> = {
   "Waiting External": "hsl(var(--warn))", "Under Review": "hsl(var(--warn))",
   "In Progress": "hsl(var(--info))", "Not Started": "hsl(var(--fg-subtle))",
 };
-const priorityOptions: FluidOption[] = PRIORITIES.map((p) => ({ value: p, label: p, dot: { Critical: "hsl(var(--danger))", High: "hsl(var(--warn))", Medium: "hsl(var(--accent))", Low: "hsl(var(--fg-subtle))" }[p] }));
 // Classification (command-centre parity). Risk shares the four-band scale;
 // category is the fixed list from CLAUDE.md. Both offer a "clear" option.
 /** The portal task list is defined in metadata, not here — the same entry the
@@ -123,21 +112,6 @@ const TASK_COLUMNS = ENTITY_VIEWS.task!.listColumns.map((c) =>
 const CATEGORIES = ["Finance", "Operations", "Marketing", "HR", "Legal", "Technology", "Sales", "Admin", "Meetings", "Strategy", "Other"];
 const riskOptions: FluidOption[] = [{ value: "", label: "No risk" }, ...PRIORITIES.map((p) => ({ value: p, label: p, dot: PRIORITY_HEX[p] }))];
 const categoryOptions: FluidOption[] = [{ value: "", label: "No category" }, ...CATEGORIES.map((c) => ({ value: c, label: c }))];
-const fieldShell = "rounded-lg bg-bg-elev ring-1 ring-border";
-
-/** Honour BOTH the OS reduced-motion setting and the portal's manual data-motion
- *  toggle — framer's JS animations ignore the latter, so we check it ourselves. */
-function useReducedPref(): boolean {
-  const [reduced, setReduced] = useState(false);
-  useEffect(() => {
-    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const update = () => setReduced(mq.matches || document.documentElement.dataset.motion === "reduced");
-    update();
-    mq.addEventListener("change", update);
-    return () => mq.removeEventListener("change", update);
-  }, []);
-  return reduced;
-}
 
 function statusDot(s: string): string {
   if (s === "Completed" || s === "Closed") return "bg-success";
@@ -205,7 +179,6 @@ export function PortalTasksCommand({
   // picking a status here resets the chip to "all", and vice versa.
   const statusFilter = legacyStatus ?? uf.status;
   const setStatusFilter = (v: string) => setUf({ status: v, f: "all" });
-  const setFilter = (v: Filter) => setUf({ f: v, status: "all" });
   const companyFilter = uf.company;
   const setCompanyFilter = (v: string) => setUf({ company: v });
   // "Company wise" view: group the list by company instead of by status.
@@ -410,7 +383,6 @@ export function PortalTasksCommand({
 
   // Outreach (remind / message a person) stays role-based — any management role
   // may nudge. Edit/complete is decided per-task inside TaskRow (creator/director).
-  const canRemind = role !== "staff";
 
   /* ---- feeding RecordList -------------------------------------------------
    * The grouping logic above is kept exactly as it was (it holds all the
@@ -864,432 +836,6 @@ function SelectBox({ checked, onToggle, className }: { checked: boolean; onToggl
   );
 }
 
-function TaskRow({
-  t, people, companies, role, viewerId, canManageAny, canRemind, desktop = false, groupByCompany = false,
-  selectable = false, selected = false, onToggleSelect,
-}: {
-  t: CommandTask; people: BoardPerson[]; companies: BoardCompany[]; role: string; viewerId: number; canManageAny?: boolean; canRemind: boolean; desktop?: boolean;
-  /** When the list is grouped by company, drop the company name from the row (the
-   *  group header already shows it). */
-  groupByCompany?: boolean;
-  /** Bulk multi-select (management). */
-  selectable?: boolean;
-  selected?: boolean;
-  onToggleSelect?: () => void;
-}) {
-  const { toast } = useToast();
-  const router = useRouter();
-  const [open, setOpen] = useState(false);
-  const [completeOpen, setCompleteOpen] = useState(false);
-  const [busy, startTransition] = useTransition();
-  const [updateBody, setUpdateBody] = useState("");
-  // Inline "edit details" (title + description) for those who may edit.
-  const [editDetails, setEditDetails] = useState(false);
-  const [titleDraft, setTitleDraft] = useState(t.actionItem);
-  const [descDraft, setDescDraft] = useState(t.description ?? "");
-
-  // Toggle the inline edit panel from the pencil (open the row if collapsed).
-  function toggleEdit() { setOpen(true); setEditDetails((v) => !v); }
-
-  // Per-task permissions (task-permissions.ts): a director or the creator may
-  // edit content + complete; managers limited to open-status moves on others'.
-  const viewer = { id: viewerId, portalRole: role, canManageAny };
-  const perm = { createdByPersonId: t.createdByPersonId };
-  const canEdit = canEditTask(viewer, perm);
-  const canComplete = canCompleteTask(viewer, perm);
-  // Status set offered: staff are ALWAYS limited to the open moves (they signal
-  // done via Under Review, never set Completed/Closed — even on a task they
-  // raised); managers/HR/directors get the full set when they may edit.
-  const isStaff = role === "staff";
-  const STAFF_MOVES = ["In Progress", "Under Review", "Blocked"];
-  const statusChoices = isStaff ? STAFF_MOVES : canEdit ? ALL_STATUSES : STAFF_MOVES;
-  const statusOptions: FluidOption[] = statusChoices.map((s) => ({ value: s, label: s, dot: STATUS_COLOR[s] }));
-
-  // The people shown on the row (lead first, then working) — the lead's avatar gets
-  // the accent ring. Deduped by name; the accountable counts as a lead.
-  const rowPeople = useMemo<{ name: string; lead: boolean }[]>(() => {
-    const leadSet = new Set<number>(t.leadIds.length ? t.leadIds : (t.accountableId != null ? [t.accountableId] : []));
-    const out: { name: string; lead: boolean }[] = [];
-    const seen = new Set<string>();
-    const add = (name: string | null, id: number | null) => {
-      const k = (name ?? "").trim().toLowerCase();
-      if (!name || seen.has(k)) return;
-      seen.add(k);
-      out.push({ name, lead: id != null && leadSet.has(id) });
-    };
-    add(t.accountableName, t.accountableId);
-    t.assignees.forEach((n, i) => add(n, t.assigneeIds[i] ?? null));
-    return out.sort((a, b) => Number(b.lead) - Number(a.lead));
-  }, [t.accountableName, t.accountableId, t.assignees, t.assigneeIds, t.leadIds]);
-
-  // Expand/collapse motion — the row's description + latest update slide away as the
-  // expanded section (with the full text) slides in, so nothing is shown twice.
-  const reduced = useReducedPref();
-  const tr = reduced ? { duration: 0 } : { duration: 0.24, ease: [0.32, 0.72, 0, 1] as [number, number, number, number] };
-  const hasMeta = !!(t.description || t.note);
-
-  function save(patch: { status?: string; priority?: string; deadline?: string | null; accountableId?: number; actionItem?: string; description?: string | null; category?: string | null; risk?: string | null; escalation?: string; companyId?: number }, label: string) {
-    startTransition(async () => {
-      const res = await portalEditTask({ taskId: t.taskId, ...patch });
-      if (!res.ok) { toast(res.error, { tone: "danger" }); return; }
-      toast(label, { tone: "success" });
-      router.refresh();
-    });
-  }
-  function saveDetails() {
-    const title = titleDraft.trim();
-    if (!title) { toast("A task needs a title.", { tone: "danger" }); return; }
-    save({ actionItem: title, description: descDraft.trim() || null }, "Task details updated");
-    setEditDetails(false);
-  }
-  const changeStatus = (v: string) => { if (v !== t.status) save({ status: v }, `Status → ${v}`); };
-  const changePriority = (v: string) => { if (v !== t.priority) save({ priority: v }, `Priority → ${v}`); };
-  const changeDue = (v: string) => { if (v !== (t.deadlineInput ?? "")) save({ deadline: v || null }, "Due date updated"); };
-
-  function postUpdate() {
-    const body = updateBody.trim();
-    if (!body) return;
-    startTransition(async () => {
-      const fd = new FormData();
-      fd.set("taskId", String(t.taskId));
-      fd.set("code", t.code);
-      fd.set("body", body);
-      await portalAddUpdate(fd);
-      setUpdateBody("");
-      toast("Update posted.", { tone: "success" });
-      router.refresh();
-    });
-  }
-  function complete() {
-    // Staff, and ANY task that needs proof, complete through the secure sheet
-    // (note + required file) — never a silent status flip. Managers/HR/directors
-    // on a no-proof task keep the quick one-tap complete.
-    if (isStaff || t.requiresAttachment) { setCompleteOpen(true); return; }
-    save({ status: "Completed" }, "Marked complete");
-  }
-
-
-  const dueTone = t.overdue ? "text-danger" : t.withinSoon ? "text-warn" : "text-fg-muted";
-  // Collapsed cards show ONE short preview (clamped to 2 lines): the description if
-  // there is one, otherwise the latest update. Company + owner and the full text
-  // are revealed on expand to keep the glance clean.
-  const collapsedPreview = t.description
-    ? t.description
-    : t.note ? `${t.updateAuthor ? `${t.updateAuthor}: ` : ""}${t.note}` : null;
-  // Swipe-left reveals Update; swipe-right reveals Complete (only when this
-  // viewer may complete). Trays kept narrow so they don't eat a small phone's
-  // width; thresholds below stay in sync (64px per action).
-  // Axis-locked + finger-following.
-  const swipe = useSwipeRow({ leftWidth: canComplete ? 64 : 0, rightWidth: 64 });
-
-  // A row of bordered pill controls — all matching the status dropdown
-  // (FluidSelect with `fieldShell`) — then the "On this task" people panel,
-  // the inline update composer and the quiet actions row. Each pill auto-saves
-  // on change (no Save button). Managers can only move status; the rest render
-  // read-only for them.
-  // NOTE: this is a render HELPER, called as renderEditor({...}), NOT mounted as
-  // <Editor/>. Mounting a component defined inline would give it a fresh identity
-  // on every TaskRow render, so React would remount its whole subtree on each
-  // keystroke — the update composer would lose focus after one character. Calling
-  // it inlines the JSX into TaskRow, keeping the input mounted + focused. It uses
-  // no hooks of its own (only TaskRow's closure), so a plain call is safe.
-  function renderEditor({ withStatus }: { withStatus: boolean }) {
-    return (
-      <div className="space-y-4 border-t border-border/50 px-3.5 py-4">
-        {/* Company + owner — kept off the collapsed card (clean glance), shown here
-            on expand. Hidden in the company-grouped view where the header has it. */}
-        {!groupByCompany && (
-          <div className="flex flex-wrap items-center gap-1.5 text-sm">
-            <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: t.companyAccent || "var(--border)" }} />
-            <span className="font-medium text-fg">{t.companyName}</span>
-            {/* All the LEAD names — stays in step as you promote/demote below. */}
-            <span className="text-fg-subtle">· {(() => { const leads = rowPeople.filter((p) => p.lead).map((p) => p.name); return leads.length ? leads.join(", ") : "Unassigned"; })()}</span>
-          </div>
-        )}
-        {/* Description + latest update — full width, clean. The action buttons sit
-            at the very bottom (after "On this task") so the text stays uncluttered. */}
-        <div className="min-w-0">
-          {canEdit && editDetails ? (
-            <div className="space-y-2 rounded-lg bg-bg-subtle/50 p-3 ring-1 ring-border">
-              <input
-                value={titleDraft}
-                onChange={(e) => setTitleDraft(e.target.value)}
-                placeholder="Task title"
-                className="w-full rounded-lg bg-bg-elev px-3 py-2 text-sm ring-1 ring-border focus:outline-none focus:ring-2 focus:ring-accent/40"
-              />
-              <textarea
-                value={descDraft}
-                onChange={(e) => setDescDraft(e.target.value)}
-                placeholder="Description (optional)"
-                rows={3}
-                className="w-full resize-y rounded-lg bg-bg-elev px-3 py-2 text-sm ring-1 ring-border focus:outline-none focus:ring-2 focus:ring-accent/40"
-              />
-              {/* Companies — the task's own company is locked; tick another to
-                  create a copy there (fan-out). Group director / HR only (shown
-                  when more than one company is in reach). */}
-              {companies.length > 1 && (
-                <label className="flex flex-col gap-1 text-xs font-medium uppercase tracking-[0.06em] text-fg-subtle">
-                  Companies
-                  <TaskCopyToCompanies taskId={t.taskId} currentCompanyId={t.companyId} currentCompanyName={t.companyName} companies={companies} />
-                </label>
-              )}
-              <div className="flex items-center gap-2">
-                <button type="button" onClick={saveDetails} disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-base font-medium text-accent-fg transition-opacity hover:opacity-90 disabled:opacity-50">
-                  {busy ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />} Save
-                </button>
-                <button type="button" onClick={() => { setEditDetails(false); setTitleDraft(t.actionItem); setDescDraft(t.description ?? ""); }} className="rounded-lg px-3 py-1.5 text-base text-fg-muted transition-colors hover:text-fg">
-                  Cancel
-                </button>
-              </div>
-            </div>
-          ) : (t.description || t.note) ? (
-            <div className="space-y-3">
-              {t.description && (
-                <div>
-                  <p className="text-xs font-medium uppercase tracking-[0.06em] text-fg-subtle">Description</p>
-                  <p className="mt-1 text-base leading-relaxed text-fg">{t.description}</p>
-                </div>
-              )}
-              {t.note && (
-                <div>
-                  <p className="text-xs font-medium uppercase tracking-[0.06em] text-fg-subtle">Latest update</p>
-                  <p className="mt-1 text-base leading-relaxed text-fg-muted">
-                    {t.updateAuthor && <span className="font-medium text-fg">{t.updateAuthor}: </span>}
-                    {t.note}
-                    {t.updateAgo && <span className="text-fg-subtle"> · {t.updateAgo}</span>}
-                  </p>
-                </div>
-              )}
-            </div>
-          ) : (
-            <p className="text-sm italic text-fg-subtle">No description yet.</p>
-          )}
-        </div>
-
-        {/* Post an update — kept at the top so it's the first thing you reach. */}
-        <div className="flex items-center gap-2 rounded-xl px-3 py-1 ring-1 ring-border transition-shadow focus-within:ring-2 focus-within:ring-accent/40">
-          <MessageSquarePlus size={15} className="shrink-0 text-accent" />
-          <CaretInput
-            value={updateBody}
-            onChange={(e) => setUpdateBody(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); postUpdate(); } }}
-            placeholder="Add an update…"
-            className="py-2 text-sm"
-          />
-          <button type="button" onClick={postUpdate} disabled={busy || !updateBody.trim()} aria-label="Post update" className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent text-accent-fg transition-opacity hover:opacity-90 disabled:opacity-40">
-            {busy ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
-          </button>
-        </div>
-
-        {/* "On this task" — every person involved; the lead toggle assigns the lead
-            inline. Quick contact actions per person. */}
-        <TaskPeoplePanel
-          t={t}
-          people={people}
-          canEditLeads={canEdit}
-          canRemind={canRemind}
-        />
-
-        {/* Classify (command-centre parity) — Category, Risk and a one-tap Escalate.
-            Shared component so the full task page stays identical. */}
-        {canEdit && <TaskClassifyControls t={t} />}
-
-        {/* Actions — Open, priority (and status + date on mobile). Sit at the very
-            bottom so the text above stays clean. Roomy rectangular pills: 2×2 on a
-            phone, inline on the web. */}
-        <div className="grid grid-cols-2 gap-2 border-t border-border/50 pt-4 sm:flex sm:flex-wrap">
-          <Link href={`/portal/task/${t.code}`} className="inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-md border border-border bg-bg px-2.5 text-sm text-fg-muted transition-colors hover:text-fg sm:w-auto">
-            Open <ExternalLink size={13} />
-          </Link>
-          {canEdit ? (
-            <FluidSelect value={t.priority} options={priorityOptions} onSelect={changePriority} className="w-full sm:w-[136px]" buttonClassName={`${fieldShell} w-full px-3 py-2 text-sm`} />
-          ) : (
-            <span className={cn(fieldShell, "inline-flex w-full items-center gap-1.5 px-3 py-2 text-sm sm:w-[136px]")}><Flag size={13} className="shrink-0" style={{ color: PRIORITY_HEX[t.priority] }} /> <span className="text-fg">{t.priority}</span></span>
-          )}
-          {withStatus && (
-            <FluidSelect value={t.status} options={statusOptions} onSelect={changeStatus} className="w-full sm:w-[136px]" buttonClassName={`${fieldShell} w-full px-3 py-2 text-sm`} />
-          )}
-          {withStatus && (
-            <span className="w-full sm:w-[136px]">
-              {canEdit
-                ? <DatePopover value={t.deadlineInput} label={t.dueLabel} tone={dueTone} onChange={changeDue} block />
-                : <span className={cn(fieldShell, `inline-flex w-full items-center gap-1.5 px-3 py-2 text-sm ${dueTone}`)}><CalendarClock size={13} className="shrink-0" /> {t.dueLabel ?? "No date"}</span>}
-            </span>
-          )}
-          {busy && <span className="inline-flex items-center px-1"><Loader2 size={14} className="animate-spin text-fg-subtle" /></span>}
-        </div>
-
-        {/* Danger zone — appears only while editing (pen toggled). Deletes the
-            ENTIRE task, not an update. Shared with the full task page. */}
-        {canEdit && editDetails && <TaskDeleteFooter taskId={t.taskId} code={t.code} />}
-      </div>
-    );
-  }
-
-  if (desktop) {
-    return (
-      <div className={cn("overflow-hidden rounded-2xl glass elevated transition-shadow hover:ring-1 hover:ring-accent/30", t.isDone && "opacity-60")}>
-        <div
-          onClick={() => setOpen((o) => !o)}
-          className="group flex cursor-pointer items-center gap-3 px-4 py-3.5 transition-colors hover:bg-bg-subtle/30"
-        >
-          {selectable && onToggleSelect && <SelectBox checked={selected} onToggle={onToggleSelect} />}
-          {/* LEFT — title row, then the description and latest update, which slide
-              away when the card is expanded. Edit pencil, status + date all live in
-              the fixed control track on the right so they line up as columns. */}
-          <div className="flex min-w-0 flex-1 flex-col gap-1">
-            <div className="flex min-w-0 items-center gap-2">
-              <span className={`h-2 w-2 shrink-0 rounded-full ${PRIORITY_DOT[t.priority]}`} title={`${t.priority} priority`} />
-              <span className="shrink-0 rounded-md bg-bg-subtle/70 px-1.5 py-0.5 font-mono text-xs font-medium text-fg-muted ring-1 ring-border/50">{t.code}</span>
-              <span className="min-w-0 truncate text-[15px] font-medium leading-snug group-hover:text-accent">{t.actionItem}</span>
-            </div>
-            <AnimatePresence initial={false}>
-              {!open && hasMeta && (
-                <motion.div
-                  key="meta"
-                  initial={false}
-                  animate={{ height: "auto", opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  transition={tr}
-                  className="min-w-0 space-y-0.5 overflow-hidden"
-                >
-                  {(!groupByCompany || t.description) && (
-                    <div className="flex items-center gap-1.5 text-base text-fg-muted">
-                      {!groupByCompany && (
-                        <>
-                          <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: t.companyAccent || "var(--border)" }} />
-                          <span className="shrink-0">{t.companyName}</span>
-                        </>
-                      )}
-                      {t.description && <span className="min-w-0 truncate">{!groupByCompany ? "· " : ""}{t.description}</span>}
-                    </div>
-                  )}
-                  {t.note && (
-                    <p className="line-clamp-2 text-sm leading-snug">
-                      {t.updateAuthor && <span className="font-medium text-fg">{t.updateAuthor}: </span>}
-                      <span className="text-fg-muted">{t.note}</span>
-                      {t.updateAgo && <span className="text-fg-subtle"> · {t.updateAgo}</span>}
-                    </p>
-                  )}
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-
-          {/* CONTROLS — edit pencil, status + date in a fixed-width track so they
-              form clean columns across every row (same x, height, vertically centred).
-              The pencil keeps its slot even when not editable so the columns hold. */}
-          <div className="flex shrink-0 items-center gap-2" onClick={(e) => e.stopPropagation()}>
-            <span className="flex w-4 shrink-0 justify-center">
-              {canEdit && (
-                <button type="button" onClick={toggleEdit} title="Edit title & description" aria-label="Edit title & description" className={cn("transition-colors hover:text-accent", editDetails ? "text-accent" : "text-fg-subtle")}>
-                  <Pencil size={13} />
-                </button>
-              )}
-            </span>
-            <span className="w-[126px]">
-              <FluidSelect value={t.status} options={statusOptions} onSelect={changeStatus} className="w-full" buttonClassName={`${fieldShell} w-full text-xs px-2.5 py-1.5`} />
-            </span>
-            <span className="w-[118px]">
-              {canEdit
-                ? <DatePopover value={t.deadlineInput} label={t.dueLabel} tone={dueTone} onChange={changeDue} compact block />
-                : <span className={cn(fieldShell, `inline-flex w-full items-center gap-1 px-2.5 py-1.5 text-xs ${dueTone}`)}><CalendarClock size={12} className="shrink-0" /> {t.dueLabel ?? "No date"}</span>}
-            </span>
-          </div>
-
-          {/* Accountable — own fixed slot, right-aligned, so the control track to its
-              left lines up no matter how many people are on the task. */}
-          <div className="flex w-[84px] shrink-0 justify-end">
-            <LeadAvatars people={rowPeople} />
-          </div>
-          <ChevronRight size={18} className={`shrink-0 text-fg-subtle transition-transform ${open ? "rotate-90" : ""}`} />
-        </div>
-        <AnimatePresence initial={false}>
-          {open && (
-            <motion.div
-              key="editor"
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={tr}
-              className="overflow-hidden"
-            >
-              {renderEditor({ withStatus: false })}
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-    );
-  }
-
-  // mobile card — swipe left for Update, right to Complete; tap to expand.
-  return (
-    <div className={cn("relative overflow-hidden rounded-2xl", t.isDone && "opacity-60")}>
-      {/* Revealed on swipe-left */}
-      <div className="absolute inset-y-0 right-0 flex">
-        <button type="button" onClick={() => { swipe.reset(); setOpen(true); }} className="flex w-[64px] flex-col items-center justify-center gap-1 bg-accent-soft text-xs font-medium text-accent">
-          <MessageSquarePlus size={17} /> Update
-        </button>
-      </div>
-      {/* Revealed on swipe-right — only when this viewer may complete the task. */}
-      {canComplete && (
-        <button type="button" onClick={() => { swipe.reset(); complete(); }} disabled={busy} className="absolute inset-y-0 left-0 flex w-[64px] flex-col items-center justify-center gap-1 bg-success-soft text-xs font-medium text-success">
-          <Check size={18} /> Complete
-        </button>
-      )}
-
-      <div
-        {...swipe.bind}
-        className="relative touch-pan-y rounded-2xl bg-bg-elev ring-1 ring-border transition-transform duration-300"
-        style={{ transform: `translateX(${swipe.offset}px)`, transition: swipe.dragging ? "none" : undefined }}
-      >
-        <button type="button" onClick={() => { if (swipe.swiped) { swipe.reset(); return; } setOpen((o) => !o); }} className="flex w-full items-stretch gap-3 text-left">
-          <span className={`w-1 shrink-0 rounded-l-2xl ${t.overdue ? "bg-danger" : t.withinSoon ? "bg-warn" : statusDot(t.status)}`} />
-          {selectable && onToggleSelect && <span className="flex shrink-0 items-center pl-2"><SelectBox checked={selected} onToggle={onToggleSelect} /></span>}
-          <span className="min-w-0 flex-1 py-3.5">
-            <span className="mb-1.5 flex flex-wrap items-center gap-1.5">
-              <span className="rounded-md bg-bg-subtle/70 px-1.5 py-0.5 font-mono text-xs text-fg-muted ring-1 ring-border/50">{t.code}</span>
-              <span className="inline-flex items-center gap-1 text-xs text-fg-muted"><span className={`h-1.5 w-1.5 rounded-full ${statusDot(t.status)}`} />{t.statusLabel}</span>
-              {t.dueLabel && <span className={`text-xs ${dueTone}`}>· {t.dueLabel}</span>}
-              {/* Company on the collapsed card (unless the list is already grouped by
-                  company) so you can place a task at a glance without expanding. */}
-              {!groupByCompany && (
-                <span className="inline-flex items-center gap-1 text-xs text-fg-subtle">
-                  <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ backgroundColor: t.companyAccent || "var(--border)" }} />
-                  {t.companyName}
-                </span>
-              )}
-            </span>
-            <span className="flex items-start gap-1.5">
-              <span className="min-w-0 truncate text-sm font-medium leading-snug">{t.actionItem}</span>
-              {canEdit && (
-                <span role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); toggleEdit(); }} title="Edit title & description" className={cn("mt-0.5 inline-flex shrink-0 transition-colors hover:text-accent", editDetails ? "text-accent" : "text-fg-subtle")}>
-                  <Pencil size={12} />
-                </span>
-              )}
-            </span>
-            {!open && collapsedPreview && <span className="mt-1.5 block line-clamp-2 text-sm leading-relaxed text-fg-muted">{collapsedPreview}</span>}
-          </span>
-          <span className="flex shrink-0 flex-col items-end justify-center gap-2 pl-1 pr-3.5">
-            <LeadAvatars people={rowPeople} />
-            <ChevronRight size={16} className={`text-fg-subtle transition-transform ${open ? "rotate-90" : ""}`} />
-          </span>
-        </button>
-        <AnimatePresence initial={false}>
-          {open && (
-            <motion.div key="editor" initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={tr} className="overflow-hidden">
-              {renderEditor({ withStatus: true })}
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-      {/* Secure completion (note + any required proof) — opened by the swipe-Complete
-          for staff or any task that requires an attachment. */}
-      <CompleteTaskSheet open={completeOpen} onClose={() => setCompleteOpen(false)} taskId={t.taskId} code={t.code} requiresAttachment={t.requiresAttachment} />
-    </div>
-  );
-}
-
 type Member = { id: number | null; name: string; lead: boolean };
 
 /**
@@ -1560,134 +1106,6 @@ function AddPersonPicker({
                 </button>
               </li>
             ))}
-          </ul>
-        </div>,
-        document.body,
-      )}
-    </div>
-  );
-}
-
-/**
- * Searchable multi-select for the task's leads — current leads show as removable
- * chips, the menu toggles people in/out. Mirrors the CompanyMultiSelect pattern
- * (app-anchored, click-outside, Esc) but in the compact `fieldShell` pill look.
- * Removing the final lead is disabled (≥1 lead is required).
- */
-function LeadMultiSelect({
-  people, value, busy, onChange,
-}: {
-  people: BoardPerson[];
-  value: number[];
-  busy: boolean;
-  onChange: (ids: number[]) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [q, setQ] = useState("");
-  const ref = useRef<HTMLDivElement>(null);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
-  const anchor = useAnchored(triggerRef, open);
-
-  useEffect(() => {
-    if (!open) return;
-    function onDoc(e: MouseEvent) {
-      const tgt = e.target as Node;
-      if (ref.current?.contains(tgt) || menuRef.current?.contains(tgt)) return;
-      setOpen(false);
-    }
-    function onKey(e: KeyboardEvent) { if (e.key === "Escape") setOpen(false); }
-    document.addEventListener("mousedown", onDoc);
-    document.addEventListener("keydown", onKey);
-    return () => { document.removeEventListener("mousedown", onDoc); document.removeEventListener("keydown", onKey); };
-  }, [open]);
-
-  const byId = useMemo(() => new Map(people.map((p) => [p.id, p.name] as const)), [people]);
-  const selected = value;
-  const filtered = useMemo(() => {
-    const term = q.trim().toLowerCase();
-    if (!term) return people;
-    return people.filter((p) => p.name.toLowerCase().includes(term));
-  }, [people, q]);
-
-  function toggle(id: number) {
-    if (value.includes(id)) {
-      if (value.length <= 1) return; // keep at least one lead
-      onChange(value.filter((x) => x !== id));
-    } else {
-      onChange([...value, id]);
-    }
-  }
-
-  return (
-    <div ref={ref} className="relative">
-      <button
-        ref={triggerRef}
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        disabled={busy}
-        className={cn(fieldShell, "flex w-full items-center justify-between gap-2 px-3 py-2 text-sm transition-colors hover:bg-bg-muted disabled:opacity-60")}
-      >
-        <span className="flex min-w-0 items-center gap-2">
-          <User size={14} className="shrink-0 text-fg-muted" />
-          <span className={selected.length ? "truncate text-fg" : "text-fg-muted"}>
-            {selected.length === 0 ? "Assign…" : selected.length === 1 ? (byId.get(selected[0]) ?? `#${selected[0]}`) : `${selected.length} leads`}
-          </span>
-        </span>
-        {busy ? <Loader2 size={14} className="shrink-0 animate-spin text-fg-subtle" /> : <ChevronDown size={14} className={`shrink-0 text-fg-muted transition-transform ${open ? "rotate-180" : ""}`} />}
-      </button>
-
-      {selected.length > 1 && (
-        <div className="mt-1.5 flex flex-wrap gap-1.5">
-          {selected.map((id) => (
-            <span key={id} className="inline-flex items-center gap-1 rounded-full bg-accent-soft px-2.5 py-1 text-xs text-accent ring-1 ring-accent/25">
-              {byId.get(id) ?? `#${id}`}
-              <button type="button" onClick={() => toggle(id)} aria-label={`Remove ${byId.get(id) ?? "lead"}`} className="hover:opacity-70">
-                <X size={11} />
-              </button>
-            </span>
-          ))}
-        </div>
-      )}
-
-      {open && anchor && typeof document !== "undefined" && createPortal(
-        <div
-          ref={menuRef}
-          className="fixed z-[100] min-w-[14rem] overflow-hidden rounded-xl bg-bg-elev ring-1 ring-border shadow-lg"
-          style={{
-            left: anchor.left,
-            width: anchor.width,
-            ...(anchor.openUp
-              ? { bottom: anchor.bottomOffset + 6 }
-              : { top: anchor.top + 6 }),
-          }}
-        >
-          <label className="relative block border-b border-border/60">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-muted" />
-            <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search people…" className="w-full bg-transparent py-2.5 pl-8 pr-3 text-sm placeholder:text-fg-muted focus:outline-none" />
-          </label>
-          <ul className="overflow-y-auto py-1" style={{ maxHeight: anchor.maxHeight }}>
-            {filtered.length === 0 && <li className="px-3 py-2 text-xs text-fg-muted">No matches.</li>}
-            {filtered.map((p) => {
-              const on = value.includes(p.id);
-              const last = on && value.length <= 1;
-              return (
-                <li key={p.id}>
-                  <button
-                    type="button"
-                    onClick={() => toggle(p.id)}
-                    disabled={last}
-                    title={last ? "A task needs at least one lead" : undefined}
-                    className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-bg-muted/60 disabled:cursor-not-allowed disabled:opacity-50 ${on ? "text-accent" : "text-fg"}`}
-                  >
-                    <span className={`inline-flex h-4 w-4 shrink-0 items-center justify-center rounded ring-1 ${on ? "bg-accent text-accent-fg ring-accent" : "ring-border"}`}>
-                      {on && <Check size={11} />}
-                    </span>
-                    {p.name}
-                  </button>
-                </li>
-              );
-            })}
           </ul>
         </div>,
         document.body,

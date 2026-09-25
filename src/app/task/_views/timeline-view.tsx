@@ -1,8 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
-import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { markPush, withReturn } from "@/lib/return-to";
 import { CalendarOff, Activity, CalendarRange } from "lucide-react";
 import type { TaskRow, TaskSource, RawActivity } from "@/lib/queries";
@@ -67,8 +66,6 @@ export function TimelineView({
   taskMeta?: TaskMeta;
 }) {
   const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
   const [mode, setMode] = useState<Mode>("activity");
   const [groupBy, setGroupBy] = useState<GroupBy>("origin");
   const [companyFilter, setCompanyFilter] = useState("");

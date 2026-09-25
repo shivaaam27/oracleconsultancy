@@ -21,14 +21,6 @@ export const dynamic = "force-dynamic";
 /** Portal company detail — a READ-ONLY, role-scoped company view (group-wide roles:
  *  any company; managers: their own). Operational only: headcount + open work. No
  *  financials. Gated by personCanSeeCompany. */
-function Stat({ label, value, tone }: { label: string; value: number; tone?: "danger" | "muted" }) {
-  return (
-    <div className="rounded-2xl bg-bg-subtle/50 px-3 py-3 text-center ring-1 ring-border/40">
-      <div className={`text-xl font-semibold tabular ${tone === "danger" && value > 0 ? "text-danger" : "text-fg"}`}>{value}</div>
-      <div className="mt-0.5 text-xs text-fg-muted">{label}</div>
-    </div>
-  );
-}
 
 /** Where "back" goes. You can reach a company from the board, the directory or a
  *  person's page, and the link used to always say "Board" — which threw you out

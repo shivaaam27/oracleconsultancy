@@ -2,8 +2,7 @@
  * Cleaning — the oversight view, in Studio (26 Sept 2026). What a manager sees
  * of the office cleaning log the receptionist keeps: today's rooms, who cleaned,
  * whether the day was submitted, and the last fortnight. Read-only, like the
- * page it replaces (components/cleaning-overview.tsx); the receptionist's own
- * tick-list is unchanged. Pure render — a server component.
+ * old overview it replaced; the receptionist's own tick-list is unchanged. Pure render — a server component.
  */
 import { Check, Clock, Lock, MessageSquare } from "lucide-react";
 import { StudioScope, StudioHeader, StudioCardRow, StudioCard, CardHead, Ring } from "@/components/studio/kit";

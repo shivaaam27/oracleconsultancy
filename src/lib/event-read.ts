@@ -19,7 +19,7 @@ import "server-only";
 //   • it never invents a time. A time with no zone is REFUSED, not guessed,
 //     because a wrong hour on a flight is worse than a blank field.
 
-import { callAIJson, LOW_CONFIDENCE } from "@/lib/ai-json";
+import { callAIJson } from "@/lib/ai-json";
 import { AI_SMART, providerVisionModels } from "@/lib/ai-models";
 import { getAiKey, getActiveProvider } from "@/lib/settings";
 import { extractFile } from "@/lib/file-extract";
@@ -178,9 +178,4 @@ export async function readEventFile(input: File): Promise<EventReadResult> {
   return extracted.kind === "text"
     ? await readText(extracted.text, apiKey)
     : await readImages(extracted.images, apiKey);
-}
-
-/** True when the read was weak enough that the owner should look twice. */
-export function isUnsureEventRead(r: EventReadResult): boolean {
-  return r.ok && r.confidence != null && r.confidence < LOW_CONFIDENCE;
 }

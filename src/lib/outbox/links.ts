@@ -1,10 +1,6 @@
-// Channel deep-links + message building for one-off reminders.
-// Times are formatted in the operator's business zone (East Africa Time).
-
-import { BRAND_NAME } from "../brand";
+// Channel deep-links (WhatsApp / email / SMS) for reminders.
 
 export type Channel = "WHATSAPP" | "EMAIL" | "SMS";
-const BIZ_TZ = "Africa/Nairobi"; // EAT (UTC+3, no DST) — same offset as Dar es Salaam.
 
 // Default country code for numbers stored in LOCAL format (e.g. "0686…").
 // Tanzania (+255) — the office's home country. Numbers already in international
@@ -40,7 +36,7 @@ export function waLink(number: string | null, text: string): string | null {
   return d ? `https://wa.me/${d}?text=${encodeURIComponent(text)}` : null;
 }
 
-export function mailtoLink(email: string | null, subject: string, body: string): string | null {
+function mailtoLink(email: string | null, subject: string, body: string): string | null {
   if (!email) return null;
   return `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 }
@@ -48,10 +44,6 @@ export function mailtoLink(email: string | null, subject: string, body: string):
 export function smsLink(number: string | null, text: string): string | null {
   const d = digits(number);
   return d ? `sms:${d}?body=${encodeURIComponent(text)}` : null;
-}
-
-export function channelLabel(c: Channel): string {
-  return c === "WHATSAPP" ? "WhatsApp" : c === "EMAIL" ? "Email" : "SMS";
 }
 
 type PersonContact = {
@@ -81,31 +73,4 @@ export function linkFor(channel: Channel, contact: string | null, subject: strin
   if (channel === "WHATSAPP") return waLink(contact, body);
   if (channel === "SMS") return smsLink(contact, body);
   return mailtoLink(contact, subject || "Reminder", body);
-}
-
-function fmtDue(dueAt: string | null): string | null {
-  if (!dueAt) return null;
-  const d = new Date(dueAt);
-  const timed = d.getUTCHours() !== 0 || d.getUTCMinutes() !== 0; // date-only todos are stored at UTC midnight
-  return d.toLocaleString("en-GB", {
-    weekday: "short", day: "numeric", month: "short",
-    ...(timed ? { hour: "2-digit", minute: "2-digit" } : {}),
-    timeZone: BIZ_TZ,
-  });
-}
-
-/** A short, friendly reminder message for a single to-do. */
-export function buildTodoReminderMessage(
-  channel: Channel,
-  opts: { personName: string; title: string; dueAt: string | null; company: string | null },
-): { subject: string; body: string } {
-  const due = fmtDue(opts.dueAt);
-  const tail = `${opts.title}${due ? ` — due ${due}` : ""}${opts.company ? ` (${opts.company})` : ""}`;
-  const subject = `Reminder: ${opts.title}`;
-  if (channel === "EMAIL") {
-    const body = `Hi ${opts.personName},\n\nA quick reminder: ${tail}.\n\nThanks,\n${BRAND_NAME}`;
-    return { subject, body };
-  }
-  // WhatsApp / SMS — concise.
-  return { subject, body: `Hi ${opts.personName}, a quick reminder: ${tail}. Thanks.` };
 }

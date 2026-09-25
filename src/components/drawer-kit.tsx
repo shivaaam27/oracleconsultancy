@@ -64,78 +64,12 @@ export function ProgressTrack({ value, total, tone = "accent", className }: { va
   );
 }
 
-/** A section's opening pulse — title, optional count, progress + status chips. */
-export function SectionPulse({
-  icon, title, count, progress, chips, action,
-}: {
-  icon?: ReactNode;
-  title: string;
-  count?: ReactNode;
-  progress?: { value: number; total: number; tone?: KitTone };
-  chips?: ReactNode;
-  action?: ReactNode;
-}) {
-  return (
-    <div className="space-y-2">
-      <div className="flex items-center gap-2">
-        {icon && <span className="text-accent shrink-0">{icon}</span>}
-        <span className="text-sm font-semibold">{title}</span>
-        {count != null && <CountPill>{count}</CountPill>}
-        {action && <span className="ml-auto">{action}</span>}
-      </div>
-      {progress && <ProgressTrack value={progress.value} total={progress.total} tone={progress.tone} />}
-      {chips && <div className="flex flex-wrap items-center gap-1.5">{chips}</div>}
-    </div>
-  );
-}
-
 /** A status chip with a leading dot. */
 export function StatusChip({ tone, children }: { tone: KitTone; children: ReactNode }) {
   return (
     <span className="inline-flex items-center gap-1.5 rounded-full bg-bg-subtle/80 px-2 py-0.5 text-xs font-medium text-fg-muted">
       <span className={cn("h-1.5 w-1.5 rounded-full", DOT[tone])} /> {children}
     </span>
-  );
-}
-
-/**
- * A dense, modern list row: status dot · title + meta · trailing chip, with
- * hover-revealed actions so the list stays calm until you reach for it.
- */
-export function DrawerRow({
-  tone = "muted", title, meta, trailing, actions, onClick, className,
-}: {
-  tone?: KitTone;
-  title: ReactNode;
-  meta?: ReactNode;
-  trailing?: ReactNode;
-  /** Shown on hover (desktop) / always on touch via group-focus. */
-  actions?: ReactNode;
-  onClick?: () => void;
-  className?: string;
-}) {
-  const Wrapper: "button" | "div" = onClick ? "button" : "div";
-  return (
-    <Wrapper
-      {...(onClick ? { type: "button" as const, onClick } : {})}
-      className={cn(
-        "group/row relative flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left transition-colors",
-        onClick && "hover:bg-bg-muted/50",
-        className
-      )}
-    >
-      <span className={cn("h-2 w-2 shrink-0 rounded-full", DOT[tone])} />
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm font-medium">{title}</span>
-        {meta && <span className="block truncate text-xs text-fg-subtle">{meta}</span>}
-      </span>
-      {actions && (
-        <span className="flex items-center gap-1 opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100">
-          {actions}
-        </span>
-      )}
-      {trailing && <span className="shrink-0">{trailing}</span>}
-    </Wrapper>
   );
 }
 

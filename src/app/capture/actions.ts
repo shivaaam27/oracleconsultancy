@@ -4,20 +4,9 @@ import { guardOwner, guardViewer } from "@/lib/viewer";
 import { needCap, needCompany, stampOf, assigneesFor } from "@/lib/viewer-scope";
 import { revalidatePath, updateTag } from "next/cache";
 import { sb } from "@/db/supabase";
-import { parseCapture, type ParsedCapture } from "@/lib/smart-parse";
+import { parseCapture } from "@/lib/smart-parse";
 import { createTaskCore } from "@/lib/task-write";
 import { invalidateAllTasks } from "@/lib/queries";
-
-export async function parseRawCapture(raw: string): Promise<ParsedCapture> {
-  await guardOwner();
-  const [{ data: cRows }, { data: pRows }] = await Promise.all([
-    sb.from("companies").select("id,name,code"),
-    sb.from("people").select("id,name"),
-  ]);
-  const companies = (cRows ?? []).map((c) => ({ id: c.id as number, name: c.name as string, code: c.code as string }));
-  const people = (pRows ?? []).map((p) => ({ id: p.id as number, name: p.name as string }));
-  return parseCapture(raw, companies, people);
-}
 
 /** One parsed line of a pasted list — what the preview table edits. */
 export type ParsedLine = {

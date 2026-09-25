@@ -1,21 +1,18 @@
-// Automation reaction layer ("the system moves on its own"). When a document is
-// FILED, this advances the processes it touches. The guardrail (owner's choice):
-// CERTAIN matches are applied automatically; fuzzier ones are recorded as
-// suggestions for a one-click Apply. EVERY action is logged to automation_events
-// with enough to UNDO it, so the self-moving system stays visible and reversible.
+// Automation reaction layer ("the system moves on its own"). When a task is
+// completed, or an offboarding returns a person's equipment, this advances the
+// processes it touches. The guardrail (owner's choice): CERTAIN matches are
+// applied automatically; fuzzier ones are recorded as suggestions in the
+// feed. EVERY action is logged to automation_events (with its before
+// and after values), so the self-moving system stays visible.
 //
 // Reactions are best-effort and fully guarded — a reaction failure must NEVER
-// block the document from filing.
+// block the write that triggered it.
 
 import { sb } from "@/db/supabase";
-import { getDocument } from "@/lib/documents";
 import { toggleTodo } from "@/app/todos/actions";
 import { addTaskUpdate } from "@/app/task/actions";
 import { trusted } from "@/lib/viewer";
-import { recordEvent } from "@/lib/system-events";
-import { reindexEntity } from "@/lib/index-hooks";
 import { DEFAULT_AUTOMATION_MODE, type AutomationMode } from "@/lib/automation-rules";
-import type { DocumentRow } from "@/lib/documents-shared";
 
 // "pipeline-advance" / "pipeline-create" went with Applications (removed 26 Sept
 // 2026); old automation_events rows keep those kinds and are simply inert.
@@ -66,20 +63,6 @@ async function withCascadeGuard(signature: string, fn: () => Promise<void>): Pro
   } finally {
     inFlightCascades.delete(signature);
   }
-}
-
-/** Don't double-record the same reaction if a document is re-filed/re-saved. */
-async function alreadyLogged(documentId: number, kind: AutomationKind, targetTable: string, targetId: number): Promise<boolean> {
-  const { data } = await sb
-    .from("automation_events")
-    .select("id")
-    .eq("document_id", documentId)
-    .eq("kind", kind)
-    .eq("target_table", targetTable)
-    .eq("target_id", targetId)
-    .in("status", ["suggested", "applied"])
-    .limit(1);
-  return !!(data && data.length);
 }
 
 /** Dedup for cascades that aren't keyed to a triggering document (e.g. assets
@@ -148,21 +131,8 @@ async function logEvent(i: LogInput): Promise<void> {
   });
 }
 
-async function ownerName(doc: DocumentRow): Promise<string> {
-  if (doc.personId) {
-    const { data } = await sb.from("people").select("name").eq("id", doc.personId).maybeSingle();
-    if (data?.name) return data.name as string;
-  }
-  if (doc.companyId) {
-    const { data } = await sb.from("companies").select("name").eq("id", doc.companyId).maybeSingle();
-    if (data?.name) return data.name as string;
-  }
-  return "the owner";
-}
-
 /* ------------------------------------------------------------------ */
-/* The shared "do the move" + "undo the move" — used by both the auto  */
-/* path here and the Apply/Undo actions, so behaviour is identical.    */
+/* "Do the move" — used by the auto path in commit() above.            */
 /* ------------------------------------------------------------------ */
 
 type MoveRow = { kind: string; targetTable: string; targetId: number; newValue: string | null; prevValue: string | null; summary: string };
@@ -172,8 +142,8 @@ async function taskCode(taskId: number): Promise<string | null> {
   return (data?.code as string | null) ?? null;
 }
 
-/** Perform (or re-perform, on Apply) an automation move. */
-export async function performAutomationMove(row: MoveRow): Promise<void> {
+/** Perform an automation move. */
+async function performAutomationMove(row: MoveRow): Promise<void> {
   switch (row.kind) {
     case "task-complete": {
       const code = await taskCode(row.targetId);
@@ -186,70 +156,9 @@ export async function performAutomationMove(row: MoveRow): Promise<void> {
   }
 }
 
-/** Reverse an applied automation move. */
-export async function undoAutomationMove(row: MoveRow): Promise<void> {
-  switch (row.kind) {
-    case "task-create":
-      // Undo a time-spawned task by archiving it (recoverable, not deleted).
-      await sb.from("tasks").update({ archived: true, last_updated_at: new Date().toISOString() }).eq("id", row.targetId);
-      void reindexEntity("task", row.targetId); // archive re-stamps lifecycle="history"
-      return;
-    case "task-complete": {
-      const code = await taskCode(row.targetId);
-      if (code) await trusted(() => addTaskUpdate(row.targetId, code, "Reopened — automation undone", row.prevValue || "In Progress"));
-      return;
-    }
-    case "onboarding-tick":
-      await trusted(() => toggleTodo(row.targetId, false));
-      return;
-  }
-}
-
-/* ------------------------------------------------------------------ */
-/* Entry point: react to a freshly-filed document.                     */
-/* ------------------------------------------------------------------ */
-
-export async function reactToFiledDocument(documentId: number): Promise<void> {
-  try {
-    const doc = await getDocument(documentId);
-    if (!doc || doc.archived) return;
-    const who = await ownerName(doc);
-    // Each reaction is independently guarded so one failure never stops the rest.
-    // The recursion guard keys on this document so a reaction that ticks a todo /
-    // spawns work can't re-enter the same
-    // document's reaction set and loop.
-    await withCascadeGuard(`doc-filed:${doc.id}`, () => Promise.allSettled([
-      reactLinkedTasks(doc, who),
-      reactOnboarding(doc, who),
-    ]).then(() => undefined));
-  } catch (e) {
-    await recordEvent("automation.react", "error", { documentId, message: e instanceof Error ? e.message : String(e) });
-  }
-}
-
-/** Tasks: an open task explicitly linked (document_links) to this document is
- *  fulfilled by it → complete it. Always CERTAIN (an explicit link), so it
- *  auto-completes. */
-async function reactLinkedTasks(doc: DocumentRow, who: string): Promise<void> {
-  try {
-    const { data: links } = await sb.from("document_links").select("task_id").eq("document_id", doc.id);
-    const taskIds = [...new Set((links ?? []).map((l) => l.task_id as number))];
-    if (!taskIds.length) return;
-    const { data: tasks } = await sb.from("tasks").select("id,code,title,status").in("id", taskIds);
-    for (const t of tasks ?? []) {
-      const status = t.status as string;
-      if (status === "Completed" || status === "Closed") continue;
-      const targetId = t.id as number;
-      if (await alreadyLogged(doc.id, "task-complete", "tasks", targetId)) continue;
-      const base = { kind: "task-complete" as const, documentId: doc.id, targetTable: "tasks" as const, targetId, personId: doc.personId, companyId: doc.companyId, summary: `Complete task ${t.code} — “${doc.title}” filed`, detail: `Document linked to ${t.code}`, prevValue: status, newValue: "Completed" };
-      await commit(base, true, `Completed task ${t.code} — “${doc.title}” filed`);
-    }
-  } catch { /* best-effort */ }
-}
-
 /* ------------------------------------------------------------------ */
 /* Phase 3 — cross-process cascades (one process completing nudges the */
-/* next). Both reuse the onboarding-tick kind + undo (toggleTodo).     */
+/* next). They reuse the onboarding-tick kind (toggleTodo).           */
 /* ------------------------------------------------------------------ */
 
 /** When a task is COMPLETED (open → closed), run the state-driven cascade chain:
@@ -257,7 +166,7 @@ async function reactLinkedTasks(doc: DocumentRow, who: string): Promise<void> {
  *  (A task that drove an Applications case used to advance it; Applications was
  *  removed 26 Sept 2026.)
  *  Called after a task's status is written. Each chain is independently guarded,
- *  deduped, logged + undoable, and protected by the recursion guard so a chain
+ *  deduped, logged, and protected by the recursion guard so a chain
  *  can't re-enter itself. A renewal task completing is intentionally NOT handled
  *  here — filing the renewed document drives that loop instead. */
 export async function reactToTaskStatusChange(taskId: number, wasStatus: string, nowStatus: string): Promise<void> {
@@ -307,8 +216,8 @@ async function probationSubjectOfTask(taskId: number): Promise<{ personId: numbe
 
 /** A probation-review task is completed → tick the person's onboarding step that
  *  confirms the probation period / review date, closing the probation loop. The
- *  onboarding-tick kind reuses the existing perform/undo (toggleTodo), so it shows
- *  in the feed and is reversible. CERTAIN only when the subject is unambiguous
+ *  onboarding-tick kind reuses the existing perform (toggleTodo), so it shows
+ *  in the feed. CERTAIN only when the subject is unambiguous
  *  (the system created the review); a title-only match is suggested.
  *
  *  This only TICKS a todo — it never completes another task — so it cannot loop
@@ -350,28 +259,4 @@ export async function reactToOffboardingAssetsReturned(personId: number): Promis
       break;
     }
   });
-}
-
-/** Onboarding: a new hire's document ticks the matching onboarding step. CERTAIN
- *  when the step's label clearly names this document's category; else suggest. */
-async function reactOnboarding(doc: DocumentRow, who: string): Promise<void> {
-  try {
-    if (!doc.personId) return;
-    const { data } = await sb.from("todos").select("id,title").eq("person_id", doc.personId).eq("kind", "onboarding").eq("done", false).limit(40);
-    const cat = norm(doc.category);
-    const titleHay = norm(doc.title);
-    for (const td of data ?? []) {
-      const stepTitle = norm(td.title as string);
-      if (!stepTitle) continue;
-      // Strong: the step names this document's category (e.g. "Collect passport").
-      const strong = !!cat && cat.length >= 4 && stepTitle.includes(cat);
-      // Weak: the step and the document title share a meaningful word.
-      const weak = stepTitle.split(" ").some((w) => w.length >= 5 && titleHay.includes(w));
-      if (!strong && !weak) continue;
-      const targetId = td.id as number;
-      if (await alreadyLogged(doc.id, "onboarding-tick", "todos", targetId)) continue;
-      const base = { kind: "onboarding-tick" as const, documentId: doc.id, targetTable: "todos" as const, targetId, personId: doc.personId, companyId: doc.companyId, summary: `Onboarding step “${td.title}” done — ${who}`, detail: `Satisfied by “${doc.title}”`, prevValue: "open", newValue: "done" };
-      await commit(base, strong);
-    }
-  } catch { /* best-effort */ }
 }

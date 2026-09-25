@@ -291,24 +291,6 @@ export async function createFolder(name: string): Promise<{ ok: boolean; id?: nu
   return { ok: !error, id: data?.id as number | undefined };
 }
 
-export async function renameFolder(id: number, name: string): Promise<{ ok: boolean }> {
-  await guardOwner();
-  const clean = name.trim().slice(0, 80);
-  if (!clean) return { ok: false };
-  const { error } = await sb.from("note_folders").update({ name: clean }).eq("id", id);
-  revalidatePath("/notes");
-  return { ok: !error };
-}
-
-/** Deleting a folder never deletes notes — the FK is ON DELETE SET NULL, so its
- *  notes simply become unfiled. */
-export async function deleteFolder(id: number): Promise<{ ok: boolean }> {
-  await guardOwner();
-  const { error } = await sb.from("note_folders").delete().eq("id", id);
-  revalidatePath("/notes");
-  return { ok: !error };
-}
-
 /* ------------------------------------------------------------------ */
 /* To-dos and reminders — Phase 4                                      */
 /*                                                                     */

@@ -50,21 +50,6 @@ function plural(n: number, one: string, many = `${one}s`) {
   return `${n} ${n === 1 ? one : many}`;
 }
 
-function categoryForRequirement(label: string) {
-  const l = label.toLowerCase();
-  if (l.includes("passport")) return "Passport";
-  if (l.includes("permit") || l.includes("visa") || l.includes("immigration")) return "Immigration";
-  if (l.includes("contract") || l.includes("engagement")) return "Contract";
-  return undefined;
-}
-
-function addDocumentHref(personId: number, label: string) {
-  const params = new URLSearchParams({ newdoc: "1", person: String(personId), title: label, from: `person:${personId}` });
-  const category = categoryForRequirement(label);
-  if (category) params.set("category", category);
-  return `/documents?${params.toString()}`;
-}
-
 function addPersonDocumentHref(personId: number) {
   return `/documents?${new URLSearchParams({ newdoc: "1", person: String(personId), from: `person:${personId}` }).toString()}`;
 }

@@ -31,7 +31,7 @@ export function useNavVisibility(): NavVisibility {
 }
 
 /** Hrefs that should be hidden from every nav surface given the current flags. */
-export function hiddenNavHrefs(v: NavVisibility): Set<string> {
+function hiddenNavHrefs(v: NavVisibility): Set<string> {
   const hidden = new Set<string>();
   if (v.commandCentrePaused) hidden.add("/hrms/command-centre");
   return hidden;

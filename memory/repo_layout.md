@@ -62,8 +62,7 @@ metadata:
 `person-assets`, `person-journey`, `person-pack`, `picker`, `polish`,
 `portal/*` (attachment, brief-pdf, document, ori, reauth, remember-token,
 search, sync), `prefs` (list-views, nav-pins, nav-recents), `pulse`, `push`
-(subscribe, test), `search`, `similar-tasks`, `task-detail`, `telegram`
-(webhook), `trace`, `transcribe`, `undo`, `wa-card`.
+(subscribe, test), `search`, `similar-tasks`, `task-detail`, `trace`, `transcribe`, `undo`, `wa-card`.
 
 ## `src/components/`
 
@@ -80,7 +79,7 @@ search, sync), `prefs` (list-views, nav-pins, nav-recents), `pulse`, `push`
   `profile/` (staff profile), `auth/` (sign-in, MCP consent).
 - `files/` — Files Management app (`files-app.tsx`, preview, folder icon).
 - `hrms/`, `ui/` — small leftovers.
-- ~210 loose components: shared kit (`record-list.tsx`, `record-page.tsx`,
+- ~210 loose components: shared kit (`record-list.tsx`, `record-page.tsx` (`RecordBody`),
   `command-palette.tsx`, `task-drawer.tsx` → `TaskRecordPage`,
   `timeline-entry.tsx`, `bottom-sheet.tsx`, `fluid-select.tsx`,
   `combobox.tsx`, `portal-frame.tsx`, `portal-pill.tsx`, `back-link.tsx`),

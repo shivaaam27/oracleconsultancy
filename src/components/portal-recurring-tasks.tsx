@@ -236,7 +236,7 @@ export function RecurringTaskSheet({
   );
 }
 
-export function RecurringTasksPanel({
+function RecurringTasksPanel({
   rules, companies, people, actions, showCreator = false,
 }: {
   rules: RecurringTaskRule[];

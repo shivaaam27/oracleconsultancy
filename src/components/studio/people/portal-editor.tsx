@@ -34,7 +34,7 @@ export type PortalNow = {
   companyIds: number[];
 };
 
-export function reachOf(now: PortalNow): Reach {
+function reachOf(now: PortalNow): Reach {
   if (!now.enabled || now.role !== "director" || now.directorCompanyIds.length === 0) return "all";
   const same = now.directorCompanyIds.length === now.companyIds.length && now.directorCompanyIds.every((c) => now.companyIds.includes(c));
   return same ? "own" : "custom";

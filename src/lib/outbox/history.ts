@@ -12,21 +12,6 @@ function endOfDay(d: Date): Date {
   return x;
 }
 
-// Returns set of dedupe keys for today on a specific channel (legacy helper,
-// still used by markSent tests).
-export async function todaysSentKeys(channel: string): Promise<Set<string>> {
-  const start = startOfDay(new Date()).toISOString();
-  const end = endOfDay(new Date()).toISOString();
-  const { data, error } = await sb
-    .from("reminders")
-    .select("dedupe_key")
-    .eq("channel", channel)
-    .gte("created_at", start)
-    .lte("created_at", end);
-  if (error) throw new Error(error.message);
-  return new Set((data ?? []).map((r) => r.dedupe_key as string));
-}
-
 // JSON-safe: Record<name, channel[]> across all channels.
 export type SentTodayPlain = Record<string, string[]>;
 

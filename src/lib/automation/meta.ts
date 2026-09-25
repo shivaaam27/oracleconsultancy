@@ -76,14 +76,6 @@ export const CATEGORY_META: CategoryMeta[] = [
   },
 ];
 
-const META_BY_KEY: Record<EmailCategory, CategoryMeta> = Object.fromEntries(
-  CATEGORY_META.map((m) => [m.key, m]),
-) as Record<EmailCategory, CategoryMeta>;
-
-export function categoryMeta(key: EmailCategory): CategoryMeta {
-  return META_BY_KEY[key];
-}
-
 /** Human label per category, derived from the meta list. */
 export const CATEGORY_LABELS: Record<EmailCategory, string> = Object.fromEntries(
   CATEGORY_META.map((m) => [m.key, m.label]),

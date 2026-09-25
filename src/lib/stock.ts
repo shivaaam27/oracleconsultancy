@@ -15,8 +15,6 @@ import {
 
 export * from "./stock-shared";
 
-const d = (s: string | null): Date | null => (s ? new Date(s) : null);
-
 function toIso(v: Date | string | null | undefined): string | null {
   if (v == null) return null;
   return v instanceof Date ? v.toISOString() : v;
@@ -132,19 +130,13 @@ export async function listStockItems(opts?: { includeArchived?: boolean }): Prom
   return (data as ItemDbRow[]).map(mapItem);
 }
 
-export async function getStockItem(id: number): Promise<StockItemRow | null> {
-  const { data, error } = await sb.from("stock_items").select("*").eq("id", id).maybeSingle();
-  if (error) throw new Error(error.message);
-  return data ? mapItem(data as ItemDbRow) : null;
-}
-
-export async function listPurchases(): Promise<PurchaseRow[]> {
+async function listPurchases(): Promise<PurchaseRow[]> {
   const { data, error } = await sb.from("stock_purchases").select("*").order("date", { ascending: false });
   if (error) throw new Error(error.message);
   return (data as PurchaseDbRow[]).map(mapPurchase);
 }
 
-export async function listIssues(): Promise<IssueRow[]> {
+async function listIssues(): Promise<IssueRow[]> {
   const { data, error } = await sb.from("stock_issues").select("*").order("date", { ascending: false });
   if (error) throw new Error(error.message);
   return (data as IssueDbRow[]).map(mapIssue);
@@ -268,21 +260,6 @@ export async function recordPurchase(
   return data.id as number;
 }
 
-export async function updatePurchase(id: number, input: PurchaseInput): Promise<void> {
-  const { error } = await sb
-    .from("stock_purchases")
-    .update({
-      item_code: input.itemCode,
-      qty: input.qty,
-      date: toIso(input.date) ?? new Date().toISOString(),
-      unit_cost: money(input.unitCost),
-      supplier: input.supplier ?? null,
-      ref: input.ref ?? null,
-    })
-    .eq("id", id);
-  if (error) throw new Error(error.message);
-}
-
 export async function deletePurchase(id: number): Promise<void> {
   const { error } = await sb.from("stock_purchases").delete().eq("id", id);
   if (error) throw new Error(error.message);
@@ -370,22 +347,6 @@ export async function recordIssue(
       .returning({ id: stockIssues.id });
     return row.id;
   });
-}
-
-/** Edit an issue. No negative-stock guard here — edits are corrections. */
-export async function updateIssue(id: number, input: IssueInput): Promise<void> {
-  const { error } = await sb
-    .from("stock_issues")
-    .update({
-      item_code: input.itemCode,
-      qty: input.qty,
-      date: toIso(input.date) ?? new Date().toISOString(),
-      issued_to: input.issuedTo ?? null,
-      company_id: input.companyId ?? null,
-      notes: input.notes ?? null,
-    })
-    .eq("id", id);
-  if (error) throw new Error(error.message);
 }
 
 export async function deleteIssue(id: number): Promise<void> {

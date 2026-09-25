@@ -32,8 +32,7 @@ sends only a VALID token to the portal.)
   remember token when an installed app dropped the cookie).
 - `AuthFrame` is reused by the MCP consent screen (`studio-consent.tsx`,
   `/mcp/connect`) so it looks like Oracle, not a stranger's page.
-- The old `auth-tabs.tsx` is gone. `src/components/auth-shell.tsx` is no longer
-  imported by any page.
+- The old `auth-tabs.tsx` and `auth-shell.tsx` are gone.
 
 ## Sessions
 

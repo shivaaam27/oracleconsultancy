@@ -198,7 +198,7 @@ const SEARCH_SETTLE_MS = 300;
 /**
  * Search + the quick lenses, floating at the foot of the list.
  *
- * ⚠️ SAME RULES AS THE OLD SEARCH BOX (task-filter-bar.tsx): it filters as you
+ * ⚠️ SAME RULES AS THE OLD SEARCH BOX: it filters as you
  * type, settling 300ms after the keyboard goes quiet; it REPLACES the address,
  * never pushes (or Back walks through your typing); and while someone is typing
  * the box is the truth — the arriving address must not overwrite it.

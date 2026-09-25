@@ -9,7 +9,7 @@ import { useToast } from "@/components/toast";
 import { useRouter } from "next/navigation";
 import { useAnchored } from "@/lib/use-anchored";
 import { portalCopyTaskToCompany, portalDeleteTask } from "@/app/portal/actions";
-import type { BoardCompany } from "@/components/director-board-client";
+import type { BoardCompany } from "@/lib/portal-picker";
 import { cn } from "@/lib/cn";
 
 /* Fan-out company control (group director / HR). The task's OWN company is

@@ -14,9 +14,6 @@ export function TaskActionRow({ code, onActed }: { code: string; onActed?: (code
   async function act(action: "complete" | "escalate") {
     setRunning(action);
     try {
-      const intent = action === "complete"
-        ? { type: "complete", taskCode: code }
-        : { type: "escalate", taskCode: code };
       const res = await fetch("/api/action", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

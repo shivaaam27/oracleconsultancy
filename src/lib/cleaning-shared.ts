@@ -58,11 +58,6 @@ export function completion(doneCount: number, areaCount: number): { done: number
   return { done: doneCount, total, pct };
 }
 
-/** Done ticks in a check list (guards against stale checks for retired areas). */
-export function doneCount(checks: CleaningCheck[], activeAreaIds?: Set<number>): number {
-  return checks.filter((c) => c.done && (!activeAreaIds || activeAreaIds.has(c.areaId))).length;
-}
-
 export type DayStatus = "Not started" | "In progress" | "Complete" | "Signed";
 
 export function dayStatus(d: { signedAt: Date | null }, done: number, total: number): DayStatus {
@@ -70,16 +65,4 @@ export function dayStatus(d: { signedAt: Date | null }, done: number, total: num
   if (done === 0) return "Not started";
   if (done >= total && total > 0) return "Complete";
   return "In progress";
-}
-
-export const dayStatusColor: Record<DayStatus, string> = {
-  "Not started": "bg-bg-muted text-fg-muted",
-  "In progress": "bg-warn-soft text-warn",
-  Complete: "bg-info-soft text-info",
-  Signed: "bg-success-soft text-success",
-};
-
-/** Local-date key "YYYY-MM-DD" for a Date (used to dedupe a day). */
-export function dateKey(d: Date): string {
-  return d.toISOString().slice(0, 10);
 }

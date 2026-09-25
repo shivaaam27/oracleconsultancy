@@ -30,7 +30,7 @@ type ModelRate = { inPer1k: number; outPer1k: number };
  *
  * Example once paid:  "llama-3.3-70b": { inPer1k: 0.00059, outPer1k: 0.00079 }
  */
-export const MODEL_RATES: Record<string, ModelRate> = {
+const MODEL_RATES: Record<string, ModelRate> = {
   // intentionally empty of paid rates today — everything resolves to the 0 default
   default: { inPer1k: 0, outPer1k: 0 },
 };
@@ -46,7 +46,7 @@ function rateFor(model: string | null | undefined): ModelRate {
 }
 
 /** Estimate the cost of one call from token counts + the model's rate. 0 today. */
-export function estimateCost(model: string | null | undefined, promptTokens: number, completionTokens: number): number {
+function estimateCost(model: string | null | undefined, promptTokens: number, completionTokens: number): number {
   const r = rateFor(model);
   const cost = (promptTokens / 1000) * r.inPer1k + (completionTokens / 1000) * r.outPer1k;
   return Number.isFinite(cost) && cost > 0 ? Number(cost.toFixed(4)) : 0;
@@ -183,9 +183,4 @@ export async function isOverSpendCap(): Promise<boolean> {
   overCacheValue = result;
   overCacheAt = now;
   return result;
-}
-
-/** Test/admin hook: drop the cached cap result so the next check re-reads. */
-export function clearSpendCapCache(): void {
-  overCacheAt = 0;
 }

@@ -3,7 +3,7 @@
 // "@/lib/automation/meta" or "@/lib/automation/types" instead.
 
 export { runDueAutomations } from "./engine";
-export { getAutomationConfig, saveAutomationConfig, DEFAULTS } from "./config";
+export { getAutomationConfig, saveAutomationConfig } from "./config";
 export type {
   AutomationConfig,
   AutomationRunSummary,
@@ -15,7 +15,6 @@ export {
   CATEGORY_META,
   CATEGORY_LABELS,
   NATURAL_MODE,
-  categoryMeta,
   labelForSource,
   type CategoryMeta,
   type CategorySchedule,

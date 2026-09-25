@@ -38,10 +38,3 @@ export function riskScore(likelihood: number | null, impact: number | null): { s
   const band: RiskBand = score >= 9 ? "Critical" : score >= 6 ? "High" : score >= 3 ? "Medium" : "Low";
   return { score, band };
 }
-
-export const RISK_BAND_TONE: Record<RiskBand, "danger" | "warn" | "accent" | "muted"> = {
-  Critical: "danger",
-  High: "danger",
-  Medium: "warn",
-  Low: "muted",
-};

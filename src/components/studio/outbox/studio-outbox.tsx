@@ -28,7 +28,7 @@ import { useToast } from "@/components/toast";
 import { callUndo } from "@/components/undo-banner";
 import { StudioScope, StudioHeader, StudioCardRow, StudioCard, CardHead, BigNumber, Ring, StudioPill, stBtn } from "@/components/studio/kit";
 import { useFitFrame } from "@/components/studio/use-fit-frame";
-import { avatarTint, initials, ago, deadlineWords } from "@/components/studio/tasks/task-words";
+import { ago, deadlineWords } from "@/components/studio/tasks/task-words";
 import {
   recordSent, snoozePerson, unsnoozePerson, sendReminderEmail,
   sendAllEmailDrafts, sendDraft, sendDraftEmail, updateDraft, deleteDraft,

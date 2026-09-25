@@ -56,14 +56,6 @@ export function linkHref(ref: { entity: LinkType; id: number; code: string | nul
   }
 }
 
-export const LINK_TYPE_LABELS: Record<LinkType, string> = {
-  task: "Task",
-  person: "Person",
-  company: "Company",
-  document: "Document",
-  note: "Note",
-};
-
 /** A note as it appears on some OTHER record's Notes tab. Lives here rather than
  *  in the server twin because the tab that draws it is a client component. */
 export type LinkedNote = {

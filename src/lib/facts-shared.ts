@@ -33,7 +33,7 @@ export interface Fact {
 //  - incomplete: value is a placeholder the operator must still fill in.
 export type FactStatus = "verified" | "unverified" | "stale" | "incomplete";
 
-export const STALE_DAYS = 180;
+const STALE_DAYS = 180;
 
 // A value is "incomplete" only when it is WHOLLY a placeholder (so a real name
 // like "TBD Holdings" or a note "to verify with BRELA" isn't flagged), or carries

@@ -14,7 +14,7 @@ import "server-only";
 // The owner picks the company/person and category for the batch before any file
 // is read, so the model is never asked to guess an owner.
 
-import { callAIJson, LOW_CONFIDENCE } from "@/lib/ai-json";
+import { callAIJson } from "@/lib/ai-json";
 import { AI_SMART, providerVisionModels } from "@/lib/ai-models";
 import { getAiKey, getActiveProvider } from "@/lib/settings";
 import { extractFile } from "@/lib/file-extract";
@@ -34,7 +34,7 @@ export type ReadResult = {
   fields: ReadFields;
   /** How it was read — shown to the owner so a guess never looks like a fact. */
   source: "typed" | "scan" | "none";
-  /** 0–1 self-reported confidence, or null. Below LOW_CONFIDENCE we say so. */
+  /** 0–1 self-reported confidence, or null. */
   confidence: number | null;
   /** Plain-English explanation when something couldn't be read. */
   note?: string;
@@ -178,9 +178,4 @@ export async function readDocumentFile(input: File): Promise<ReadResult> {
   return extracted.kind === "text"
     ? await readText(extracted.text, apiKey)
     : await readImages(extracted.images, apiKey);
-}
-
-/** True when the read was weak enough that the owner should look twice. */
-export function isUnsureRead(r: ReadResult): boolean {
-  return r.ok && r.confidence != null && r.confidence < LOW_CONFIDENCE;
 }

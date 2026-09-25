@@ -4,7 +4,8 @@
 // to show an Edit affordance or the swipe-Complete tray.
 //
 // Rule (owner's brief, Jun 2026):
-//   • Directors and HR may edit AND complete/close/reopen ANY task.
+//   • Directors (and anyone the owner grants `manageAnyTask`) may edit AND
+//     complete/close/reopen ANY task.
 //   • Everyone else (managers, staff) may edit + complete ONLY a task they created.
 //   • The Administrator (owner/admin) is not a portal person — admin paths bypass
 //     this helper entirely and always have full access.

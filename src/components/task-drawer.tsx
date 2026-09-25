@@ -24,7 +24,6 @@ import { StudioStatusCell, StudioPriorityCell } from "./studio/tasks/cells";
 import { StudioDetails } from "./studio/tasks/details";
 import { DateInput } from "./date-input";
 import { useFitFrame } from "./studio/use-fit-frame";
-import { avatarTint, initials as studioInitials } from "./studio/tasks/task-words";
 import { DeadlineEditor } from "./deadline-editor";
 import { CodeLinkedText } from "./code-linked-text";
 import { AssigneeAvatars } from "./assignee-avatars";
@@ -163,7 +162,7 @@ function SetLink({ onClick, children }: { onClick: () => void; children: React.R
 /**
  * ONE task record, in two frames (Stage 2 of the ERPNext redesign).
  *
- * `mode="page"`  → a real record screen at /task/CODE, built on `RecordPage`.
+ * `mode="page"`  → a real record screen at /task/CODE, built on `RecordBody`.
  *                  This is the owner's chosen behaviour: a record is a page
  *                  with its own URL, exactly as ERPNext does it.
  * `mode="drawer"`→ the same record inside the sliding drawer, kept so that old
@@ -632,9 +631,8 @@ function TaskRecord({ mode, codeProp, stamp }: { mode: "drawer" | "page"; codePr
 
       {/* The record body — the SAME shell every record uses (Stage 2): titled
           sections in a two-column field grid on the left, the "who and where"
-          sidebar on the right. The drawer supplies the header and tabs, so this
-          uses RecordBody; a full record page would use RecordPage and get an
-          identical layout. */}
+          sidebar on the right. The drawer supplies the header and tabs around
+          RecordBody. */}
       <RecordBody
         /* Stage 3: the fields, their labels, order and formatting come from
            ENTITY_VIEWS.task.formSections. Only the cells that need to DO
@@ -807,7 +805,7 @@ function TaskRecord({ mode, codeProp, stamp }: { mode: "drawer" | "page"; codePr
         onPosted={() => setRefreshKey((k) => k + 1)}
       />
       {/* The facts rail sits on the RIGHT, like every other record's sidebar
-          (RecordPage puts sections left, sidebar right) and like the Details tab
+          (RecordBody puts sections left, sidebar right) and like the Details tab
           right here. It used to sit on the left, which made the record read
           differently depending on which tab you were on. */}
       <aside className="hidden lg:block overflow-hidden rounded-xl border border-border bg-bg-elev">
@@ -1042,8 +1040,8 @@ function TaskRecord({ mode, codeProp, stamp }: { mode: "drawer" | "page"; codePr
   ) : undefined;
 
   /* ---------------- The record AS A PAGE (/task/CODE) ----------------
-     Same data, same tabs, same actions — laid out by the shared RecordPage
-     shell, so it is the same shape as every other record screen. */
+     Same data, same tabs, same actions — laid out by the shared RecordBody,
+     so it is the same shape as every other record screen. */
   // The repeat editor portals to <body>, so it mounts once, whichever shell
   // (page or drawer) is showing the record.
   const repeatSheet = data ? (

@@ -79,11 +79,11 @@ const sumBy = <T extends { itemCode: string }>(rows: T[], code: string, field: k
   rows.filter((r) => r.itemCode === code).reduce((t, r) => t + (Number(r[field]) || 0), 0);
 
 /** Total units bought for an item (Excel: SUMIF on Purchases). */
-export const totalPurchased = (item: StockItemRow, purchases: PurchaseRow[]): number =>
+const totalPurchased = (item: StockItemRow, purchases: PurchaseRow[]): number =>
   sumBy(purchases, item.code, "qty");
 
 /** Total units issued for an item (Excel: SUMIF on Issues). */
-export const totalIssued = (item: StockItemRow, issues: IssueRow[]): number =>
+const totalIssued = (item: StockItemRow, issues: IssueRow[]): number =>
   sumBy(issues, item.code, "qty");
 
 /** Current stock = opening + purchased − issued (the merge logic). */
@@ -130,20 +130,4 @@ export const dashboardMetrics = (
     unitsPurchased: purchases.reduce((t, p) => t + (Number(p.qty) || 0), 0),
     unitsIssued: issues.reduce((t, p) => t + (Number(p.qty) || 0), 0),
   };
-};
-
-// Currency for all monetary figures in the HRMS module (Tanzanian Shilling).
-export const CURRENCY = "TZS";
-
-/** Format a money value with the TZS prefix, e.g. "TZS 1,234.50". */
-export const fmtMoney = (n: number): string =>
-  `${CURRENCY} ${(Number(n) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
-/** Format a plain count with thousands separators. */
-export const fmtNum = (n: number): string => (Number(n) || 0).toLocaleString();
-
-export const stockStatusColor: Record<StockStatus, string> = {
-  OK: "bg-success-soft text-success",
-  Reorder: "bg-warn-soft text-warn",
-  "Out of Stock": "bg-danger-soft text-danger",
 };

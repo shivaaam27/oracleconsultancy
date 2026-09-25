@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
   MODULES,
-  MODULE_BY_ID,
   NAV_ROUTES,
   NAV_GROUPS,
   ROUTE_BY_ID,

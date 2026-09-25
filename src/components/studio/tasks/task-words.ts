@@ -60,8 +60,3 @@ export function ago(iso: string | null | undefined): string {
   if (d < 30) return `${Math.round(d / 7)}w ago`;
   return `${Math.round(d / 30)}mo ago`;
 }
-
-/** The "X" in a status-change update ("… → In Progress"). */
-export function statusTarget(body: string): string | null {
-  return Object.keys(STATUS_DOT).find((s) => body.includes(s)) ?? null;
-}

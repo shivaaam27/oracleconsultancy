@@ -59,24 +59,6 @@ export async function directorsOfCompany(companyId: number): Promise<number[]> {
   }
 }
 
-/** A manager's direct reports: primary line (people.manager_id === managerId) plus
- *  any secondary line (reporting_lines.manager_id === managerId). Active people,
- *  excluding the manager themselves. Mirrors portal-auth's directReportIds. */
-export async function teamOf(managerId: number): Promise<number[]> {
-  try {
-    const [{ data: primary }, { data: dotted }] = await Promise.all([
-      sb.from("people").select("id").eq("manager_id", managerId).eq("active", true),
-      sb.from("reporting_lines").select("person_id").eq("manager_id", managerId),
-    ]);
-    return uniq([
-      ...((primary ?? []) as { id: number }[]).map((r) => r.id),
-      ...((dotted ?? []) as { person_id: number }[]).map((r) => r.person_id),
-    ]).filter((id) => id !== managerId);
-  } catch {
-    return [];
-  }
-}
-
 /** Every active director (portal_role="director"), scoped or group-wide. */
 export async function allDirectors(): Promise<number[]> {
   try {

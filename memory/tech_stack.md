@@ -98,7 +98,7 @@ Verified against `process.env` reads in `src/`, `scripts/` and `next.config.ts`.
 Not read by the app: `APP_PASSPHRASE` (the owner password is a hash in
 `settings`, set on first sign-in), `INBOX_SECRET` (the inbox route is gone),
 `NEXT_PUBLIC_SUPABASE_ANON_KEY` (no page subscribes to Realtime any more),
-`OCRSPACE_API_KEY` (a settings fallback nothing calls). `AGENT_TRIGGER_SECRET`
-only guards the dormant `/api/agent/trigger`.
+`OCRSPACE_API_KEY` (a settings fallback nothing calls), and
+`AGENT_TRIGGER_SECRET` / `TELEGRAM_*` (their routes were removed).
 
 Scripts load `.env.local`, then `.env`.

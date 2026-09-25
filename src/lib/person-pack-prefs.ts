@@ -6,6 +6,8 @@ import type { PersonPackPurpose } from "@/lib/person-pack-shared";
  * to include + which request items they unticked) stick across reopens and
  * refreshes. Stored as one row per person+purpose in the key/value `settings`
  * table (no migration needed); `excluded` holds the unticked request labels.
+ * Only the reader is left: nothing saves new preferences any more, but rows
+ * already stored are still honoured.
  */
 export type PackPrefs = { sections: string | null; excluded: string[] };
 
@@ -32,16 +34,4 @@ export async function getPackPrefs(
   } catch {
     return null;
   }
-}
-
-export async function savePackPrefs(
-  personId: number,
-  purpose: PersonPackPurpose,
-  prefs: PackPrefs
-): Promise<void> {
-  const value = JSON.stringify({ sections: prefs.sections ?? null, excluded: prefs.excluded ?? [] });
-  const { error } = await sb
-    .from("settings")
-    .upsert({ key: prefKey(personId, purpose), value }, { onConflict: "key" });
-  if (error) throw new Error(error.message);
 }

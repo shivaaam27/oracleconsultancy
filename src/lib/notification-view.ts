@@ -49,7 +49,7 @@ export function isDailyReminder(n: Pick<NotifRow, "kind" | "title">): boolean {
  * swept nightly — otherwise they pile up (355 daily reminders for one staff
  * member, 94 digests for one manager).
  */
-export function isRecurring(n: Pick<NotifRow, "kind" | "title" | "actor" | "taskCode">): boolean {
+function isRecurring(n: Pick<NotifRow, "kind" | "title" | "actor" | "taskCode">): boolean {
   return isSystemDigest(n) || isDailyReminder(n);
 }
 

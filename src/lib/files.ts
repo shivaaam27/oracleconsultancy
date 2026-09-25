@@ -27,7 +27,7 @@ function toStatus(r: DocDb): FileStatus {
   return s === "Expired" ? "expired" : s === "Expiring" ? "soon" : s === "Valid" ? "ok" : "none";
 }
 
-export function mapFile(r: DocDb): FileRow {
+function mapFile(r: DocDb): FileRow {
   const ext = extOf(r.file_name) || extOf(r.storage_path) || extOf(r.title);
   return {
     id: r.id,

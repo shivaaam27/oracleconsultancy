@@ -31,7 +31,7 @@ export type LinkCandidate = {
 const MIN_NEEDLE = 4;
 
 /** Never crowd the writing. Five is enough to be useful and few enough to ignore. */
-export const MAX_SUGGESTIONS = 5;
+const MAX_SUGGESTIONS = 5;
 
 /** Letters, digits and the marks that appear INSIDE names — so "Terra Green Ltd."
  *  matches at a full stop, and "TG-006" is not split at its hyphen. */

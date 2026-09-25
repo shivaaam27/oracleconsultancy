@@ -58,7 +58,7 @@ access list, the grant form and the matrix all read it).
 ## Where the owner sets it
 
 - **Settings → Portals** holds, in order: Staff portal access (who) → Roles &
-  permissions (what each level may do and see) → Task nudges. Security & Access
+  permissions (what each level may do and see). Security & Access
   keeps only the owner's own sign-in security.
 - **The access list** (`src/components/portal-access-list.tsx`) is grouped by
   level, each group headed with what that level sees, read from the LIVE

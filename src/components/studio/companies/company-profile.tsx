@@ -31,7 +31,7 @@ const ROLE_TONE: Record<string, string> = {
   "Company secretary": "bg-[var(--st-ok-wash)] text-[var(--st-ok-text)]",
 };
 
-export function Card({ title, right, children, className, texture }: { title: ReactNode; right?: ReactNode; children: ReactNode; className?: string; texture?: string }) {
+function Card({ title, right, children, className, texture }: { title: ReactNode; right?: ReactNode; children: ReactNode; className?: string; texture?: string }) {
   return (
     <section className={cn("flex min-w-0 flex-col rounded-[20px] bg-[var(--st-surface)] px-5 py-4", texture, className)}>
       <div className="flex min-h-[28px] shrink-0 items-center justify-between gap-3">

@@ -11,14 +11,13 @@
 
 import {
   Users, Building2, FileText, Truck, Laptop, Landmark,
-  AlertTriangle, StickyNote, DraftingCompass,
-  ShoppingCart, Ship, MessageSquareQuote, Receipt, Banknote, Gavel,
-  UserSearch, Briefcase, BadgeCheck, Wallet, ChefHat, Boxes, Undo2, type LucideIcon, Package,} from "lucide-react";
+  AlertTriangle, StickyNote, type LucideIcon,
+} from "lucide-react";
 import type { EntityType } from "@/lib/entity-meta";
 import { SEARCH_PALETTE_ORDER } from "@/lib/entity-meta";
 
 /** Icon + accent tint per entity type. Mirrors the old TYPE_META exactly. */
-export const ENTITY_UI: Record<EntityType, { icon: LucideIcon; tint: string }> = {
+const ENTITY_UI: Record<EntityType, { icon: LucideIcon; tint: string }> = {
   person:     { icon: Users,         tint: "text-sky-500" },
   company:    { icon: Building2,     tint: "text-violet-500" },
   document:   { icon: FileText,      tint: "text-amber-500" },

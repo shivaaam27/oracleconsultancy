@@ -1,15 +1,13 @@
 import { cn } from "@/lib/cn";
 import Link from "next/link";
-import { Loader2, ChevronDown, Search } from "lucide-react";
+import { Loader2, ChevronDown } from "lucide-react";
 import { getInitials } from "@/lib/names";
 import type { ComponentProps, ReactNode } from "react";
 
-/** Search field — leading icon + design-system input. Pass-through props
- *  (name/defaultValue/value/onChange…) so it works in forms or controlled. */
 /* ══════════════════════════════════════════════════ ONE CONTROL BOX ══
  *
  * ⚠️ EVERY CONTROL IN Oracle IS THIS BOX: a text field, `Select`, `FluidSelect`,
- * `Combobox`, `SearchInput`. One height, one radius, one type size. If you
+ * `Combobox`. One height, one radius, one type size. If you
  * change one, you have changed them all — which is the point.
  *
  * ⚠️ IT WAS MEASURED, NOT GUESSED. Before this existed, one dialog held four
@@ -27,8 +25,6 @@ import type { ComponentProps, ReactNode } from "react";
 
 /** The shared box, minus the padding — which differs by what sits inside. */
 export const CONTROL_BOX = "h-8 rounded-md text-sm";
-/** The dense variant, for a control INSIDE a grid row. */
-export const CONTROL_BOX_SM = "h-7 rounded-md text-xs";
 
 /**
  * A SECONDARY ACTION — the small buttons inside a panel: "Add someone",
@@ -59,31 +55,6 @@ export const ACTION_DANGER =
  * which is how a form ends up with three field heights in one column.
  */
 export const FIELD = "w-full h-8 rounded-md px-2.5 text-sm";
-/** The same field for a figure — right-aligned and lining. */
-export const FIELD_NUM = "w-full h-8 rounded-md px-2.5 text-sm text-right tabular";
-
-export function SearchInput({
-  wrapperClassName,
-  className,
-  ...p
-}: { wrapperClassName?: string } & ComponentProps<"input">) {
-  return (
-    <div className={cn("relative", wrapperClassName)}>
-      <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-fg-subtle" />
-      <input
-        type="search"
-        {...p}
-        className={cn(
-          // ⚠️ THE ONE BOX. Was `h-9 rounded-xl`, which put a 36px pill beside
-          // 32px buttons and 28px fields on every list toolbar in Oracle.
-          "w-full h-8 pl-8 pr-2.5 text-sm rounded-md border border-border bg-bg-subtle/60",
-          "focus:outline-none focus:ring-2 focus:ring-accent/50 placeholder:text-fg-subtle",
-          className
-        )}
-      />
-    </div>
-  );
-}
 
 /* --------------------------------------------------------------------- */
 /* Surface primitives                                                     */
@@ -98,98 +69,6 @@ export function Card({ className, ...p }: ComponentProps<"div">) {
       )}
       {...p}
     />
-  );
-}
-
-/** Solid raised surface — for cards, panels, sheets. */
-export function Surface({
-  className,
-  elevation = "md",
-  ...p
-}: { elevation?: "sm" | "md" | "lg" } & ComponentProps<"div">) {
-  const shadow =
-    elevation === "lg" ? "shadow-lg" : elevation === "sm" ? "shadow-sm" : "shadow-md";
-  return (
-    <div
-      className={cn("bg-bg-elev border border-border rounded-2xl", shadow, className)}
-      {...p}
-    />
-  );
-}
-
-/** Translucent macOS-style material — for floating bars, popovers, overlays. */
-export function Vibrancy({
-  className,
-  strong = false,
-  ...p
-}: { strong?: boolean } & ComponentProps<"div">) {
-  return (
-    <div
-      className={cn(strong ? "vibrancy-strong" : "vibrancy", "rounded-2xl shadow-pill", className)}
-      {...p}
-    />
-  );
-}
-
-/* --------------------------------------------------------------------- */
-/* Headings                                                               */
-/* --------------------------------------------------------------------- */
-
-/**
- * THE page heading. Every admin page opens with this — a title, an optional
- * figures line, and an optional action, over a hairline rule.
- *
- * ⚠️ There used to be three: this, the aurora `<Hero>` from surface-kit, and
- * twenty pages that simply began with content and no heading at all. The
- * `data-page-header` tag the design guide specifies was used by exactly one
- * file. Tagging it here means anything using PageHeader now inherits that
- * treatment, and `metrics` gives the pages that were using Hero for its figure
- * rail somewhere to put them.
- */
-export function PageHeader({
-  title,
-  sub,
-  action,
-  metrics,
-  children,
-}: {
-  title: string;
-  sub?: ReactNode;
-  action?: ReactNode;
-  /** A figures line under the title — what `<Hero>` used its children for.
-   *  `children` does the same thing, so the pages converted from Hero (which
-   *  passed their figure rail as children) needed no rewriting. */
-  metrics?: ReactNode;
-  children?: ReactNode;
-}) {
-  return (
-    <section data-page-header className="mb-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
-        <div className="min-w-0">
-          <h1 className="text-lg font-semibold tracking-tight">{title}</h1>
-          {sub && <div className="mt-0.5 text-xs text-fg-muted">{sub}</div>}
-        </div>
-        {action && <div className="shrink-0">{action}</div>}
-      </div>
-      {(metrics ?? children) && <div data-page-header-meta className="mt-2.5">{metrics ?? children}</div>}
-    </section>
-  );
-}
-
-export function SectionHeading({
-  children,
-  action,
-}: {
-  children: ReactNode;
-  action?: ReactNode;
-}) {
-  return (
-    <div className="flex items-center justify-between mb-3">
-      <h2 className="text-xs font-medium uppercase tracking-[0.08em] text-fg-muted">
-        {children}
-      </h2>
-      {action}
-    </div>
   );
 }
 
@@ -323,32 +202,6 @@ export function Button({
       {loading && <Loader2 size={spinnerSize[size]} className="animate-spin" />}
       {children}
     </button>
-  );
-}
-
-/**
- * The same button, as a LINK.
- *
- * A link that looks like a button was being hand-rolled with a different set of
- * classes on nearly every page, which is why two "buttons" side by side could be
- * different heights. This shares Button's exact recipe, so they can't drift.
- * Use it for anything that navigates (mailto:, tel:, an href); use `Button` for
- * anything that acts.
- */
-export function ButtonLink({
-  variant = "primary",
-  size = "md",
-  className,
-  children,
-  ...p
-}: {
-  variant?: keyof typeof buttonStyles;
-  size?: keyof typeof buttonSizes;
-} & ComponentProps<"a">) {
-  return (
-    <a className={cn(buttonBase, buttonSizes[size], buttonStyles[variant], className)} {...p}>
-      {children}
-    </a>
   );
 }
 
@@ -607,195 +460,6 @@ export function Stat({
   );
 }
 
-/** A responsive strip of Stat cards — the canonical glanceable header for any
- *  list/dashboard page. Two columns on mobile, one row from sm up. */
-export function StatStrip({
-  items,
-  className,
-}: {
-  items: Array<{ label: string; value: ReactNode; tone?: StatTone; icon?: ReactNode; hint?: ReactNode }>;
-  className?: string;
-}) {
-  const cols = { 2: "sm:grid-cols-2", 3: "sm:grid-cols-3", 4: "sm:grid-cols-4", 5: "sm:grid-cols-5" }[Math.min(5, Math.max(2, items.length))] ?? "sm:grid-cols-4";
-  return (
-    <div className={cn("grid grid-cols-2 gap-2", cols, className)}>
-      {items.map((s, i) => (
-        <Stat key={i} label={s.label} value={s.value} tone={s.tone} icon={s.icon} hint={s.hint} />
-      ))}
-    </div>
-  );
-}
-
-/* --------------------------------------------------------------------- */
-/* Table                                                                  */
-/* --------------------------------------------------------------------- */
-
-export function TableShell({ children, className }: { children: ReactNode; className?: string }) {
-  return (
-    <div className={cn("bg-bg-elev border border-border rounded-2xl overflow-x-auto elevated", className)}>
-      {children}
-    </div>
-  );
-}
-
-export function Th({
-  children,
-  className,
-  align = "left",
-}: {
-  children?: ReactNode;
-  className?: string;
-  align?: "left" | "right" | "center";
-}) {
-  return (
-    <th
-      className={cn(
-        "px-3.5 py-2.5 text-xs font-medium uppercase tracking-[0.08em] text-fg-muted bg-bg-subtle/60 backdrop-blur-sm border-b border-border",
-        align === "right" ? "text-right" : align === "center" ? "text-center" : "text-left",
-        className
-      )}
-    >
-      {children}
-    </th>
-  );
-}
-
-export function Td({
-  children,
-  className,
-  align = "left",
-}: {
-  children?: ReactNode;
-  className?: string;
-  align?: "left" | "right" | "center";
-}) {
-  return (
-    <td
-      className={cn(
-        "px-3.5 py-2.5 text-sm border-t border-border/70",
-        align === "right" ? "text-right tabular" : align === "center" ? "text-center" : "",
-        className
-      )}
-    >
-      {children}
-    </td>
-  );
-}
-
-/* --------------------------------------------------------------------- */
-/* Register list (canonical record list)                                  */
-/* --------------------------------------------------------------------- */
-
-// The ONE look for every register / record list (Documents, People, Vendors,
-// Assets, Tools, Leave …). A solid raised card whose rows are divided by a
-// hairline. Purely presentational + composable: existing per-row content drops
-// straight into <RegisterRow> children. Based on the cleanest existing solid
-// style (the Vendors register) so registers stop diverging.
-//
-//   <RegisterList header={<RegisterGroupHeader>…</RegisterGroupHeader>}>
-//     {rows.map((r) => (
-//       <RegisterRow key={r.id} onClick={() => open(r)}>
-//         …existing row content…
-//       </RegisterRow>
-//     ))}
-//   </RegisterList>
-
-export function RegisterList({
-  children,
-  header,
-  className,
-}: {
-  children: ReactNode;
-  /** Optional sticky-feel group header strip rendered above the rows
-   *  (e.g. a "OVERDUE · 3" band). Use <RegisterGroupHeader> for the stock look. */
-  header?: ReactNode;
-  className?: string;
-}) {
-  return (
-    <div
-      className={cn(
-        // Same frame as RecordList, so a register and a record list are the
-        // same object to the eye (Stage 4).
-        "overflow-hidden rounded-xl border border-border bg-bg-elev",
-        "divide-y divide-border",
-        className
-      )}
-    >
-      {header}
-      {children}
-    </div>
-  );
-}
-
-// A single register row. Accepts arbitrary children (lay them out yourself —
-// usually a leading icon, a `min-w-0 flex-1` body, then trailing actions).
-// `onClick` makes the whole row activatable (adds pointer + keyboard support);
-// omit it for a static row. `className` merges in (e.g. selected/busy states).
-export function RegisterRow({
-  children,
-  onClick,
-  className,
-}: {
-  children: ReactNode;
-  onClick?: () => void;
-  className?: string;
-}) {
-  const interactive = !!onClick;
-  return (
-    <div
-      onClick={onClick}
-      role={interactive ? "button" : undefined}
-      tabIndex={interactive ? 0 : undefined}
-      onKeyDown={
-        interactive
-          ? (e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                onClick?.();
-              }
-            }
-          : undefined
-      }
-      data-list-row
-      className={cn(
-        // py comes from the global [data-list-row] rule (9px, 4px on Compact),
-        // so every register honours the density switch like the task list.
-        "flex items-center gap-3 px-3 transition-colors",
-        "hover:bg-bg-subtle",
-        interactive && "cursor-pointer select-none",
-        className
-      )}
-    >
-      {children}
-    </div>
-  );
-}
-
-/** The stock group-header strip for a <RegisterList header={…}> — a coloured
- *  dot + uppercase label + optional trailing count. Matches the canonical
- *  FieldLabel/Th tracking (0.08em). */
-export function RegisterGroupHeader({
-  children,
-  tone = "muted",
-  action,
-}: {
-  children: ReactNode;
-  tone?: "muted" | "warn" | "danger";
-  action?: ReactNode;
-}) {
-  const dot =
-    tone === "danger" ? "bg-danger" : tone === "warn" ? "bg-warn" : "bg-fg-subtle";
-  return (
-    <div className="flex items-center gap-2 px-3.5 py-2.5 bg-bg-subtle/50">
-      <span className={cn("h-2 w-2 rounded-full shrink-0", dot)} />
-      <span className="text-xs font-medium uppercase tracking-[0.08em] text-fg-muted">
-        {children}
-      </span>
-      {action && <span className="ml-auto">{action}</span>}
-    </div>
-  );
-}
-
 /* --------------------------------------------------------------------- */
 /* Empty state, form bits                                                 */
 /* --------------------------------------------------------------------- */
@@ -961,53 +625,5 @@ export function Textarea(p: ComponentProps<"textarea">) {
       {...p}
       className={cn("w-full px-2.5 py-1.5 text-sm rounded-md", p.className)}
     />
-  );
-}
-
-/* --------------------------------------------------------------------- */
-/* Divider                                                                */
-/* --------------------------------------------------------------------- */
-
-export function Divider({ className }: { className?: string }) {
-  return <div className={cn("h-px bg-border", className)} />;
-}
-
-/**
- * FieldCell — a labelled box on a data-entry form.
- *
- * ⚠️ THE LABEL IS THE ONLY THING ON SCREEN. `hint` becomes the hover tooltip,
- * not a second line of grey text beside the label.
- *
- * The ops and projects forms grew a running commentary — "stays", "its own",
- * "their reference", "suggests what you have typed before" — sixty of them,
- * on every box. Read once it explains; read every day it is noise, and it made
- * a professional entry screen look like a tutorial. A hint that describes how
- * the FORM behaves (rather than what the field means) belongs in one sentence
- * under the form, said once.
- *
- * Replaced six near-identical private copies of this component.
- */
-export function FieldCell({
-  label, hint, className, children,
-}: {
-  label: string;
-  /** Shown on hover only. Leave it out unless it genuinely adds something. */
-  hint?: string;
-  className?: string;
-  children: ReactNode;
-}) {
-  return (
-    <label className={cn("block min-w-0", className)}>
-      <span
-        title={hint ? `${label} — ${hint}` : undefined}
-        className={cn(
-          "mb-1 flex h-4 items-center overflow-hidden text-xs uppercase tracking-[0.04em] text-fg-subtle",
-          hint && "cursor-help decoration-dotted underline-offset-2 hover:underline",
-        )}
-      >
-        <span className="truncate">{label}</span>
-      </span>
-      {children}
-    </label>
   );
 }

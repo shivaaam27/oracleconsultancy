@@ -24,7 +24,7 @@ import { addSubtasks } from "@/app/task/subtask-actions";
 import { StudioScope, stBtn } from "@/components/studio/kit";
 import { useFitFrame } from "@/components/studio/use-fit-frame";
 import { StudioChoiceMenu } from "./cells";
-import { STATUS_DOT, avatarTint, initials } from "./task-words";
+import { STATUS_DOT } from "./task-words";
 import { RISKS, CATEGORIES } from "@/lib/constants";
 import { withReturn } from "@/lib/return-to";
 import { cn } from "@/lib/cn";
@@ -57,7 +57,7 @@ export type Draft = {
 
 export type Options = { companies: { id: number; name: string; prefix?: string | null }[]; people: { id: number; name: string }[]; departments: string[] };
 
-export const EMPTY_DRAFT: Draft = {
+const EMPTY_DRAFT: Draft = {
   title: "", companyId: null, people: [], status: "Not Started", priority: "Medium", deadline: null, meetingDate: null,
   risk: null, category: null, department: null, about: "", lead: false, needsFile: false, repeat: null,
   instructions: "", pin: false, also: [], tell: false,
@@ -68,7 +68,7 @@ const PRIORITIES = ["Critical", "High", "Medium", "Low"];
 const PRIORITY_DOT: Record<string, string> = { Critical: "#E0479E", High: "#F5A524", Medium: "#2490EF", Low: "#B9BBBF" };
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-export function toInput(d: Draft): StudioNewTask {
+function toInput(d: Draft): StudioNewTask {
   return {
     companyId: d.companyId ?? 0,
     actionItem: d.title,
@@ -91,7 +91,7 @@ export function toInput(d: Draft): StudioNewTask {
 }
 
 /** The address of the full page for this draft — Shift+Enter / "Open as a full task". */
-export function fullTaskHref(d: Draft): string {
+function fullTaskHref(d: Draft): string {
   const p = new URLSearchParams();
   if (d.title.trim()) p.set("title", d.title.trim());
   if (d.companyId) p.set("companyId", String(d.companyId));
@@ -104,7 +104,7 @@ export function fullTaskHref(d: Draft): string {
   return `/task/new${q ? `?${q}` : ""}`;
 }
 
-export function repeatWords(r: RepeatDraft | null): string {
+function repeatWords(r: RepeatDraft | null): string {
   if (!r) return "Doesn’t repeat";
   if (r.cadence === "monthly") return `Monthly on the ${ordinal(r.dayOfMonth)}`;
   const d = [...r.weekdays].sort();
@@ -117,7 +117,7 @@ function ordinal(n: number) {
 }
 
 /** Create, and do the "after" things the draft asked for. One place, used by both screens. */
-export function useCreateTask() {
+function useCreateTask() {
   const { toast } = useToast();
   const router = useRouter();
   const [busy, start] = useTransition();
@@ -168,9 +168,7 @@ export function useCreateTask() {
 
 /* ------------------------------------------------------- small controls -- */
 
-const CHIP = "h-8 rounded-[10px] border border-[var(--st-line)] bg-[var(--st-surface)] px-2.5 py-0 text-xs mx-0 hover:bg-[var(--st-page)]";
-
-export function RepeatPicker({ value, onChange, anchorDate }: { value: RepeatDraft | null; onChange: (r: RepeatDraft | null) => void; anchorDate?: string | null }) {
+function RepeatPicker({ value, onChange, anchorDate }: { value: RepeatDraft | null; onChange: (r: RepeatDraft | null) => void; anchorDate?: string | null }) {
   const base = anchorDate ? new Date(`${anchorDate}T12:00:00`) : new Date();
   const wd = base.getDay();
   const dom = base.getDate();
@@ -220,7 +218,7 @@ export function RepeatPicker({ value, onChange, anchorDate }: { value: RepeatDra
   );
 }
 
-export function Toggle({ on, onClick, label }: { on: boolean; onClick: () => void; label?: string }) {
+function Toggle({ on, onClick, label }: { on: boolean; onClick: () => void; label?: string }) {
   return (
     <button type="button" role="switch" aria-checked={on} aria-label={label} onClick={onClick}
       className={cn("relative h-5 w-[34px] shrink-0 rounded-full transition-colors", on ? "bg-[var(--st-ink)]" : "bg-[#D6D6D2]")}>
@@ -247,7 +245,6 @@ export function QuickTaskPane({ options, defaultCompanyId, onDone, registerSubmi
 }) {
   const [d, setD] = useState<Draft>({ ...EMPTY_DRAFT, companyId: defaultCompanyId });
   const [who, setWho] = useState(false);
-  const [pickerKey, setPickerKey] = useState(0);
   const title = useRef<HTMLInputElement>(null);
   const router = useRouter();
   const { create, busy } = useCreateTask();
@@ -352,7 +349,7 @@ export function StudioNewTaskPage({ options, initial, back }: { options: Options
   const [file, setFile] = useState<File | null>(null);
   const [tab, setTab] = useState<"instructions" | "subtasks" | "attachments">("instructions");
   const [peopleOpen, setPeopleOpen] = useState(false);
-  const [pickerKey, setPickerKey] = useState(0);
+  const [, setPickerKey] = useState(0);
   const [repeatOpen, setRepeatOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);

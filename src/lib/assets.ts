@@ -158,27 +158,6 @@ export async function assetCountByVendor(): Promise<Record<number, number>> {
   return counts;
 }
 
-export type AssetMetrics = {
-  total: number;
-  assigned: number;
-  inStore: number;
-  maintenance: number;
-  totalValue: number;
-};
-
-export function assetMetrics(rows: AssetRow[]): AssetMetrics {
-  return {
-    total: rows.length,
-    assigned: rows.filter((a) => a.status === "assigned").length,
-    inStore: rows.filter((a) => a.status === "in_store").length,
-    maintenance: rows.filter((a) => a.status === "maintenance").length,
-    // Sum exactly in integer minor units (numeric(14,2) → 2 dp) so a register of
-    // many assets reconciles to the penny, then convert back once (ERPREADY-02).
-    totalValue:
-      rows.reduce((sum, a) => sum + Math.round((a.purchaseCost ?? 0) * 100), 0) / 100,
-  };
-}
-
 /** In-store assets available to assign to someone. */
 export async function listAssignableAssets(): Promise<AssetRow[]> {
   const { data, error } = await sb
@@ -402,15 +381,8 @@ export async function returnAsset(assetId: number, notes: string | null = null):
   void reindexEntity("asset", assetId); // best-effort
 }
 
-/** Return every asset a person currently holds. Used by offboarding. */
-export async function returnAssetsForPerson(personId: number): Promise<number> {
-  const held = await assetsForPerson(personId);
-  for (const a of held) await returnAsset(a.id, "Returned on offboarding");
-  return held.length;
-}
-
 /**
- * Transactional twin of {@link returnAssetsForPerson}: free every asset a person
+ * Offboarding: free every asset a person
  * currently holds, inside the caller's Drizzle transaction (so it commits with an
  * archive). Closes the open ledger row(s) and frees the asset in two set-based
  * writes. Returns how many assets were freed. Uses the `tx` handle throughout.
@@ -444,36 +416,7 @@ export async function returnAssetsForPersonTx(tx: Tx, personId: number): Promise
 }
 
 /**
- * Clear a leaver as custodian of shared/team kit on offboarding. Owner decision:
- * the asset STAYS assigned to its company — only the accountable person is
- * vacated (custodian_person_id → null) and the open custodian ledger row is
- * closed. Without this, shared kit keeps pointing at someone who has left.
- * Returns how many assets were updated.
- */
-export async function clearCustodianForPerson(personId: number): Promise<number> {
-  const held = await assetsCustodianForPerson(personId);
-  if (held.length === 0) return 0;
-  const now = new Date().toISOString();
-  const ids = held.map((a) => a.id);
-  // Close the open ledger row(s) recorded against this custodian for these assets.
-  await sb
-    .from("asset_assignments")
-    .update({ returned_at: now })
-    .in("asset_id", ids)
-    .eq("person_id", personId)
-    .is("returned_at", null);
-  // Vacate the custodian but keep the company assignment + status.
-  const { error } = await sb
-    .from("assets")
-    .update({ custodian_person_id: null, updated_at: now })
-    .eq("custodian_person_id", personId)
-    .eq("archived", false);
-  if (error) throw new Error(error.message);
-  return held.length;
-}
-
-/**
- * Transactional twin of {@link clearCustodianForPerson}: vacate a leaver as the
+ * Offboarding: vacate a leaver as the
  * custodian of shared/team kit inside the caller's Drizzle transaction. The asset
  * STAYS assigned to its company (owner decision) — only the accountable person is
  * cleared and the open custodian ledger row closed. Returns how many were updated.

@@ -81,7 +81,6 @@ sidebar rule, portal `zoom: 0.8`) and verifiably fixed items were taken out.
 
 - **Turbopack dev CSS cache (dev-only).** `globals.css` edits sometimes don't
   recompile until you stop the dev server, `rm -rf .next`, and restart.
-- `scripts/import.ts` has no `db:import` npm alias.
 - `splitNames` regex `/,| & | and /i` can split names containing the word "and".
 - Some date parsing still relies on browser date inputs producing `YYYY-MM-DD`.
 - Task code allocation is read-max-then-insert with retries; heavy concurrent
@@ -120,3 +119,22 @@ sidebar rule, portal `zoom: 0.8`) and verifiably fixed items were taken out.
   hard-reload first.
 - **The portal `zoom: 0.8` is gone**; `lib/zoom.ts` stays with `rootZoom()`
   returning 1, so every `layoutRect()` call is the identity. Nothing to unpick.
+
+## Found in the Sept 2026 clean-up (not fixed — owner to decide)
+
+- **ORI "compliance due soon" rule condition** checks nothing since the
+  compliance engine went, so it behaves as always-true; ORI still offers it when
+  building a rule by chat (`memory/ori_automations.md`).
+- **The `lifecycle` automation still reads `pendingLeave`**, which is always
+  empty now the leave module is retired.
+- **The staff first-run tour** points at `nav-requests` and `nav-chat`, which no
+  longer exist; the Studio staff screens carry no nav tags, so the tour shrinks
+  to one step (`memory/onboarding_tours.md`).
+- **Filing a document no longer completes linked tasks or ticks onboarding
+  steps** — `reactToFiledDocument` had no caller since document intake was
+  removed, and was deleted.
+- **"Automated paths archive, never hard-delete"** is a convention only: the
+  unused `assertReversibleAutoAction` check was deleted in the clean-up.
+- **`/portal/outbox` and `/portal/insights`** are the last old-design portal
+  pages (staff only, when the owner grants the capability) and keep the old
+  portal chrome alive.

@@ -524,7 +524,6 @@ export function CardsView({
   /** When grouping by company, every company name so empty ones still list. */
   allCompanies?: string[];
 }) {
-  const router = useRouter();
   const { toast } = useToast();
   const [, start] = useTransition();
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());

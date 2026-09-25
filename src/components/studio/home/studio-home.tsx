@@ -16,7 +16,7 @@ import { openReport } from "@/components/studio/report-sheet";
 import { useEffect, useRef, useState, useTransition, type PointerEvent as RPointerEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronDown, ChevronLeft, ChevronRight, FileText, ListChecks, Loader2, Megaphone, Zap } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, FileText, Loader2, Megaphone, Zap } from "lucide-react";
 import { runAutomationsNowAction, sendBriefNowAction, setAutomationPausedAction, setDirectorOutreachPausedAction, setAiEnabledAction, setEmailTestModeAction } from "@/app/_hub/control-actions";
 import { useToast } from "@/components/toast";
 import { StudioScope } from "@/components/studio/kit";

@@ -147,7 +147,7 @@ function isInvolved(p: Person, t: TaskRow): boolean {
   return t.ownerId === p.id || t.assigneeIds.includes(p.id);
 }
 
-export function computeWorkload(person: Person, tasks: TaskRow[]): PersonWorkload {
+function computeWorkload(person: Person, tasks: TaskRow[]): PersonWorkload {
   const mine = tasks.filter((t) => isInvolved(person, t));
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);

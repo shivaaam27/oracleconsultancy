@@ -79,7 +79,7 @@ export async function currentFacts(entity: EntityRef): Promise<Fact[]> {
 }
 
 /** Full history of one field for an entity, newest first. */
-export async function factHistory(entity: EntityRef, field: string): Promise<Fact[]> {
+async function factHistory(entity: EntityRef, field: string): Promise<Fact[]> {
   return (await listFacts(entity)).filter((f) => f.field === field);
 }
 

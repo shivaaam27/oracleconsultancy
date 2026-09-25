@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { TONE, type Tone } from "@/components/surface-kit";
 
 /* ------------------------------------------------------------------ *
@@ -37,33 +37,6 @@ function useReduced(): boolean {
     setReduced(os || manual);
   }, []);
   return reduced;
-}
-
-/** Calm cubic ease-out count-up; finishes instantly when motion is reduced. */
-function useCountUp(target: number, reduced: boolean, duration = 900): number {
-  const [value, setValue] = useState(reduced ? target : 0);
-  const ref = useRef(0);
-  useEffect(() => {
-    if (reduced || target === 0) {
-      setValue(target);
-      ref.current = target;
-      return;
-    }
-    const from = ref.current;
-    const start = performance.now();
-    let raf = 0;
-    const tick = (now: number) => {
-      const t = Math.min(1, (now - start) / duration);
-      const eased = 1 - Math.pow(1 - t, 3);
-      const next = Math.round(from + (target - from) * eased);
-      setValue(next);
-      ref.current = next;
-      if (t < 1) raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [target, reduced, duration]);
-  return value;
 }
 
 

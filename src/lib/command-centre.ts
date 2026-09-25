@@ -42,15 +42,6 @@ export function permitFlag(expiry: Date | null, issued: boolean, today: Date = n
   return "later";
 }
 
-export function renewalFlag(expiry: Date | null, today: Date = new Date()): CcFlag {
-  const d = daysUntil(expiry, today);
-  if (d === null) return "none";
-  if (d < 0) return "overdue";
-  if (d <= 30) return "dueNow";
-  if (d <= 60) return "soon";
-  return "later";
-}
-
 /** Human "in 5d / today / 3d ago / —" label from a day delta. */
 export function daysLabel(n: number | null): string {
   if (n === null) return "—";
@@ -59,16 +50,6 @@ export function daysLabel(n: number | null): string {
   if (n === 1) return "tomorrow";
   return `in ${n}d`;
 }
-
-/** Tailwind token classes per flag, matching the needs-attention panel. */
-export const FLAG_META: Record<CcFlag, { label: string; text: string; bg: string; ring: string; rank: number }> = {
-  overdue: { label: "Overdue", text: "text-danger", bg: "bg-danger-soft/60", ring: "ring-danger/25", rank: 0 },
-  dueNow: { label: "Due now", text: "text-danger", bg: "bg-danger-soft/60", ring: "ring-danger/25", rank: 1 },
-  soon: { label: "Soon", text: "text-warn", bg: "bg-warn-soft/60", ring: "ring-warn/25", rank: 2 },
-  later: { label: "Later", text: "text-success", bg: "bg-success-soft/60", ring: "ring-success/20", rank: 3 },
-  done: { label: "Done", text: "text-fg-subtle", bg: "bg-bg-muted/70", ring: "ring-border/50", rank: 4 },
-  none: { label: "—", text: "text-fg-subtle", bg: "bg-bg-subtle/50", ring: "ring-border/40", rank: 5 },
-};
 
 // ============================================================================
 // Next-due computation — turn a recurring obligation into its next dated
@@ -135,7 +116,7 @@ function nextAnnualAnchor(month: number, day: number, today: Date): Date {
  * once the next period begins, lastDone falls before this boundary and the item
  * shows outstanding again. This is the "it always reappears" guarantee.
  */
-export function periodStart(frequency: ObligationFrequency, today: Date = new Date()): Date | null {
+function periodStart(frequency: ObligationFrequency, today: Date = new Date()): Date | null {
   const y = today.getFullYear();
   const m = today.getMonth();
   const d = today.getDate();

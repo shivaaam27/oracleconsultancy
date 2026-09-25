@@ -193,11 +193,6 @@ export async function saveSettings(fd: FormData): Promise<void> {
       ? Number(String(fd.get("managedCalendarPersonId") ?? "").trim()) || 0
       : undefined,
     eventReminderEmail: fd.get("eventReminderEmail") === "on",
-    portalNudges: fd.get("portalNudges") === "on",
-    portalNudgeNotStartedHours: num(fd, "portalNudgeNotStartedHours"),
-    portalNudgeNoUpdateDays: num(fd, "portalNudgeNoUpdateDays"),
-    portalNudgeNotStartedMsg: ((fd.get("portalNudgeNotStartedMsg") as string | null) ?? "").trim(),
-    portalNudgeNoUpdateMsg: ((fd.get("portalNudgeNoUpdateMsg") as string | null) ?? "").trim(),
   };
 
   // Groq API key: only WRITE when the owner types a new value (the field renders

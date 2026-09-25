@@ -391,7 +391,7 @@ function todayDateKey() {
   return new Date().toISOString().slice(0, 10);
 }
 
-export function dedupeKey(channel: string, name: string, taskIds: string[]): string {
+function dedupeKey(channel: string, name: string, taskIds: string[]): string {
   return `${todayDateKey()}|${channel}|${name.toLowerCase()}|${taskIds.sort().join(",")}|daily`;
 }
 

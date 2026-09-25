@@ -23,7 +23,7 @@ export type ManagedPerson = {
  * person has been archived, or the row has gone. Never throws — a calendar write
  * must not fail because this lookup did.
  */
-export async function getManagedCalendarPerson(): Promise<ManagedPerson | null> {
+async function getManagedCalendarPerson(): Promise<ManagedPerson | null> {
   try {
     const { managedCalendarPersonId } = await getAppSettings();
     if (!managedCalendarPersonId) return null;

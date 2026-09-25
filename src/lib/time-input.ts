@@ -9,7 +9,7 @@
 // directly and shared by both event forms.
 
 /** Quarter-hour steps, the values the suggestion list offers. */
-export const TIME_STEP_MINUTES = 15;
+const TIME_STEP_MINUTES = 15;
 
 /**
  * Parse whatever someone typed into "HH:mm", or null if it isn't a time.

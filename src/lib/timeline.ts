@@ -390,12 +390,6 @@ export function summariseEditGroup(group: TimelineEditGroup): {
 
 export type TimelineFilter = "all" | "updates" | "status" | "field" | "escalation" | "bulk";
 
-export const TIMELINE_FILTERS: TimelineFilter[] = ["all", "updates", "status", "field", "escalation", "bulk"];
-
-export function parseTimelineFilter(v: string | undefined): TimelineFilter {
-  return (TIMELINE_FILTERS as string[]).includes(v ?? "") ? (v as TimelineFilter) : "all";
-}
-
 export function applyTimelineFilter(items: TimelineItem[], filter: TimelineFilter): TimelineItem[] {
   if (filter === "all") return items;
   return items.filter((i) => {

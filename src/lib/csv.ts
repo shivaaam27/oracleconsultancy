@@ -30,18 +30,6 @@ export function toCsv(headers: string[], rows: unknown[][]): string {
   return "﻿" + lines.join("\r\n") + "\r\n";
 }
 
-/** A downloadable response. `name` becomes the file name the browser saves. */
-export function csvResponse(name: string, csv: string): Response {
-  const safe = name.replace(/[^a-zA-Z0-9._-]/g, "-");
-  return new Response(csv, {
-    headers: {
-      "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": 'attachment; filename="' + safe + '.csv"',
-      "Cache-Control": "no-store",
-    },
-  });
-}
-
 /** "Patamela Villa" + "budget" → "Patamela-Villa-budget-2026-08-18". */
 export function csvFileName(project: string, what: string, today = new Date()): string {
   const slug = project.trim().replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "project";

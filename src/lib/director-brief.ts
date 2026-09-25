@@ -114,7 +114,7 @@ function fmtDay(d: Date | null): string {
 }
 
 export type RiskLabel = "Healthy" | "Watch" | "High risk";
-export function riskLabel(score: number): RiskLabel {
+function riskLabel(score: number): RiskLabel {
   return score > 50 ? "High risk" : score > 20 ? "Watch" : "Healthy";
 }
 

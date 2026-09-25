@@ -31,7 +31,7 @@ function fmtTime(d: Date): string {
   return d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
 }
 
-export function relativeDeadline(d: Date | null | undefined): {
+function relativeDeadline(d: Date | null | undefined): {
   text: string;
   tone: Tone;
   title: string;

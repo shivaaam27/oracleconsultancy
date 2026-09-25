@@ -1,18 +1,4 @@
 import {
-  ChefHat,
-  Warehouse,
-  Tag,
-  Factory,
-  Truck,
-  Undo2,
-  TrendingUp,
-  Radar,
-  Store,
-  Filter,
-  Container,
-  Ship,
-  ShoppingCart,
-  Wallet,
   Users,
   Send,
   Settings,
@@ -26,37 +12,11 @@ import {
   Building2,
   BarChart3,
   Megaphone,
-  LayoutGrid,
-  Camera,
-  Images,
-  CalendarRange,
-  AtSign,
-  ListChecks,
-  History as HistoryIcon,
   Zap,
-  ClipboardList,
-  UserSearch,
   StickyNote,
-  DraftingCompass,
-  Scale as ScaleIcon,
   CheckSquare,
   Repeat,
   Home,
-  Briefcase,
-  BookOpen,
-  Handshake,
-  CalendarCheck,
-  Trophy,
-  ClipboardCheck,
-  BookText,
-  Receipt,
-  Percent,
-  Candy,
-  Banknote,
-  AlarmClock,
-  FileSpreadsheet,
-  Boxes,
-  ClipboardList as OrderIcon,
   type LucideIcon,
 } from "lucide-react";
 
@@ -85,19 +45,8 @@ export const NAV_ROUTES: NavRoute[] = [
   { id: "supplies",    href: "/hrms/supplies",       label: "Supplies",            icon: Package },
   { id: "assets",      href: "/hrms/assets",         label: "Assets, Tools & Vendors", icon: Laptop },
   { id: "leave",       href: "/hrms/leave",          label: "Attendance",          icon: CalendarDays },
-  // The PES trading and import business — Stage 1 is its master lists; the
-  // order screens follow. See memory/pes_ops_module.md.
-  /* Orders & Imports — the PES trading and import business. ⚠️ ONE ROUTE PER
-     TAB, because it is a module now: the rail lists its pages the way every
-     other module's does, and ⌘K can reach each of them by name. The in-page
-     tab strip (`ops-tabs.tsx`) stays — the two agree because both are lists of
-     the same seven addresses. */
-  // accounting system now (owner, Aug 2026); see `memory/erp_gap_plan.md`.
-  // "Brief" while pointing at /calendar, so the sidebar's Brief opened the diary
-  // and the real Brief had no entry at all.
   { id: "calendar",    href: "/calendar",            label: "Calendar",            icon: CalendarClock },
   { id: "cleaning",    href: "/hrms/cleaning",       label: "Cleaning",            icon: Sparkles },
-  // See memory/recruitment_module_plan.md.
   { id: "companies",   href: "/companies",           label: "Companies",           icon: Building2 },
   { id: "people",      href: "/people",              label: "People",              icon: Users },
   { id: "documents",   href: "/files",               label: "Files Management",    icon: FileText },
@@ -106,45 +55,6 @@ export const NAV_ROUTES: NavRoute[] = [
   { id: "ori-automations", href: "/ori-automations", label: "ORI Automation",      icon: Zap },
   { id: "insights",    href: "/insights",            label: "Insights",            icon: BarChart3 },
   { id: "settings",    href: "/settings",            label: "Settings",            icon: Settings },
-
-  /* Sub-pages of the Recruitment and Ledger modules.
-   *
-   * ⚠️ ADDING routes is safe; RENAMING one is not (see LEGACY_ROUTE_IDS below).
-   * These existed as pages already and were simply unreachable from any rail —
-   * you had to be on the desk and click through. Listing them here also puts
-   * them in ⌘K and in the pinnable list, which is the point. */
-  /* CocoZuri Operations — Phase 1. See memory/cocozuri_ops_plan.md. */
-  /* ⚠️ The things you COUNT, as against the things you SELL. The only way to
-     make one used to be an add-button inside a count sheet, and shelves could
-     not be managed at all. */
-  /* ⚠️ SHELVES HAD NO ADDRESS. They were managed in a sheet inside Stock
-     items, which is not somewhere anybody finds a thing — and a shelf is set up
-     BEFORE the items that sit on it, so it belongs in the rail ahead of them. */
-  /* ⚠️ The words you pick from. They were free text, and the catalogue has
-     five count units where it has three. */
-  /* CocoZuri Operations — Phase 3: money in, what is owed, statements. */
-  /* CocoZuri Operations — Phase 4: the daily stock book. */
-  /* Phase 5 — what to make and send, from the shelf's own history. */
-  /* ⚠️ WHAT TO MAKE TODAY, not what to buy (owner, 27 Aug 2026). The buying
-     half lives at /cocozuri/order/materials and is reached from a plan whose
-     materials fall short. */
-  /* Manufacturing Stage 2 — what was bought, and the budget it was bought
-     against. See memory/cocozuri_manufacturing_plan.md. */
-  /* ⚠️ The SHARED vendor register, not a second list — it simply lived in
-     another module, so from inside CocoZuri nobody could see it. */
-  /* ⚠️ A PRICE IS A ROW WITH A DATE, and until now the only thing any screen
-     could do was add one dated today for everybody. No customer's own price
-     could be set, no date corrected, no wrong one removed. */
-  /* Manufacturing Stage 3 — what a bar costs to make, before one is made. */
-  /* Manufacturing Stage 4 — what was planned, what came out, and where the
-     difference went. */
-  /* Manufacturing Stage 5 — kitchen to shop, with what actually arrived. */
-  /* Manufacturing Stage 6 — what came back, what was repacked, what was thrown. */
-  /* Manufacturing Stage 7 — which chocolate makes money. */
-  /* Manufacturing Stage 8 — money out, the twin of money in. */
-  /* Manufacturing Stage 9 — expiry, shelf life and the batch trace. */
-  /* ⚠️ What happened, and when — nothing in the module could answer it. */
-  /* Manufacturing Stage 5b — what goes over a counter. ⚠️ A record, not a till. */
 ];
 
 export const ROUTE_BY_ID: Record<string, NavRoute> = Object.fromEntries(
@@ -252,13 +162,9 @@ export const MODULES: NavModule[] = [
       // Was "Registers" until Aug 2026 — the word meant three things at once (this
       // group, the commitments page, and the legacy /registry task list). The pages
       // in here are the day-to-day operational logs, so that is what it is called.
-      // ⚠️ `ops` LEFT THIS GROUP when Orders & Imports became a module of its
-      // own. A route filed in two modules fails `nav.test.ts`, which is the
-      // guard that exists for exactly this.
       { label: "Operations", ids: ["tax-legal", "leave", "supplies", "cleaning"] },
     ],
   },
-
 ];
 
 export const MODULE_BY_ID: Record<string, NavModule> = Object.fromEntries(
@@ -326,46 +232,6 @@ export function moduleQuick(m: NavModule): NavRoute[] {
  * two lists described the same product. See the note on NAV_GROUPS' history.
  */
 export const NAV_GROUPS: NavGroup[] = [...MODULES.flatMap((m) => m.groups), SYSTEM_GROUP];
-
-/**
- * The whole map, for a screen with no rail — the mobile "Go to" launcher.
- *
- * ⚠️ SECTIONED BY MODULE, not by the modules' internal group names. On a phone
- * there is no switcher and no context, so a heading reading "Desk" or "Books"
- * would say nothing about which business it belongs to. Task Management keeps
- * its own Work / Records / Operations headings because it is large and those
- * words are already familiar; the smaller modules collapse to one section named
- * after the module.
- */
-export function navSections(): { label: string; items: NavRoute[] }[] {
-  const out: { label: string; items: NavRoute[] }[] = [];
-  for (const m of MODULES) {
-    if (m.soon) continue;
-    const ids = m.groups.flatMap((g) => g.ids);
-    if (ids.length === 0) continue;
-    if (m.match.length === 0) {
-      // The fallback module (Task Management) keeps its own headings.
-      for (const g of m.groups) {
-        const items = g.ids.map((id) => ROUTE_BY_ID[id]).filter(Boolean);
-        if (items.length) out.push({ label: g.label, items });
-      }
-    } else {
-      const items = ids.map((id) => ROUTE_BY_ID[id]).filter(Boolean);
-      if (items.length) out.push({ label: m.label, items });
-    }
-  }
-  const system = SYSTEM_GROUP.ids.map((id) => ROUTE_BY_ID[id]).filter(Boolean);
-  if (system.length) out.push({ label: SYSTEM_GROUP.label, items: system });
-  return out;
-}
-
-/** The groups resolved to real routes, skipping any id that no longer exists. */
-export function navGroups(): { label: string; items: NavRoute[] }[] {
-  return NAV_GROUPS.map((g) => ({
-    label: g.label,
-    items: g.ids.map((id) => ROUTE_BY_ID[id]).filter(Boolean),
-  })).filter((g) => g.items.length > 0);
-}
 
 /** Every route that isn't in a group — a build-time safety net for the sweep above. */
 export function ungroupedRouteIds(): string[] {

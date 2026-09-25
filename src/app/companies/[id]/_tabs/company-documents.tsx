@@ -72,7 +72,7 @@ export function CompanyDocuments({
   const [editDoc, setEditDoc] = useState<DocumentRow | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [, startDelete] = useTransition();
-  const [reloadSignal, setReloadSignal] = useState(0);
+  const [, setReloadSignal] = useState(0);
   const [query, setQuery] = useState("");
   const [renamingId, setRenamingId] = useState<number | null>(null);
   const [renameValue, setRenameValue] = useState("");

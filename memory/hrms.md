@@ -144,8 +144,7 @@ and the ELR working-day maths; its request/balance functions are unused.
   (`addHolidayAction` / `deleteHolidayAction`).
 - **Staff self check-in** (trusted, a manager can override): the "Today" card on
   the staff Studio Home (`components/studio/home/staff-cards.tsx`,
-  `StaffCheckinCard`; `CheckinPanel` on Profile for managers), the check-in on
-  the manager board (`manager-board-extras.tsx` → `AttendanceCheckin`), and
+  `StaffCheckinCard`; `CheckinPanel` on Profile for managers), and
   `portal-attendance.tsx`. Server side `portalMarkAttendance` in
   `app/portal/actions.ts`; `personAttendanceToday` / `personAttendanceWeek` /
   `teamAttendanceToday` in `lib/attendance.ts`.

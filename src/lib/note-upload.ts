@@ -22,7 +22,7 @@ import { attachFileToNote } from "@/app/notes/attachment-actions";
 
 /** Big enough for a scan or a phone photo, small enough to stay a note rather than
  *  a file store. Documents proper is where a 100 MB thing belongs. */
-export const NOTE_ATTACHMENT_MAX_BYTES = 25 * 1024 * 1024;
+const NOTE_ATTACHMENT_MAX_BYTES = 25 * 1024 * 1024;
 
 export type AttachOutcome = { ok: true; documentId: number; isImage: boolean } | { ok: false; error: string };
 

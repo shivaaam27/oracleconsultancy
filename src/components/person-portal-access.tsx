@@ -86,7 +86,6 @@ export function PersonPortalAccess({
     else { setRole(current); setReach(initialReach); toast(res.error, { tone: "danger" }); }
   }
 
-  const sameIds = (a: number[], b: number[]) => a.length === b.length && a.every((x) => b.includes(x));
   const dirty = role !== current || (role === "director" && reach !== initialReach);
 
   async function enable() {

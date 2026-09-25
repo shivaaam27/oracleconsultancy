@@ -44,16 +44,16 @@ const MAX_VISION_PAGES = envPageCap("DOC_MAX_VISION_PAGES", 12);
 /* Format sniffing                                                     */
 /* ------------------------------------------------------------------ */
 
-export function isHeicFile(file: File): boolean {
+function isHeicFile(file: File): boolean {
   const n = file.name.toLowerCase();
   return n.endsWith(".heic") || n.endsWith(".heif") || file.type === "image/heic" || file.type === "image/heif";
 }
 
-export function isPdfFile(file: File): boolean {
+function isPdfFile(file: File): boolean {
   return file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
 }
 
-export function isOfficeFile(file: File): boolean {
+function isOfficeFile(file: File): boolean {
   const lower = file.name.toLowerCase();
   return (
     /\.(docx?|xlsx?|csv|pptx|txt|md|rtf|log|json|eml|html?)$/.test(lower) ||
@@ -114,7 +114,7 @@ async function downscaleToLimit(buf: Buffer, maxBytes = MAX_OCR_IMAGE_BYTES): Pr
 /** A PDF's embedded text is only USABLE if it's the real document, not a scanner
  *  app's watermark ("CamScanner CamScanner…"). Trusting that would skip OCR and
  *  lose the document. Returns the text if genuine, else null → read it as a scan. */
-export function usableTextLayer(raw: string | null | undefined): string | null {
+function usableTextLayer(raw: string | null | undefined): string | null {
   const t = (raw ?? "").trim();
   if (t.length < 40) return null;
   const cleaned = t.replace(/cam\s?scanner|scanned with[a-z .]*|adobe scan|genius scan|tap\s?scanner|microsoft lens/gi, " ").trim();
@@ -128,7 +128,7 @@ function decodeXmlEntities(s: string): string {
 }
 
 /** Embedded text from a Word / Excel / PowerPoint / plain-text file. */
-export async function extractOfficeText(file: File): Promise<string> {
+async function extractOfficeText(file: File): Promise<string> {
   const lower = file.name.toLowerCase();
   const buffer = Buffer.from(await file.arrayBuffer());
 

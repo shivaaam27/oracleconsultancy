@@ -7,8 +7,7 @@ import { isAdminSession } from "@/lib/admin-auth";
 // Sept 2026). The read-only lists do not: the morning brief and the notify cron
 // build the cockpit from them, and a cron has no owner session.
 import { sb } from "@/db/supabase";
-import { performAutomationMove, undoAutomationMove, getAutomationMode } from "@/lib/automation-reactions";
-import { runTimeAutomations, createTaskFromSuggestion } from "@/lib/automation-time";
+import { getAutomationMode } from "@/lib/automation-reactions";
 import { AUTOMATION_RULES, type AutomationMode } from "@/lib/automation-rules";
 
 export type AutomationFeedItem = {
@@ -31,7 +30,6 @@ const toItem = (r: Row): AutomationFeedItem => ({
   id: r.id, kind: r.kind, status: r.status, summary: r.summary, detail: r.detail,
   prevValue: r.prev_value, newValue: r.new_value, createdAt: r.created_at,
 });
-const toMoveRow = (r: Row) => ({ kind: r.kind, targetTable: r.target_table, targetId: r.target_id, newValue: r.new_value, prevValue: r.prev_value, summary: r.summary });
 
 /** What the automation layer has done + what it's suggesting. Degrades to empty
  *  if the table isn't there yet (pre-migration), so the feed never breaks. */
@@ -53,109 +51,6 @@ export async function listAutomationFeed(): Promise<{ applied: AutomationFeedIte
   } catch {
     return { applied: [], suggestions: [] };
   }
-}
-
-export type AutomationHistoryItem = AutomationFeedItem & { owner: string | null; actedAt: string | null };
-
-/** Full automation log (every status), with owner names + optional filters — the
- *  Inbox card's "History" view. Degrades to [] pre-migration. */
-export async function listAutomationHistory(opts: { kind?: string; status?: string; limit?: number } = {}): Promise<AutomationHistoryItem[]> {
-  await guardOwner();
-  // Called from the browser (the feed's history panel), so it checks too.
-  if (!(await isAdminSession())) return [];
-  try {
-    let q = sb
-      .from("automation_events")
-      .select("id,kind,status,target_table,target_id,summary,detail,prev_value,new_value,created_at,acted_at,person_id,company_id")
-      .order("created_at", { ascending: false })
-      .limit(opts.limit ?? 120);
-    if (opts.kind && opts.kind !== "all") q = q.eq("kind", opts.kind);
-    if (opts.status && opts.status !== "all") q = q.eq("status", opts.status);
-    const { data, error } = await q;
-    if (error) throw error;
-    const rows = (data ?? []) as Array<Row & { acted_at: string | null; person_id: number | null; company_id: number | null }>;
-    const personIds = [...new Set(rows.map((r) => r.person_id).filter((x): x is number => !!x))];
-    const companyIds = [...new Set(rows.map((r) => r.company_id).filter((x): x is number => !!x))];
-    const [ppl, cos] = await Promise.all([
-      personIds.length ? sb.from("people").select("id,name").in("id", personIds) : Promise.resolve({ data: [] as Array<{ id: number; name: string }> }),
-      companyIds.length ? sb.from("companies").select("id,name").in("id", companyIds) : Promise.resolve({ data: [] as Array<{ id: number; name: string }> }),
-    ]);
-    const pName = new Map((ppl.data ?? []).map((p) => [p.id as number, p.name as string]));
-    const cName = new Map((cos.data ?? []).map((c) => [c.id as number, c.name as string]));
-    return rows.map((r) => ({
-      ...toItem(r),
-      owner: (r.person_id ? pName.get(r.person_id) : null) ?? (r.company_id ? cName.get(r.company_id) : null) ?? null,
-      actedAt: r.acted_at,
-    }));
-  } catch {
-    return [];
-  }
-}
-
-function revalidateAll() {
-  revalidatePath("/");
-  revalidatePath("/files");
-  revalidatePath("/");
-}
-
-async function fetchRow(id: number, status: string): Promise<Row | null> {
-  const { data } = await sb
-    .from("automation_events")
-    .select("id,kind,status,target_table,target_id,summary,detail,prev_value,new_value,created_at,document_id")
-    .eq("id", id).eq("status", status).maybeSingle();
-  return (data as (Row & { document_id: number | null }) | null) ?? null;
-}
-
-/** Apply a pending suggestion — performs the move and marks it applied. */
-export async function applyAutomationSuggestion(id: number): Promise<{ ok: boolean; error?: string }> {
-  await guardOwner();
-  if (!(await isAdminSession())) throw new Error("Not signed in.");
-  const row = await fetchRow(id, "suggested");
-  if (!row) return { ok: false, error: "Already handled." };
-  try {
-    if (row.kind === "task-create") {
-      // The task doesn't exist yet — create it from the remembered source, then
-      // repoint the event at the new task so Undo can archive it (a time-sweep
-      // renewal/probation/obligation created from its source row).
-      const created = await createTaskFromSuggestion(row);
-      await sb.from("automation_events").update({ status: "applied", acted_at: new Date().toISOString(), target_table: "tasks", target_id: created.taskId, new_value: created.code }).eq("id", id);
-    } else if (row.kind === "pipeline-create" || row.kind === "pipeline-advance") {
-      // Old suggestions from Applications, removed 26 Sept 2026.
-      return { ok: false, error: "Applications has been removed — dismiss this suggestion instead." };
-    } else {
-      await performAutomationMove(toMoveRow(row));
-      await sb.from("automation_events").update({ status: "applied", acted_at: new Date().toISOString() }).eq("id", id);
-    }
-    revalidateAll();
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Could not apply." };
-  }
-}
-
-/** Undo an applied action — reverses the move and marks it undone. */
-export async function undoAutomationEvent(id: number): Promise<{ ok: boolean; error?: string }> {
-  await guardOwner();
-  if (!(await isAdminSession())) throw new Error("Not signed in.");
-  const row = await fetchRow(id, "applied");
-  if (!row) return { ok: false, error: "Nothing to undo." };
-  try {
-    await undoAutomationMove(toMoveRow(row));
-    await sb.from("automation_events").update({ status: "undone", acted_at: new Date().toISOString() }).eq("id", id);
-    revalidateAll();
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Could not undo." };
-  }
-}
-
-/** Dismiss a suggestion without acting on it. */
-export async function dismissAutomationSuggestion(id: number): Promise<{ ok: boolean }> {
-  await guardOwner();
-  if (!(await isAdminSession())) throw new Error("Not signed in.");
-  await sb.from("automation_events").update({ status: "dismissed", acted_at: new Date().toISOString() }).eq("id", id);
-  revalidatePath("/");
-  return { ok: true };
 }
 
 export type AutomationRuleStatus = { kind: string; mode: AutomationMode; applied: number; suggested: number };
@@ -181,27 +76,6 @@ export async function getAutomationRuleStatuses(): Promise<AutomationRuleStatus[
   return out;
 }
 
-/** Phase 6: the minimum AI read-confidence (0–100%) for AUTO-filling records.
- *  0 = a clean read is enough (default). */
-export async function getRecordsConfidence(): Promise<number> {
-  await guardOwner();
-  try {
-    const { data } = await sb.from("settings").select("value").eq("key", "automation.records.confidence").maybeSingle();
-    const n = parseInt((data?.value as string | null) ?? "", 10);
-    if (!Number.isNaN(n)) return Math.min(100, Math.max(0, n));
-  } catch { /* default */ }
-  return 0;
-}
-
-export async function setRecordsConfidenceAction(pct: number): Promise<{ ok: boolean }> {
-  await guardOwner();
-  if (!(await isAdminSession())) throw new Error("Not signed in.");
-  const v = Math.min(100, Math.max(0, Math.round(pct)));
-  await sb.from("settings").upsert({ key: "automation.records.confidence", value: String(v) }, { onConflict: "key" });
-  revalidatePath("/settings");
-  return { ok: true };
-}
-
 /** Set a rule's mode (Auto / Suggest / Off). */
 export async function setAutomationModeAction(kind: string, mode: AutomationMode): Promise<{ ok: boolean }> {
   await guardOwner();
@@ -221,18 +95,4 @@ export async function setAutomationModeAction(kind: string, mode: AutomationMode
   revalidatePath("/settings");
   revalidatePath("/");
   return { ok: true };
-}
-
-/** Run the time-based automations on demand (the daily cron runs them too) —
- *  creates renewal/probation/obligation tasks for dates that have passed. Returns the counts. */
-export async function runTimeAutomationsNow(): Promise<{ ok: boolean; renewals: number; probations: number; obligations: number }> {
-  await guardOwner();
-  if (!(await isAdminSession())) throw new Error("Not signed in.");
-  try {
-    const res = await runTimeAutomations();
-    revalidateAll();
-    return { ok: true, ...res };
-  } catch {
-    return { ok: false, renewals: 0, probations: 0, obligations: 0 };
-  }
 }

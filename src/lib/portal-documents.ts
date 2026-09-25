@@ -68,7 +68,7 @@ const SELECT =
 /** Core: documents for a company-id set (null = every company). Includes each
  *  company's own documents PLUS the documents of the PEOPLE in those companies.
  *  Archived + task "Attachment" files are excluded. */
-export async function listDocumentsForCompanies(scope: number[] | null): Promise<PortalDocRow[]> {
+async function listDocumentsForCompanies(scope: number[] | null): Promise<PortalDocRow[]> {
   let query = sb.from("documents").select(SELECT).eq("archived", false);
 
   if (scope !== null) {
@@ -83,11 +83,6 @@ export async function listDocumentsForCompanies(scope: number[] | null): Promise
   // Drop task-conversation attachments in JS (a `.neq` would also drop the many
   // rows whose category is null).
   return (data as RawDoc[] | null ?? []).filter((d) => d.category !== "Attachment").map(mapRow);
-}
-
-/** Every document a portal viewer may browse (their whole company scope). */
-export async function listPortalDocuments(me: PortalPerson): Promise<PortalDocRow[]> {
-  return listDocumentsForCompanies(await companyScope(me)); // companyScope null = all
 }
 
 /** One company's documents (its own + its people's) — for the portal company page.

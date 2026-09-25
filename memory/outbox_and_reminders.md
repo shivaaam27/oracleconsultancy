@@ -249,7 +249,7 @@ dropped in migration 0080; `todos` gained `remind_at` + `pushed`.)
   disables the buttons** — on a heavy page `pending` stays true for the whole
   re-render and the next click is swallowed. Use a `busy` flag around the
   awaited action, refresh after it, and overlay optimistic adds/removes by id so
-  nothing flashes back (`components/todo-card.tsx`).
+  nothing flashes back.
 
 ## The Report (Director Brief)
 

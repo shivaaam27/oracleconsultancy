@@ -30,8 +30,8 @@ export const ROLE_HUE: Record<FaceRole, number> = {
 };
 
 /** How loud a workload has to be before the face shows it. */
-export const OVERBURDENED_OPEN = 12;
-export const OVERBURDENED_LATE = 3;
+const OVERBURDENED_OPEN = 12;
+const OVERBURDENED_LATE = 3;
 
 export function moodFor(s: FaceStats): FaceMood {
   if (s.open >= OVERBURDENED_OPEN && s.overdue >= OVERBURDENED_LATE) return "sick";

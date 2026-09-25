@@ -61,7 +61,7 @@ function sessionFingerprint(passwordHash: string): string {
   return createHmac("sha256", secret()).update("pw:" + passwordHash).digest("base64url").slice(0, 16);
 }
 
-export function makeSessionToken(personId: number, passwordHash: string): string {
+function makeSessionToken(personId: number, passwordHash: string): string {
   const exp = Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000;
   const fp = sessionFingerprint(passwordHash);
   const payload = `${personId}.${exp}.${fp}`;
@@ -71,7 +71,7 @@ export function makeSessionToken(personId: number, passwordHash: string): string
 /** Parsed portal token. `fp` is null for legacy (pre-binding) cookies, which
  *  are still accepted on signature alone so a deploy doesn't force every staff
  *  member to sign in again; new logins are always bound. */
-export function parseSessionToken(
+function parseSessionToken(
   token: string | undefined
 ): { personId: number; fp: string | null } | null {
   if (!token) return null;
@@ -119,7 +119,7 @@ export function makeRememberToken(personId: number, passwordHash: string): strin
 
 /** Verify a remember token's signature + expiry (NOT yet the live password hash —
  *  the reauth route re-checks the fingerprint against the current hash). */
-export function parseRememberToken(token: string | undefined): { personId: number; fp: string } | null {
+function parseRememberToken(token: string | undefined): { personId: number; fp: string } | null {
   if (!token) return null;
   const segs = token.split(".");
   if (segs.length !== 5 || segs[0] !== "r") return null;
@@ -218,18 +218,10 @@ export async function clearSessionCookie() {
 }
 
 // "director" = executive operator: a read-only board + create tasks/events/
-// messages across ALL companies (group-wide). See memory/director_surface_plan.md.
+// messages across ALL companies (group-wide). See memory/company_scoped_roles.md.
 // ("hr", the admin/HR role, was removed on 26 Sept 2026 — nobody held it.
 // Old "portal-hr:<Name>" authors on existing rows still display.)
 export type PortalRole = "staff" | "manager" | "director" | "receptionist";
-
-// Roles whose powers are group-level (director). NOTE: this is ROLE-only and
-// does NOT account for a company-scoped director — use `seesAllCompanies(person)` for
-// any DATA-visibility decision. Kept for the few UI/role checks that mean "is this a
-// group-level role" regardless of scope.
-export function isGroupWide(role: PortalRole): boolean {
-  return role === "director";
-}
 
 // ── Company scope ────────────────────────────────────────────────────────────
 // The data-side twin of `portal-capabilities.ts` (which governs UI). Every server
@@ -461,7 +453,7 @@ export const getPortalPerson = cache(async (): Promise<PortalPerson | null> => {
 // cache() de-dupes within one request: myCompanyIds is reached several times per
 // board load (companyScope, getScopedPickerData, managerTeamIds) — all with the
 // same cached `person` reference, so they now share one query.
-export const myCompanyIds = cache(async (person: PortalPerson): Promise<number[]> => {
+const myCompanyIds = cache(async (person: PortalPerson): Promise<number[]> => {
   const { data } = await sb
     .from("person_companies")
     .select("company_id")
@@ -651,7 +643,7 @@ export async function recordTaskView(taskId: number, viewer: string): Promise<vo
 
 /** True when this person is an assignee (or owner) of the task. Used by
  *  every portal read and write so URLs cannot be guessed. */
-export async function personOnTask(personId: number, taskId: number): Promise<boolean> {
+async function personOnTask(personId: number, taskId: number): Promise<boolean> {
   const [{ data: assignee }, { data: task }] = await Promise.all([
     sb
       .from("task_assignees")

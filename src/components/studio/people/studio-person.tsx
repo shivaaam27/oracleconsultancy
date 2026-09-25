@@ -21,9 +21,8 @@ import {
   Clock, UserMinus, UserCheck, Copy, PackageCheck, Check, ExternalLink,
 } from "lucide-react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { StudioScope, stBtn } from "@/components/studio/kit";
+import { StudioScope } from "@/components/studio/kit";
 import { StudioSheet } from "@/components/studio/sheet";
-import { avatarTint, initials } from "@/components/studio/tasks/task-words";
 import { JourneyChecklist } from "@/components/journey-checklist";
 import { StudioPersonEquipment } from "./person-equipment";
 import { FactsPanel } from "@/components/facts-panel";
@@ -38,7 +37,6 @@ import { PERSON_TYPE_LABELS, type PersonType } from "@/lib/person-types";
 import { ROLE_LABEL, SCOPE_WORDS, asPortalRole, type PortalRoleKey, type ScopeLevel } from "@/lib/portal-permissions";
 import { PERSON_ACTION_LABEL, personActor, type PersonEvent } from "@/lib/person-audit-shared";
 import { togglePersonActive, snoozePerson, revokePortalAccessQuick } from "@/app/people/actions";
-import { taskHref } from "@/lib/task-href";
 import { useRemindPerson } from "./remind";
 import { PortalEditor, applyPortalDraft, draftFrom, type PortalDraft, type PortalNow } from "./portal-editor";
 import { cn } from "@/lib/cn";

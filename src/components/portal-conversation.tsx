@@ -106,7 +106,7 @@ function time(iso: string): string {
 
 export function PortalConversation(props: Props) {
   const {
-    taskId, code, closed, statusOptions, currentStatus, messages, events, latestId, seenLabel, team,
+    taskId, code, closed, statusOptions, messages, events, latestId, seenLabel, team,
     addAction, pinAction, ackAction, editAction, deleteAction, canPin, canAck, canModerate, composerHint, onPosted,
     variant, starters = STARTERS,
   } = props;

@@ -11,14 +11,12 @@ import {
   returnAsset,
   setAssetStatus,
   archiveAsset,
-  listArchivedAssets,
-  listAssetHistory,
   markAssetChecked,
   addAssetService,
   removeAssetService,
   type AssetInput,
 } from "@/lib/assets";
-import type { AssetStatus, AssetRow, AssetHistoryRow, AssetServiceKind } from "@/lib/assets-shared";
+import type { AssetStatus, AssetServiceKind } from "@/lib/assets-shared";
 
 type Result = { ok: true; id?: number } | { ok: false; error: string };
 
@@ -213,28 +211,6 @@ export async function setAssetStatusAction(assetId: number, status: AssetStatus)
     return { ok: true, id: assetId };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Could not update status." };
-  }
-}
-
-export async function listArchivedAssetsAction(): Promise<
-  { ok: true; rows: AssetRow[] } | { ok: false; error: string }
-> {
-  await guardOwner();
-  try {
-    return { ok: true, rows: await listArchivedAssets() };
-  } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Could not load archived assets." };
-  }
-}
-
-export async function listAssetHistoryAction(assetId: number): Promise<
-  { ok: true; rows: AssetHistoryRow[] } | { ok: false; error: string }
-> {
-  await guardOwner();
-  try {
-    return { ok: true, rows: await listAssetHistory(assetId) };
-  } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Could not load history." };
   }
 }
 

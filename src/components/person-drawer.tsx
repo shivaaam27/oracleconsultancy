@@ -5,8 +5,8 @@ import { useEffect, useState, useCallback } from "react";
 import {
   X, Mail, Phone, MessageCircle, MoonStar, UserX, AlertCircle,
   Briefcase, Building2, ExternalLink, Activity, ListTodo, Pencil, Archive,
-  RotateCcw, Clock, Send, FileText, ShieldCheck, Package, Route as RouteIcon,
-  LayoutDashboard, IdCard, CheckCircle2, AlertTriangle, PackageCheck, CalendarDays, Plane, Cake, Users,
+  RotateCcw, Clock, Send, FileText, Route as RouteIcon,
+  LayoutDashboard, IdCard, CheckCircle2, AlertTriangle, PackageCheck, Plane, Cake, Users,
   Rocket, LogOut, ListPlus, ChevronLeft, ChevronRight, Wrench,
 } from "lucide-react";
 import Link from "next/link";
@@ -260,23 +260,6 @@ function AlertCircleMini() {
   return <AlertCircle size={11} />;
 }
 
-/** Compliance score ring (null = not loaded yet). */
-function Ring({ score, band }: { score: number | null; band: "Good" | "Watch" | "Risk" | null }) {
-  const r = 24;
-  const c = 2 * Math.PI * r;
-  const dash = ((score ?? 0) / 100) * c;
-  const colour = band === "Good" ? "var(--success)" : band === "Watch" ? "var(--warn)" : band === "Risk" ? "var(--danger)" : "var(--border)";
-  return (
-    <div className="relative h-14 w-14 shrink-0">
-      <svg viewBox="0 0 56 56" className="h-14 w-14 -rotate-90">
-        <circle cx="28" cy="28" r={r} fill="none" stroke="hsl(var(--border))" strokeWidth="5" />
-        <circle cx="28" cy="28" r={r} fill="none" stroke={`hsl(${colour})`} strokeWidth="5" strokeLinecap="round" strokeDasharray={`${dash} ${c}`} style={{ transition: "stroke-dasharray .5s ease" }} />
-      </svg>
-      <div className="absolute inset-0 flex items-center justify-center text-xs font-semibold tabular">{score == null ? "—" : `${score}%`}</div>
-    </div>
-  );
-}
-
 /** Header for a deep view reached from a chip / the More menu. */
 function BackBar({ label, onBack }: { label: string; onBack: () => void }) {
   return (
@@ -453,7 +436,6 @@ export function PersonDrawer() {
   const todayISO = new Date().toISOString().slice(0, 10);
   const leaveReqs = data?.leave.requests ?? [];
   const onLeaveNow = leaveReqs.some((r) => r.status === "Approved" && r.startDate.slice(0, 10) <= todayISO && r.endDate.slice(0, 10) >= todayISO);
-  const pendingLeave = leaveReqs.filter((r) => r.status === "Pending").length;
   const nextLeave = leaveReqs
     .filter((r) => r.status === "Approved" && r.startDate.slice(0, 10) > todayISO)
     .sort((a, b) => a.startDate.localeCompare(b.startDate))[0] ?? null;

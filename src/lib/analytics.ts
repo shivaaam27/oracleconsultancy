@@ -6,10 +6,10 @@ import { sb } from "@/db/supabase";
  * response rate". All maths here; the resolvers/AI just phrase it. */
 
 const DAY = 86_400_000;
-const OPEN_STATUSES = ["Completed", "Closed"];
+const DONE_STATUSES = ["Completed", "Closed"];
 
 /** Task ids a person is ON (owner or assignee). */
-export async function taskIdsForPerson(personId: number): Promise<number[]> {
+async function taskIdsForPerson(personId: number): Promise<number[]> {
   const [{ data: owned }, { data: links }] = await Promise.all([
     sb.from("tasks").select("id").eq("archived", false).eq("owner_id", personId),
     sb.from("task_assignees").select("task_id").eq("person_id", personId),
@@ -34,7 +34,7 @@ export async function completionStats(personId?: number): Promise<CompletionStat
     ids = await taskIdsForPerson(personId);
     if (ids.length === 0) return { completed: 0, avgDays: null, onTime: 0, onTimePct: null };
   }
-  let q = sb.from("tasks").select("created_date,closed_date,deadline,status").eq("archived", false).in("status", OPEN_STATUSES);
+  let q = sb.from("tasks").select("created_date,closed_date,deadline,status").eq("archived", false).in("status", DONE_STATUSES);
   if (ids) q = q.in("id", ids);
   const { data } = await q.limit(2000);
   const rows = (data ?? []) as { created_date: string | null; closed_date: string | null; deadline: string | null }[];

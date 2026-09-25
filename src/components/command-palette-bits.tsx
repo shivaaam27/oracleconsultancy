@@ -7,7 +7,7 @@ import { cn } from "@/lib/cn";
 // on leave. No-op on touch (no cursor). The CSS `transition-transform` does the
 // springback. (GSAP targets the group/stagger wrappers, not these elements, so
 // there's no transform conflict.)
-export function useMagnetic<T extends HTMLElement>(strength = 0.25) {
+function useMagnetic<T extends HTMLElement>(strength = 0.25) {
   const ref = useRef<T | null>(null);
   const frame = useRef(0);
   const onPointerMove = useCallback((e: React.PointerEvent) => {

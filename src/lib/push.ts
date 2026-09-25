@@ -24,7 +24,7 @@ export function configurePush(): boolean {
   return true;
 }
 
-export async function getSubscriptions(): Promise<StoredSub[]> {
+async function getSubscriptions(): Promise<StoredSub[]> {
   const { data } = await sb.from("settings").select("value").eq("key", KEY).maybeSingle();
   const raw = (data?.value as string | null) ?? null;
   if (!raw) return [];
@@ -75,54 +75,6 @@ export type PushPayload = {
  *  2026). A chat line goes stale in an hour; everything else keeps for 12. */
 function ttlFor(p: PushPayload): number {
   return p.tag?.startsWith("chat-") ? 3600 : 12 * 3600;
-}
-
-function endpointHost(endpoint: string): string {
-  try {
-    return new URL(endpoint).host;
-  } catch {
-    return endpoint.slice(0, 40);
-  }
-}
-
-/** Send a notification to every registered device. Prunes dead subscriptions (410/404). */
-export async function sendToAll(
-  payload: PushPayload
-): Promise<{ sent: number; pruned: number; total: number; errors: { host: string; code?: number; message: string }[] }> {
-  if (!configurePush()) return { sent: 0, pruned: 0, total: 0, errors: [] };
-  const subs = await getSubscriptions();
-  if (subs.length === 0) return { sent: 0, pruned: 0, total: 0, errors: [] };
-
-  const body = JSON.stringify(payload);
-  const dead: string[] = [];
-  const errors: { host: string; code?: number; message: string }[] = [];
-  let sent = 0;
-
-  await Promise.all(
-    subs.map(async (s) => {
-      try {
-        // urgency:high asks Apple/Google to deliver promptly rather than batch;
-        // TTL keeps it deliverable for 10 min if the device is briefly offline.
-        await webpush.sendNotification({ endpoint: s.endpoint, keys: s.keys }, body, {
-          urgency: "high",
-          TTL: ttlFor(payload),
-        });
-        sent += 1;
-      } catch (err: unknown) {
-        const code = (err as { statusCode?: number })?.statusCode;
-        const message = (err as { body?: string; message?: string })?.body
-          || (err as { message?: string })?.message
-          || "unknown error";
-        errors.push({ host: endpointHost(s.endpoint), code, message: String(message).slice(0, 200) });
-        if (code === 404 || code === 410) dead.push(s.endpoint);
-      }
-    })
-  );
-
-  if (dead.length > 0) {
-    await saveSubscriptions(subs.filter((s) => !dead.includes(s.endpoint)));
-  }
-  return { sent, pruned: dead.length, total: subs.length, errors };
 }
 
 /* ------------------------------------------------------------------ *
@@ -294,12 +246,12 @@ export async function queueDigestItem(recipient: string, item: DigestItem): Prom
 }
 
 /** Recipients with at least one queued digest item (drives the cron flush). */
-export async function pendingDigestRecipients(): Promise<string[]> {
+async function pendingDigestRecipients(): Promise<string[]> {
   return readJson<string[]>(DIGEST_INDEX_KEY, []);
 }
 
 /** Take (and clear) all held digest items for a recipient. */
-export async function drainDigest(recipient: string): Promise<DigestItem[]> {
+async function drainDigest(recipient: string): Promise<DigestItem[]> {
   const items = await readJson<DigestItem[]>(digestKey(recipient), []);
   // Clear the queue and drop the recipient from the index.
   try {
@@ -317,7 +269,7 @@ export async function drainDigest(recipient: string): Promise<DigestItem[]> {
  * Summarise held digest items into one push line, grouping by kind:
  * "3 updates · 1 new document · 2 messages". Returns null if nothing held.
  */
-export function summariseDigest(items: DigestItem[]): { title: string; body: string; count: number } | null {
+function summariseDigest(items: DigestItem[]): { title: string; body: string; count: number } | null {
   if (items.length === 0) return null;
   const label: Record<string, [string, string]> = {
     mention: ["mention", "mentions"],

@@ -11,9 +11,8 @@ export async function POST() {
    * the internet could POST here and fire a notification at EVERY subscribed
    * device — the owner's and every member of staff's — as often as they liked.
    *
-   * Owner-only, not "admin or staff": sendToAll goes to everybody's devices, so
-   * a member of staff testing their own notifications would buzz the whole
-   * company. Its one caller is Settings → Notifications. */
+   * Owner-only: it sends to the owner's own devices, and its one caller is
+   * Settings → Notifications. */
   if (!(await isAdminSession())) {
     return NextResponse.json({ error: "Not signed in." }, { status: 401 });
   }

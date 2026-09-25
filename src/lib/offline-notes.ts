@@ -245,7 +245,7 @@ export type CachedNote = {
 /** Replace the device's copy of the collection. Whole-collection on purpose: a
  *  note deleted at the server has to disappear from here too, and working that
  *  out from a list of changes is more moving parts than re-reading 10 KB. */
-export async function putCachedNotes(notes: CachedNote[]): Promise<void> {
+async function putCachedNotes(notes: CachedNote[]): Promise<void> {
   const db = await open();
   await new Promise<void>((resolve, reject) => {
     const t = db.transaction([NOTES, META], "readwrite");
@@ -272,17 +272,6 @@ export async function listCachedNotes(): Promise<CachedNote[]> {
     });
   } catch {
     return [];
-  }
-}
-
-export async function getCachedNote(id: number): Promise<CachedNote | null> {
-  try {
-    return (
-      (await tx<CachedNote | undefined>("readonly", (s) => s.get(id) as IDBRequest<CachedNote | undefined>, NOTES)) ??
-      null
-    );
-  } catch {
-    return null;
   }
 }
 
@@ -414,7 +403,7 @@ export async function countEdits(): Promise<number> {
  * Same contract as `syncDrafts`: the server names exactly what it now holds, and
  * only those are let go of. Anything else stays and is offered again.
  */
-export async function syncEdits(): Promise<SyncResult & { keptBoth: number }> {
+async function syncEdits(): Promise<SyncResult & { keptBoth: number }> {
   if (!offlineStorageAvailable()) return { sent: 0, kept: 0, keptBoth: 0 };
   if (typeof navigator !== "undefined" && navigator.onLine === false) {
     return { sent: 0, kept: await countEdits(), keptBoth: 0 };

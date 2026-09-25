@@ -15,10 +15,7 @@ export type {
   PersonPackSectionKey,
   PersonPackSectionSelection,
 } from "@/lib/person-pack-shared";
-export {
-  parsePersonPackSections,
-  serialisePersonPackSections,
-} from "@/lib/person-pack-shared";
+export { parsePersonPackSections } from "@/lib/person-pack-shared";
 
 export type PersonPackTodo = {
   id: number;

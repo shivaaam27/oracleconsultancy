@@ -7,7 +7,6 @@
 // telling a caller "that token doesn't exist" would turn this endpoint into a
 // way of testing whether a stolen string is real.
 
-import { NextResponse } from "next/server";
 import { revokeByToken } from "@/lib/mcp/oauth";
 
 export const dynamic = "force-dynamic";

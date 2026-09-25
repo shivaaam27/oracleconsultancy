@@ -15,7 +15,7 @@ import { Check } from "lucide-react";
 import { useInlineField } from "@/components/task-inline-edit";
 import { toggleTaskStar } from "@/app/task/actions";
 import { useToast } from "@/components/toast";
-import { STATUS_DOT, avatarTint, initials } from "./task-words";
+import { STATUS_DOT } from "./task-words";
 import { cn } from "@/lib/cn";
 
 const STATUSES = ["Not Started", "In Progress", "Under Review", "Blocked", "Waiting External", "Escalated", "Completed", "Closed"];

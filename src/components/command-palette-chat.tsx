@@ -1,7 +1,6 @@
 "use client";
 import { useEffect, useState, useRef } from "react";
 import { ArrowLeft, ArrowUp, ArrowRight, Sparkles, Loader2, X as XIcon, User, RotateCw } from "lucide-react";
-import { cn } from "@/lib/cn";
 import { RichAnswer } from "./rich-answer";
 import { VoiceButton } from "./voice-button";
 import { MagneticChip } from "./command-palette-bits";

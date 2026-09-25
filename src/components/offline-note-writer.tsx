@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeft, Loader2, Send, Trash2 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import {
-  countDrafts,
   deleteDraft,
   listDrafts,
   newClientKey,
@@ -235,25 +234,4 @@ export function OfflineNoteWriter({ onBack }: { onBack?: () => void } = {}) {
       </p>
     </div>
   );
-}
-
-/** The count, for showing a "waiting to send" badge elsewhere. */
-export function useWaitingCount(): number {
-  const [n, setN] = useState(0);
-  useEffect(() => {
-    let alive = true;
-    const read = async () => {
-      const c = await countDrafts();
-      if (alive) setN(c);
-    };
-    void read();
-    const t = setInterval(read, 15_000);
-    window.addEventListener("online", read);
-    return () => {
-      alive = false;
-      clearInterval(t);
-      window.removeEventListener("online", read);
-    };
-  }, []);
-  return n;
 }

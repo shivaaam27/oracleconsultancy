@@ -13,13 +13,8 @@ export * from "./cleaning-shared";
 
 const d = (s: string | null): Date | null => (s ? new Date(s) : null);
 
-function toIso(v: Date | string | null | undefined): string | null {
-  if (v == null) return null;
-  return v instanceof Date ? v.toISOString() : v;
-}
-
 /** "YYYY-MM-DD" → Date at UTC midnight (all-day, matching deadline convention). */
-export function dayDate(s: string): Date {
+function dayDate(s: string): Date {
   return new Date(`${s}T00:00:00Z`);
 }
 
@@ -73,31 +68,11 @@ export async function ensureDefaultAreas(): Promise<void> {
   if (insErr) throw new Error(insErr.message);
 }
 
-export async function createArea(name: string, sortOrder?: number): Promise<number> {
-  const { data, error } = await sb
-    .from("cleaning_areas")
-    .insert({ name, sort_order: sortOrder ?? 0, active: true, created_at: new Date().toISOString() })
-    .select("id")
-    .single();
-  if (error) throw new Error(error.message);
-  return data.id as number;
-}
-
-export async function updateArea(id: number, patch: { name?: string; sortOrder?: number; active?: boolean }): Promise<void> {
-  const payload: Record<string, unknown> = {};
-  if (patch.name !== undefined) payload.name = patch.name;
-  if (patch.sortOrder !== undefined) payload.sort_order = patch.sortOrder;
-  if (patch.active !== undefined) payload.active = patch.active;
-  if (Object.keys(payload).length === 0) return;
-  const { error } = await sb.from("cleaning_areas").update(payload).eq("id", id);
-  if (error) throw new Error(error.message);
-}
-
 /* ---------------------------------------------------------------------- */
 /* Days + checks                                                          */
 /* ---------------------------------------------------------------------- */
 
-export async function getDay(dateIso: string): Promise<CleaningDay | null> {
+async function getDay(dateIso: string): Promise<CleaningDay | null> {
   const { data, error } = await sb.from("cleaning_days").select("*").eq("date", dayDate(dateIso).toISOString()).maybeSingle();
   if (error) throw new Error(error.message);
   return data ? mapDay(data as DayDbRow) : null;
@@ -213,4 +188,3 @@ export async function listDays(opts?: { limit?: number }): Promise<CleaningDay[]
   return (data as DayDbRow[]).map(mapDay);
 }
 
-export { toIso };

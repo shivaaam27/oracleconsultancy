@@ -4,6 +4,9 @@ import { companyScope, type PortalPerson } from "@/lib/portal-auth";
 
 export type PickerPerson = { id: number; name: string; companyId: number | null; companyIds: number[] };
 export type PickerCompany = { id: number; name: string };
+/** The shapes the portal task screens take (a person may not carry every company). */
+export type BoardPerson = { id: number; name: string; companyId: number | null; companyIds?: number[] };
+export type BoardCompany = PickerCompany;
 
 /** Companies + people for the portal create-pickers (task AND event forms),
  *  scoped to the viewer's permission through the ONE scope helper

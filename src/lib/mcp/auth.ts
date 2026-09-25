@@ -161,10 +161,4 @@ async function touch(keyId: number): Promise<void> {
     await sb.from("mcp_keys").update({ last_used_at: new Date().toISOString() }).eq("id", keyId);
   } catch { /* never fail a request over a bookkeeping write */ }
 }
-
-/** Pull the bearer token out of an incoming request. */
-export function bearerFrom(req: Request): string | undefined {
-  const header = req.headers.get("authorization") ?? "";
-  const m = /^Bearer\s+(.+)$/i.exec(header.trim());
-  return m ? m[1].trim() : undefined;
-}
+

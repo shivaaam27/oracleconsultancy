@@ -14,24 +14,3 @@ export type CockpitItem = {
   /** Applied items can be reversed; pending ones are accept/dismiss. */
   canUndo: boolean;
 };
-
-const RECORD_KIND_LABEL: Record<string, string> = {
-  "company-field": "Profile",
-  "person-field": "Profile",
-  fact: "Fact",
-  "new-shelf": "New shelf",
-  "new-structure": "New department",
-};
-// "pipeline-*" stay for old rows (Applications removed 26 Sept 2026).
-const PROCESS_KIND_LABEL: Record<string, string> = {
-  "compliance-verify": "Compliance",
-  "task-complete": "Task",
-  "pipeline-advance": "Pipeline",
-  "onboarding-tick": "Onboarding",
-  "task-create": "Renewal",
-  "pipeline-create": "New application",
-};
-
-export function cockpitKindLabel(item: CockpitItem): string {
-  return (item.source === "record" ? RECORD_KIND_LABEL : PROCESS_KIND_LABEL)[item.kind] ?? item.kind;
-}

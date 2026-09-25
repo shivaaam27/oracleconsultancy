@@ -7,8 +7,8 @@
 
 import type { RuleConfig } from "@/lib/ori/automations";
 
-export const OPEN_STATUSES = ["Not Started", "In Progress", "Under Review", "Blocked", "Waiting External", "Escalated"];
-export const PRIORITIES = ["Critical", "High", "Medium", "Low"];
+const OPEN_STATUSES = ["Not Started", "In Progress", "Under Review", "Blocked", "Waiting External", "Escalated"];
+const PRIORITIES = ["Critical", "High", "Medium", "Low"];
 
 /** Far-future sentinel for the on/off switch — "paused indefinitely". The engine's
  *  pausedUntil gate (evaluateRule) treats any future instant as not-due, so no

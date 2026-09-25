@@ -1,11 +1,9 @@
 "use client";
 
-import { CONTROL_SHELL } from "@/components/ui";
 
 import { useEffect, useState, useTransition } from "react";
-import { cn } from "@/lib/cn";
 import { useRouter } from "next/navigation";
-import { ChevronDown, Building2, Flag, SlidersHorizontal } from "lucide-react";
+import { Building2, Flag, SlidersHorizontal } from "lucide-react";
 import { useToast } from "@/components/toast";
 import { FluidSelect, type FluidOption } from "@/components/fluid-select";
 import { DatePopover } from "@/components/date-popover";
@@ -15,7 +13,7 @@ import {
   TaskPeoplePanel, TaskClassifyControls, TaskDeleteFooter, type CommandTask,
 } from "@/components/portal-tasks-command";
 import { portalEditTask } from "@/app/portal/actions";
-import type { BoardPerson, BoardCompany } from "@/components/director-board-client";
+import type { BoardPerson, BoardCompany } from "@/lib/portal-picker";
 
 /* Full-task-page management panel — the SAME controls the Tasks command card
  * offers, so a director gets identical power whether they open the card or the
@@ -28,8 +26,6 @@ const PRIORITY_HEX: Record<string, string> = {
   Critical: "hsl(var(--danger))", High: "hsl(var(--warn))", Medium: "hsl(var(--accent))", Low: "hsl(var(--fg-subtle))",
 };
 const priorityOptions: FluidOption[] = PRIORITIES.map((p) => ({ value: p, label: p, dot: PRIORITY_HEX[p] }));
-// One shared control edge — see CONTROL_SHELL in ui.tsx.
-const fieldShell = CONTROL_SHELL;
 
 /** Broadcast by `portal-task-edit.tsx` when the pencil is pressed or cancelled.
  *  A window event rather than lifted state because the two live in different

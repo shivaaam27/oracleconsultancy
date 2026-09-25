@@ -17,7 +17,7 @@ import { useCallback, useEffect, useState } from "react";
 const KEY = (kind: string) => `cos.navOrder.${kind}`;
 const EVENT = "cos:nav-order";
 
-export function readNavOrder(kind: string): string[] {
+function readNavOrder(kind: string): string[] {
   try {
     const raw = window.localStorage.getItem(KEY(kind));
     const v = raw ? JSON.parse(raw) : [];

@@ -276,12 +276,6 @@ export async function portalAcknowledgeAction(id: number): Promise<{ ok: boolean
   return { ok: true };
 }
 
-export async function adminMarkSeenAction(id: number): Promise<{ ok: boolean }> {
-  await guardOwner();
-  await markSeenLib(id, "admin");
-  return { ok: true };
-}
-
 /* --------------------------- reactions & questions (A6) --------------------------- */
 
 export async function portalToggleReactionAction(id: number, emoji: string): Promise<{ ok: boolean; on?: boolean }> {
@@ -321,16 +315,6 @@ export async function portalAddCommentAction(id: number, body: string): Promise<
     }
   }
   revalidatePath("/portal/announcements");
-  return { ok: true };
-}
-
-/** Owner answers a question from the admin noticeboard. */
-export async function adminAddCommentAction(id: number, body: string): Promise<{ ok: boolean; error?: string }> {
-  await guardOwner();
-  const text = (body ?? "").trim();
-  if (!text) return { ok: false, error: "Write something first." };
-  await addComment({ announcementId: id, personId: null, authorName: "Management", body: text, isAnswer: true });
-  revalidatePath("/announcements");
   return { ok: true };
 }
 

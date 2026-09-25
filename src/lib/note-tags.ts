@@ -26,8 +26,3 @@ export function parseTags(text: string): string[] {
   // A ceiling so one pathological note cannot write a thousand rows.
   return out.slice(0, 50);
 }
-
-/** `#word` → the display form, without the hash. */
-export function tagLabel(tag: string): string {
-  return tag.replace(/^#/, "");
-}

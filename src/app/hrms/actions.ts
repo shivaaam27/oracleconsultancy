@@ -9,10 +9,8 @@ import {
   setStockItemArchived,
   deleteStockItem,
   recordPurchase,
-  updatePurchase,
   deletePurchase,
   recordIssue,
-  updateIssue,
   deleteIssue,
   InsufficientStockError,
   type StockItemInput,
@@ -146,19 +144,6 @@ export async function recordPurchaseAction(fd: FormData): Promise<Result> {
   }
 }
 
-export async function updatePurchaseAction(id: number, fd: FormData): Promise<Result> {
-  await guardOwner();
-  const parsed = purchaseFromForm(fd);
-  if ("error" in parsed) return { ok: false, error: parsed.error };
-  try {
-    await updatePurchase(id, parsed);
-    revalidateHrms();
-    return { ok: true, id };
-  } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Could not save changes." };
-  }
-}
-
 export async function deletePurchaseAction(id: number): Promise<Result> {
   await guardOwner();
   try {
@@ -202,19 +187,6 @@ export async function recordIssueAction(fd: FormData): Promise<Result> {
       return { ok: false, error: `Only ${e.available} in stock — you're trying to issue ${e.requested}.` };
     }
     return { ok: false, error: e instanceof Error ? e.message : "Could not record the issue." };
-  }
-}
-
-export async function updateIssueAction(id: number, fd: FormData): Promise<Result> {
-  await guardOwner();
-  const parsed = issueFromForm(fd);
-  if ("error" in parsed) return { ok: false, error: parsed.error };
-  try {
-    await updateIssue(id, parsed);
-    revalidateHrms();
-    return { ok: true, id };
-  } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Could not save changes." };
   }
 }
 

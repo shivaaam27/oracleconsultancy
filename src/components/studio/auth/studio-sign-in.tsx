@@ -253,7 +253,7 @@ export function AuthFrame({ children }: { children: React.ReactNode }) {
 }
 
 /** Below `lg`: the dark panel as a full-width header the sheet rises over. */
-export function BrandCompact() {
+function BrandCompact() {
   return (
     <div className="st-tex-rings relative overflow-hidden bg-[#141517] px-5 pb-14 pt-[max(24px,calc(env(safe-area-inset-top)+16px))] text-[#F2F2F0] sm:px-8 sm:pb-14 sm:pt-8 lg:hidden">
       <div className="flex items-center gap-2.5">
@@ -278,7 +278,7 @@ const BAR_C = (i: number) => (i > 29 ? "#E0479E" : i > 26 ? "#F5A524" : i > 5 ? 
 
 /** Desk: the right of the frame — the name, the line on what Oracle is, and the
  *  Studio's bars drawn large along the foot (a fixed pattern, not data). */
-export function BrandSide() {
+function BrandSide() {
   return (
     <aside className="relative hidden min-w-0 flex-col px-12 pb-0 pt-12 text-[#F2F2F0] lg:flex xl:px-16 xl:pt-16">
       <div className="text-[64px] font-medium leading-[0.92] tracking-[-0.045em] xl:text-[88px]">Task<br />Management</div>
@@ -298,7 +298,7 @@ export function BrandSide() {
   );
 }
 
-export function ThemeButton({ inline = false, card = false }: { inline?: boolean; card?: boolean }) {
+function ThemeButton({ inline = false, card = false }: { inline?: boolean; card?: boolean }) {
   const { resolvedTheme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);

@@ -158,7 +158,7 @@ function parseQuotaEnv(): Record<string, number> {
   }
 }
 
-export const MODEL_QUOTAS: Record<string, number> = parseQuotaEnv();
+const MODEL_QUOTAS: Record<string, number> = parseQuotaEnv();
 
 /** Known free-tier requests-per-day for a model id (longest-prefix match), or
  *  undefined when the model isn't in the quota map (unknown → show usage only,

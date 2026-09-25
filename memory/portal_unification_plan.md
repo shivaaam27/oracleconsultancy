@@ -84,10 +84,9 @@ managers, then staff. Current reference for the portal: `memory/portal.md`.
 
 ## Left
 
-- Retire the dead portal twins: `/portal/board` (`director-board-client.tsx`),
-  `/portal/team`, `/portal/directory`, and the old chrome
-  (`portal-sidebar.tsx`, `portal-pill.tsx`, `portal-capabilities.ts`) once
-  nothing reads them.
+- `/portal/board`, `/portal/team`, `/portal/directory` are redirect stubs now
+  (done). Left: the old chrome (`portal-sidebar.tsx`, `portal-pill.tsx`,
+  `portal-capabilities.ts`), still used by `/portal/outbox` and `/portal/insights`.
 - `/portal/outbox` and `/portal/insights` are still the old pages, reachable by
   staff only if the owner grants `navOutbox` / `navInsights`.
 - Search (⌘K) for directors/managers on the shared screens, scoped.

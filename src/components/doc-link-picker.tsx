@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { menuStyle, useAnchoredMenu } from "@/lib/use-anchored-menu";
-import { Select } from "./ui";
 import { ChevronDown, Link2, Search } from "lucide-react";
 import { cn } from "@/lib/cn";
 

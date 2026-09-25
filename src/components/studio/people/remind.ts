@@ -11,7 +11,7 @@ import { useToast } from "@/components/toast";
 type Who = { id: number; name: string; email: string | null; phone: string | null; whatsapp: string | null; preferredChannel: string | null };
 type Task = { code: string; actionItem: string };
 
-export function reminderBody(name: string, tasks: Task[]): string {
+function reminderBody(name: string, tasks: Task[]): string {
   const lines = [`Hi ${name.replace(/^(Mr|Ms|Mrs|Miss|Dr|Chef|Eng)\.? /i, "")}, a quick reminder on your open items:`, ""];
   tasks.slice(0, 8).forEach((t) => lines.push(`• ${t.actionItem} (${t.code})`));
   lines.push("", "Please update the tracker when you can. Thanks.");

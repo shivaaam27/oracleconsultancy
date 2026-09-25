@@ -32,7 +32,7 @@ function shortDate(v: unknown): string | null {
 
 const Empty = () => <span className="text-fg-subtle">—</span>;
 
-export const CELL_FORMATTERS: Record<CellFormat, (value: unknown, row: Record<string, unknown>) => ReactNode> = {
+const CELL_FORMATTERS: Record<CellFormat, (value: unknown, row: Record<string, unknown>) => ReactNode> = {
   text: (v) => (v == null || v === "" ? <Empty /> : <span className="truncate">{String(v)}</span>),
 
   muted: (v) => (v == null || v === "" ? <Empty /> : <span className="truncate text-fg-muted">{String(v)}</span>),
@@ -134,7 +134,7 @@ export function buildColumns<T extends Record<string, unknown>>(
 }
 
 /**
- * Metadata → `RecordPage` / `RecordBody` sections.
+ * Metadata → `RecordBody` sections.
  *
  * A field with no value is dropped rather than shown empty, unless `overrides`
  * supplies something for it (a "Set category" prompt, say).

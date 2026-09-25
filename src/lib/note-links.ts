@@ -69,7 +69,7 @@ export async function syncNoteLinks(noteId: number, bodyJson: unknown): Promise<
  *
  * One query per type present, never one per link.
  */
-export async function resolveLinks(refs: MentionRef[]): Promise<ResolvedLink[]> {
+async function resolveLinks(refs: MentionRef[]): Promise<ResolvedLink[]> {
   if (refs.length === 0) return [];
 
   const byType = new Map<LinkType, number[]>();

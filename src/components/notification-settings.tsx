@@ -20,7 +20,7 @@ type State = "loading" | "unsupported" | "off" | "on" | "denied";
 /** This device's alert subscription — shared by the Settings card and the
  *  switch at the foot of the bell panel (so a director, who has no Settings,
  *  can turn alerts on too — push audit, 25 Sept 2026). */
-export function useDevicePush() {
+function useDevicePush() {
   const [state, setState] = useState<State>("loading");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);

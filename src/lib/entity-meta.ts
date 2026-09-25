@@ -9,8 +9,8 @@
 // so it's erased at compile and pulls nothing in at runtime).
 //
 // KEEP the labels/order here in sync with the EntityDef uiLabel/searchOrder in
-// src/lib/entity-registry.ts (the registry re-exports SEARCH_PALETTE_ORDER from
-// here, so this is the single source for the palette grouping order).
+// src/lib/entity-registry.ts (this is the single source for the palette grouping
+// order, SEARCH_PALETTE_ORDER).
 
 import type { SourceType } from "@/lib/embeddings";
 
@@ -18,7 +18,7 @@ export type EntityType = SourceType;
 
 /** Heading label + palette position per entity type. searchOrder < 0 = not shown
  *  as its own deep-index group in the palette (tasks keep their own rich rows). */
-export const ENTITY_LABELS_ORDER: Record<EntityType, { uiLabel: string; searchOrder: number }> = {
+const ENTITY_LABELS_ORDER: Record<EntityType, { uiLabel: string; searchOrder: number }> = {
   task:       { uiLabel: "Tasks",        searchOrder: -1 },
   person:     { uiLabel: "People",       searchOrder: 0 },
   company:    { uiLabel: "Companies",    searchOrder: 1 },

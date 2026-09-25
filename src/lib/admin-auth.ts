@@ -51,7 +51,7 @@ export async function getAdminHash(): Promise<string | null> {
   return (data?.value as string | null) ?? null;
 }
 
-export async function getAdminSessionGen(): Promise<string> {
+async function getAdminSessionGen(): Promise<string> {
   const { data } = await sb.from("settings").select("value").eq("key", GEN_KEY).maybeSingle();
   return (data?.value as string | null) ?? "1";
 }

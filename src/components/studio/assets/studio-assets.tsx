@@ -35,7 +35,7 @@ import type { VendorRow } from "@/lib/vendors-shared";
 import {
   AssetFormSheet, HandOverSheet, ReturnSheet, ServiceSheet, ToolFormSheet, ToolMoveSheet, VendorFormSheet, ImportSheet, type AssetLists,
 } from "./asset-sheets";
-import { Pill, RowMenu, MenuItem, MenuLine, STATUS_DOT, STATUS_WORD, CONDITION_DOT, tzs, since, shortName } from "./bits";
+import { Pill, RowMenu, MenuItem, MenuLine, STATUS_DOT, STATUS_WORD, CONDITION_DOT, tzs, shortName } from "./bits";
 import { cn } from "@/lib/cn";
 
 export type View = "assets" | "tools" | "vendors";

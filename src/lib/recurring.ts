@@ -136,7 +136,7 @@ function isVatObligation(ob: RecurringObligation): boolean {
 }
 
 /** Build per-company status for one obligation. */
-export function companyStatuses(
+function companyStatuses(
   ob: RecurringObligation,
   companies: CompanyLite[],
   ocMap: Map<string, OcState>,

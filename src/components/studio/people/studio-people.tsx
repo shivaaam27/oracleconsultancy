@@ -21,7 +21,6 @@ import { Plus, Search, Maximize2, X, Mail, MessageCircle, Phone, CheckSquare, Ch
 import { StudioScope, StudioHeader, StudioCardRow, StudioCard, CardHead, BigNumber, Ring, stBtn, stFloatBar } from "@/components/studio/kit";
 import { StudioMenu } from "@/components/studio/tasks/controls";
 import { StudioChoiceMenu } from "@/components/studio/tasks/cells";
-import { avatarTint, initials } from "@/components/studio/tasks/task-words";
 import { useToast } from "@/components/toast";
 import { useUrlFilters } from "@/lib/use-url-filters";
 import { withReturn, markPush } from "@/lib/return-to";
@@ -33,7 +32,6 @@ import { cn } from "@/lib/cn";
 import { useRemindPerson } from "./remind";
 import { useCreateParam } from "@/lib/use-create-param";
 import { useFitFrame } from "@/components/studio/use-fit-frame";
-import { useMediaQuery } from "@/lib/use-media-query";
 import { useStudioPaths } from "@/components/studio/studio-paths";
 
 type Company = { id: number; name: string };

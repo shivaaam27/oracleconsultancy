@@ -35,7 +35,7 @@ export type PersonPackSectionKey =
   | "fileLinks"
   | "internalNotes";
 
-export const PERSON_PACK_SECTION_KEYS: PersonPackSectionKey[] = [
+const PERSON_PACK_SECTION_KEYS: PersonPackSectionKey[] = [
   "documentIssues",
   "linkedDocuments",
   "openTasks",
@@ -70,8 +70,4 @@ export function parsePersonPackSections(value?: string | null): PersonPackSectio
   const out = blankPersonPackSelection();
   for (const key of PERSON_PACK_SECTION_KEYS) out[key] = selected.has(key);
   return out;
-}
-
-export function serialisePersonPackSections(selection: PersonPackSectionSelection): string {
-  return PERSON_PACK_SECTION_KEYS.filter((key) => selection[key]).join(",");
 }

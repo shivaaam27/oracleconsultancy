@@ -114,16 +114,3 @@ export async function scopedUpcomingMeetings(
     }),
   }));
 }
-
-/** The single nearest upcoming meeting within `withinHours` (default 48h), or
- *  null. Used by the home + board "next meeting" glance. */
-export function nearestSoon(meetings: PortalMeetingView[], withinHours = 48): PortalMeetingView | null {
-  const cutoff = Date.now() + withinHours * 3600000;
-  const soon = meetings
-    .filter((m) => {
-      const t = new Date(m.startAt).getTime();
-      return !Number.isNaN(t) && t <= cutoff;
-    })
-    .sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime());
-  return soon[0] ?? null;
-}

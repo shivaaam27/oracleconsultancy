@@ -14,7 +14,7 @@ import { cn } from "@/lib/cn";
 
 export const FIELD = "st-field h-10 w-full rounded-[10px] px-3 text-[13px] outline-none";
 export const AREA = "st-field w-full rounded-[10px] px-3 py-2.5 text-[13px] outline-none";
-export const LABEL = "mb-1.5 block text-xs text-[var(--sh-muted,var(--st-muted))]";
+const LABEL = "mb-1.5 block text-xs text-[var(--sh-muted,var(--st-muted))]";
 
 export const STATUS_DOT: Record<AssetStatus, string> = {
   in_store: "#19C37D",

@@ -23,11 +23,9 @@ import { Minimize2, List, Folder, Users, Plus, Sparkles, Loader2, Copy, Check, F
 import { StudioScope, Ring } from "@/components/studio/kit";
 import { useFitFrame } from "@/components/studio/use-fit-frame";
 import { useStudioFootNote } from "@/components/studio/foot-note";
-import { avatarTint, initials } from "@/components/studio/tasks/task-words";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { friendlyAIError } from "@/lib/ai-errors";
 import { withReturn } from "@/lib/return-to";
-import { taskHref } from "@/lib/task-href";
 import { cn } from "@/lib/cn";
 import { STANDING, standing } from "./studio-companies";
 import { useStudioPaths } from "@/components/studio/studio-paths";

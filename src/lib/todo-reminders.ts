@@ -34,18 +34,11 @@ function mapCard(r: any): TodoCardItem {
 }
 
 /** Important first, then soonest time (remind or due), then it doesn't matter. */
-export function sortTodoCard(a: TodoCardItem, b: TodoCardItem): number {
+function sortTodoCard(a: TodoCardItem, b: TodoCardItem): number {
   if (a.important !== b.important) return a.important ? -1 : 1;
   const at = a.remindAt ?? a.dueAt;
   const bt = b.remindAt ?? b.dueAt;
   return (at ? Date.parse(at) : Infinity) - (bt ? Date.parse(bt) : Infinity);
-}
-
-/** Owner's open ad-hoc to-dos (kind NULL — journey steps excluded) for the Home card. */
-export async function listOwnerTodos(): Promise<TodoCardItem[]> {
-  const { data, error } = await sb.from("todos").select(CARD_SELECT).is("kind", null).eq("done", false);
-  if (error) throw new Error(error.message);
-  return ((data ?? []) as any[]).map(mapCard).sort(sortTodoCard);
 }
 
 /** A staff member's own personal to-dos (kind 'self') for the portal card. */

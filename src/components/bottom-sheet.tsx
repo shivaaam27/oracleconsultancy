@@ -140,32 +140,3 @@ export function BottomSheet({
     document.body
   );
 }
-
-/* A trigger + sheet bundled together — handy when a button opens the sheet and
- * you don't want to hand-wire open state. `render` receives a `close` fn. */
-export function SheetButton({
-  trigger,
-  title,
-  icon,
-  footer,
-  children,
-  maxWidth,
-}: {
-  trigger: (open: () => void) => ReactNode;
-  title: ReactNode;
-  icon?: ReactNode;
-  footer?: (close: () => void) => ReactNode;
-  children: (close: () => void) => ReactNode;
-  maxWidth?: string;
-}) {
-  const [open, setOpen] = useState(false);
-  const close = () => setOpen(false);
-  return (
-    <>
-      {trigger(() => setOpen(true))}
-      <BottomSheet open={open} onClose={close} title={title} icon={icon} footer={footer?.(close)} maxWidth={maxWidth}>
-        {children(close)}
-      </BottomSheet>
-    </>
-  );
-}

@@ -25,7 +25,6 @@ import {
   groupNotifications, isDailyReminder, isSystemDigest, notifAgo, notifBucket, notifLane,
   type NotifGroup, type NotifRow,
 } from "@/lib/notification-view";
-import { avatarTint, initials } from "@/components/studio/tasks/task-words";
 import { cn } from "@/lib/cn";
 
 type Filter = "all" | "mentions" | "updates" | "reminders" | "ori";

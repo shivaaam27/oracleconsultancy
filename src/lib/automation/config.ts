@@ -11,7 +11,7 @@ const DEFAULT_CATEGORIES = Object.fromEntries(
   CATEGORY_META.map((m) => [m.key, { mode: "off" as const }]),
 ) as AutomationConfig["categories"];
 
-export const DEFAULTS: AutomationConfig = {
+const DEFAULTS: AutomationConfig = {
   paused: false,
   windowStartHour: 8,
   windowEndHour: 18,

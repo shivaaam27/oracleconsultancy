@@ -364,7 +364,7 @@ export function VendorFormSheet({ open, onClose, vendor, companies }: { open: bo
   );
 }
 
-export function SheetNote({ children }: { children: ReactNode }) {
+function SheetNote({ children }: { children: ReactNode }) {
   return <p className="m-0 text-xs text-[var(--sh-muted,var(--st-muted))]">{children}</p>;
 }
 

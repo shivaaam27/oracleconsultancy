@@ -101,7 +101,7 @@ function buildHref(sp: Sp, overrides: Partial<Sp>): string {
   return `/?${u.toString()}`;
 }
 
-/** Query string without the view/month keys — passed to ViewSwitcher. */
+/** Query string without the view/month keys. */
 function queryWithoutView(sp: Sp): string {
   const u = new URLSearchParams();
   u.set("tab", "tasks");

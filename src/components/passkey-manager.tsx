@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { startRegistration, browserSupportsWebAuthn } from "@simplewebauthn/browser";
 import type { PublicKeyCredentialCreationOptionsJSON, RegistrationResponseJSON } from "@simplewebauthn/browser";
-import { ScanFace, Fingerprint, Trash2, Plus } from "lucide-react";
+import { ScanFace, Fingerprint, Trash2 } from "lucide-react";
 import { Button } from "./ui";
 
 export type PasskeyRow = { id: number; label: string | null; created_at: string; last_used_at: string | null };

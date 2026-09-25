@@ -54,8 +54,3 @@ export function prefetchTaskDetail(code: string | null | undefined): void {
     .finally(() => inflight.delete(code));
   inflight.set(code, p);
 }
-
-/** Forget a task's copy — after a write, so the next open is not stale. */
-export function dropTaskDetail(code: string) {
-  cache.delete(code);
-}

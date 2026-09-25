@@ -102,7 +102,7 @@ export async function resolveTask(code: string): Promise<{ id: number; code: str
 /** Snapshot a task's full field set + assignees BEFORE a mutation, shaped for the
  *  existing "task.update" undo handler (undo-handlers/tasks.ts) so a status change
  *  or reassignment is one-tap reversible. */
-export async function snapshotTaskForUndo(taskId: number): Promise<{ kind: string; payload: unknown } | undefined> {
+async function snapshotTaskForUndo(taskId: number): Promise<{ kind: string; payload: unknown } | undefined> {
   const { data: t } = await sb.from("tasks")
     .select("id,code,company_id,action_item,department_id,status,priority,risk,escalation,category,deadline,meeting_date,comments,latest_update,last_updated_at,closed_date")
     .eq("id", taskId).maybeSingle();
@@ -175,7 +175,7 @@ export async function resolveEvent(ref: string): Promise<{ id: number; title: st
 
 /** Parse a natural deadline the planner passes as an ISO date OR "in N days".
  *  The planner is told today's date, so it should send ISO; this is a backstop. */
-export function parseDeadline(v: unknown): Date | null {
+function parseDeadline(v: unknown): Date | null {
   const s = str(v);
   if (!s) return null;
   const rel = s.match(/in\s+(\d+)\s*days?/i);
@@ -186,7 +186,7 @@ export function parseDeadline(v: unknown): Date | null {
 
 /* --------------------------------- tools --------------------------------- */
 
-export const TOOLS: ToolDef[] = [
+const TOOLS: ToolDef[] = [
   {
     name: "create_task",
     tier: 2,
@@ -1023,7 +1023,7 @@ export const TOOLS: ToolDef[] = [
 ];
 
 /** True if the planner supplied this arg at all (so we don't overwrite with a blank). */
-export function formHas(args: Record<string, unknown>, key: string): boolean {
+function formHas(args: Record<string, unknown>, key: string): boolean {
   return Object.prototype.hasOwnProperty.call(args, key) && args[key] != null && str(args[key]) !== "";
 }
 
@@ -1080,7 +1080,7 @@ const TOOL_TOKENS: Array<{ tool: ToolDef; nameToks: Set<string>; descToks: Set<s
  * returns the WHOLE catalogue rather than risk hiding a tool the planner needs.
  * A short/empty message also returns everything (nothing to match on).
  */
-export function selectRelevantTools(message: string, cap = 25): ToolDef[] {
+function selectRelevantTools(message: string, cap = 25): ToolDef[] {
   const toks = keyTokens(message);
   // Nothing to go on → don't guess, show everything.
   if (toks.length < 2) return TOOLS;

@@ -56,8 +56,8 @@ export type Viewer =
 /** The portal roles that use the shared screens: directors (Sept 2026) and
  *  managers (26 Sept 2026), each over the companies they may see. Staff join
  *  when their screens are built. */
-export const STUDIO_ROLES = ["director", "manager"] as const;
-export function isStudioRole(role: string | null | undefined): boolean {
+const STUDIO_ROLES = ["director", "manager"] as const;
+function isStudioRole(role: string | null | undefined): boolean {
   return (STUDIO_ROLES as readonly string[]).includes(role ?? "");
 }
 
@@ -96,7 +96,7 @@ export function fromBrowser(): boolean {
   return actionAsyncStorage.getStore()?.isAction === true;
 }
 
-export const NOT_ALLOWED = "Only the administrator can do that.";
+const NOT_ALLOWED = "Only the administrator can do that.";
 
 /** The top of every owner-only server action. */
 export async function guardOwner(): Promise<void> {

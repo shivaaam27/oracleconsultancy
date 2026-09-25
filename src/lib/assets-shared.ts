@@ -28,13 +28,6 @@ export const ASSET_STATUS_LABELS: Record<AssetStatus, string> = {
   retired: "Retired",
 };
 
-export const ASSET_STATUS_TONE: Record<AssetStatus, "default" | "success" | "warn" | "danger" | "info"> = {
-  in_store: "default",
-  assigned: "info",
-  maintenance: "warn",
-  retired: "danger",
-};
-
 export type AssetRow = {
   id: number;
   tag: string | null;
@@ -93,9 +86,9 @@ export type AssetServiceRow = {
 };
 
 /** A stock-take counts an asset as seen if it was checked within this many days. */
-export const CHECK_FRESH_DAYS = 180;
+const CHECK_FRESH_DAYS = 180;
 /** Warranty is "ending soon" inside this many days. */
-export const WARRANTY_SOON_DAYS = 60;
+const WARRANTY_SOON_DAYS = 60;
 
 export function warrantyState(iso: string | null, now = Date.now()): "none" | "ok" | "soon" | "ended" {
   if (!iso) return "none";

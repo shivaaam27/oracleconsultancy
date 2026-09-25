@@ -18,14 +18,11 @@ import {
   updateDocument,
   getDocument,
   setDocumentArchived,
-  deleteDocumentForever,
   uploadDocumentFile,
   attachUploadedFile,
-  removeDocumentFile,
   signDocumentFile,
   linkDocumentTask,
   type DocumentInput,
-  type DocumentRow,
 } from "@/lib/documents";
 
 type Result = { ok: true; id?: number; code?: string } | { ok: false; error: string };
@@ -133,16 +130,6 @@ export async function updateDocumentAction(id: number, fd: FormData): Promise<Re
   }
 }
 
-/** One document by id — used by the in-place editor dialog. */
-export async function getDocumentRowAction(id: number): Promise<DocumentRow | null> {
-  await guardOwner();
-  try {
-    return await getDocument(id);
-  } catch {
-    return null;
-  }
-}
-
 export async function renameDocumentAction(id: number, title: string): Promise<Result> {
   await guardOwner();
   const clean = (title ?? "").trim();
@@ -167,17 +154,6 @@ export async function archiveDocumentAction(id: number, archived: boolean): Prom
   }
 }
 
-export async function removeDocumentFileAction(id: number): Promise<Result> {
-  await guardOwner();
-  try {
-    await removeDocumentFile(id);
-    revalidateDocs();
-    return { ok: true, id };
-  } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Could not remove the file." };
-  }
-}
-
 /** A short-lived signed URL for viewing/downloading a document's stored file. */
 export async function getDocumentFileLinkAction(id: number): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
   await guardOwner();
@@ -191,50 +167,6 @@ export async function getDocumentFileLinkAction(id: number): Promise<{ ok: true;
     return { ok: true, url };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Could not open the file." };
-  }
-}
-
-/* ------------------------------------------------------------------ */
-/* Delete                                                              */
-/* ------------------------------------------------------------------ */
-
-export type DeleteMode = "archive" | "permanent";
-export type DeleteScope =
-  | { kind: "ids"; ids: number[] }
-  | { kind: "company"; companyId: number }
-  | { kind: "category"; category: string }
-  | { kind: "all" };
-
-/** Resolve a scope to the document ids it covers. */
-async function resolveDeleteIds(scope: DeleteScope): Promise<number[]> {
-  if (scope.kind === "ids") return scope.ids.filter((n) => Number.isFinite(n));
-  let q = sb.from("documents").select("id");
-  if (scope.kind === "company") q = q.eq("company_id", scope.companyId);
-  else if (scope.kind === "category") q = q.eq("category", scope.category);
-  const { data } = await q.limit(10000);
-  return ((data ?? []) as { id: number }[]).map((r) => r.id);
-}
-
-/**
- * Delete documents by scope. "archive" hides them (recoverable via the archived
- * filter); "permanent" removes the row AND its stored file for good.
- */
-export async function deleteDocumentsAction(scope: DeleteScope, mode: DeleteMode): Promise<{ ok: boolean; count: number; error?: string }> {
-  await guardOwner();
-  try {
-    const ids = await resolveDeleteIds(scope);
-    let count = 0;
-    for (const id of ids) {
-      try {
-        if (mode === "permanent") await deleteDocumentForever(id);
-        else await setDocumentArchived(id, true);
-        count++;
-      } catch { /* skip one bad row, keep going */ }
-    }
-    revalidateDocs();
-    return { ok: true, count };
-  } catch (e) {
-    return { ok: false, count: 0, error: e instanceof Error ? e.message : "Delete failed" };
   }
 }
 

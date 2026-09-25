@@ -65,11 +65,3 @@ export async function fetchAllRows<T>(
   }
   return out;
 }
-
-// Helper that throws on error so calling code can `await` and get data directly.
-export async function sbThrow<T>(promise: PromiseLike<{ data: T | null; error: { message: string } | null }>): Promise<T> {
-  const { data, error } = await promise;
-  if (error) throw new Error(error.message);
-  if (data == null) throw new Error("No data returned");
-  return data;
-}

@@ -9,8 +9,6 @@ import type { Transition, Variants } from "framer-motion";
 
 /** Standard spring — sheets, drawers, morphing indicators. */
 export const spring: Transition = { type: "spring", stiffness: 380, damping: 32 };
-/** Softer spring — large surfaces / hero entrances. */
-export const springSoft: Transition = { type: "spring", stiffness: 260, damping: 30 };
 /** Snappy spring — small controls, segmented morph. */
 export const springSnappy: Transition = { type: "spring", stiffness: 520, damping: 36 };
 /** Quick eased tween — fades, opacity. */
@@ -21,18 +19,4 @@ export const fadeUp: Variants = {
   initial: { opacity: 0, y: 6 },
   animate: { opacity: 1, y: 0 },
   exit: { opacity: 0, y: -4 },
-};
-
-/** Centred pop-up (dialogs/inspector). */
-export const popIn: Variants = {
-  initial: { opacity: 0, scale: 0.97, y: 8 },
-  animate: { opacity: 1, scale: 1, y: 0 },
-  exit: { opacity: 0, scale: 0.97, y: 8 },
-};
-
-/** Right-anchored drawer (where a side panel is still wanted). */
-export const slideRight: Variants = {
-  initial: { x: "100%" },
-  animate: { x: 0 },
-  exit: { x: "100%" },
 };

@@ -73,7 +73,7 @@ export function zonedLocalToUtc(local: string | null | undefined, tz: string | n
 
 /** "Wed 3 Sep 2026, 02:15" as read in a particular zone — for showing the owner
  *  the time back in the zone it was PRINTED in, not in Dar es Salaam. */
-export function fmtInZone(iso: string, tz: string, opts?: { dateOnly?: boolean }): string {
+function fmtInZone(iso: string, tz: string, opts?: { dateOnly?: boolean }): string {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return "";
   return d.toLocaleString("en-GB", {
@@ -96,7 +96,7 @@ export function zoneLabel(tz: string | null | undefined): string {
 /* What a read can come back with                                      */
 /* ------------------------------------------------------------------ */
 
-export const EVENT_KINDS = ["flight", "hotel", "meeting", "appointment", "other"] as const;
+const EVENT_KINDS = ["flight", "hotel", "meeting", "appointment", "other"] as const;
 export type EventKind = (typeof EVENT_KINDS)[number];
 
 export type Place = {

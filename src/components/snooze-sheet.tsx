@@ -7,7 +7,7 @@ import { spring } from "@/lib/motion";
 import { Button } from "./ui";
 
 /** End-of-day ISO for a date that is `days` from now (keeps deadlines tidy at 17:00). */
-export function snoozeIso(base: number, days: number): string {
+function snoozeIso(base: number, days: number): string {
   const d = new Date(base + days * 86400000);
   d.setHours(17, 0, 0, 0);
   return d.toISOString();

@@ -26,19 +26,7 @@ export type FindingKind =
   | "asset-on-leaver"
   | "missing-company-id";
 
-export const SEVERITY_RANK: Record<FindingSeverity, number> = { high: 3, medium: 2, low: 1 };
-
-export const SEVERITY_LABEL: Record<FindingSeverity, string> = {
-  high: "High",
-  medium: "Medium",
-  low: "Low",
-};
-
-export const SEVERITY_TONE: Record<FindingSeverity, "danger" | "warn" | "muted"> = {
-  high: "danger",
-  medium: "warn",
-  low: "muted",
-};
+const SEVERITY_RANK: Record<FindingSeverity, number> = { high: 3, medium: 2, low: 1 };
 
 /** Newest/most-severe first. */
 export function sortFindings(findings: Finding[]): Finding[] {

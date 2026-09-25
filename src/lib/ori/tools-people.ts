@@ -27,8 +27,6 @@ import {
 // ── Org actions (src/lib/org-actions.ts) ────────────────────────────────────
 import { setPersonDirector, addPersonManager, setDepartmentHead } from "@/lib/org-actions";
 
-const OWNER = "Owner";
-
 /** Snapshot a person's portal-access columns before a Tier-3 access change. */
 async function snapshotPortalAccess(personId: number) {
   const { data } = await sb

@@ -1,10 +1,9 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { ChevronDown, MessageSquarePlus, Bell, Loader2, CheckCircle2 } from "lucide-react";
+import { MessageSquarePlus, Bell, Loader2, CheckCircle2 } from "lucide-react";
 import { useToast } from "./toast";
 import { CompleteTaskSheet } from "./complete-task-sheet";
-import { NotifyPerson } from "./notify-person";
 import { portalRemindTask } from "@/app/portal/actions";
 import { getGivenName } from "@/lib/names";
 
@@ -37,7 +36,6 @@ export function TaskQuickActions({
     });
   }
 
-  const [moreOpen, setMoreOpen] = useState(false);
 
   return (
     <div className="flex flex-wrap items-center gap-2">

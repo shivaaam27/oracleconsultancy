@@ -109,7 +109,7 @@ export async function resolveAudiencePersonIds(a: Announcement): Promise<number[
 }
 
 /** Number of people an announcement is aimed at — for "12 of 24 seen". */
-export async function audienceCount(a: Announcement): Promise<number> {
+async function audienceCount(a: Announcement): Promise<number> {
   const ids = await resolveAudiencePersonIds(a);
   return ids.length;
 }
@@ -238,12 +238,6 @@ export async function addComment(input: {
 
 /** Live "takeover" announcements targeting this person that they must still
  *  acknowledge — drives the full-screen blocking card on portal landing. */
-export async function takeoverFeedForPerson(attrs: PersonAudienceAttrs): Promise<FeedAnnouncement[]> {
-  const feed = await feedForPerson(attrs);
-  return feed.filter((a) => a.takeover && a.requireAck && !a.ackAt);
-}
-
-/** `takeoverFeedForPerson` from a person id (shares `feedForPersonId`'s read). */
 export async function takeoverFeedForPersonId(personId: number): Promise<FeedAnnouncement[]> {
   const feed = await feedForPersonId(personId);
   return feed.filter((a) => a.takeover && a.requireAck && !a.ackAt);
@@ -254,7 +248,7 @@ export async function takeoverFeedForPersonId(personId: number): Promise<FeedAnn
 /** For an announcement's selected channels, create Outbox drafts to the audience
  *  (one per person with that contact). Push fires separately via notifications.
  *  Best-effort — a delivery hiccup never blocks publishing. */
-export async function createDeliveryDrafts(a: Announcement): Promise<void> {
+async function createDeliveryDrafts(a: Announcement): Promise<void> {
   const channels = (a.deliverChannels ?? []).map((c) => c.toLowerCase());
   const wantEmail = channels.includes("email");
   const wantWhatsapp = channels.includes("whatsapp");

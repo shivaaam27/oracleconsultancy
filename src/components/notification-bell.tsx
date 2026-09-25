@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { markPush, withReturn } from "@/lib/return-to";
 import { createPortal } from "react-dom";
 import { StudioNotificationsPanel } from "./studio/notifications-panel";
-import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import {
   AtSign,
   Bell,
@@ -99,7 +99,6 @@ export function NotificationBell({
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   const [open, setOpen] = useState(false);
   const [count, setCount] = useState(0);
   const [items, setItems] = useState<NotifRow[]>([]);
@@ -264,7 +263,6 @@ export function NotificationBell({
     // visual pixels and would put the panel 20% out of place on the portal, where
     // the document is scaled to 0.8. See `lib/zoom.ts`.
     const vw = anchor.viewportWidth;
-    const vh = anchor.viewportHeight;
     const panelW = Math.min(360, vw - margin * 2);
     let left = align === "left" ? anchor.left : anchor.left + anchor.width - panelW;
     left = Math.max(margin, Math.min(left, vw - panelW - margin));

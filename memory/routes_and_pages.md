@@ -88,7 +88,8 @@ on the pages in `isStaffStudioPath`, and the old chrome elsewhere.
 | `/portal/meetings` | Briefings: meetings and announcements tabs |
 | `/portal/announcements` | Announcements |
 | `/portal/cleaning` | Cleaning log (receptionist) / overview (managers with the capability) |
-| `/portal/board`, `/portal/directory`, `/portal/insights`, `/portal/outbox`, `/portal/team` | Older portal pages, still in the tree; directors/managers are redirected away |
+| `/portal/board`, `/portal/team`, `/portal/directory` | Redirect stubs (old links still land) |
+| `/portal/outbox`, `/portal/insights` | Older portal pages, for staff only if the owner grants `navOutbox` / `navInsights`; directors/managers are redirected away |
 
 ## API routes
 
@@ -112,7 +113,7 @@ on the pages in `isStaffStudioPath`, and the old chrome elsewhere.
   `push/subscribe`, `push/test`, `prefs/list-views`, `prefs/nav-pins`,
   `prefs/nav-recents`, `activity/ping` (page-visit telemetry).
 - **Integrations and system**: `google/connect`, `google/callback`,
-  `telegram/webhook`, `wa-card` and `og-banner` (link-preview images),
+  `wa-card` and `og-banner` (link-preview images),
   `desktop/version`, `health`, `csp-report` (public on purpose).
 - **Outside `/api`**: `/brief/pdf` (Director Brief PDF) and
   `/e/[id]/doc/[docId]` (permanent public link to an event's document).

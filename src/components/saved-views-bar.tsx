@@ -1,7 +1,6 @@
 "use client";
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { Bookmark, Plus, X } from "lucide-react";
 import { useToast } from "./toast";
 
@@ -32,7 +31,6 @@ export function SavedViewsBar({
   const [views, setViews] = useState<SavedView[]>(initialViews);
   const [pending, startTransition] = useTransition();
   const { toast } = useToast();
-  const router = useRouter();
 
   const persist = async (next: SavedView[]) => {
     setViews(next);

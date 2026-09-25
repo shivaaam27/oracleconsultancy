@@ -24,7 +24,7 @@ import { useListPlace } from "@/lib/use-list-place";
  * so the server component above it stays the single source of truth and every
  * view is a shareable link — the same contract the Tasks page already uses.
  *
- * See memory/erpnext_redesign_plan.md and DESIGN_SYSTEM.md.
+ * See DESIGN_SYSTEM.md and memory/studio_redesign.md.
  */
 
 /** One column. `render` receives the whole row, so cells can be rich. */
@@ -305,40 +305,6 @@ function gridFor<T>(columns: RecordColumn<T>[], hasSelection: boolean) {
     "--rl-grid-md": at(768),
     "--rl-grid-lg": at(1024),
   } as React.CSSProperties;
-}
-
-/**
- * The column header strip on its own.
- *
- * A list that is split into collapsible groups (People, grouped by company)
- * draws ONE header above the groups and then a headerless RecordList inside
- * each — otherwise the column names repeat down the page.
- */
-export function RecordListHeader<T>({
-  columns, hasSelection = false, className,
-}: { columns: RecordColumn<T>[]; hasSelection?: boolean; className?: string }) {
-  return (
-    <div
-      data-list-head
-      style={gridFor(columns, hasSelection)}
-      className={cn(RL_GRID, "grid items-center gap-x-3 rounded-t-xl border border-border bg-bg-subtle px-3 text-xs", className)}
-    >
-      {hasSelection && <span />}
-      {columns.map((c) => {
-        const inner = (
-          <span className={cn("group/col inline-flex items-center gap-1", c.align === "right" && "flex-row-reverse")}>
-            {c.label}
-            {c.sortHref && <SortIcon sorted={c.sorted} />}
-          </span>
-        );
-        return (
-          <div key={c.key} className={cn("min-w-0 truncate", c.align === "right" && "text-right", c.hideBelow && HIDE[c.hideBelow])}>
-            {c.sortHref ? <Link href={c.sortHref} scroll={false} className="hover:text-fg">{inner}</Link> : inner}
-          </div>
-        );
-      })}
-    </div>
-  );
 }
 
 /* ------------------------------------------------------ column chooser --- */
@@ -659,7 +625,7 @@ export function RecordList<T>({
   shown?: number;
   footerNote?: ReactNode;
   empty?: ReactNode;
-  /** Off when a shared <RecordListHeader> is drawn above collapsible groups. */
+  /** Off when a shared column header is drawn above collapsible groups. */
   showHeader?: boolean;
   showFooter?: boolean;
   /** Drop the card frame — for a list rendered INSIDE an existing housing. */
