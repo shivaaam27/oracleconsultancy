@@ -10,6 +10,7 @@ import { Hero, Panel, SectionLabel } from "@/components/surface-kit";
 import { Reveal } from "@/components/reveal";
 import { PortalTrace, PortalTraceButton } from "@/components/portal-trace";
 import { StaffPersonPage } from "./staff-person";
+import { isStaffLikeRole } from "@/lib/director-routes";
 
 export const dynamic = "force-dynamic";
 
@@ -32,7 +33,7 @@ export default async function PortalPersonPage({ params, searchParams }: { param
   if (!me) redirect("/portal/login");
   const targetId = Number((await params).id);
   // Staff (26 Sept 2026): the shared person screen, "own work only".
-  if (me.portalRole === "staff") {
+  if (isStaffLikeRole(me.portalRole)) {
     if (!Number.isFinite(targetId)) notFound();
     return <StaffPersonPage me={me} personId={targetId} back={(await searchParams).back} />;
   }

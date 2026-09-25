@@ -39,6 +39,7 @@ import { StaffProfile, PCard, KpiCard } from "@/components/studio/profile/staff-
 import { WeekStrip, CheckinPanel } from "@/components/studio/home/staff-cards";
 import { StudioInstall } from "@/components/studio/studio-install";
 import { visibleTaskIds } from "@/lib/portal-auth";
+import { isStaffLikeRole } from "@/lib/director-routes";
 
 export const dynamic = "force-dynamic";
 
@@ -147,7 +148,7 @@ export default async function PortalProfile() {
   // Managers and directors too (26 Sept 2026) — it was the one page of theirs
   // still in the old portal. A director keeps what their old page showed: no
   // KPI, attendance, files, equipment or contact form.
-  if (me.portalRole === "staff" || me.portalRole === "manager" || isDirector) {
+  if (isStaffLikeRole(me.portalRole) || me.portalRole === "manager" || isDirector) {
     const allT = await getAllTasks();
     // "Open now" and "late" are THEIR tasks (on it, or accountable) — not every
     // task a manager can see.
@@ -168,7 +169,7 @@ export default async function PortalProfile() {
           kpi: !isDirector && kpiMonths.length > 0 ? <KpiCard months={kpiMonths.map((k) => ({ monthLabel: k.monthLabel, completed: k.completed }))} openNow={openMine.length} lateNow={lateNow} /> : null,
           attendance: isDirector ? null : (
             <PCard title="Attendance" right="this week">
-              {me.portalRole === "staff" ? (
+              {isStaffLikeRole(me.portalRole) ? (
                 <div>
                   <WeekStrip week={week} />
                   <p className={tick + " mt-3"}>Check in on Home each day. Your manager can adjust a day if needed.</p>

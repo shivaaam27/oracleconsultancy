@@ -11,6 +11,7 @@ import { PortalMeetingsPage } from "@/components/portal-meetings-page";
 import { PortalBriefings } from "@/components/portal-briefings";
 import { AnnouncementFeed } from "@/components/announcement-feed";
 import { StaffCalendar } from "./staff-calendar";
+import { isStaffLikeRole } from "@/lib/director-routes";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +25,7 @@ export default async function PortalBriefingsRoute({ searchParams }: { searchPar
   const { tab } = await searchParams;
   // Staff (26 Sept 2026): the shared Calendar, read-only, over their own
   // meetings; announcements have their own page.
-  if (me.portalRole === "staff") {
+  if (isStaffLikeRole(me.portalRole)) {
     if (tab === "announcements") redirect("/portal/announcements");
     return <StaffCalendar me={me} />;
   }

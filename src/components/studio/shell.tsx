@@ -45,6 +45,10 @@ export type ShellDirector = {
   /** A member of STAFF (26 Sept 2026): their own pages under /portal; "+"
    *  makes a to-do; no Report, no search. */
   staff?: boolean;
+  /** Staff menu: Tasks only when their role has it (the receptionist has not),
+   *  Cleaning when they keep the cleaning log. */
+  staffTasks?: boolean;
+  staffCleaning?: boolean;
 };
 
 export function StudioShell({ needs, director = null }: { needs: NonNullable<StudioFootNote>[]; director?: ShellDirector | null }) {
@@ -77,9 +81,11 @@ export function StudioShell({ needs, director = null }: { needs: NonNullable<Stu
   const directorCleaning = director?.cleaning ?? false;
   const isDirector = !!director;
   const isStaff = !!director?.staff;
+  const staffTasks = director?.staffTasks ?? true;
+  const staffCleaning = director?.staffCleaning ?? false;
   const stops = useMemo(
-    () => (isStaff ? staffStops() : isDirector ? directorStops({ outbox: directorOutbox, cleaning: directorCleaning }) : studioStops().filter((s) => !isHiddenNavHref(s.href, vis))),
-    [vis, isDirector, isStaff, directorOutbox, directorCleaning],
+    () => (isStaff ? staffStops({ tasks: staffTasks, cleaning: staffCleaning }) : isDirector ? directorStops({ outbox: directorOutbox, cleaning: directorCleaning }) : studioStops().filter((s) => !isHiddenNavHref(s.href, vis))),
+    [vis, isDirector, isStaff, directorOutbox, directorCleaning, staffTasks, staffCleaning],
   );
   const tab = params.get("tab");
   let i: number;

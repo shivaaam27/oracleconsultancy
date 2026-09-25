@@ -24,6 +24,7 @@ import { taskStatusTone as statusTone, priorityTone } from "@/lib/badge-tones";
 import type { TaskRow } from "@/lib/queries";
 import { StaffTaskRecord } from "@/components/studio/tasks/staff-task-record";
 import { deadlineWords } from "@/components/studio/tasks/task-words";
+import { isStaffLikeRole } from "@/lib/director-routes";
 
 export const dynamic = "force-dynamic";
 
@@ -267,7 +268,7 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
 
   // Staff are on Studio (26 Sept 2026, mockup S_Task): the owner's task page in
   // three columns, with exactly what they could already do here.
-  if (me.portalRole === "staff") {
+  if (isStaffLikeRole(me.portalRole)) {
     const co = task.companies as unknown as { name: string } | null;
     const accountable = team.find((p) => p.accountable) ?? null;
     const others = team.filter((p) => p !== accountable);

@@ -9,6 +9,7 @@ import { TeamAttendance, type TeamAttendanceRow } from "@/components/team-attend
 import { waLink } from "@/lib/outbox/links";
 import { TeamView } from "./team-view";
 import type { TeamPerson } from "./person-card";
+import { isStaffLikeRole } from "@/lib/director-routes";
 
 /** Today's yyyy-mm-dd as a UTC day. The whole attendance system keys one row
  *  per person/day at UTC midnight (teamAttendanceToday, the staff self-check-in
@@ -37,7 +38,7 @@ const isOverdueFlag = (f: string) => f === "overdue" || f === "escalate-now";
 export default async function PortalTeamPage() {
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
-  if (me.portalRole === "staff") redirect("/portal");
+  if (isStaffLikeRole(me.portalRole)) redirect("/portal");
 
   const tasks = (await getAllTasks()).filter((t) => isOpen(t.status));
   const byPerson = new Map<number, typeof tasks>();

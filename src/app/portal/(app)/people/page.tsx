@@ -5,6 +5,7 @@ import { getAllPeopleWithWorkload } from "@/lib/people-queries";
 import { staffColleagueIds, forStaff } from "@/lib/staff-colleagues";
 import { StudioPeople } from "@/components/studio/people/studio-people";
 import { StudioPathsProvider } from "@/components/studio/studio-paths";
+import { isStaffLikeRole } from "@/lib/director-routes";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "People — Oracle Consultancy" };
@@ -18,7 +19,7 @@ export const metadata = { title: "People — Oracle Consultancy" };
 export default async function PortalPeoplePage() {
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
-  if (me.portalRole !== "staff") redirect("/portal/directory");
+  if (!isStaffLikeRole(me.portalRole)) redirect("/portal/directory");
 
   const [all, ids, scope, { data: cos }] = await Promise.all([
     getAllPeopleWithWorkload(),

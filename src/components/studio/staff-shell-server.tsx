@@ -33,5 +33,5 @@ export async function StaffShellServer({ me }: { me: PortalPerson }) {
   } catch {
     needs = [];
   }
-  return <StudioShell needs={needs} director={{ name: me.name, role: [portalRoleBadge(me.portalRole, me.portalDesignation), me.role].filter(Boolean).join(" · "), outbox: false, createTasks: false, brief: false, staff: true }} />;
+  return <StudioShell needs={needs} director={{ name: me.name, role: [portalRoleBadge(me.portalRole, me.portalDesignation), me.role].filter(Boolean).join(" · "), outbox: false, createTasks: false, brief: false, staff: true, staffTasks: me.caps.navTasks, staffCleaning: me.caps.cleaningLog }} />;
 }

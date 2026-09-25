@@ -14,6 +14,7 @@ import { CompanyAvatar } from "@/components/company-avatar";
 import { getCompanyLogoUrl } from "@/lib/company-brand";
 import { listCompanyDocuments } from "@/lib/portal-documents";
 import { PortalDocumentsLibrary } from "@/components/portal-documents-library";
+import { isStaffLikeRole } from "@/lib/director-routes";
 
 export const dynamic = "force-dynamic";
 
@@ -49,7 +50,7 @@ export default async function PortalCompanyPage({
   if (!me) redirect("/portal/login");
   const { from, tab } = await searchParams;
   // Staff (26 Sept 2026): the shared company screen, "own work only".
-  if (me.portalRole === "staff") {
+  if (isStaffLikeRole(me.portalRole)) {
     const cid = Number((await params).id);
     if (!Number.isFinite(cid)) notFound();
     return <StaffCompanyPage me={me} companyId={cid} tabParam={tab} />;

@@ -9,6 +9,7 @@ import { StudioScope, StudioHeader, StudioCardRow, StudioCard, CardHead, BigNumb
 import { getPortalPerson, directReportIds } from "@/lib/portal-auth";
 import { getPersonAudienceAttrs, feedForPerson } from "@/lib/announcements";
 import type { AudienceKind } from "@/lib/announcements-shared";
+import { isStaffLikeRole } from "@/lib/director-routes";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +22,7 @@ export default async function PortalAnnouncements() {
 
   // Staff (26 Sept 2026): the Studio look — two dark cards, then the feed,
   // which keeps Acknowledge, reactions and comments exactly as they were.
-  if (me.portalRole === "staff") {
+  if (isStaffLikeRole(me.portalRole)) {
     const waiting = feed.filter((a) => (a.requireAck ? !a.ackAt : !a.seenAt));
     const toAck = feed.filter((a) => a.requireAck && !a.ackAt).length;
     const pinned = feed.filter((a) => a.pinned).length;

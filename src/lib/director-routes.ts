@@ -42,6 +42,16 @@ export function studioPathForDirector(path: string, search = ""): string | null 
  */
 export function isStaffStudioPath(path: string): boolean {
   const p = path.replace(/\/+$/, "") || "/portal";
-  if (["/portal", "/portal/tasks", "/portal/profile", "/portal/people", "/portal/companies", "/portal/meetings", "/portal/announcements"].includes(p)) return true;
+  if (["/portal", "/portal/tasks", "/portal/profile", "/portal/people", "/portal/companies", "/portal/meetings", "/portal/announcements", "/portal/cleaning"].includes(p)) return true;
   return (p.startsWith("/portal/task/") && p !== "/portal/task/new") || /^\/portal\/(people|companies)\/\d+$/.test(p);
+}
+
+/**
+ * Roles that get the STAFF Studio screens (26 Sept 2026). The receptionist is
+ * staff with a cleaning log and no task powers — she used to be the one person
+ * still on the old portal. Her menu follows her permissions (staffStops).
+ * UI only: permission checks keep reading the real role and `caps`.
+ */
+export function isStaffLikeRole(role: string | null | undefined): boolean {
+  return role === "staff" || role === "receptionist";
 }

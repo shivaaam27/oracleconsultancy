@@ -2,10 +2,9 @@ import { redirect } from "next/navigation";
 import { getPortalPerson } from "@/lib/portal-auth";
 import { ensureDefaultAreas, ensureDay, listAreas, listChecks, listDays, dayStatus } from "@/lib/cleaning";
 import { sb } from "@/db/supabase";
-import { PortalCleaning } from "@/components/portal-cleaning";
+import { StudioCleaningToday, type CleaningHistoryDay } from "@/components/studio/cleaning/studio-cleaning-today";
 import type { CleaningHistoryRow } from "@/components/cleaning-overview";
 import { StudioCleaningOverview } from "@/components/studio/cleaning/studio-cleaning";
-import { SprayCan } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -20,27 +19,6 @@ export default async function PortalCleaningPage() {
   const todayIso = new Date(Date.now() + 3 * 3_600_000).toISOString().slice(0, 10); // EAT, same day as the administrator's log
   const [day, areas] = await Promise.all([ensureDay(todayIso), listAreas()]);
   const checks = await listChecks(day.id);
-
-  const header = (
-    <div className="mb-4">
-      <h1 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
-        <SprayCan size={18} className="text-accent" /> Office Cleaning
-      </h1>
-      <p className="text-xs text-fg-subtle">
-        {canLog ? "Tick each room as you clean it, add a note if needed, then submit the day." : "Daily cleaning register — who cleaned what, and when."}
-      </p>
-    </div>
-  );
-
-  // Data-entry — the receptionist.
-  if (canLog) {
-    return (
-      <div className="mx-auto max-w-2xl">
-        {header}
-        <PortalCleaning dateIso={todayIso} day={day} areas={areas} checks={checks} />
-      </div>
-    );
-  }
 
   // Read-only oversight — managers / directors (e.g. Shivam). Recent history with
   // per-day completion, resolved in two batched queries (no N+1).
@@ -70,6 +48,16 @@ export default async function PortalCleaningPage() {
     };
   });
   const todayCleaner = day.attendancePersonId ? nameOf.get(day.attendancePersonId) ?? null : null;
+
+  // Data-entry — the receptionist, on the same Studio screen as the
+  // administrator's log, with her own permission-checked actions (26 Sept 2026).
+  if (canLog) {
+    const people = [{ id: me.id, name: me.name }, ...(day.attendancePersonId && day.attendancePersonId !== me.id && todayCleaner ? [{ id: day.attendancePersonId, name: todayCleaner }] : [])];
+    const pastDays: CleaningHistoryDay[] = history
+      .filter((h) => h.date.toISOString().slice(0, 10) !== todayIso)
+      .map((h) => ({ dateIso: h.date.toISOString().slice(0, 10), status: h.status, cleanerName: h.cleanerName, done: h.done, total: h.total }));
+    return <StudioCleaningToday portal={{ name: me.name }} dateIso={todayIso} today={todayIso} floor={todayIso} day={day} areas={areas} checks={checks} people={people} history={pastDays} />;
+  }
 
   // Oversight is a Studio page now (26 Sept 2026) — a manager's only portal
   // page besides Profile, and it wore the old sidebar.

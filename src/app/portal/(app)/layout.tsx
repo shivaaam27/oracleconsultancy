@@ -22,6 +22,7 @@ import { getPersonAudienceAttrs, takeoverFeedForPerson } from "@/lib/announcemen
 import { audienceForRole, unseenToursFor } from "@/lib/tours";
 import { TourRunner } from "@/components/tour-guide";
 import { portalMarkTourSeen, portalGetTour } from "../tour-actions";
+import { isStaffLikeRole } from "@/lib/director-routes";
 
 // Staff who install from the portal get a portal-scoped app: portal start_url
 // and portal shortcuts (My tasks / Messages / My profile) instead of the admin
@@ -120,7 +121,7 @@ export default async function PortalLayout({ children }: { children: React.React
   );
 
   const tabOverrides = { tasks: me.caps.navTasks, outbox: me.caps.navOutbox, insights: me.caps.navInsights, cleaning: me.caps.cleaningLog || me.caps.cleaningOverview };
-  const staff = me.portalRole === "staff";
+  const staff = isStaffLikeRole(me.portalRole);
 
   return (
     <PortalFrame

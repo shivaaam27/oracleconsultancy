@@ -7,6 +7,7 @@ import { computeCompanyKpisForCompanies } from "@/lib/company-kpis";
 import { getPersonCompaniesMap } from "@/lib/people-queries";
 import { StudioCompanies } from "@/components/studio/companies/studio-companies";
 import { StudioPathsProvider } from "@/components/studio/studio-paths";
+import { isStaffLikeRole } from "@/lib/director-routes";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Companies — Oracle Consultancy" };
@@ -20,7 +21,7 @@ export const metadata = { title: "Companies — Oracle Consultancy" };
 export default async function PortalCompaniesPage() {
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
-  if (me.portalRole !== "staff") redirect("/portal/directory?tab=companies");
+  if (!isStaffLikeRole(me.portalRole)) redirect("/portal/directory?tab=companies");
 
   const [scope, rows, { data: cos }, personCompanies, logos] = await Promise.all([
     colleagueCompanyScope(me),

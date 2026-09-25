@@ -22,6 +22,7 @@ import { portalCreateTodo, portalToggleTodoDone, portalDeleteTodo, portalUpdateT
 import { scopedUpcomingMeetings, nearestSoon } from "@/lib/portal-meetings-data";
 import { PortalMeetings } from "@/components/portal-meetings";
 import { StaffStudioHome } from "./staff-home";
+import { isStaffLikeRole } from "@/lib/director-routes";
 
 export const dynamic = "force-dynamic";
 
@@ -41,7 +42,7 @@ export default async function PortalHome() {
   // used to see on both Home and the Tasks tab).
   if (me.portalRole === "director" || me.portalRole === "manager") redirect("/portal/board");
   // Staff are on Studio (26 Sept 2026): the owner's Home, for one person.
-  if (me.portalRole === "staff") return <StaffStudioHome me={me} />;
+  if (isStaffLikeRole(me.portalRole)) return <StaffStudioHome me={me} />;
 
   // The once-a-day check-in pop-up lives here (home only) so it can't pop over
   // other portal surfaces or run a query on every navigation. Directors never

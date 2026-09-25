@@ -16,6 +16,7 @@ import { StudioSheet } from "@/components/studio/sheet";
 import { FluidSelect } from "@/components/fluid-select";
 import { useToast } from "@/components/toast";
 import { toggleCheckAction, setCheckCommentAction, setAttendanceAction, setNoteAction, signDayAction } from "@/app/hrms/cleaning/actions";
+import { portalCleaningToggle, portalCleaningComment, portalCleaningNote, portalCleaningSign, portalCleaningUnlock } from "@/app/portal/(app)/cleaning/actions";
 import { completion, dayStatus, type CleaningArea, type CleaningCheck, type CleaningDay, type DayStatus } from "@/lib/cleaning-shared";
 import { cn } from "@/lib/cn";
 
@@ -30,9 +31,13 @@ const shift = (iso: string, n: number) => { const d = new Date(`${iso}T00:00:00Z
 const STATUS_ON_CARD: Record<DayStatus, string> = { Signed: "#5BE0A5", Complete: "#5BE0A5", "In progress": "#F5B94E", "Not started": "#C9CBCF" };
 const STATUS_DOT: Record<DayStatus, string> = { Signed: "var(--st-ok)", Complete: "var(--st-ok)", "In progress": "var(--st-soon)", "Not started": "#B9BBBF" };
 
-export function StudioCleaningToday({ dateIso, today, floor, day, areas, checks, people, history }: {
+export function StudioCleaningToday({ dateIso, today, floor, day, areas, checks, people, history, portal = null }: {
   dateIso: string; today: string; floor: string; day: CleaningDay; areas: CleaningArea[]; checks: CleaningCheck[];
   people: { id: number; name: string }[]; history: CleaningHistoryDay[];
+  /** The receptionist on the portal (26 Sept 2026): today only, her own
+   *  actions (portal/(app)/cleaning/actions — each checks cleaningLog), and
+   *  submitting signs the day as her and counts as her attendance. */
+  portal?: { name: string } | null;
 }) {
   const router = useRouter();
   const { toast } = useToast();
@@ -63,20 +68,20 @@ export function StudioCleaningToday({ dateIso, today, floor, day, areas, checks,
     const next = !state[a.id]?.done;
     setState((s) => ({ ...s, [a.id]: { ...s[a.id], done: next, doneAt: next ? new Date() : null } }));
     start(async () => {
-      const r = await toggleCheckAction(day.id, a.id, next);
+      const r = portal ? await portalCleaningToggle(day.id, a.id, next) : await toggleCheckAction(day.id, a.id, next);
       if (!r.ok) { toast(r.error, { tone: "warn" }); setState(initial); }
     });
   };
   const saveNote = () => {
     if (note === (day.note ?? "")) return;
-    start(async () => { const r = await setNoteAction(day.id, note); if (!r.ok) toast(r.error, { tone: "warn" }); });
+    start(async () => { const r = portal ? await portalCleaningNote(day.id, note) : await setNoteAction(day.id, note); if (!r.ok) toast(r.error, { tone: "warn" }); });
   };
   const saveCleaner = (v: string) => {
     setCleaner(v);
     start(async () => { const r = await setAttendanceAction(day.id, v ? Number(v) : null); if (!r.ok) toast(r.error, { tone: "warn" }); else router.refresh(); });
   };
   const unlock = () => start(async () => {
-    const r = await signDayAction(day.id, false, null, null);
+    const r = portal ? await portalCleaningUnlock(day.id) : await signDayAction(day.id, false, null, null);
     if (!r.ok) { toast(r.error, { tone: "warn" }); return; }
     toast("Unlocked.", { tone: "success" }); router.refresh();
   });
@@ -87,7 +92,7 @@ export function StudioCleaningToday({ dateIso, today, floor, day, areas, checks,
         title="Cleaning"
         right={
           <>
-            <div className="flex h-9 items-center gap-1 rounded-[11px] border border-[var(--st-line)] bg-[var(--st-surface)] px-1">
+            {!portal && <div className="flex h-9 items-center gap-1 rounded-[11px] border border-[var(--st-line)] bg-[var(--st-surface)] px-1">
               {dateIso <= floor
                 ? <span className="grid h-7 w-7 place-items-center text-[var(--st-line)]"><ChevronLeft size={14} /></span>
                 : <Link href={`/hrms/cleaning?date=${shift(dateIso, -1)}`} scroll={false} aria-label="Previous day" className="grid h-7 w-7 place-items-center rounded-lg hover:bg-[var(--st-page)]"><ChevronLeft size={14} /></Link>}
@@ -97,10 +102,10 @@ export function StudioCleaningToday({ dateIso, today, floor, day, areas, checks,
               {dateIso >= today
                 ? <span className="grid h-7 w-7 place-items-center text-[var(--st-line)]"><ChevronRight size={14} /></span>
                 : <Link href={`/hrms/cleaning?date=${shift(dateIso, 1)}`} scroll={false} aria-label="Next day" className="grid h-7 w-7 place-items-center rounded-lg hover:bg-[var(--st-page)]"><ChevronRight size={14} /></Link>}
-            </div>
+            </div>}
             {signed
               ? <button type="button" disabled={pending} onClick={unlock} className={stBtn.ghost}><Unlock size={14} />Unlock the day</button>
-              : <button type="button" onClick={() => setSignOpen(true)} className={stBtn.dark}><Check size={14} />Sign off the day</button>}
+              : <button type="button" onClick={() => setSignOpen(true)} className={stBtn.dark}><Check size={14} />{portal ? "Submit the day" : "Sign off the day"}</button>}
           </>
         }
       />
@@ -112,10 +117,10 @@ export function StudioCleaningToday({ dateIso, today, floor, day, areas, checks,
             <Ring value={comp.pct} size={128} stroke={13} color="#19C37D" track="var(--st-card-line)" label={`${comp.done}/${comp.total}`} sub="areas done" />
             <div className="flex min-w-0 flex-1 flex-col gap-2 pb-1.5">
               <div className="text-xs text-[var(--st-on-card-muted)]">Who cleaned today</div>
-              <div className="max-w-[260px] [&_button]:!h-9 [&_button]:!rounded-[10px] [&_button]:!border-[#2E3035] [&_button]:!bg-[#1F2023] [&_button]:!text-[#F2F2F0]">
+              {portal ? <div className="text-[18px]">{people.find((p) => String(p.id) === cleaner)?.name ?? portal.name}</div> : <div className="max-w-[260px] [&_button]:!h-9 [&_button]:!rounded-[10px] [&_button]:!border-[#2E3035] [&_button]:!bg-[#1F2023] [&_button]:!text-[#F2F2F0]">
                 <FluidSelect value={cleaner} onSelect={saveCleaner} placeholder="Not set" className="w-full" options={[{ value: "", label: "Not set" }, ...people.map((p) => ({ value: String(p.id), label: p.name }))]} />
-              </div>
-              <div className="text-xs text-[var(--st-on-card-muted)]">{signed ? <span className="inline-flex items-center gap-1.5"><Lock size={12} />Locked until someone presses Unlock.</span> : "The receptionist ticks from the portal; you can step in here."}</div>
+              </div>}
+              <div className="text-xs text-[var(--st-on-card-muted)]">{signed ? <span className="inline-flex items-center gap-1.5"><Lock size={12} />Locked until someone presses Unlock.</span> : portal ? "Tick each room as you finish it, then submit the day." : "The receptionist ticks from the portal; you can step in here."}</div>
             </div>
           </div>
         </StudioCard>
@@ -127,7 +132,7 @@ export function StudioCleaningToday({ dateIso, today, floor, day, areas, checks,
               className="bare-field w-full resize-none rounded-xl border border-[#2E3035] bg-[#1F2023] px-3 py-2.5 text-[13px] text-[#F2F2F0] outline-none placeholder:text-[#8E9197] focus:border-[#55585E] disabled:opacity-60" />
             <div className="flex items-center gap-2.5 text-xs text-[var(--st-on-card-muted)]">
               <span className="flex-1">Once signed off, ticks lock until someone presses Unlock.</span>
-              <button type="button" onClick={() => setPastOpen(true)} className={stBtn.onCardGhost}><History size={13} />Previous days</button>
+              {history.length > 0 && <button type="button" onClick={() => setPastOpen(true)} className={stBtn.onCardGhost}><History size={13} />Previous days</button>}
             </div>
           </div>
         </StudioCard>
@@ -158,11 +163,11 @@ export function StudioCleaningToday({ dateIso, today, floor, day, areas, checks,
         onSave={(area, text) => {
           setState((s) => ({ ...s, [area.id]: { ...s[area.id], comment: text.trim() || null } }));
           setCommentFor(null);
-          start(async () => { const r = await setCheckCommentAction(day.id, area.id, text); if (!r.ok) toast(r.error, { tone: "warn" }); });
+          start(async () => { const r = portal ? await portalCleaningComment(day.id, area.id, text) : await setCheckCommentAction(day.id, area.id, text); if (!r.ok) toast(r.error, { tone: "warn" }); });
         }} />
-      <SignSheet open={signOpen} onClose={() => setSignOpen(false)} people={people} doneN={doneN} total={areas.length}
+      <SignSheet open={signOpen} onClose={() => setSignOpen(false)} people={portal ? [] : people} doneN={doneN} total={areas.length} asName={portal?.name ?? null}
         onSign={(name, personId) => start(async () => {
-          const r = await signDayAction(day.id, true, name, personId);
+          const r = portal ? await portalCleaningSign(day.id) : await signDayAction(day.id, true, name, personId);
           if (!r.ok) { toast(r.error, { tone: "warn" }); return; }
           toast("Day signed off.", { tone: "success" }); setSignOpen(false); router.refresh();
         })} pending={pending} />
@@ -196,22 +201,24 @@ function CommentSheet({ area, initial, onClose, onSave }: { area: CleaningArea |
   );
 }
 
-function SignSheet({ open, onClose, people, doneN, total, onSign, pending }: {
+function SignSheet({ open, onClose, people, doneN, total, onSign, pending, asName = null }: {
   open: boolean; onClose: () => void; people: { id: number; name: string }[]; doneN: number; total: number;
-  onSign: (name: string, personId: number | null) => void; pending: boolean;
+  onSign: (name: string, personId: number | null) => void; pending: boolean; asName?: string | null;
 }) {
   const [who, setWho] = useState("me");
   useEffect(() => { if (open) setWho("me"); }, [open]);
   const person = people.find((p) => String(p.id) === who);
   return (
-    <StudioSheet open={open} onClose={onClose} width={460} icon={<PenLine size={15} />} title="Sign off the day"
+    <StudioSheet open={open} onClose={onClose} width={460} icon={<PenLine size={15} />} title={asName ? "Submit the day" : "Sign off the day"}
       footer={<div className="flex justify-end gap-2"><button type="button" onClick={onClose} className={stBtn.ghost}>Cancel</button>
-        <button type="button" disabled={pending} onClick={() => onSign(person?.name ?? "Administrator", person?.id ?? null)} className={stBtn.dark}>{pending && <Loader2 size={14} className="animate-spin" />}Sign off</button></div>}>
+        <button type="button" disabled={pending} onClick={() => onSign(person?.name ?? "Administrator", person?.id ?? null)} className={stBtn.dark}>{pending && <Loader2 size={14} className="animate-spin" />}{asName ? "Submit" : "Sign off"}</button></div>}>
       <div className="st-form flex flex-col gap-3">
         {doneN < total && <p className="m-0 rounded-xl bg-[var(--sh-pink-bg)] px-3 py-2.5 text-[13px] text-[var(--sh-pink-fg)]">{total - doneN} area{total - doneN === 1 ? " is" : "s are"} not ticked. Signing off locks the day as it is.</p>}
-        <label className="block"><span className="mb-1.5 block text-xs text-[var(--sh-muted)]">Signed off by</span>
-          <FluidSelect value={who} onSelect={setWho} className="w-full" options={[{ value: "me", label: "Me (administrator)" }, ...people.map((p) => ({ value: String(p.id), label: p.name }))]} />
-        </label>
+        {asName ? <p className="m-0 text-[13px]">Submitted as <b className="font-medium">{asName}</b> — it also marks you present today. It can be unlocked if a room needs changing.</p> : (
+          <label className="block"><span className="mb-1.5 block text-xs text-[var(--sh-muted)]">Signed off by</span>
+            <FluidSelect value={who} onSelect={setWho} className="w-full" options={[{ value: "me", label: "Me (administrator)" }, ...people.map((p) => ({ value: String(p.id), label: p.name }))]} />
+          </label>
+        )}
       </div>
     </StudioSheet>
   );

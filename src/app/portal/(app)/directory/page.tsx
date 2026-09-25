@@ -10,6 +10,7 @@ import { Reveal } from "@/components/reveal";
 import { DirectoryView, type DirectoryPerson, type DirectoryCompany, type DirectoryAttendance } from "./directory-view";
 import { getCompanyLogoMap } from "@/lib/company-brand";
 import { teamAttendanceToday } from "@/lib/attendance";
+import { isStaffLikeRole } from "@/lib/director-routes";
 
 export const dynamic = "force-dynamic";
 
@@ -36,7 +37,7 @@ export default async function PortalDirectoryPage({
   const me = await getPortalPerson();
   if (!me) redirect("/portal/login");
   // Staff have the shared People and Companies screens now (26 Sept 2026).
-  if (me.portalRole === "staff") redirect(initialTab === "companies" ? "/portal/companies" : "/portal/people");
+  if (isStaffLikeRole(me.portalRole)) redirect(initialTab === "companies" ? "/portal/companies" : "/portal/people");
 
   const groupWide = seesAllCompanies(me);
   // Non-all-companies viewers are scoped to their company set: managers/staff → the

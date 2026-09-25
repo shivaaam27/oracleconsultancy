@@ -6,7 +6,7 @@
  * must list the same pages in the same order; a second hand-kept list is how
  * the launcher and the rail drifted apart before (see NAV_GROUPS' history).
  */
-import { Home, ListChecks, Megaphone, Send, Users, FolderOpen, Building2, CalendarDays, Sparkles, UserRound, type LucideIcon } from "lucide-react";
+import { Home, ListChecks, Megaphone, Send, Users, FolderOpen, Building2, CalendarDays, Sparkles, UserRound, type LucideIcon, SprayCan } from "lucide-react";
 import { MODULE_BY_ID, moduleOwnGroups, systemItems } from "./nav";
 
 export type StudioStop = { id: string; label: string; href: string; group: string; icon: LucideIcon };
@@ -87,10 +87,12 @@ export function directorStops(o: { outbox: boolean; cleaning?: boolean }): Studi
  *  a director, over their own work — Companies and People are the shared
  *  screens with staff limits. Every address is
  *  under /portal, where their session lives. */
-export function staffStops(): StudioStop[] {
+export function staffStops(opts: { tasks?: boolean; cleaning?: boolean } = {}): StudioStop[] {
+  const { tasks = true, cleaning = false } = opts;
   return [
     { id: "home", label: "Home", href: "/portal", group: "Work", icon: Home },
-    { id: "tasks", label: "Tasks", href: "/portal/tasks", group: "Work", icon: ListChecks },
+    ...(tasks ? [{ id: "tasks", label: "Tasks", href: "/portal/tasks", group: "Work", icon: ListChecks } as StudioStop] : []),
+    ...(cleaning ? [{ id: "cleaning", label: "Cleaning", href: "/portal/cleaning", group: "Work", icon: SprayCan } as StudioStop] : []),
     { id: "calendar", label: "Calendar", href: "/portal/meetings", group: "Work", icon: CalendarDays },
     { id: "announcements", label: "Announcements", href: "/portal/announcements", group: "Work", icon: Megaphone },
     { id: "companies", label: "Companies", href: "/portal/companies", group: "Records", icon: Building2 },

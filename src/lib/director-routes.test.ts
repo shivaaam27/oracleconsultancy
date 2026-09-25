@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { studioPathForDirector as to, isStaffStudioPath } from "./director-routes";
+import { studioPathForDirector as to, isStaffStudioPath, isStaffLikeRole } from "./director-routes";
 
 describe("studioPathForDirector", () => {
   it("sends the old home, board and tasks to the shared screens", () => {
@@ -33,6 +33,17 @@ describe("isStaffStudioPath", () => {
     for (const p of ["/portal", "/portal/", "/portal/tasks", "/portal/task/TG-002", "/portal/profile", "/portal/people", "/portal/people/19", "/portal/companies", "/portal/companies/3", "/portal/meetings", "/portal/announcements"]) expect(isStaffStudioPath(p)).toBe(true);
   });
   it("leaves the pages not rebuilt yet in the old frame", () => {
-    for (const p of ["/portal/directory", "/portal/task/new", "/portal/cleaning", "/portal/people/x"]) expect(isStaffStudioPath(p)).toBe(false);
+    for (const p of ["/portal/directory", "/portal/task/new", "/portal/people/x"]) expect(isStaffStudioPath(p)).toBe(false);
+  });
+  it("puts the receptionist's cleaning log in Studio", () => {
+    expect(isStaffStudioPath("/portal/cleaning")).toBe(true);
+  });
+});
+
+describe("isStaffLikeRole", () => {
+  it("gives staff and the receptionist the staff screens, nobody else", () => {
+    expect(isStaffLikeRole("staff")).toBe(true);
+    expect(isStaffLikeRole("receptionist")).toBe(true);
+    for (const r of ["manager", "director", "hr", null, undefined]) expect(isStaffLikeRole(r)).toBe(false);
   });
 });
