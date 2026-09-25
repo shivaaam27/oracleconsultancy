@@ -102,7 +102,7 @@ export const NAV_ROUTES: NavRoute[] = [
   // "Brief" while pointing at /calendar, so the sidebar's Brief opened the diary
   // and the real Brief had no entry at all.
   { id: "calendar",    href: "/calendar",            label: "Calendar",            icon: CalendarClock },
-  { id: "brief",       href: "/brief",               label: "Director Brief",      icon: ClipboardList },
+  { id: "brief",       href: "/brief",               label: "Report",              icon: ClipboardList }, // opens the Report panel (was the Director Brief page)
   { id: "chat",        href: "/chat",                label: "Chat",                icon: MessageSquare },
   { id: "pipeline",    href: "/hrms/pipeline",       label: "Applications",        icon: KanbanSquare },
   { id: "cleaning",    href: "/hrms/cleaning",       label: "Cleaning",            icon: Sparkles },

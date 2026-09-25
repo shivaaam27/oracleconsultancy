@@ -26,7 +26,7 @@ export async function StudioShellServer() {
   } catch {
     /* decoration — never block the page */
   }
-  const director = v.kind === "director" ? { name: v.name, outbox: !!v.person.caps.navOutbox, createTasks: !!v.person.caps.createTasks } : null;
+  const director = v.kind === "director" ? { name: v.name, outbox: !!v.person.caps.navOutbox, createTasks: !!v.person.caps.createTasks, brief: !!v.person.caps.directorBrief } : null;
   return <StudioShell needs={needs} director={director} />;
 }
 

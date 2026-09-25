@@ -14,11 +14,12 @@
  * Every number is a door: the tiles and chips open the filtered task list,
  * the documents, the team.
  */
+import { openReport } from "@/components/studio/report-sheet";
 import { PersonFace } from "@/components/studio/face";
 import { useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Minimize2, List, Folder, Users, Plus, Sparkles, Loader2, Copy, Check } from "lucide-react";
+import { Minimize2, List, Folder, Users, Plus, Sparkles, Loader2, Copy, Check, FileText } from "lucide-react";
 import { StudioScope, Ring } from "@/components/studio/kit";
 import { useFitFrame } from "@/components/studio/use-fit-frame";
 import { useStudioFootNote } from "@/components/studio/foot-note";
@@ -84,6 +85,7 @@ export function StudioCompany({ data, children }: { data: StudioCompanyData; chi
       <Link href={tasksHref} className={BAND_BTN}><List size={13} />Open in Tasks</Link>
       <Link href={`/files?co=${data.id}`} className={BAND_BTN}><Folder size={13} />Files</Link>
       <Link href={`/people?co=${data.id}`} className={BAND_BTN}><Users size={13} />Team</Link>
+      <button type="button" onClick={() => openReport({ companyIds: [data.id] })} className={BAND_BTN}><FileText size={13} />Report</button>
     </>
   );
   // Phone (owner, 25 Sept 2026: "it looks messy"): back · New task; the logo

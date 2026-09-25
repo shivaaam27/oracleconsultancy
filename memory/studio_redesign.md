@@ -841,3 +841,8 @@ Rules that now hold everywhere (read before touching a Studio page's phone view)
 - Owner decisions: managers + staff go to Studio too ("new direction") — needs a
   plan/mockup first. Director Brief → to become a REPORT (sheet with filters →
   PDF / email / WhatsApp / copy / draft), not a page duplicating Home.
+- **Report (26 Sept 2026)** replaced the Director Brief page: `/brief` → `/?report=1…`,
+  `ReportSheet` mounted in the Studio shell (director needs `caps.directorBrief`),
+  `openReport({companyIds|personIds})` from Home hero / company band / person ⋯ menu.
+  Email ATTACHES the PDF (owner's choice); all PDF sections kept; nav label "Report".
+  In dev the numbers take a few seconds (getBrief is heavy) — watch it in production.

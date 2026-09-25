@@ -11,6 +11,7 @@
  * PersonPortalAccess, PersonProbation, PersonPackPanel, DeletePersonDialog,
  * LinkedNotesTab, PersonForm, and the people / pack actions.
  */
+import { openReport } from "@/components/studio/report-sheet";
 import { PersonFace } from "@/components/studio/face";
 import { useMemo, useRef, useState, useTransition, type ReactNode } from "react";
 import Link from "next/link";
@@ -246,6 +247,7 @@ export function StudioPerson({ data, backHref, readOnly = false }: { data: Studi
           </DropdownMenu.Trigger>
           <DropdownMenu.Portal>
             <DropdownMenu.Content align="end" sideOffset={6} className="studio z-[140] w-60 rounded-xl border border-[var(--st-line)] bg-[var(--st-surface)] p-1.5 text-[13px] shadow-[0_16px_40px_rgba(17,18,20,0.16)]">
+              <MenuItem onSelect={() => openReport({ personIds: [p.id] })} icon={<FileText size={14} />}>Report on {p.name.replace(/^(Mr|Mrs|Ms|Miss|Dr)\.?\s+/, "").split(" ")[0]}…</MenuItem>
               {!readOnly && <MenuItem onSelect={() => setSheet("pack")} icon={<PackageCheck size={14} />}>Send a pack…</MenuItem>}
               {contact && <MenuItem onSelect={() => { void navigator.clipboard.writeText(contact).then(() => toast(`Copied ${contact}`, { tone: "success" })); }} icon={<Copy size={14} />}>Copy contact</MenuItem>}
               {!readOnly && <>

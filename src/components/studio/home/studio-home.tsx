@@ -12,6 +12,7 @@
  * list scrolls inside itself. Below `lg` everything stacks and the page scrolls.
  * The three bottom cards turn with ‹ ›, the dots, a swipe, or ←/→ when focused.
  */
+import { openReport } from "@/components/studio/report-sheet";
 import { useEffect, useRef, useState, useTransition, type PointerEvent as RPointerEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -100,7 +101,12 @@ export function StudioHome({ data }: { data: StudioHomeData }) {
               </Link>
             ))}
             <span className="flex-1" />
-            <span className="hidden text-[var(--st-muted)] sm:inline">Tap a bar to open that task</span>
+            <span className="hidden text-[var(--st-muted)] lg:inline">Tap a bar to open that task</span>
+            {/* The Report — what the Director Brief page became: filters, then
+                PDF · email · WhatsApp · copy · draft. */}
+            <button type="button" onClick={() => openReport()} className="inline-flex h-8 items-center gap-1.5 rounded-[9px] bg-[#F2F2F0] px-3 text-xs font-semibold text-[#111214] transition-opacity hover:opacity-90">
+              <FileText size={13} />Report
+            </button>
           </div>
         </section>
 
@@ -297,7 +303,7 @@ function ActionsSlide({ s }: { s: Extract<HomeSlide, { kind: "actions" }> }) {
         <span className="min-w-0 flex-1"><span className="block text-[13px] font-medium">Approvals</span><span className="block truncate text-[11px] text-[var(--st-muted)]">{s.approvals ? `${s.approvals} waiting for your yes` : "Nothing waiting for you"}</span></span>
         <span className="text-xs font-medium">Open</span>
       </Link>
-      <Link href="/brief" className="mt-1 shrink-0 self-start text-xs text-[var(--st-sub)] hover:text-[var(--st-ink)]">Read the Brief first →</Link>
+      <button type="button" onClick={() => openReport()} className="mt-1 shrink-0 self-start text-xs text-[var(--st-sub)] hover:text-[var(--st-ink)]">Open the report first →</button>
     </div>
   );
 }

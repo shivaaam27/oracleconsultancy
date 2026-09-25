@@ -15,6 +15,7 @@
  * Page order comes from `studioStops()`, which is derived from nav.ts — the
  * footer can never list a page the rest of COS does not know about.
  */
+import { ReportSheet } from "@/components/studio/report-sheet";
 import { SignOutForm } from "@/components/sign-out-form";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -39,7 +40,7 @@ const FOOT_BTN =
 /** A director on the shared screens (lib/viewer.ts): their own pages in the
  *  footer, their profile instead of Settings, no everything-search, and "+ New"
  *  makes a task (the one thing they create here). */
-export type ShellDirector = { name: string; outbox: boolean; createTasks: boolean };
+export type ShellDirector = { name: string; outbox: boolean; createTasks: boolean; brief: boolean };
 
 export function StudioShell({ needs, director = null }: { needs: NonNullable<StudioFootNote>[]; director?: ShellDirector | null }) {
   const pathname = usePathname() || "/";
@@ -314,6 +315,9 @@ export function StudioShell({ needs, director = null }: { needs: NonNullable<Stu
       </footer>
 
       {quick && <StudioQuickAdd initialTab={quickTab} onClose={() => setQuick(false)} />}
+      {/* The Report (what the Director Brief page became) — one panel for the
+          whole app, opened by openReport() from Home, a company or a person. */}
+      {(!director || director.brief) && <ReportSheet />}
 
       {goTo && (
         <GoToPanel
