@@ -28,12 +28,12 @@ export function GET() {
     (
       <div style={{ display: "flex", width: "100%", height: "100%", background: INK, padding: "0 84px", alignItems: "center", fontFamily: "sans-serif" }}>
         <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
-          <div style={{ display: "flex", fontSize: 26, color: "#9A9CA1", letterSpacing: 0.5 }}>Oracle Consultancy</div>
+          <div style={{ display: "flex", fontSize: 26, color: "#F2F2F0", letterSpacing: 0.5 }}>Oracle Consultancy</div>
           <div style={{ display: "flex", flexDirection: "column", marginTop: 18, fontSize: 104, lineHeight: 1, color: "#F2F2F0", letterSpacing: -4, fontWeight: 500 }}>
             <span>Task</span>
             <span>Management</span>
           </div>
-          <div style={{ display: "flex", marginTop: 28, fontSize: 25, color: "#C9CBCF" }}>One place for every task, across every company.</div>
+          <div style={{ display: "flex", marginTop: 28, fontSize: 25, color: "#F2F2F0" }}>One place for every task, across every company.</div>
         </div>
         <div style={{ display: "flex", flexWrap: "wrap", width: CELL * 5 + GAP * 4, gap: GAP, marginLeft: 40 }}>
           {SQUARES.map((k, i) => (

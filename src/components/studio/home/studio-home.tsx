@@ -77,8 +77,8 @@ export function StudioHome({ data, links = OWNER_LINKS, heroAction, aside, after
       <div ref={grid} className="grid grid-cols-1 gap-4 lg:grid-cols-3 lg:grid-rows-[minmax(250px,0.8fr)_minmax(0,1fr)]">
         {/* ---------- hero ---------- */}
         <section className="flex min-w-0 flex-col rounded-[18px] bg-[var(--st-card)] px-[18px] py-4 text-[var(--st-on-card)] sm:px-6 sm:py-5 lg:col-span-2">
-          <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:gap-4">
-            <div className="w-full min-w-0 flex-1">
+          <div>
+            <div className="min-w-0">
               {/* The greeting IS the heading (owner, 26 Sept 2026: "remove the
                   announcement, it's cluttery … make the greeting big"). The
                   live notice is on Announcements and the bell; the date and
@@ -89,16 +89,21 @@ export function StudioHome({ data, links = OWNER_LINKS, heroAction, aside, after
                 Your {data.openCount} open {data.openCount === 1 ? "task" : "tasks"}, at a glance
               </p>
             </div>
-            <div className="flex shrink-0 gap-[22px] sm:gap-6 sm:text-right">
-              <HeroNum n={data.late} label="late" color="#F07BBE" href={links.late} />
-              <HeroNum n={data.soon} label="due soon" color="#F5B94E" href={links.soon} />
-              <HeroNum n={data.done} label="done this month" short="done" color="#5BE0A5" href={links.done} />
-            </div>
           </div>
           <TaskSquares bars={data.bars} />
           {data.bars.length === 0 && <div className="text-[13px] text-[var(--st-on-card-muted)]">No open tasks — a clear desk.</div>}
-          <div className="mt-3 flex items-center gap-3 text-[11px] text-[var(--st-on-card-muted)] sm:mt-3.5 sm:text-xs">
-            <span className="min-w-0 flex-1 truncate">Each square is one task · tap one to open it</span>
+          {/* The numbers sit under the squares they count (owner, 26 Sept 2026:
+              "move 17 late, 3 due soon, 43 done to the bottom … remove the
+              sentence"), with the Report key beside them. */}
+          <div className="mt-4 flex items-center gap-3 sm:mt-5">
+            {/* One quiet line: "17 late | 3 due | 43 done this month". */}
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2.5 gap-y-1 text-[13px] sm:text-sm">
+              <HeroNum n={data.late} label="late" color="#F07BBE" href={links.late} />
+              <span aria-hidden className="text-[#6B6E74]">|</span>
+              <HeroNum n={data.soon} label="due" color="#F5B94E" href={links.soon} />
+              <span aria-hidden className="text-[#6B6E74]">|</span>
+              <HeroNum n={data.done} label="done this month" color="#5BE0A5" href={links.done} />
+            </div>
             {/* The Report — filters, then PDF · email · WhatsApp · copy · draft.
                 A small light key in the corner rather than a labelled button. */}
             {heroAction === undefined ? (
@@ -198,15 +203,17 @@ function TaskSquares({ bars }: { bars: StudioHomeData["bars"] }) {
       <div
         className={cn("grid", !fit && "grid-cols-[repeat(auto-fill,minmax(13px,1fr))] gap-[3px] sm:grid-cols-[repeat(auto-fill,minmax(15px,1fr))] sm:gap-1")}
         style={fit ? { gridTemplateColumns: `repeat(${fit.cols}, ${fit.s}px)`, gap: fit.g } : undefined}
-        aria-label="Each square is one open task, coloured by how it is doing"
+        role="img"
+        aria-label={`${bars.length} open tasks, one square each, coloured by how each is doing`}
       >
         {bars.map((b, i) => (
-          <Link
+          // A picture, not a set of doors (owner, 26 Sept 2026: "it shouldn't
+          // be clickable, it's just a lot of noise") — hovering still names
+          // the task.
+          <span
             key={i}
-            href={b.href}
             title={b.label}
-            aria-label={b.label}
-            className="st-pop block aspect-square transition-[transform,opacity] hover:scale-[1.15] hover:opacity-90"
+            className="st-pop block aspect-square"
             style={{ background: BAND[b.band], borderRadius: fit ? Math.round(fit.s * 0.24) : 3, animationDelay: `${Math.min(i * 6, 500)}ms` }}
           />
         ))}
@@ -215,15 +222,11 @@ function TaskSquares({ bars }: { bars: StudioHomeData["bars"] }) {
   );
 }
 
-function HeroNum({ n, label, short, color, href }: { n: number; label: string; short?: string; color: string; href: string }) {
+function HeroNum({ n, label, color, href }: { n: number; label: string; color: string; href: string }) {
   return (
-    <Link href={href} className="group">
-      <div className="text-[30px] leading-none tracking-[-0.03em] tabular-nums group-hover:opacity-80 sm:text-[40px] xl:text-[52px]">{n}</div>
-      <div className="mt-1.5 whitespace-nowrap text-[11px] sm:text-xs" style={{ color }}>
-        {/* Between lg and xl the card is narrow; the short label keeps the
-            greeting on one line. */}
-        {short ? <><span className="hidden sm:inline xl:hidden">{short}</span><span className="sm:hidden xl:inline">{label}</span></> : label}
-      </div>
+    <Link href={href} className="inline-flex items-baseline gap-1.5 whitespace-nowrap transition-opacity hover:opacity-80">
+      <span className="font-semibold tabular-nums text-[var(--st-on-card)]">{n}</span>
+      <span style={{ color }}>{label}</span>
     </Link>
   );
 }
