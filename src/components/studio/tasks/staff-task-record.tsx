@@ -15,7 +15,7 @@
  */
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, Loader2, PauseCircle, Pencil, Send } from "lucide-react";
+import { CheckCircle2, Loader2, PauseCircle, Pencil, Play, Send } from "lucide-react";
 import { StudioScope, stBtn } from "@/components/studio/kit";
 import { StudioSheet } from "@/components/studio/sheet";
 import { PersonFace } from "@/components/studio/face";
@@ -82,12 +82,29 @@ export function StaffTaskRecord({ t }: { t: StaffTaskData }) {
   const [completeOpen, setCompleteOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const inReview = t.status === "Under Review";
+  // Start — the way a member of staff moves a task to In Progress, now that
+  // the composer's Status picker is gone (26 Sept 2026). It posts a one-line
+  // update, as the picker did, so the change is on the record with its author.
+  const { toast: startToast } = useToast();
+  const [starting, beginStart] = useTransition();
+  const startWork = () => beginStart(async () => {
+    const fd = new FormData();
+    fd.set("taskId", String(t.id)); fd.set("code", t.code);
+    fd.set("body", "Started work on this."); fd.set("newStatus", "In Progress");
+    try { await portalAddUpdate(fd); router.refresh(); } catch { startToast("That didn’t save — try again.", { tone: "warn" }); }
+  });
   const waitingOn = t.blockedOnPersonId != null ? t.people.find((p) => p.id === t.blockedOnPersonId)?.name ?? t.blockPeople.find((p) => p.id === t.blockedOnPersonId)?.name ?? "someone" : null;
 
   const panel = "rounded-[18px] bg-[var(--st-surface)] p-5";
 
   const actions = (phone: boolean) => !t.closed && (
     <>
+      {t.status === "Not Started" && (
+        <button type="button" disabled={starting} onClick={startWork}
+          className={cn(stBtn.onCard, phone ? "h-10 flex-1 justify-center text-[13px]" : "hidden sm:inline-flex", "disabled:opacity-60")}>
+          <Play size={13} />Start
+        </button>
+      )}
       <button type="button" disabled={inReview} onClick={() => setReviewOpen(true)}
         className={cn(stBtn.onCard, phone ? "h-10 flex-1 justify-center text-[13px]" : "hidden sm:inline-flex", "disabled:opacity-60")}>
         <Send size={13} />{inReview ? "With the reviewer" : "Send for review"}

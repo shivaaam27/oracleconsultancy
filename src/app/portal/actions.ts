@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { sb } from "@/db/supabase";
 import { logChangeSb, insertTaskWithUniqueCodeSb } from "@/lib/db-helpers";
 import { parseMentionIds } from "@/lib/tasks/mentions";
+import { mentionPeople } from "@/lib/tasks/mention-people";
 import { createDocument, attachUploadedFile } from "@/lib/documents/documents";
 import { ingestAttachmentDocument } from "@/app/documents/actions";
 import { trusted } from "@/lib/auth/viewer";
@@ -1725,13 +1726,7 @@ export async function portalAddUpdate(formData: FormData) {
 
   // Record @mentions — re-parsed server-side against this task's people, so
   // we never trust the client's list. Drives highlight now, notifications (T4).
-  const { data: taskPeople } = await sb
-    .from("task_assignees")
-    .select("people(id,name)")
-    .eq("task_id", taskId);
-  const candidates = (taskPeople ?? [])
-    .map((r) => r.people as unknown as { id: number; name: string } | null)
-    .filter((p): p is { id: number; name: string } => Boolean(p));
+  const candidates = await mentionPeople(taskId);
   const mentionIds = parseMentionIds(body, candidates).filter((id) => id !== me.id);
   if (mentionIds.length > 0) {
     await sb

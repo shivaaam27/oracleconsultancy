@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation";
+import { mentionPeople } from "@/lib/tasks/mention-people";
 import { CalendarDays, Crown, MessageSquare, Users } from "lucide-react";
 import { BackLink } from "@/components/shell/back-link";
 import { sb } from "@/db/supabase";
@@ -104,10 +105,12 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
     // System events (status/deadline/priority/etc.) → thin inline markers.
     sb
       .from("audit_log")
-      .select("id,field,old_value,new_value,created_at")
+      .select("id,field,old_value,new_value,created_at,created_by")
       .eq("task_code", task.code as string)
       .eq("entry_type", "CHANGE")
-      .in("field", ["status", "deadline", "priority", "risk", "escalation"])
+      // Both spellings: the owner's side writes "Status", the portal "status" —
+      // matching one left staff blind to every change the owner made.
+      .in("field", ["status", "deadline", "priority", "risk", "escalation", "Status", "Deadline", "Priority", "Risk", "Escalation"])
       .is("deleted_at", null)
       .order("created_at", { ascending: false }),
     // The management panel's data (see below) — management roles only.
@@ -145,7 +148,7 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
     return isNaN(d.getTime()) ? v : d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
   };
   const events: ConvoEvent[] = (auditRows ?? []).map((a) => {
-    const f = a.field as string;
+    const f = String(a.field).toLowerCase();
     const nv = (a.new_value as string | null) ?? "";
     let text: string;
     if (f === "status") text = `Status → ${nv}`;
@@ -154,7 +157,7 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
     else if (f === "risk") text = `Risk → ${nv}`;
     else if (f === "escalation") text = nv ? `Escalation → ${nv}` : "Escalation cleared";
     else text = `${f} → ${nv}`;
-    return { id: `a${a.id}`, at: a.created_at as string, text };
+    return { id: `a${a.id}`, at: a.created_at as string, text, by: a.created_by ? authorOf(a.created_by as string, me.name).name : undefined };
   });
 
   const all = (updates ?? []) as Update[];
@@ -190,6 +193,9 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
       return p ? { ...p, accountable: a.role === "accountable" || p.id === (task.owner_id as number | null) } : null;
     })
     .filter((p): p is { id: number; name: string; accountable: boolean } => Boolean(p));
+
+  // Who can be @-mentioned: everyone on the task, and whoever raised it.
+  const mentionTeam = await mentionPeople(task.id as number);
 
   // Seen indicator — who has viewed since the latest message (excluding me).
   const latest = all[0] ?? null;
@@ -333,7 +339,7 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
             events,
             latestId: latest?.id ?? null,
             seenLabel,
-            team: team.map((p) => ({ id: p.id, name: p.name })),
+            team: mentionTeam,
           },
           history: events.map((e) => ({ at: e.at, text: e.text })),
         }} />

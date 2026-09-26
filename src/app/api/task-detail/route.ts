@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { mentionPeople } from "@/lib/tasks/mention-people";
 import { getTaskRowFresh } from "@/lib/tasks/queries";
 import { sb } from "@/db/supabase";
 import { recordTaskView, personCanSeeTask } from "@/lib/portal/portal-auth";
@@ -31,6 +32,9 @@ function adminAuthorOf(by: string | null): { name: string; management: boolean; 
   if (by === "ai-command") return { name: "ORI", management: true, me: false };
   if (by === "meeting-mode") return { name: "Meeting", management: true, me: false };
   if (by.startsWith("portal-mgr:")) return { name: by.slice(11), management: true, me: false };
+  // A director's or other portal role's post ("portal-dir:Name") — the name,
+  // not the stamp (it printed "portal-dir:Name" on the owner's screen).
+  { const m = /^portal-[a-z]+:(.+)$/.exec(by); if (m) return { name: m[1], management: true, me: false }; }
   if (by.startsWith("portal:")) return { name: by.slice(7), management: false, me: false };
   // Written through Claude (MCP): "mcp:Owner" is the owner, else the staff name.
   if (by === "mcp:Owner") return { name: "You", management: true, me: true };
@@ -116,7 +120,7 @@ export async function GET(req: NextRequest) {
   }
 
   // Team (assignees) for @mention autocomplete + name resolution.
-  const team = task.assigneeIds.map((id, i) => ({ id, name: task.assignees[i] }));
+  const team = await mentionPeople(task.id);
   const teamName = new Map(team.map((p) => [p.id, p.name]));
 
   // Who has seen since the latest message (portal viewers).
@@ -181,7 +185,7 @@ export async function GET(req: NextRequest) {
       else if (f === "priority") text = `Priority → ${nv}`;
       else if (f === "risk") text = `Risk → ${nv}`;
       else text = nv ? `Escalation → ${nv}` : "Escalation cleared";
-      return { id: `a${a.id}`, at: a.created_at as string, text };
+      return { id: `a${a.id}`, at: a.created_at as string, text, by: a.created_by ? adminAuthorOf(a.created_by as string).name : undefined };
     });
 
   const inScopePeople = await viewerPeopleIds(viewer);

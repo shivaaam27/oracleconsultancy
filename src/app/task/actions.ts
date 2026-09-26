@@ -26,6 +26,7 @@ import { reindexEntity, removeEntityIndex } from "@/lib/search/index-hooks";
 import { invalidateAllTasks } from "@/lib/tasks/queries";
 import { ingestAttachmentDocument } from "@/app/documents/actions";
 import { parseMentionIds } from "@/lib/tasks/mentions";
+import { mentionPeople } from "@/lib/tasks/mention-people";
 import { createNotification, notifyMany, notifyPinned, personRecipient, recipientForCreatedBy } from "@/lib/messaging/notifications";
 import { broadcastPulse } from "@/lib/messaging/cos-pulse";
 
@@ -552,11 +553,10 @@ export async function adminAddUpdate(formData: FormData): Promise<void> {
   if (insErr) throw new Error(insErr.message);
 
   // @mentions — re-parsed against the task's people.
-  const { data: taskPeople } = await sb.from("task_assignees").select("people(id,name)").eq("task_id", taskId);
-  const candidates = (taskPeople ?? [])
-    .map((r) => r.people as unknown as { id: number; name: string } | null)
-    .filter((p): p is { id: number; name: string } => Boolean(p));
+  const candidates = await mentionPeople(taskId);
   const mentionIds = parseMentionIds(messageBody, candidates);
+  // Who wrote it: a director's post says their name, not "Management".
+  const writer = /^portal-[a-z]+:(.+)$/.exec(by)?.[1] ?? "The administrator";
   if (mentionIds.length > 0) {
     await sb.from("update_mentions").insert(mentionIds.map((personId) => ({ update_id: inserted.id as number, person_id: personId })));
   }
@@ -566,9 +566,9 @@ export async function adminAddUpdate(formData: FormData): Promise<void> {
     kind: "mention",
     taskId,
     taskCode,
-    title: "Management mentioned you",
+    title: `${writer} mentioned you`,
     body,
-    actor: "Management",
+    actor: writer,
   });
   if (parentUpdateId) {
     const target = await recipientForCreatedBy(parentCreatedBy);

@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Check, CheckCheck, CornerUpLeft, MessageSquare, Paperclip, Pencil, Pin, PinOff, Send, Trash2, X } from "lucide-react";
+import { Check, CheckCheck, ChevronDown, CornerUpLeft, History, MessageSquare, Paperclip, Pencil, Pin, PinOff, Send, Trash2, X } from "lucide-react";
 import { segmentMentions, type MentionCandidate } from "@/lib/tasks/mentions";
-import { CaretTextarea, Select } from "../ui";
+import { CaretTextarea } from "../ui";
 import { VoiceButton } from "../forms/voice-button";
 import { useToast } from "../shell/toast";
 
@@ -42,6 +42,8 @@ export type ConvoEvent = {
   id: string;
   at: string; // ISO
   text: string;
+  /** Who made the change, when known ("You", "Administrator", a name). */
+  by?: string;
 };
 
 type Props = {
@@ -98,6 +100,53 @@ function dayLabel(iso: string): string {
   if (same(d, today)) return "Today";
   if (same(d, yest)) return "Yesterday";
   return d.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+}
+
+/** "@partial name" just before the caret: letters, digits, spaces, dots,
+ *  hyphens and apostrophes (names like "Mr J. Smith-Jones"), up to 40. */
+const MENTION_TAIL = /@([\p{L}\p{N}'.\- ]{0,40})$/u;
+
+/** A post that is only a file ("📎 name" + the file) shows the file once. */
+function fileOnly(m: ConvoMessage): boolean {
+  return !!m.attachment && m.body.trim() === `📎 ${m.attachment.name}`;
+}
+
+/** One quiet line for a run of changes: "Stage → In Progress · Deadline →
+ *  30 Sept +1"; on a phone just "3 changes". Tap to see each, with who and when. */
+function ChangeLine({ es, studio = false }: { es: ConvoEvent[]; studio?: boolean }) {
+  const [open, setOpen] = useState(false);
+  const list = [...es].sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime());
+  const nice = (t: string) => t.replace(/^Status → /, "Stage → ");
+  const lastAt = list[list.length - 1].at;
+  const more = list.length > 1 || list.some((e) => e.by);
+  const summary = list.length === 1 ? nice(list[0].text) : `${nice(list[0].text)} · ${nice(list[1].text)}${list.length > 2 ? ` +${list.length - 2}` : ""}`;
+  const muted = studio ? "text-[var(--st-muted)]" : "text-fg-subtle";
+  return (
+    <div className={`flex flex-col items-center gap-1 py-0.5 text-[11px] ${muted}`}>
+      <button type="button" disabled={!more} onClick={() => setOpen((v) => !v)} aria-expanded={open}
+        className={`inline-flex max-w-full items-center gap-1.5 rounded-full px-2.5 py-1 ${studio ? "hover:bg-[var(--st-page)]" : "hover:bg-bg-subtle"} disabled:cursor-default disabled:hover:bg-transparent`}>
+        <History size={11} className="shrink-0" />
+        {list.length > 1 ? (
+          <>
+            <span className="truncate sm:hidden">{list.length} changes</span>
+            <span className="hidden truncate sm:inline">{summary}</span>
+          </>
+        ) : <span className="truncate">{summary}</span>}
+        <span className="shrink-0">· {time(lastAt)}</span>
+        {more && <ChevronDown size={11} className={`shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />}
+      </button>
+      {open && (
+        <ul className={`w-full max-w-[420px] space-y-1 rounded-xl px-3 py-2 text-left ${studio ? "bg-[var(--st-page)]" : "bg-bg-subtle"}`}>
+          {list.map((e) => (
+            <li key={e.id} className="flex items-baseline gap-2">
+              <span className="min-w-0 flex-1 truncate">{nice(e.text)}</span>
+              <span className="shrink-0">{e.by ? `${e.by} · ` : ""}{time(e.at)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
 }
 
 function time(iso: string): string {
@@ -174,19 +223,29 @@ export function PortalConversation(props: Props) {
     mentionQuery === null
       ? []
       : team.filter((m) => m.name.toLowerCase().includes(mentionQuery.toLowerCase())).slice(0, 6);
+  const [mentionIndex, setMentionIndex] = useState(0);
+  // Arrow keys move through the names, Enter or Tab takes one, Escape closes.
+  function onComposerKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (!mentionMatches.length) return;
+    if (e.key === "ArrowDown") { e.preventDefault(); setMentionIndex((i) => (i + 1) % mentionMatches.length); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); setMentionIndex((i) => (i - 1 + mentionMatches.length) % mentionMatches.length); }
+    else if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); pickMention(mentionMatches[Math.min(mentionIndex, mentionMatches.length - 1)].name); }
+    else if (e.key === "Escape") { e.preventDefault(); setMentionQuery(null); }
+  }
 
   function onComposerChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
     const el = e.target;
     const upto = el.value.slice(0, el.selectionStart ?? el.value.length);
-    const m = /@([\p{L}\p{N}' ]{0,30})$/u.exec(upto);
+    const m = MENTION_TAIL.exec(upto);
     setMentionQuery(m ? m[1] : null);
+    setMentionIndex(0);
   }
 
   function pickMention(name: string) {
     const el = taRef.current;
     if (!el) return;
     const caret = el.selectionStart ?? el.value.length;
-    const before = el.value.slice(0, caret).replace(/@([\p{L}\p{N}' ]{0,30})$/u, `@${name} `);
+    const before = el.value.slice(0, caret).replace(MENTION_TAIL, `@${name} `);
     const after = el.value.slice(caret);
     el.value = before + after;
     const pos = before.length;
@@ -198,12 +257,30 @@ export function PortalConversation(props: Props) {
   const pinned = messages.filter((m) => m.pinned);
   const rest = messages.filter((m) => !m.pinned);
 
-  // Merge messages + system events into one stream, newest first.
-  type Item = { kind: "msg"; at: string; m: ConvoMessage } | { kind: "event"; at: string; e: ConvoEvent };
-  const merged: Item[] = [
+  // Merge messages + changes into one stream, newest first — quietly
+  // (owner, 26 Sept 2026: "so many things happen ... it clutters the
+  // conversation"). A stage change made with a message rides on that message
+  // as a small tag; a run of changes with no message between becomes ONE line.
+  type Item = { kind: "msg"; at: string; m: ConvoMessage } | { kind: "events"; at: string; es: ConvoEvent[] };
+  const stageTag = new Map<number, string>();
+  const folded = new Set<string>();
+  for (const e of events) {
+    if (!e.text.startsWith("Status → ")) continue;
+    const t = new Date(e.at).getTime();
+    const m = rest.find((x) => Math.abs(new Date(x.at).getTime() - t) <= 3 * 60_000 && !stageTag.has(x.id));
+    if (m) { stageTag.set(m.id, e.text.slice(9)); folded.add(e.id); }
+  }
+  const stream = [
     ...rest.map((m) => ({ kind: "msg" as const, at: m.at, m })),
-    ...events.map((e) => ({ kind: "event" as const, at: e.at, e })),
+    ...events.filter((e) => !folded.has(e.id)).map((e) => ({ kind: "event" as const, at: e.at, e })),
   ].sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
+  const merged: Item[] = [];
+  for (const it of stream) {
+    const last = merged[merged.length - 1];
+    if (it.kind === "msg") merged.push(it);
+    else if (last?.kind === "events" && dayLabel(last.at) === dayLabel(it.at)) last.es.push(it.e);
+    else merged.push({ kind: "events", at: it.at, es: [it.e] });
+  }
 
   // Group by day (newest first).
   const groups: Array<{ label: string; items: Item[] }> = [];
@@ -246,16 +323,8 @@ export function PortalConversation(props: Props) {
     </div>
   );
 
-  const EventMarker = ({ e }: { e: ConvoEvent }) => (
-    <div className="flex items-center gap-2 px-1 py-0.5 text-xs text-fg-subtle">
-      <span className="h-px grow bg-border/60" />
-      <span className="shrink-0">{e.text} · {time(e.at)}</span>
-      <span className="h-px grow bg-border/60" />
-    </div>
-  );
-
   const renderItem = (it: Item) =>
-    it.kind === "msg" ? <Bubble key={`m${it.m.id}`} m={it.m} /> : <EventMarker key={it.e.id} e={it.e} />;
+    it.kind === "msg" ? <Bubble key={`m${it.m.id}`} m={it.m} /> : <ChangeLine key={it.es[0].id} es={it.es} />;
 
   const Bubble = ({ m }: { m: ConvoMessage }) => (
     <div
@@ -267,6 +336,7 @@ export function PortalConversation(props: Props) {
         <span className={`font-semibold ${m.management ? "text-accent" : m.me ? "text-fg" : "text-fg-muted"}`}>
           {m.authorName}
         </span>
+        {stageTag.has(m.id) && <span className="rounded bg-bg-subtle px-1.5 py-px text-[11px] text-fg-muted ring-1 ring-border">→ {stageTag.get(m.id)}</span>}
         <span className="grow" />
         {!closed && (
           <button
@@ -371,7 +441,10 @@ export function PortalConversation(props: Props) {
       const mine = m.me || m.management;
       return (
         <div className={`group flex flex-col ${mine ? "items-end" : "items-start"}`}>
-          <div className="mb-1 px-1 text-[11px] text-[var(--st-muted)]">{mine && m.me ? "You" : m.authorName} · {time(m.at)}</div>
+          <div className="mb-1 flex items-center gap-1.5 px-1 text-[11px] text-[var(--st-muted)]">
+            {mine && m.me ? "You" : m.authorName} · {time(m.at)}
+            {stageTag.has(m.id) && <span className="rounded-md bg-[var(--st-page)] px-1.5 py-px text-[10.5px] text-[var(--st-sub)]">→ {stageTag.get(m.id)}</span>}
+          </div>
           <div className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-[13px] leading-relaxed ${mine ? "rounded-br-md bg-[#111214] text-white" : "rounded-bl-md bg-[var(--st-page)] text-[var(--st-ink)]"}`}>
             {m.parent && (
               <div className={`mb-1.5 border-l-2 pl-2 text-[11px] ${mine ? "border-white/30 text-white/70" : "border-[var(--st-line)] text-[var(--st-muted)]"}`}>
@@ -389,7 +462,7 @@ export function PortalConversation(props: Props) {
                 </div>
               </form>
             ) : (
-              <p className="whitespace-pre-wrap break-words">
+              !fileOnly(m) && <p className="whitespace-pre-wrap break-words">
                 {segmentMentions(m.body, team).map((seg, i) =>
                   seg.mention ? <span key={i} className="font-semibold underline decoration-dotted underline-offset-2">{seg.text}</span> : <span key={i}>{seg.text}</span>,
                 )}
@@ -436,10 +509,7 @@ export function PortalConversation(props: Props) {
         </div>
       );
     };
-    const StudioEvent = ({ e }: { e: ConvoEvent }) => (
-      <div className="py-0.5 text-center text-[11px] text-[var(--st-muted)]">{e.text} · {time(e.at)}</div>
-    );
-    const item = (it: Item) => (it.kind === "msg" ? <StudioBubble key={`m${it.m.id}`} m={it.m} /> : <StudioEvent key={it.e.id} e={it.e} />);
+    const item = (it: Item) => (it.kind === "msg" ? <StudioBubble key={`m${it.m.id}`} m={it.m} /> : <ChangeLine key={it.es[0].id} es={it.es} studio />);
     const day = (label: string) => <div className="pt-1 text-center text-[11px] uppercase tracking-[0.08em] text-[var(--st-muted)]">{label}</div>;
 
     return (
@@ -513,14 +583,15 @@ export function PortalConversation(props: Props) {
                   required={!fileName}
                   rows={2}
                   onChange={onComposerChange}
+                  onKeyDown={onComposerKeyDown}
                   onBlur={() => setTimeout(() => setMentionQuery(null), 150)}
                   placeholder={replyTo ? `Reply to ${replyTo.author}…` : "Write an update… use @ to mention someone"}
                   className="bare-field w-full resize-y rounded-xl border border-[var(--st-line)] bg-[var(--st-page)] px-3.5 py-2.5 text-[13px] outline-none placeholder:text-[var(--st-muted)] focus:border-[var(--st-muted)]"
                 />
                 {mentionMatches.length > 0 && (
                   <div className="absolute bottom-full left-2 z-10 mb-1 w-56 overflow-hidden rounded-xl border border-[var(--st-line)] bg-[var(--st-surface)] shadow-[0_16px_40px_rgba(17,18,20,0.16)]">
-                    {mentionMatches.map((m) => (
-                      <button key={m.id} type="button" onMouseDown={(e) => { e.preventDefault(); pickMention(m.name); }} className="flex w-full items-center px-3 py-2 text-left text-[13px] hover:bg-[var(--st-page)]">{m.name}</button>
+                    {mentionMatches.map((m, i) => (
+                      <button key={m.id} type="button" onPointerDown={(e) => { e.preventDefault(); pickMention(m.name); }} className={`flex w-full items-center px-3 py-2.5 text-left text-[13px] hover:bg-[var(--st-page)] ${i === mentionIndex ? "bg-[var(--st-page)]" : ""}`}>{m.name}</button>
                     ))}
                   </div>
                 )}
@@ -537,13 +608,6 @@ export function PortalConversation(props: Props) {
                   <Paperclip size={14} />
                 </button>
                 <VoiceButton onResult={appendDictation} title="Speak your update" className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--st-line)] text-[var(--st-sub)] hover:text-[var(--st-ink)]" />
-                <label className="flex items-center gap-1.5 text-xs text-[var(--st-sub)]">
-                  Status
-                  <Select name="newStatus" defaultValue="" className="text-xs">
-                    <option value="">No change</option>
-                    {statusOptions.map((st) => <option key={st} value={st}>{st}</option>)}
-                  </Select>
-                </label>
                 <span className="grow" />
                 <button type="submit" className="inline-flex h-9 items-center gap-1.5 rounded-[10px] bg-[#111214] px-4 text-[13px] font-semibold text-white transition-opacity hover:opacity-90">
                   {replyTo ? "Reply" : "Post update"}
@@ -614,6 +678,7 @@ export function PortalConversation(props: Props) {
                 required={!fileName}
                 rows={2}
                 onChange={onComposerChange}
+                onKeyDown={onComposerKeyDown}
                 onBlur={() => setTimeout(() => setMentionQuery(null), 150)}
                 placeholder={replyTo ? `Reply to ${replyTo.author}…` : "Write an update… use @ to mention a teammate."}
                 className="resize-y rounded-xl px-3.5 py-2.5 text-sm"
@@ -624,7 +689,7 @@ export function PortalConversation(props: Props) {
                     <button
                       key={m.id}
                       type="button"
-                      onMouseDown={(e) => { e.preventDefault(); pickMention(m.name); }}
+                      onPointerDown={(e) => { e.preventDefault(); pickMention(m.name); }}
                       className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-accent-soft/60 transition-colors"
                     >
                       <span className="font-medium">{m.name}</span>
@@ -659,15 +724,6 @@ export function PortalConversation(props: Props) {
                   title="Dictate your update"
                   className="inline-flex items-center justify-center rounded-md bg-bg-subtle ring-1 ring-border h-9 w-9 text-fg-muted hover:text-accent transition-colors"
                 />
-                <label className="flex items-center gap-2 text-xs text-fg-muted">
-                  Status
-                  <Select name="newStatus" defaultValue="" className="text-xs">
-                    <option value="">No change</option>
-                    {statusOptions.map((s) => (
-                      <option key={s} value={s}>{s}</option>
-                    ))}
-                  </Select>
-                </label>
               </div>
               <button type="submit" className="inline-flex h-9 items-center gap-1.5 rounded-md bg-accent text-accent-fg px-3.5 text-xs font-semibold hover:opacity-90 transition-opacity">
                 <Send size={13} /> {replyTo ? "Reply" : "Post"}
