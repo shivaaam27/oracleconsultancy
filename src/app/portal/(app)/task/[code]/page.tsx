@@ -341,7 +341,7 @@ export default async function PortalTaskPage({ params }: { params: Promise<{ cod
             seenLabel,
             team: mentionTeam,
           },
-          history: events.map((e) => ({ at: e.at, text: e.text })),
+          history: events.map((e) => ({ at: e.at, text: e.text, by: e.by })),
         }} />
       </>
     );

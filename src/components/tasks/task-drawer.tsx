@@ -12,7 +12,7 @@ import { buildSections } from "../kit/entity-cells";
 import { ENTITY_VIEWS } from "@/lib/entity-view";
 import { SectionCard } from "../kit/drawer-kit";
 import { CompanyDrawerLink } from "../companies/company-drawer-link";
-import { TimelineEntry } from "./timeline-entry";
+import { HistoryList } from "./history-list";
 import {
   History, LayoutDashboard, MessageSquare, Pencil, Save, StickyNote,
   CheckCircle2, RotateCcw, AlertOctagon, Trash2, ArrowRight, Pin,
@@ -50,8 +50,8 @@ import type { RecurringTaskRule } from "@/lib/tasks/recurring-task-rules";
 import { getGivenName, getInitials } from "@/lib/people/names";
 import { STATUSES, PRIORITIES, RISKS, CATEGORIES } from "@/lib/constants";
 import {
-  sortTimeline, mergeStatusIntoUpdates, suppressUpdateMetaAudits,
-  groupFieldEdits, liftPinnedUpdates, applyTimelineFilter,
+  sortTimeline, suppressUpdateMetaAudits,
+  groupFieldEdits, applyTimelineFilter,
   type TimelineItem, type TimelineFilter,
 } from "@/lib/tasks/timeline";
 import type { TaskRow } from "@/lib/tasks/queries";
@@ -111,16 +111,17 @@ function statusTarget(body: string): string | null {
   return STATUS_NAMES.find((s) => body.includes(s)) ?? null;
 }
 
-function buildTimeline(data: DrawerData): TimelineItem[] {
-  const raw: TimelineItem[] = [
-    ...data.updates.map<TimelineItem>((u) => ({ kind: "update", id: u.id, taskId: data.task.id, taskCode: data.task.code, body: u.body, createdAt: new Date(u.created_at), createdBy: u.created_by, editedAt: u.edited_at ? new Date(u.edited_at) : null, originalBody: u.original_body, pinnedAt: u.pinned_at ? new Date(u.pinned_at) : null })),
-    ...data.audit.map<TimelineItem>((a) => ({ kind: "audit", id: a.id, taskId: data.task.id, taskCode: data.task.code, field: a.field, oldValue: a.old_value, newValue: a.new_value, changeReason: a.change_reason, entryType: a.entry_type, createdAt: new Date(a.created_at), createdBy: a.created_by })),
-  ];
-  return liftPinnedUpdates(groupFieldEdits(suppressUpdateMetaAudits(mergeStatusIntoUpdates(sortTimeline(raw)))));
+const FIELD_CANON: Record<string, string> = { status: "Status", deadline: "Deadline", priority: "Priority", risk: "Risk", escalation: "Escalation" };
+const canonField = (f: string | null) => (f ? FIELD_CANON[f] ?? f : f);
+
+/** The History tab: changes only (the updates are the Conversation). */
+function buildHistory(data: DrawerData): TimelineItem[] {
+  const raw: TimelineItem[] = data.audit.map<TimelineItem>((a) => ({ kind: "audit", id: a.id, taskId: data.task.id, taskCode: data.task.code, field: canonField(a.field), oldValue: a.old_value, newValue: a.new_value, changeReason: a.change_reason, entryType: a.entry_type, createdAt: new Date(a.created_at), createdBy: a.created_by }));
+  return groupFieldEdits(suppressUpdateMetaAudits(sortTimeline(raw)));
 }
 
 const FILTER_LABELS: Record<TimelineFilter, string> = {
-  all: "All", updates: "Updates", status: "Status", field: "Edits", escalation: "Escalations", bulk: "Bulk",
+  all: "All", updates: "Updates", status: "Stage", field: "Edits", escalation: "Escalations", bulk: "Bulk",
 };
 
 /** Single labelled control on the Edit tab. */
@@ -510,7 +511,7 @@ function TaskRecord({ mode, codeProp, stamp }: { mode: "drawer" | "page"; codePr
   const done = !!t && (t.status === "Completed" || t.status === "Closed");
   const tone: "accent" | "success" | "warn" | "danger" = done ? "success" : urgent ? "danger" : "accent";
 
-  const merged = useMemo(() => (data ? buildTimeline(data) : []), [data]);
+  const merged = useMemo(() => (data ? buildHistory(data) : []), [data]);
   const counts = useMemo<Record<TimelineFilter, number>>(() => ({
     all: merged.length,
     updates: merged.filter((i) => i.kind === "update").length,
@@ -862,13 +863,9 @@ function TaskRecord({ mode, codeProp, stamp }: { mode: "drawer" | "page"; codePr
         </div>
       )}
       {timeline.length > 0 ? (
-        <ol className="mt-1">
-          {timeline.map((item, i) => (
-            <TimelineEntry key={`${item.kind}-${item.id}`} item={item} isLast={i === timeline.length - 1} onChanged={() => setRefreshKey((k) => k + 1)} />
-          ))}
-        </ol>
+        <HistoryList items={timeline} ownerView={!!data?.ownerView} />
       ) : (
-        <div className="py-8 text-center text-sm text-fg-muted">{counts.all === 0 ? "No history yet." : "No items match this filter."}</div>
+        <div className="py-8 text-center text-sm text-fg-muted">{counts.all === 0 ? "No changes yet." : "No changes match this filter."}</div>
       )}
     </SectionCard>
   ) : null;

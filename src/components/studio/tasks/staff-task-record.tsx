@@ -58,7 +58,7 @@ export type StaffTaskData = {
     seenLabel: string[];
     team: { id: number; name: string }[];
   };
-  history: { at: string; text: string }[];
+  history: { at: string; text: string; by?: string }[];
 };
 
 const DUE_ON_CARD: Record<string, string> = { late: "#F07BBE", soon: "#F5B94E", ok: "#C9CBCF" };
@@ -195,12 +195,13 @@ export function StaffTaskRecord({ t }: { t: StaffTaskData }) {
         : tab === "history" ? (
           <div className="st-scroll -mr-3 min-h-0 flex-1 overflow-y-auto pr-3">
             {t.history.length === 0 ? <p className="py-8 text-center text-[13px] text-[var(--st-muted)]">No changes recorded yet.</p> : (
-              <ol className="m-0 flex list-none flex-col gap-2 p-0">
+              // One quiet line per change, as on the administrator's History.
+              <ol className="m-0 list-none divide-y divide-[var(--st-line-soft)] p-0">
                 {t.history.map((h, i) => (
-                  <li key={i} className="flex items-center gap-3 rounded-xl border border-[var(--st-line-soft)] px-3 py-2 text-[13px]">
-                    <span className="h-[7px] w-[7px] shrink-0 rounded-full bg-[var(--st-muted)]" />
-                    <span className="min-w-0 flex-1">{h.text}</span>
-                    <span className="shrink-0 text-[11px] text-[var(--st-muted)]">{new Date(h.at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</span>
+                  <li key={i} className="flex items-center gap-2.5 py-2 text-[13px]">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--st-page)]"><span className="h-[6px] w-[6px] rounded-full bg-[var(--st-muted)]" /></span>
+                    <span className="min-w-0 flex-1 truncate">{h.text.replace(/^Status → /, "Stage → ")}</span>
+                    <span className="shrink-0 text-[11px] text-[var(--st-muted)]">{h.by ? `${h.by} · ` : ""}{new Date(h.at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</span>
                   </li>
                 ))}
               </ol>
