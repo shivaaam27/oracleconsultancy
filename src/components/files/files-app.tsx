@@ -18,7 +18,7 @@ import {
   PenLine, FolderInput, Link2, RotateCcw, Check, X, Loader2, ChevronUp, ChevronDown, Users,
   Sparkles,
 } from "lucide-react";
-import { StudioScope, StudioCardRow, StudioCard, CardHead, BigNumber } from "@/components/studio/kit";
+import { StudioScope, StudioCardRow, StudioCard, CardHead, BigNumber, stFloatBar } from "@/components/studio/kit";
 import { useStudioFootNote } from "@/components/studio/foot-note";
 import { useToast } from "@/components/shell/toast";
 import { FolderIcon, type FolderBadge } from "./folder-icon";
@@ -453,13 +453,6 @@ export function FilesApp({ library, companies, initialOpen, initialCompany, init
           <div className="mt-2 text-[13px] text-[var(--st-muted)]">{live.length} files · {fmtSize(totalSize)} · filed by hand, found in a second</div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <label className="flex h-9 w-full items-center gap-2 rounded-[11px] border border-[var(--st-line)] bg-[var(--st-surface)] px-3 text-[var(--st-muted)] sm:w-[280px]">
-            <Search size={15} />
-            <input ref={search} value={q} onChange={(e) => { setQ(e.target.value); setSel(new Set()); }} placeholder="Search every file and folder" aria-label="Search files"
-              style={{ background: "transparent", border: 0, boxShadow: "none" }} className="bare-field h-full w-full text-[13px] text-[var(--st-ink)] outline-none" />
-            {q ? <button type="button" onClick={() => setQ("")} aria-label="Clear search" className="text-[var(--st-muted)] hover:text-[var(--st-ink)]"><X size={14} /></button>
-              : <kbd className="rounded-[5px] bg-[var(--st-page)] px-1.5 text-[11px] [font-family:var(--font-geist-mono),monospace]">/</kbd>}
-          </label>
           <div className="flex gap-0.5 rounded-[11px] bg-[var(--st-seg)] p-[3px]" role="group" aria-label="View">
             {([["list", ListIcon, "List"], ["grid", LayoutGrid, "Grid"]] as const).map(([m, Icon, l]) => (
               <button key={m} type="button" aria-pressed={mode === m} onClick={() => setModeSaved(m)}
@@ -716,6 +709,20 @@ export function FilesApp({ library, companies, initialOpen, initialCompany, init
           </div>
         </div>
       )}
+
+      {/* Search: the one floating row above the footer, as on every page
+          (owner, 26 Sept 2026). "/" still jumps to it. */}
+      <div className={stFloatBar.page}>
+        <div className={cn(stFloatBar.box, "h-14 flex-nowrap pr-4")}>
+          <label className="flex min-w-0 flex-1 items-center gap-2 text-[var(--st-muted)]">
+            <Search size={15} className="shrink-0" />
+            <input ref={search} value={q} onChange={(e) => { setQ(e.target.value); setSel(new Set()); }} placeholder="Search every file and folder" aria-label="Search files"
+              style={{ background: "transparent", border: 0, boxShadow: "none" }} className="bare-field h-9 w-full min-w-0 text-[13px] text-[var(--st-ink)] outline-none" />
+            {q ? <button type="button" onClick={() => setQ("")} aria-label="Clear search" className="text-[var(--st-muted)] hover:text-[var(--st-ink)]"><X size={14} /></button>
+              : <kbd className="hidden rounded-[5px] bg-[var(--st-page)] px-1.5 text-[11px] [font-family:var(--font-geist-mono),monospace] sm:inline">/</kbd>}
+          </label>
+        </div>
+      </div>
 
       {menu && <PopMenu at={menu.at} items={menu.items} onClose={() => setMenu(null)}>{menu.extra}</PopMenu>}
       {dialog}

@@ -1488,13 +1488,12 @@ section[data-page-header],
 .st-cardrow > [data-st-dark]:nth-child(1) { background-image: url("/tex/flow.svg"); background-repeat: no-repeat; background-size: 100% 100%; background-position: 0 0; }
 .st-cardrow > [data-st-dark]:nth-child(2) { background-image: repeating-radial-gradient(circle at 108% -20%, rgba(255,255,255,0.06) 0 1.5px, transparent 1.5px 12px); background-size: auto; }
 
-/* Every face wears a thin outer line in the theme's colour, set off by a
-   hairline of the card behind it (owner, 26 Sept 2026: "add a border to each
-   … an outer theme line"). A stacked face gets a wider gap so the overlap
-   still reads. On a dark card the gap and line follow the card. */
-[data-face] { box-shadow: 0 0 0 1.5px var(--face-gap, var(--st-surface, #fff)), 0 0 0 2.5px var(--face-line, var(--st-field-line, #d4d4d0)); }
-[data-face][data-ring] { box-shadow: 0 0 0 2px var(--face-gap, var(--st-surface, #fff)), 0 0 0 3px var(--face-line, var(--st-field-line, #d4d4d0)); }
-[data-st-dark] [data-face], .st-sheet-dark [data-face] { --face-gap: var(--st-card); --face-line: #4A4D53; }
+/* Every face wears a thin line on its own edge (owner, 26 Sept 2026: "add a
+   border to each … an outer theme line"). An outline, not a shadow: it is
+   drawn OVER the face's drawing, sits exactly on the circle and cannot float
+   off it; in a stack the white gap between faces comes from StudioFaces. */
+[data-face] { outline: 1px solid var(--face-line, rgba(17, 18, 20, 0.26)); outline-offset: -1px; }
+.dark [data-face], [data-st-dark] [data-face], .st-sheet-dark [data-face] { --face-line: rgba(255, 255, 255, 0.28); }
 
 @keyframes st-pop { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 @keyframes st-rise { from { transform: scaleY(0.15); opacity: 0; } to { transform: none; opacity: 1; } }

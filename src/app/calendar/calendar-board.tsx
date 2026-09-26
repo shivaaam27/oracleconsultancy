@@ -28,7 +28,7 @@ import { listEventDocumentsAction } from "./attachment-actions";
 import { useToast } from "@/components/shell/toast";
 import { useContextActions } from "@/components/kit/context-actions";
 import { cn } from "@/lib/cn";
-import { StudioScope, StudioHeader, StudioCardRow, StudioCard, CardHead, BigNumber, stBtn } from "@/components/studio/kit";
+import { StudioScope, StudioHeader, StudioCardRow, StudioCard, CardHead, BigNumber, stBtn, stFloatBar } from "@/components/studio/kit";
 import { useFitFrame } from "@/components/studio/use-fit-frame";
 import { ReturnLink } from "@/components/shell/back-link";
 import { FilterPanelButton } from "@/components/studio/tasks/filter-panel";
@@ -256,7 +256,7 @@ export function CalendarBoard({
   };
   const [hideEvents, setHideEvents] = useState(false);
   const studioGrid = useRef<HTMLDivElement>(null);
-  useFitFrame(studioGrid, { enabled: true, minimum: 460 });
+  useFitFrame(studioGrid, { enabled: true, minimum: 460, bar: true });
   const hydrated = useRef(false);
 
   // Restore the operator's last calendar view + filters (once, on mount). Reading
@@ -438,46 +438,6 @@ export function CalendarBoard({
     <StudioScope className="flex flex-col gap-5">
       <StudioHeader
         title="Calendar"
-        left={
-          // One search and one Filter (owner, 26 Sept 2026: "one place to
-          // filter, the same on every list") — the Companies / Types / More
-          // pickers are the groups of the panel now.
-          <div className="flex min-w-0 items-center gap-2">
-            <label className="flex h-9 w-[min(260px,52vw)] min-w-0 items-center gap-2 rounded-[10px] border border-[var(--st-field-line)] bg-[var(--st-surface)] px-3 text-[var(--st-muted)]">
-              <Search size={14} className="shrink-0" />
-              <span className="sr-only">Search the calendar</span>
-              <input type="search" defaultValue={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search events, people…"
-                className="bare-field w-full min-w-0 border-0 bg-transparent text-[13px] text-[var(--st-ink)] outline-none" />
-            </label>
-            <FilterPanelButton
-              activeCount={[companyFilter !== "all", categoryFilter !== "all", sourceFilter !== "all", needInvitesOnly, meetingsOnly, collapseRecurring].filter(Boolean).length}
-              onClear={() => { url.set({ co: "all", type: "all", src: "all" }); setNeedInvitesOnly(false); setMeetingsOnly(false); setCollapseRecurring(false); }}
-              sections={[
-                { id: "company", title: "Company", kind: "list", searchable: companies.length > 8, items: [
-                  { key: "all", label: "All companies", href: url.hrefFor({ co: "all" }), active: companyFilter === "all" },
-                  ...companies.map((c) => ({ key: String(c.id), label: c.name, href: url.hrefFor({ co: String(c.id) }), active: companyFilter === String(c.id) })),
-                ] },
-                { id: "type", title: "Type", kind: "list", items: [
-                  { key: "all", label: "All types", href: url.hrefFor({ type: "all" }), active: categoryFilter === "all" },
-                  ...categories.map((c) => ({ key: String(c.id), label: c.name, href: url.hrefFor({ type: String(c.id) }), active: categoryFilter === String(c.id) })),
-                  ...(categories.length ? [{ key: "none", label: "Uncategorised", href: url.hrefFor({ type: "none" }), active: categoryFilter === "none" }] : []),
-                ] },
-                { id: "source", title: "Source", kind: "chips", items: [{ v: "all", l: "All sources" }, { v: "manual", l: "Manual" }, { v: "meeting", l: "From meeting" }, { v: "task", l: "From task" }]
-                  .map((x) => ({ key: x.v, label: x.l, href: url.hrefFor({ src: x.v }), active: sourceFilter === x.v })) },
-                { id: "show", title: "Show", kind: "chips", items: [
-                  { key: "meetings", label: "Meetings only", active: meetingsOnly, onSelect: () => setMeetingsOnly((v) => !v) },
-                  { key: "repeats", label: "Hide repeats", active: collapseRecurring, onSelect: () => setCollapseRecurring((v) => !v) },
-                  ...(figures.needInvites > 0 ? [{ key: "invites", label: `Need invites`, count: figures.needInvites, active: needInvitesOnly, onSelect: () => setNeedInvitesOnly((v) => !v) }] : []),
-                ] },
-              ]}
-              extra={readOnly ? undefined : (
-                <button type="button" onClick={() => setManageCatsOpen(true)} className="inline-flex h-9 items-center gap-1.5 rounded-[10px] border border-[var(--sh-chip-line)] bg-[var(--sh-card)] px-3 text-[13px] text-[var(--sh-fg)] hover:bg-[var(--sh-hover)]">
-                  <Pencil size={13} />Manage categories
-                </button>
-              )}
-            />
-          </div>
-        }
         right={
           <>
             <div className="flex gap-0.5 rounded-[11px] bg-[var(--st-seg)] p-[3px]" role="tablist" aria-label="View">
@@ -608,6 +568,45 @@ export function CalendarBoard({
             </div>
           </StudioCard>
         </aside>
+      </div>
+      {/* Search and Filter: the one floating row above the footer, as on
+          every page (owner, 26 Sept 2026). */}
+      <div className={stFloatBar.page}>
+        <div className={cn(stFloatBar.box, "h-14 flex-nowrap")}>
+          <label className="flex min-w-0 flex-1 items-center gap-2 text-[var(--st-muted)]">
+            <Search size={15} className="shrink-0" />
+            <span className="sr-only">Search the calendar</span>
+            <input type="search" defaultValue={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search events or people"
+              className="bare-field h-9 w-full min-w-0 border-0 bg-transparent text-[13px] text-[var(--st-ink)] outline-none" />
+          </label>
+          <FilterPanelButton
+          activeCount={[companyFilter !== "all", categoryFilter !== "all", sourceFilter !== "all", needInvitesOnly, meetingsOnly, collapseRecurring].filter(Boolean).length}
+          onClear={() => { url.set({ co: "all", type: "all", src: "all" }); setNeedInvitesOnly(false); setMeetingsOnly(false); setCollapseRecurring(false); }}
+          sections={[
+            { id: "company", title: "Company", kind: "list", searchable: companies.length > 8, items: [
+              { key: "all", label: "All companies", href: url.hrefFor({ co: "all" }), active: companyFilter === "all" },
+              ...companies.map((c) => ({ key: String(c.id), label: c.name, href: url.hrefFor({ co: String(c.id) }), active: companyFilter === String(c.id) })),
+            ] },
+            { id: "type", title: "Type", kind: "list", items: [
+              { key: "all", label: "All types", href: url.hrefFor({ type: "all" }), active: categoryFilter === "all" },
+              ...categories.map((c) => ({ key: String(c.id), label: c.name, href: url.hrefFor({ type: String(c.id) }), active: categoryFilter === String(c.id) })),
+              ...(categories.length ? [{ key: "none", label: "Uncategorised", href: url.hrefFor({ type: "none" }), active: categoryFilter === "none" }] : []),
+            ] },
+            { id: "source", title: "Source", kind: "chips", items: [{ v: "all", l: "All sources" }, { v: "manual", l: "Manual" }, { v: "meeting", l: "From meeting" }, { v: "task", l: "From task" }]
+              .map((x) => ({ key: x.v, label: x.l, href: url.hrefFor({ src: x.v }), active: sourceFilter === x.v })) },
+            { id: "show", title: "Show", kind: "chips", items: [
+              { key: "meetings", label: "Meetings only", active: meetingsOnly, onSelect: () => setMeetingsOnly((v) => !v) },
+              { key: "repeats", label: "Hide repeats", active: collapseRecurring, onSelect: () => setCollapseRecurring((v) => !v) },
+              ...(figures.needInvites > 0 ? [{ key: "invites", label: `Need invites`, count: figures.needInvites, active: needInvitesOnly, onSelect: () => setNeedInvitesOnly((v) => !v) }] : []),
+            ] },
+          ]}
+          extra={readOnly ? undefined : (
+            <button type="button" onClick={() => setManageCatsOpen(true)} className="inline-flex h-9 items-center gap-1.5 rounded-[10px] border border-[var(--sh-chip-line)] bg-[var(--sh-card)] px-3 text-[13px] text-[var(--sh-fg)] hover:bg-[var(--sh-hover)]">
+              <Pencil size={13} />Manage categories
+            </button>
+          )}
+            />
+        </div>
       </div>
     </StudioScope>
   );

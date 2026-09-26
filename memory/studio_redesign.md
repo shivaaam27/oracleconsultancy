@@ -49,12 +49,22 @@ wrapper), `StudioHeader`, `StudioCardRow` (becomes `StudioSwipeRow`,
   content fit instead. The row also dresses dark cards (`data-st-dark`, set by
   `StudioCard`): the left one wears `/tex/flow.svg` (flowing lines drawn once,
   not tiled), the right one the Unread-updates rings — `globals.css`.
-- Every `PersonFace` wears a thin outer line (`[data-face]` in `globals.css`);
-  a "+N" chip beside faces carries `data-face` too.
+- A "+N" chip beside faces carries `data-face` too.
 - Tasks views: List · Board · Calendar · Timeline (the Cards view was deleted
-  26 Sept 2026; `?view=cards` opens the List). Board/Calendar/Timeline take the
-  search bar inline above the view (`StudioSearchBar inline`); the List keeps
-  the floating one.
+  26 Sept 2026; `?view=cards` opens the List).
+- **The search/filter bar is the same floating row on EVERY page** (owner,
+  26 Sept 2026): `stFloatBar.page|sticky` + `stFloatBar.box`, last in the page.
+  Both wrappers carry `-mb-[84px]` so the bar never rises off its place (and
+  over content) at the end of the page — main's foot already keeps 96px for it.
+  A panel sized to the window (`useFitFrame`) passes `bar: true` to leave room.
+  Never put a page's search in its header.
+- **Board** (`board-view.tsx`): the stages in one line on top (also drop
+  targets), a fixed-height column under each; the height is MEASURED so the
+  whole board fits above the bar at the page's end. The drag is pointer events,
+  not HTML5 drag-and-drop — mouse drags on move, a finger holds 320ms first; a
+  still mouse press / a finger held and released peeks.
+- Every `PersonFace` wears a line ON its edge (an `outline`, `[data-face]` in
+  globals.css) — not a ring with a gap. Toasts float above the bar and footer.
 - `stFloatBar.sticky` — a search/filter bar in a panel that ends at the footer
   (Tasks); `.fixedLg` — inside a panel that stops short of it; `.page` — on a
   page where the whole window scrolls (Notes, Assets, Supplies). Always 12px

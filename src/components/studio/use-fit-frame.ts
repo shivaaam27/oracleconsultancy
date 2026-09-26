@@ -18,7 +18,10 @@ import { useLayoutEffect, type RefObject } from "react";
 
 const GAP = 16;
 
-export function useFitFrame(ref: RefObject<HTMLElement | null>, { enabled = true, minimum = 420, deps = [] as unknown[] } = {}) {
+/** A floating search bar (56px) and the page's 20px gap above it. */
+const BAR_ROOM = 76;
+
+export function useFitFrame(ref: RefObject<HTMLElement | null>, { enabled = true, minimum = 420, bar = false, deps = [] as unknown[] } = {}) {
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -31,8 +34,11 @@ export function useFitFrame(ref: RefObject<HTMLElement | null>, { enabled = true
       const top = el.getBoundingClientRect().top + window.scrollY;
       const foot = document.querySelector<HTMLElement>("[data-studio-foot]");
       const footRoom = foot ? foot.offsetHeight + 12 : 0;
-      const h = Math.max(minimum, window.innerHeight - top - footRoom - GAP);
+      // `bar`: a floating search bar follows (stFloatBar) — leave its room;
+      // its own negative margin already cancels main's padding.
+      const h = Math.max(minimum, window.innerHeight - top - footRoom - (bar ? BAR_ROOM : GAP));
       el.style.height = `${h}px`;
+      if (bar) return;
       const main = el.closest("main");
       const pad = main ? parseFloat(getComputedStyle(main).paddingBottom) || 0 : 0;
       const pull = footRoom + GAP - pad;

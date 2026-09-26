@@ -1,25 +1,32 @@
 "use client";
 
 /**
- * The Tasks board — one column per stage, in the Studio look (owner, 26 Sept
- * 2026: "the board needs to be improved completely, revamped").
+ * The Tasks board — the stages in ONE line along the top, a column under each,
+ * in the Studio look (owner, 26 Sept 2026).
  *
- * Drag a card to another column to change its stage (the same write and undo
- * toast as the list's status menu); a tap opens the side panel, as a list row
- * does; a long press peeks. "+" on a column adds a task straight into it.
+ * DRAG A CARD to another column — or onto a stage in the top line — to change
+ * its stage: the same write and undo toast as the list's status menu, shown at
+ * once and then confirmed by the server. The drag is our own (pointer events),
+ * not the browser's drag-and-drop, so it works the same with a mouse, a finger
+ * and a pen: a mouse drags as soon as it moves; a finger holds for a moment
+ * first (so a swipe still scrolls). A tap opens the side panel, as a list row
+ * does; a long press without moving peeks.
  *
- * ⚠️ From `sm` up the board is exactly as tall as the window allows
- * (useFillViewport) and each column scrolls its own cards, so a column's
- * heading never scrolls away. A phone shows one column at a time and the page
- * scrolls — a nested scroller under a thumb fights the page.
+ * ⚠️ HEIGHT: from `sm` up every column is the same fixed height and scrolls its
+ * own cards, and that height is MEASURED so the whole board — its bottom edge
+ * included — fits above the floating search bar once the page is scrolled to
+ * the end (owner: "allow me to scroll … so I know it ended"). It used to be
+ * sized by useFillViewport, whose negative bottom margin put the foot of every
+ * column under the footer where nothing could reach it. A phone shows one
+ * column at a time and the page scrolls.
  */
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { AlertOctagon, CheckCircle2, Clock, ExternalLink, Loader2, Plus, Repeat } from "lucide-react";
 import type { TaskRow } from "@/lib/tasks/queries";
 import { markPush, withReturn } from "@/lib/nav/return-to";
 import { taskHref } from "@/lib/tasks/task-href";
-import { useFillViewport } from "@/lib/hooks/use-fill-viewport";
 import { useMediaQuery } from "@/lib/hooks/use-media-query";
 import { triggerHaptic } from "@/lib/hooks/use-long-press";
 import { useToast } from "@/components/shell/toast";
@@ -46,6 +53,15 @@ const STAGES = [
 
 const PRIORITY_ORDER = ["Critical", "High", "Medium", "Low"];
 const isDone = (s: string) => s === "Completed" || s === "Closed";
+/** One width for a stage in the top line and its column, so they line up. */
+const COL_W = "w-[80vw] sm:w-[276px]";
+
+/** A finger holds this long before a card lifts (shorter = a swipe lifts it). */
+const TOUCH_HOLD_MS = 320;
+/** A mouse held still this long peeks instead. */
+const MOUSE_PEEK_MS = 450;
+
+type Lift = { code: string; x: number; y: number; offX: number; offY: number; w: number; over: string | null; moved: boolean };
 
 export function BoardView({ rows, showClosed }: { rows: TaskRow[]; showClosed: boolean }) {
   const router = useRouter();
@@ -54,20 +70,17 @@ export function BoardView({ rows, showClosed }: { rows: TaskRow[]; showClosed: b
   const { selected } = useSelection();
   const ticking = selected.size > 0;
   const phone = useMediaQuery("(max-width: 639px)");
-  const frame = useRef<HTMLDivElement>(null);
-  useFillViewport(frame, { mode: "exact", minimum: 420, enabled: !phone, deps: [phone] });
 
   // Optimistic stage overrides (code → stage) so a dropped card moves at once.
   const [moved, setMoved] = useState<Record<string, string>>({});
-  const [dragCode, setDragCode] = useState<string | null>(null);
-  const [overStage, setOverStage] = useState<string | null>(null);
   const [peek, setPeek] = useState<TaskRow | null>(null);
   const [snoozeRow, setSnoozeRow] = useState<TaskRow | null>(null);
   const [addIn, setAddIn] = useState<string | null>(null);
+  const [lift, setLift] = useState<Lift | null>(null);
 
-  const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pressStart = useRef<{ x: number; y: number } | null>(null);
-  const longPressed = useRef(false);
+  const board = useRef<HTMLDivElement>(null);
+  const scroller = useRef<HTMLDivElement>(null);
+  const cols = useRef<HTMLDivElement>(null);
 
   // The per-column quick add offers the companies and people on the board.
   const companies = useMemo(
@@ -78,7 +91,7 @@ export function BoardView({ rows, showClosed }: { rows: TaskRow[]; showClosed: b
   );
   const people = useMemo(() => [...new Set(rows.flatMap((r) => r.assignees))].filter(Boolean).sort(), [rows]);
 
-  const stageOf = (r: TaskRow) => moved[r.code] ?? r.status;
+  const stageOf = useCallback((r: TaskRow) => moved[r.code] ?? r.status, [moved]);
   const columns = STAGES.filter((s) => showClosed || s !== "Closed").map((s) => ({
     stage: s,
     items: rows
@@ -87,17 +100,36 @@ export function BoardView({ rows, showClosed }: { rows: TaskRow[]; showClosed: b
   }));
   const orderedCodes = columns.flatMap((c) => c.items.map((r) => r.code));
 
+  // Once the server has the new stage, the override is no longer needed.
+  useEffect(() => {
+    setMoved((m) => {
+      const left = Object.fromEntries(Object.entries(m).filter(([code, st]) => rows.find((r) => r.code === code)?.status !== st));
+      return Object.keys(left).length === Object.keys(m).length ? m : left;
+    });
+  }, [rows]);
+
+  /* ---------------- height: the whole board fits above the bar ---------------- */
+  useLayoutEffect(() => {
+    const el = cols.current, outer = board.current;
+    if (!el || !outer) return;
+    if (phone) { el.style.height = ""; return; }
+    const fit = () => {
+      const doc = document.documentElement;
+      const bottom = outer.getBoundingClientRect().bottom + window.scrollY;
+      const after = doc.scrollHeight - bottom;              // bar, gaps, the page's foot
+      const chrome = outer.offsetHeight - el.offsetHeight;  // the stage line, padding
+      const room = window.innerHeight - after - 28 - chrome; // 28: clear of the frame's top edge
+      el.style.height = `${Math.round(Math.max(380, Math.min(760, room)))}px`;
+    };
+    fit();
+    window.addEventListener("resize", fit);
+    return () => window.removeEventListener("resize", fit);
+  }, [phone]);
+
   function openTask(code: string) {
     const to = withReturn(taskHref(code, { list: orderedCodes }), `${window.location.pathname}${window.location.search}`);
     markPush(to);
     router.push(to);
-  }
-
-  /** A tap: the side panel, as a list row (a second tap lets go). */
-  function tap(r: TaskRow) {
-    if (longPressed.current) { longPressed.current = false; return; }
-    if (pick) pick.setCode(pick.code === r.code ? null : r.code);
-    else openTask(r.code);
   }
 
   async function move(r: TaskRow, to: string) {
@@ -140,17 +172,109 @@ export function BoardView({ rows, showClosed }: { rows: TaskRow[]; showClosed: b
     router.refresh();
   }
 
-  // Long press → peek (cleared if a drag or a scroll starts).
-  function clearPress() { if (pressTimer.current) { clearTimeout(pressTimer.current); pressTimer.current = null; } }
-  function onPointerDown(r: TaskRow, e: React.PointerEvent) {
-    longPressed.current = false;
-    pressStart.current = { x: e.clientX, y: e.clientY };
-    clearPress();
-    pressTimer.current = setTimeout(() => { longPressed.current = true; triggerHaptic(); setPeek(r); }, 400);
+  /* ---------------- the drag ---------------- */
+  const liftRef = useRef<Lift | null>(null);
+  const swallowClick = useRef(false);
+  const rowsRef = useRef(rows);
+  rowsRef.current = rows;
+  const moveRef = useRef(move);
+  moveRef.current = move;
+
+  const setLiftBoth = (l: Lift | null) => { liftRef.current = l; setLift(l); };
+
+  /** The stage under a point — a column, or a stage in the top line. */
+  const stageAt = (x: number, y: number): string | null =>
+    (document.elementFromPoint(x, y)?.closest("[data-stage]") as HTMLElement | null)?.dataset.stage ?? null;
+
+  function onCardPointerDown(r: TaskRow, e: React.PointerEvent<HTMLElement>) {
+    if (e.button !== 0 || addIn) return;
+    const card = e.currentTarget;
+    const rect = card.getBoundingClientRect();
+    const startX = e.clientX, startY = e.clientY;
+    const touch = e.pointerType !== "mouse";
+    let started = false;
+    let done = false;
+
+    const start = (x: number, y: number) => {
+      started = true;
+      triggerHaptic();
+      setLiftBoth({ code: r.code, x, y, offX: startX - rect.left, offY: startY - rect.top, w: rect.width, over: stageAt(x, y), moved: false });
+      document.addEventListener("touchmove", stopScroll, { passive: false });
+      autoScroll();
+    };
+    // Mouse: a still press peeks. Finger: a still press lifts the card.
+    const timer = window.setTimeout(() => {
+      if (done || started) return;
+      if (touch) start(startX, startY);
+      else { swallowClick.current = true; triggerHaptic(); setPeek(r); finish(); }
+    }, touch ? TOUCH_HOLD_MS : MOUSE_PEEK_MS);
+
+    const onMove = (ev: PointerEvent) => {
+      const far = Math.hypot(ev.clientX - startX, ev.clientY - startY);
+      if (!started) {
+        if (touch) { if (far > 8) finish(); return; }   // a swipe: let it scroll
+        if (far > 5) { window.clearTimeout(timer); start(ev.clientX, ev.clientY); }
+        return;
+      }
+      const cur = liftRef.current;
+      if (!cur) return;
+      setLiftBoth({ ...cur, x: ev.clientX, y: ev.clientY, over: stageAt(ev.clientX, ev.clientY), moved: cur.moved || far > 8 });
+    };
+    const onUp = (ev: PointerEvent) => {
+      const cur = liftRef.current;
+      if (started && cur) {
+        swallowClick.current = true;
+        const target = stageAt(ev.clientX, ev.clientY);
+        const row = rowsRef.current.find((x) => x.code === cur.code);
+        if (!cur.moved && touch && row) setPeek(row);      // held and let go: a peek
+        else if (target && row) void moveRef.current(row, target);
+      }
+      finish();
+    };
+    const finish = () => {
+      done = true;
+      window.clearTimeout(timer);
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", finish);
+      document.removeEventListener("touchmove", stopScroll);
+      setLiftBoth(null);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", finish);
   }
-  function onPointerMove(e: React.PointerEvent) {
-    if (!pressStart.current) return;
-    if (Math.abs(e.clientX - pressStart.current.x) > 8 || Math.abs(e.clientY - pressStart.current.y) > 8) clearPress();
+
+  // While a card is lifted: the page must not scroll under the finger…
+  function stopScroll(e: TouchEvent) { e.preventDefault(); }
+  // …and near an edge the board (and a column) scrolls to meet the card.
+  function autoScroll() {
+    const step = () => {
+      const cur = liftRef.current;
+      if (!cur) return;
+      const sc = scroller.current;
+      if (sc) {
+        const b = sc.getBoundingClientRect();
+        if (cur.x < b.left + 56) sc.scrollLeft -= 14;
+        else if (cur.x > b.right - 56) sc.scrollLeft += 14;
+      }
+      const body = (document.elementFromPoint(cur.x, cur.y)?.closest("[data-col-body]") as HTMLElement | null);
+      if (body && body.scrollHeight > body.clientHeight) {
+        const b = body.getBoundingClientRect();
+        if (cur.y < b.top + 44) body.scrollTop -= 12;
+        else if (cur.y > b.bottom - 44) body.scrollTop += 12;
+      } else if (cur.y > window.innerHeight - 120) window.scrollBy(0, 12);
+      else if (cur.y < 80) window.scrollBy(0, -12);
+      requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  }
+
+  /** A tap: the side panel, as a list row (a second tap lets go). */
+  function tap(r: TaskRow) {
+    if (swallowClick.current) { swallowClick.current = false; return; }
+    if (pick) pick.setCode(pick.code === r.code ? null : r.code);
+    else openTask(r.code);
   }
 
   const peekActions = (r: TaskRow): PeekAction[] => [
@@ -160,96 +284,124 @@ export function BoardView({ rows, showClosed }: { rows: TaskRow[]; showClosed: b
     { label: "Snooze…", icon: <Clock size={15} />, onClick: () => setSnoozeRow(r) },
   ];
 
+  const lifted = lift ? rows.find((r) => r.code === lift.code) ?? null : null;
+  const liftedFrom = lifted ? stageOf(lifted) : null;
+  const overOf = (stage: string) => !!lift && lift.over === stage && stage !== liftedFrom;
+
   return (
     <>
       <OrderRegistrar codes={orderedCodes} />
-      <div
-        ref={frame}
-        className="st-scroll -mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 sm:mx-0 sm:snap-none sm:px-0 sm:pb-1"
-      >
-        {columns.map((col) => {
-          const over = overStage === col.stage;
-          const canAdd = !isDone(col.stage);
-          return (
-            <section
-              key={col.stage}
-              aria-label={col.stage}
-              onDragOver={(e) => { e.preventDefault(); setOverStage(col.stage); }}
-              onDragLeave={() => setOverStage((s) => (s === col.stage ? null : s))}
-              onDrop={(e) => {
-                e.preventDefault();
-                const r = rows.find((x) => x.code === dragCode);
-                if (r) move(r, col.stage);
-                setDragCode(null); setOverStage(null);
-              }}
-              className={cn(
-                "flex w-[84vw] shrink-0 snap-center flex-col rounded-[20px] p-2 transition-colors sm:w-[284px] sm:min-h-0",
-                "bg-[color-mix(in_srgb,var(--st-seg)_55%,transparent)]",
-                over && "bg-[color-mix(in_srgb,var(--st-seg)_95%,transparent)] ring-2 ring-[var(--st-field-line)]",
-              )}
-            >
-              <header className="flex h-10 shrink-0 items-center gap-2 pl-2.5 pr-1">
-                <Dot color={STATUS_DOT[col.stage]} size={8} />
-                <h3 className="truncate text-[13px] font-semibold">{col.stage}</h3>
-                <span className="st-mono text-[11px] text-[var(--st-muted)]">{col.items.length}</span>
-                {canAdd && (
-                  <button
-                    type="button"
-                    onClick={() => setAddIn((s) => (s === col.stage ? null : col.stage))}
-                    aria-label={`Add a task to ${col.stage}`}
-                    title={`Add a task to ${col.stage}`}
-                    className="ml-auto grid h-7 w-7 place-items-center rounded-lg text-[var(--st-muted)] transition-colors hover:bg-[var(--st-surface)] hover:text-[var(--st-ink)]"
+      <div ref={board} className="rounded-[20px] bg-[var(--st-surface)] p-2 sm:p-2.5">
+        <div
+          ref={scroller}
+          className={cn("st-scroll -mx-2 overflow-x-auto px-2 pb-1 sm:mx-0 sm:px-0", !lift && "max-sm:snap-x max-sm:snap-mandatory")}
+        >
+          <div className="w-max min-w-full">
+            {/* The stages, in one line — each is also a place to drop a card. */}
+            <div className="flex gap-3 rounded-[14px] bg-[var(--st-seg)] p-1">
+              {columns.map((col) => {
+                const over = overOf(col.stage);
+                return (
+                  <div
+                    key={col.stage}
+                    data-stage={col.stage}
+                    className={cn(
+                      "flex h-9 shrink-0 items-center gap-2 rounded-[10px] pl-3 pr-1 transition-colors max-sm:snap-center",
+                      COL_W,
+                      over ? "bg-[var(--st-ink)] text-[var(--st-page)]" : lift ? "bg-[var(--st-surface)]" : "",
+                    )}
                   >
-                    <Plus size={15} />
-                  </button>
-                )}
-              </header>
-
-              {addIn === col.stage && (
-                <ColumnQuickAdd
-                  stage={col.stage}
-                  companies={companies}
-                  people={people}
-                  onClose={() => setAddIn(null)}
-                  onCreated={(code) => {
-                    setAddIn(null);
-                    toast(`${code} added to ${col.stage}`, { tone: "success", duration: 5000 });
-                    router.refresh();
-                  }}
-                />
-              )}
-
-              <div className="st-scroll flex min-h-[88px] flex-col gap-2 sm:min-h-0 sm:flex-1 sm:overflow-y-auto">
-                {col.items.map((r) => (
-                  <BoardCard
-                    key={r.id}
-                    r={r}
-                    stage={stageOf(r)}
-                    picked={pick?.code === r.code}
-                    dragging={dragCode === r.code}
-                    ticking={ticking}
-                    onTap={() => tap(r)}
-                    onDragStart={(e) => { clearPress(); setDragCode(r.code); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", r.code); }}
-                    onDragEnd={() => { setDragCode(null); setOverStage(null); }}
-                    press={{
-                      onPointerDown: (e) => onPointerDown(r, e),
-                      onPointerMove,
-                      onPointerUp: clearPress,
-                      onPointerLeave: clearPress,
-                      onPointerCancel: clearPress,
-                    }}
-                  />
-                ))}
-                {col.items.length === 0 && addIn !== col.stage && (
-                  <div className="grid h-[88px] shrink-0 place-items-center rounded-[14px] border border-dashed border-[var(--st-field-line)] text-[12px] text-[var(--st-muted)]">
-                    Drop a task here
+                    <Dot color={STATUS_DOT[col.stage]} size={8} />
+                    <h3 className="truncate text-[13px] font-semibold">{col.stage}</h3>
+                    <span className={cn("st-mono text-[11px]", over ? "opacity-70" : "text-[var(--st-muted)]")}>{col.items.length}</span>
+                    {!isDone(col.stage) && (
+                      <button
+                        type="button"
+                        onClick={() => setAddIn((s) => (s === col.stage ? null : col.stage))}
+                        aria-label={`Add a task to ${col.stage}`}
+                        title={`Add a task to ${col.stage}`}
+                        className={cn("ml-auto grid h-7 w-7 place-items-center rounded-lg transition-colors", over ? "" : "text-[var(--st-muted)] hover:bg-[var(--st-surface)] hover:text-[var(--st-ink)]")}
+                      >
+                        <Plus size={15} />
+                      </button>
+                    )}
                   </div>
-                )}
-              </div>
-            </section>
-          );
-        })}
+                );
+              })}
+            </div>
+
+            {/* The columns: one fixed height, each scrolling its own cards. */}
+            <div ref={cols} className="mt-2 flex gap-3 px-1">
+              {columns.map((col) => {
+                const over = overOf(col.stage);
+                return (
+                  <section
+                    key={col.stage}
+                    aria-label={col.stage}
+                    data-stage={col.stage}
+                    className={cn(
+                      "flex shrink-0 flex-col rounded-[16px] border transition-colors max-sm:snap-center sm:min-h-0",
+                      COL_W,
+                      over
+                        ? "border-[var(--st-ink)] bg-[color-mix(in_srgb,var(--st-seg)_80%,transparent)]"
+                        : "border-[var(--st-line)] bg-[color-mix(in_srgb,var(--st-seg)_40%,transparent)]",
+                    )}
+                  >
+                    {addIn === col.stage && (
+                      <div className="p-2 pb-0">
+                        <ColumnQuickAdd
+                          stage={col.stage}
+                          companies={companies}
+                          people={people}
+                          onClose={() => setAddIn(null)}
+                          onCreated={(code) => {
+                            setAddIn(null);
+                            toast(`${code} added to ${col.stage}`, { tone: "success", duration: 5000 });
+                            router.refresh();
+                          }}
+                        />
+                      </div>
+                    )}
+                    <div data-col-body className="st-scroll flex min-h-[96px] flex-col gap-2 p-2 sm:min-h-0 sm:flex-1 sm:overflow-y-auto">
+                      {col.items.map((r) => (
+                        <BoardCard
+                          key={r.id}
+                          r={r}
+                          stage={stageOf(r)}
+                          picked={pick?.code === r.code}
+                          lifted={lift?.code === r.code}
+                          ticking={ticking}
+                          onTap={() => tap(r)}
+                          onPointerDown={(e) => onCardPointerDown(r, e)}
+                        />
+                      ))}
+                      {col.items.length === 0 && addIn !== col.stage && (
+                        <div className="grid h-[88px] shrink-0 place-items-center rounded-[12px] border border-dashed border-[var(--st-field-line)] text-[12px] text-[var(--st-muted)]">
+                          {lift ? "Drop it here" : "Nothing here"}
+                        </div>
+                      )}
+                    </div>
+                  </section>
+                );
+              })}
+            </div>
+          </div>
+        </div>
       </div>
+
+      {/* The lifted card, under the pointer. */}
+      {lift && lifted && typeof document !== "undefined" && createPortal(
+        <div
+          aria-hidden
+          className="studio pointer-events-none fixed left-0 top-0 z-[150]"
+          style={{ width: lift.w, transform: `translate(${lift.x - lift.offX}px, ${lift.y - lift.offY}px) rotate(2deg)` }}
+        >
+          <div className="rounded-[14px] shadow-[0_18px_40px_rgba(17,18,20,0.22)]">
+            <BoardCard r={lifted} stage={liftedFrom ?? lifted.status} picked={false} lifted={false} ticking={false} ghost onTap={() => {}} onPointerDown={() => {}} />
+          </div>
+        </div>,
+        document.body,
+      )}
 
       <PeekPreview
         open={!!peek}
@@ -283,44 +435,38 @@ export function BoardView({ rows, showClosed }: { rows: TaskRow[]; showClosed: b
 
 /** One task on the board: what it is, who has it, when it is due, and the
  *  last thing said about it. */
-function BoardCard({ r, stage, picked, dragging, ticking, onTap, onDragStart, onDragEnd, press }: {
+function BoardCard({ r, stage, picked, lifted, ticking, ghost = false, onTap, onPointerDown }: {
   r: TaskRow;
   stage: string;
   picked: boolean;
-  dragging: boolean;
+  lifted: boolean;
   ticking: boolean;
+  ghost?: boolean;
   onTap: () => void;
-  onDragStart: (e: React.DragEvent) => void;
-  onDragEnd: () => void;
-  press: {
-    onPointerDown: (e: React.PointerEvent) => void;
-    onPointerMove: (e: React.PointerEvent) => void;
-    onPointerUp: () => void;
-    onPointerLeave: () => void;
-    onPointerCancel: () => void;
-  };
+  onPointerDown: (e: React.PointerEvent<HTMLElement>) => void;
 }) {
   const done = isDone(stage);
   const due = deadlineWords({ ...r, status: stage });
   const a = r.latestActivity;
   return (
     <article
-      draggable
-      onDragStart={onDragStart}
-      onDragEnd={onDragEnd}
-      {...press}
+      onPointerDown={onPointerDown}
       onContextMenu={(e) => e.preventDefault()}
       onClick={onTap}
+      style={{ WebkitTouchCallout: "none" }}
       className={cn(
-        "group/card shrink-0 cursor-pointer select-none rounded-[14px] border bg-[var(--st-surface)] p-3 transition-[border-color,box-shadow,opacity]",
+        "group/card shrink-0 cursor-grab select-none rounded-[14px] border bg-[var(--st-surface)] p-3 transition-[border-color,box-shadow,opacity] active:cursor-grabbing",
         picked ? "border-[var(--st-ink)]" : "border-[var(--st-line)] hover:border-[var(--st-field-line)] hover:shadow-[0_4px_14px_rgba(17,18,20,0.06)]",
-        dragging && "opacity-40",
+        lifted && "border-dashed opacity-35",
+        ghost && "border-[var(--st-field-line)]",
       )}
     >
       <div className="flex min-w-0 items-center gap-1.5">
-        <span onClick={(e) => e.stopPropagation()} className={cn("shrink-0", !ticking && "hidden group-hover/card:inline-flex")}>
-          <SelectCheckbox code={r.code} />
-        </span>
+        {!ghost && (
+          <span onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()} className={cn("shrink-0", !ticking && "hidden group-hover/card:inline-flex")}>
+            <SelectCheckbox code={r.code} />
+          </span>
+        )}
         <span className="st-mono shrink-0 text-[11px] text-[var(--st-muted)]">{r.code}</span>
         {r.unread && <span title="New activity since you last looked" className="h-[7px] w-[7px] shrink-0 rounded-full bg-[var(--st-blue)]" />}
         {!done && (r.priority === "Critical" || r.priority === "High") && (
@@ -337,13 +483,13 @@ function BoardCard({ r, stage, picked, dragging, ticking, onTap, onDragStart, on
       {r.waiting && <div className="mt-2"><WaitingOnChip task={r} on={r.owner} /></div>}
 
       {a && (
-        <div className="mt-2.5 rounded-[10px] bg-[var(--st-page)] px-2.5 py-2">
+        <div className="mt-2 rounded-[10px] bg-[var(--st-page)] px-2.5 py-1.5">
           <div className="line-clamp-2 text-[12px] leading-snug text-[var(--st-sub)]">{a.body}</div>
-          <div className="mt-1 truncate text-[11px] text-[var(--st-muted)]">{a.author} · {ago(a.atISO)}</div>
+          <div className="mt-0.5 truncate text-[11px] text-[var(--st-muted)]">{a.author} · {ago(a.atISO)}</div>
         </div>
       )}
 
-      <div className="mt-2.5 flex min-h-[26px] items-center justify-between gap-2">
+      <div className="mt-2 flex min-h-[26px] items-center justify-between gap-2">
         {r.assignees.length > 0 ? <StudioFaces names={r.assignees} max={4} /> : <span className="text-[12px] text-[var(--st-muted)]">Nobody yet</span>}
         <span className="truncate text-[11px] text-[var(--st-muted)]">{r.priority}</span>
       </div>
@@ -379,7 +525,7 @@ function ColumnQuickAdd({ stage, companies, people, onClose, onCreated }: {
 
   const field = "bare-field w-full rounded-[10px] border border-[var(--st-field-line)] bg-[var(--st-page)] px-3 text-[13px] outline-none placeholder:text-[var(--st-muted)] focus:border-[var(--st-muted)]";
   return (
-    <div className="mb-2 shrink-0 rounded-[14px] border border-[var(--st-line)] bg-[var(--st-surface)] p-2.5">
+    <div className="rounded-[14px] border border-[var(--st-line)] bg-[var(--st-surface)] p-2.5">
       <textarea
         ref={box}
         autoFocus

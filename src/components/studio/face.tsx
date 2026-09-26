@@ -153,10 +153,9 @@ export function PersonFace({ name, size = 32, peek = false, ring = false, classN
       title={title}
       aria-label={title}
       role="img"
-      // data-face draws the thin outer line every face wears (globals.css).
+      // data-face draws the thin line every face wears on its edge (globals.css).
       data-face=""
-      data-ring={ring ? "" : undefined}
-      className={cn("group/face relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full", className)}
+      className={cn("group/face relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full", ring && "ring-2 ring-[var(--st-surface)]", className)}
       style={{ width: size, height: size, background: avatarTint(name) }}
     >
       {/* The initials sit underneath; the face fades over them. */}

@@ -83,7 +83,9 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <ToastCtx.Provider value={{ toast, dismiss }}>
       {children}
-      <div className="fixed bottom-4 right-4 z-[80] flex flex-col gap-2 pointer-events-none">
+      {/* Above the Studio footer AND the floating search bar (26 Sept 2026):
+          at bottom-4 a toast sat on the footer, over "New task". */}
+      <div className="studio fixed inset-x-4 bottom-[calc(var(--foot-h,0px)+var(--foot-safe,0px)+84px)] z-[80] flex flex-col items-end gap-2 pointer-events-none sm:inset-x-auto sm:right-4">
         <AnimatePresence initial={false}>
           {toasts.map((t) => (
             <motion.div

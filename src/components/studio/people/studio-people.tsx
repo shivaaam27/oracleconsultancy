@@ -478,7 +478,7 @@ export function StudioPeople({ people, companies, hints = {}, readOnly = false }
            Below lg it rides above the footer; from lg it sits on the area. */}
       {/* The cards fade out under the bar instead of peeking out, cut, below it. */}
       <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 z-20 hidden h-24 bg-gradient-to-b from-transparent to-[var(--st-page)] lg:block" />
-      <div className={cn(stFloatBar.sticky, "-mt-20", stFloatBar.fixedLg)}>
+      <div className={cn(stFloatBar.sticky, "mt-3", stFloatBar.fixedLg)}>
         {selecting ? (
           <div className="pointer-events-auto flex w-full max-w-[1100px] flex-wrap items-center gap-2 rounded-2xl bg-[var(--st-card)] p-2 pl-4 text-[var(--st-on-card)] shadow-[0_10px_28px_rgba(17,18,20,0.25)] sm:h-14 sm:flex-nowrap sm:py-0">
             <span className="text-[13px] font-medium">{ids.length ? pickedLabel : "Tick people to change them together"}</span>
@@ -503,7 +503,7 @@ export function StudioPeople({ people, companies, hints = {}, readOnly = false }
             <button type="button" onClick={() => { setSelecting(false); setPicked(new Set()); }} className={stBtn.onCard}>Done</button>
           </div>
         ) : (
-          <div className="pointer-events-auto flex h-14 w-full max-w-[1100px] items-center gap-2.5 rounded-2xl border border-[var(--st-line)] bg-[var(--st-surface)] px-2 pl-4 shadow-[0_10px_28px_rgba(17,18,20,0.12)]">
+          <div className={stFloatBar.box}>
             <label className="flex min-w-0 flex-1 items-center gap-2 text-[var(--st-muted)]">
               <Search size={15} />
               <span className="sr-only">Search people</span>

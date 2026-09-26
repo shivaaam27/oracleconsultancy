@@ -200,11 +200,17 @@ export const stBtn = {
 export const stFloatBar = {
   // 64px footer + 12px — at every width below lg (the old md:5.5rem was the
   // retired pill's height, and left a 24px gap on a tablet).
-  sticky: "pointer-events-none sticky bottom-[calc(var(--foot-h)+12px+var(--foot-safe))] z-30 flex justify-center lg:bottom-3",
-  fixedLg: "lg:fixed lg:inset-x-10 lg:bottom-[calc(var(--foot-h)+var(--foot-safe)+12px)] lg:mt-0",
+  // -mb-[84px] on both: the page's foot already keeps 96px for a floating
+  // bar, and these bars sit IN the page — without it the page ran 84px past
+  // the bar, which rose off its place and over the content at the very end.
+  sticky: "pointer-events-none sticky bottom-[calc(var(--foot-h)+12px+var(--foot-safe))] z-30 -mb-[84px] flex justify-center lg:bottom-3",
+  fixedLg: "lg:fixed lg:inset-x-10 lg:bottom-[calc(var(--foot-h)+var(--foot-safe)+12px)] lg:my-0",
   /** A bar on a page where the WHOLE WINDOW scrolls (Notes, Assets, Supplies):
    *  12px above the footer at every width. `sticky`'s `lg:bottom-3` is for a
    *  bar inside a panel that ends at the footer (Tasks); on a window-scrolling
    *  page it put the bar 52px UNDER the footer (26 Sept 2026). */
-  page: "pointer-events-none sticky bottom-[calc(var(--foot-h)+12px+var(--foot-safe))] z-30 flex justify-center",
+  page: "pointer-events-none sticky bottom-[calc(var(--foot-h)+12px+var(--foot-safe))] z-30 -mb-[84px] flex justify-center",
+  /** The bar itself — ONE size and look on every page (owner, 26 Sept 2026:
+   *  "a fixed row … uniform throughout the whole system"). */
+  box: "pointer-events-auto flex min-h-14 w-full max-w-[860px] flex-wrap items-center gap-2.5 rounded-2xl border border-[var(--st-line)] bg-[var(--st-surface)] p-2 pl-4 shadow-[0_10px_28px_rgba(17,18,20,0.12)] sm:h-14 sm:flex-nowrap sm:py-0",
 } as const;

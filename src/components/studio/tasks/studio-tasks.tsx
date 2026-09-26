@@ -52,9 +52,8 @@ export type StudioTasksProps = {
 };
 
 export function StudioTasks(p: StudioTasksProps) {
-  const search = (inline: boolean) => (
+  const search = (
     <StudioSearchBar
-      inline={inline}
       q={p.q}
       searchHrefBase={p.searchHrefBase}
       filter={<TaskFilterButton sections={p.filterSections} activeCount={p.activeFilterCount} clearHref={p.clearHref} extra={p.savedViews} />}
@@ -106,13 +105,12 @@ export function StudioTasks(p: StudioTasksProps) {
           <UpdateCard fresh={p.fresh} unreadCount={p.unreadCount} postedToday={p.updatedToday} />
         </StudioCardRow>
 
-        {/* The list keeps its floating bar; the Board, Calendar and Timeline
-            take it inline, above the view, so it never sits over them. */}
-        {p.view !== "table" && search(true)}
         {p.quickAdd}
         {p.body}
 
-        {p.view === "table" && search(false)}
+        {/* One floating bar above the footer on every view — the same row
+            as every other page (owner, 26 Sept 2026). */}
+        {search}
         <TaskPanel rows={p.tableRows} extra={p.fresh} />
       </StudioPickProvider>
     </StudioScope>
