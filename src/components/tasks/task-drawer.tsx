@@ -1145,7 +1145,8 @@ function TaskRecord({ mode, codeProp, stamp }: { mode: "drawer" | "page"; codePr
               ))}
             </div>
           ) : <p className="text-xs text-[var(--st-muted)]">Nobody is on this task yet.</p>}
-          <button type="button" onClick={edit} className={cn(stBtn.ghost, "mt-3 h-9 w-full justify-center text-xs")}>{t.assignees.length ? "Add someone" : "Assign someone"}</button>
+          {/* Who is on it is changed in ONE place — the Accountable row in
+              Details (owner, 26 Sept 2026: "remove the duplication"). */}
           {t.assignees.length > 0 && !done && (
             <div className="mt-2 flex flex-wrap gap-1.5">
               <button type="button" onClick={() => remindAbout("task")} disabled={reminding} className={cn(stBtn.dark, "h-9 flex-1 basis-[128px] justify-center px-2 text-xs")}>Remind about this task</button>

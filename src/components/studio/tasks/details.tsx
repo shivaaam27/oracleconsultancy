@@ -127,7 +127,7 @@ export function StudioDetails({
         />
       </Row>
 
-      <Row label="Accountable" top={editing === "accountable"}>
+      <Row label="Accountable" top={editing === "accountable"} stack={editing === "accountable"}>
         {editing === "accountable" ? (
           <PeopleEditor
             people={people}
@@ -247,9 +247,11 @@ export function StudioDetails({
   );
 }
 
-function Row({ label, hint, top, children }: { label: string; hint?: ReactNode; top?: boolean; children: ReactNode }) {
+function Row({ label, hint, top, stack, children }: { label: string; hint?: ReactNode; top?: boolean; stack?: boolean; children: ReactNode }) {
   return (
-    <div className={cn("grid grid-cols-[88px_minmax(0,1fr)] gap-2.5 border-b border-[var(--st-line-soft)] py-2.5 last:border-b-0 xl:grid-cols-[100px_minmax(0,1fr)] xl:gap-3", top ? "items-start" : "items-center")}>
+    // `stack`: the label goes above and the value takes the full width — for
+    // an editor too wide to sit beside an 88px label (the people picker).
+    <div className={cn("grid gap-2.5 border-b border-[var(--st-line-soft)] py-2.5 last:border-b-0 xl:gap-3", stack ? "grid-cols-1" : "grid-cols-[88px_minmax(0,1fr)] xl:grid-cols-[100px_minmax(0,1fr)]", top ? "items-start" : "items-center")}>
       <span className={cn("text-[13px] text-[var(--st-muted)]", top && "pt-0.5")}>{label}</span>
       <div className="min-w-0 text-[13px]">
         {children}

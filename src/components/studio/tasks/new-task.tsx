@@ -9,10 +9,9 @@
  *    unsaved draft, so adding and editing are one screen.
  * Both send the same `Draft` to `createTaskStudio` (→ createTaskCore).
  */
-import { PersonFace } from "@/components/studio/face";
 import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { Check, ChevronLeft, Loader2, Paperclip, Repeat, UserPlus, X } from "lucide-react";
+import { Check, ChevronLeft, Loader2, Paperclip, Pin, Repeat, UserPlus, X } from "lucide-react";
 import { createTaskStudio, adminAddUpdate, adminRemindTask, type StudioNewTask } from "@/app/task/actions";
 import { useToast } from "@/components/shell/toast";
 import { callUndo } from "@/components/shell/undo-banner";
@@ -348,8 +347,6 @@ export function StudioNewTaskPage({ options, initial, back }: { options: Options
   const router = useRouter();
   const [d, setD] = useState<Draft>({ ...EMPTY_DRAFT, ...initial });
   const [file, setFile] = useState<File | null>(null);
-  const [tab, setTab] = useState<"instructions" | "subtasks" | "attachments">("instructions");
-  const [peopleOpen, setPeopleOpen] = useState(false);
   const [, setPickerKey] = useState(0);
   const [repeatOpen, setRepeatOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -427,14 +424,14 @@ export function StudioNewTaskPage({ options, initial, back }: { options: Options
           {/* Everything a task needs to exist, in one row of real buttons
               (owner, 26 Sept 2026): company, who is accountable, stage,
               deadline, priority. Details below holds the rest — nothing twice. */}
-          <div className="flex flex-wrap items-center gap-1.5">
+          <div className="grid w-full grid-cols-2 gap-1.5 [&>*]:min-w-0 max-sm:[&_button]:w-full max-sm:[&_button]:justify-center sm:flex sm:w-auto sm:flex-wrap sm:items-center">
             <StudioChoiceMenu value={d.companyId ? String(d.companyId) : null} options={options.companies.map((c) => ({ value: String(c.id), label: c.name }))} onPick={(v) => set({ companyId: Number(v), also: d.also.filter((x) => x !== Number(v)) })} tone="dark" showDot={false} empty="Company" width={260} />
             <button type="button" onClick={() => setWhoOpen(true)} className={cn(bandChip, "inline-flex max-w-[220px] items-center gap-1.5")}>
               <UserPlus size={12} className="shrink-0" /><span className="truncate">{d.people.length ? (d.people.length === 1 ? d.people[0] : `${d.people[0]} +${d.people.length - 1}`) : "Accountable"}</span>
             </button>
             <StudioChoiceMenu value={d.status} options={STATUSES.map((s) => ({ value: s, label: s, dot: STATUS_DOT[s] }))} onPick={(v) => set({ status: v })} tone="dark" />
             <DatePopover value={d.deadline} label={d.deadline ? null : "No deadline"} onChange={(v) => set({ deadline: v || null })} compact triggerClassName={cn(bandChip, "inline-flex items-center gap-1.5")} />
-            <StudioChoiceMenu value={d.priority} options={PRIORITIES.map((p) => ({ value: p, label: p, dot: PRIORITY_DOT[p] }))} onPick={(v) => set({ priority: v })} tone="dark" suffix=" priority" showDot={false} />
+            <div className="max-sm:col-span-2"><StudioChoiceMenu value={d.priority} options={PRIORITIES.map((p) => ({ value: p, label: p, dot: PRIORITY_DOT[p] }))} onPick={(v) => set({ priority: v })} tone="dark" suffix=" priority" showDot={false} /></div>
           </div>
         </div>
         <div className="flex gap-2 sm:hidden">
@@ -462,71 +459,40 @@ export function StudioNewTaskPage({ options, initial, back }: { options: Options
           <RuleRow label="Needs a file to complete" hint="Staff can’t close it without attaching proof" on={d.needsFile} onClick={() => set({ needsFile: !d.needsFile })} />
         </div>
 
-        {/* Instructions — the task's first update. */}
-        <div className={cn(panel, "st-scroll order-1 flex min-w-0 flex-col px-5 pt-2 lg:order-2 lg:min-h-0 lg:overflow-y-auto")}>
-          <div className="mb-3 flex shrink-0 gap-5 border-b border-[var(--st-line-soft)]" role="tablist">
-            {([["instructions", "Instructions"], ["subtasks", d.subtasks?.length ? `Subtasks · ${d.subtasks.length}` : "Subtasks"], ["attachments", file ? "Attachment · 1" : "Attachment"]] as const).map(([k, l]) => (
-              <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)}
-                className={cn("-mb-px inline-flex h-10 items-center border-b-2 text-[13px]", tab === k ? "border-[var(--st-ink)]" : "border-transparent text-[var(--st-muted)] hover:text-[var(--st-ink)]")}>{l}</button>
-            ))}
-          </div>
-          {tab === "subtasks" ? (
-            <div className="flex flex-col gap-2.5">
-              <p className="m-0 text-xs text-[var(--st-muted)]">The steps inside this task — a to-do list you tick off on the task itself.</p>
-              <DraftSubtasks value={d.subtasks ?? []} onChange={(subtasks) => set({ subtasks })} title={false} />
-            </div>
-          ) : tab === "instructions" ? (
-            <div className="flex flex-col gap-2.5 lg:flex-1">
-              <p className="m-0 text-xs text-[var(--st-muted)]">Becomes the task’s first update — pin it as the current instruction if you like.</p>
-              <textarea value={d.instructions} onChange={(e) => set({ instructions: e.target.value })} placeholder="e.g. Call the TRA office, get the reference and the expected date, and attach the acknowledgement letter."
-                className="bare-field min-h-[104px] w-full resize-y rounded-[14px] lg:min-h-[132px] border-0 bg-[var(--st-page)] px-4 py-3.5 text-[14px] leading-relaxed outline-none placeholder:text-[var(--st-muted)]" />
-              <label className="flex items-center gap-2 text-xs text-[var(--st-sub)]">
-                <Toggle on={d.pin} onClick={() => set({ pin: !d.pin })} label="Pin as the current instruction" />Pin as the current instruction
-              </label>
-            </div>
-          ) : (
-            <div className="flex flex-1 flex-col gap-3">
+        {/* The first update, and the steps inside the task under it (owner,
+            26 Sept 2026: one place — no tabs, no separate Attachment page). Pin
+            and attach are icons beside the box, as in the conversation. */}
+        <div className={cn(panel, "st-scroll order-1 flex min-w-0 flex-col gap-3 lg:order-2 lg:min-h-0 lg:overflow-y-auto")}>
+          <div className="text-[15px] font-semibold">Update</div>
+          <div className="rounded-[14px] border border-[var(--st-field-line)] bg-[var(--st-page)] focus-within:border-[var(--st-muted)]">
+            <textarea value={d.instructions} onChange={(e) => set({ instructions: e.target.value })} placeholder="e.g. Post an update here."
+              className="bare-field block min-h-[96px] w-full resize-y rounded-t-[14px] border-0 bg-transparent px-4 py-3 text-[14px] leading-relaxed outline-none placeholder:text-[var(--st-muted)] lg:min-h-[120px]" />
+            <div className="flex items-center gap-1.5 border-t border-[var(--st-line-soft)] px-2 py-1.5">
               <input ref={fileRef} type="file" className="hidden" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
-              <button type="button" onClick={() => fileRef.current?.click()}
-                className="flex min-h-[104px] flex-col items-center justify-center gap-2 rounded-[14px] border-[1.5px] border-dashed border-[#CFCFCA] text-[13px] text-[var(--st-sub)] hover:border-[var(--st-muted)]">
-                <Paperclip size={18} />{file ? file.name : "Choose a file to attach — it goes on the first update"}
+              <button type="button" onClick={() => set({ pin: !d.pin })} aria-pressed={d.pin} aria-label="Pin as the current instruction" title="Pin as the current instruction"
+                className={cn("flex h-8 w-8 items-center justify-center rounded-lg transition-colors", d.pin ? "bg-[var(--st-ink)] text-[var(--st-page)]" : "text-[var(--st-sub)] hover:bg-[var(--st-surface)] hover:text-[var(--st-ink)]")}>
+                <Pin size={14} />
               </button>
-              {file && <button type="button" onClick={() => { setFile(null); if (fileRef.current) fileRef.current.value = ""; }} className="self-start text-xs text-[var(--st-muted)] hover:text-[var(--st-ink)]">Remove the file</button>}
+              <button type="button" onClick={() => fileRef.current?.click()} aria-label="Attach a file" title="Attach a file"
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--st-sub)] hover:bg-[var(--st-surface)] hover:text-[var(--st-ink)]">
+                <Paperclip size={14} />
+              </button>
+              {file && (
+                <span className="flex min-w-0 items-center gap-1.5 rounded-lg bg-[var(--st-surface)] px-2 py-1 text-xs">
+                  <span className="truncate">{file.name}</span>
+                  <button type="button" aria-label="Remove the file" onClick={() => { setFile(null); if (fileRef.current) fileRef.current.value = ""; }} className="text-[var(--st-muted)] hover:text-[var(--st-ink)]"><X size={12} /></button>
+                </span>
+              )}
+              {d.pin && <span className="ml-auto text-[11px] text-[var(--st-muted)]">Pinned</span>}
             </div>
-          )}
-          <div className="h-4" />
+          </div>
+          <div className="mt-1 text-[15px] font-semibold">Subtasks{d.subtasks?.length ? <span className="ml-1.5 text-[13px] font-normal text-[var(--st-muted)]">{d.subtasks.length}</span> : null}</div>
+          <DraftSubtasks value={d.subtasks ?? []} onChange={(subtasks) => set({ subtasks })} title={false} />
+          <div className="h-2" />
         </div>
 
         {/* People · also create in · repeat */}
         <div className="st-scroll order-3 flex min-w-0 flex-col gap-3.5 rounded-[18px] lg:min-h-0 lg:overflow-y-auto">
-          <div className={panel}>
-            <div className="mb-3 text-[15px] font-semibold">People</div>
-            {d.people.length > 0 && (
-              <div className="mb-3 space-y-2">
-                {d.people.map((n, i) => (
-                  <div key={n} className="flex items-center gap-2.5">
-                    <PersonFace name={n} size={32} />
-                    <span className="min-w-0 flex-1"><span className="block truncate text-[13px] font-medium">{n}</span><span className="block text-[11px] text-[var(--st-muted)]">{i === 0 ? (d.lead ? "The lead" : "Accountable") : "Also on it"}</span></span>
-                    <button type="button" aria-label={`Take ${n} off`} onClick={() => { set({ people: d.people.filter((x) => x !== n) }); setPickerKey((k) => k + 1); }} className="text-[var(--st-muted)] hover:text-[var(--st-ink)]"><X size={13} /></button>
-                  </div>
-                ))}
-              </div>
-            )}
-            {peopleOpen ? (
-              <div className="space-y-2">
-                <StudioPeoplePick autoFocus showChosen={false} people={options.people} value={d.people} onChange={(people) => set({ people })} />
-                <button type="button" onClick={() => setPeopleOpen(false)} className="text-xs text-[var(--st-sub)] hover:text-[var(--st-ink)]">Done</button>
-              </div>
-            ) : (
-              <button type="button" onClick={() => setPeopleOpen(true)} className="flex h-9 w-full items-center justify-center gap-1.5 rounded-[10px] border border-dashed border-[#CFCFCA] text-xs text-[var(--st-sub)] hover:border-[var(--st-muted)]"><UserPlus size={13} />Add someone</button>
-            )}
-            {d.people.length > 0 && (
-              <label className="mt-3 flex items-center gap-2 text-xs text-[var(--st-sub)]">
-                <Toggle on={d.tell} onClick={() => set({ tell: !d.tell })} label="Tell them now" />Tell them now (WhatsApp draft)
-              </label>
-            )}
-          </div>
-
           <div className={panel}>
             <div className="text-[15px] font-semibold">Also create in</div>
             <p className="mb-2.5 mt-0.5 text-xs text-[var(--st-muted)]">A separate copy per company, each with its own code</p>
@@ -560,7 +526,11 @@ export function StudioNewTaskPage({ options, initial, back }: { options: Options
       <StudioSheet open={whoOpen} onClose={() => setWhoOpen(false)} title="Who is accountable?" icon={<UserPlus size={15} />} width={460} centred
         footer={<div className="flex justify-end"><button type="button" onClick={() => setWhoOpen(false)} className={cn(stBtn.dark, "h-9")}><Check size={13} />Done</button></div>}>
         <StudioPeoplePick tone="sheet" autoFocus showChosen people={options.people} value={d.people} onChange={(people) => set({ people })} maxHeight={280} />
-        <p className="mt-2 text-xs text-[var(--st-sub)]">The first person is accountable; anyone after them is also on it.</p>
+        {d.people.length > 0 && (
+          <label className="mt-3 flex items-center gap-2 text-xs text-[var(--st-sub)]">
+            <Toggle on={d.tell} onClick={() => set({ tell: !d.tell })} label="Tell them now" />Tell them now (a WhatsApp draft)
+          </label>
+        )}
       </StudioSheet>
     </StudioScope>
   );
