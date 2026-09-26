@@ -13,7 +13,8 @@
  */
 import { sb } from "@/db/supabase";
 import { guardViewer, type Viewer } from "@/lib/auth/viewer";
-import { getBrief, parseBriefPeriod, briefShareText, briefEmail, briefEmailDoc, type BriefData } from "@/lib/reports/director-brief";
+import { parseBriefPeriod, briefShareText, briefEmail, briefEmailDoc, type BriefData } from "@/lib/reports/director-brief";
+import { getBriefCached } from "@/lib/reports/brief-cache";
 import { briefMonthOptions, parseBriefPersonRole, type BriefPersonRole } from "@/lib/reports/brief-links";
 import { briefPdfFilename } from "@/lib/reports/brief-pdf-shared";
 
@@ -72,7 +73,7 @@ async function scoped(v: Viewer, input: ReportInput): Promise<{ period: ReturnTy
 
 async function build(v: Viewer, input: ReportInput): Promise<BriefData> {
   const f = await scoped(v, input);
-  return getBrief(new Date(), f.period, f.companyId, { personId: f.personId, personRole: f.personRole });
+  return getBriefCached(f.period, f.companyId, { personId: f.personId, personRole: f.personRole });
 }
 
 export async function reportOptions(): Promise<ReportOptions> {

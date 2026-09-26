@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { getBrief, parseBriefPeriod } from "@/lib/reports/director-brief";
+import { parseBriefPeriod } from "@/lib/reports/director-brief";
+import { getBriefCached } from "@/lib/reports/brief-cache";
 import { renderBriefPdf } from "@/lib/reports/brief-pdf";
 import { briefPdfFilename } from "@/lib/reports/brief-pdf-shared";
 import { parseBriefIdList, parseBriefPersonRole } from "@/lib/reports/brief-links";
@@ -19,7 +20,7 @@ export async function GET(req: NextRequest) {
   // The Lead/Working lens narrows the PDF's CONTENTS to match the screen, but is
   // deliberately absent from its title and filename (owner's call).
   const personRole = parseBriefPersonRole(sp.get("role"));
-  const b = await getBrief(new Date(), parseBriefPeriod(sp.get("period")), companyIds, { personId: personIds, personRole });
+  const b = await getBriefCached(parseBriefPeriod(sp.get("period")), companyIds, { personId: personIds, personRole });
   const buf = await renderBriefPdf(b);
   // `?download=1` forces a real file download (Save dialog) instead of opening
   // in the browser/phone PDF viewer. The Download button passes it; the

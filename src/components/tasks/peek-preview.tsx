@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { BodyPortal } from "@/components/kit/body-portal";
 import { MessageSquarePlus, ChevronDown, Clock3 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { spring } from "@/lib/motion";
@@ -89,6 +90,7 @@ export function PeekPreview({
   }, [open]);
 
   return (
+    <BodyPortal>
     <AnimatePresence onExitComplete={() => setShowUpdate(false)}>
       {open && (
         <>
@@ -225,5 +227,6 @@ export function PeekPreview({
         </>
       )}
     </AnimatePresence>
+    </BodyPortal>
   );
 }

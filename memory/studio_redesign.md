@@ -65,6 +65,18 @@ wrapper), `StudioHeader`, `StudioCardRow` (becomes `StudioSwipeRow`,
   still mouse press / a finger held and released peeks.
 - Every `PersonFace` wears a line ON its edge (an `outline`, `[data-face]` in
   globals.css) — not a ring with a gap. Toasts float above the bar and footer.
+- **Phone sheets drag** (`studio/drag-sheet.tsx`: `useDragSheet` + `SheetGrip`):
+  the Filter panel (`base: "content"` — as tall as the tab it opened on, held
+  for every tab), the task preview (below lg; grows to "full" before opening
+  the task page) and the task page's "…" menu. Use it for any new phone sheet.
+- **Overlays a page draws go through `BodyPortal`** (`kit/body-portal.tsx`) —
+  drawn inside the page they sit under the Studio footer.
+- **Board on a phone**: a row of stage buttons and the chosen stage's cards
+  full width; hold a card and drop it on a stage.
+- **Report**: `getBriefCached` (`lib/reports/brief-cache.ts`, 1 min) serves the
+  sheet and both PDF routes; logos are shrunk to 192px (`pdf-logos.ts`); the
+  sheet builds the PDF in the background and Download fetches then saves or
+  shares it (`fetchPdf`/`savePdf`) — never a page navigation.
 - `stFloatBar.sticky` — a search/filter bar in a panel that ends at the footer
   (Tasks); `.fixedLg` — inside a panel that stops short of it; `.page` — on a
   page where the whole window scrolls (Notes, Assets, Supplies). Always 12px

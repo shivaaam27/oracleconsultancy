@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getPortalPerson } from "@/lib/portal/portal-auth";
-import { getBrief, parseBriefPeriod } from "@/lib/reports/director-brief";
+import { parseBriefPeriod } from "@/lib/reports/director-brief";
+import { getBriefCached } from "@/lib/reports/brief-cache";
 import { renderBriefPdf } from "@/lib/reports/brief-pdf";
 import { briefPdfFilename } from "@/lib/reports/brief-pdf-shared";
 import { resolvePortalBriefFilters } from "@/lib/portal/portal-brief-scope";
@@ -26,7 +27,7 @@ export async function GET(req: NextRequest) {
   }
   const sp = req.nextUrl.searchParams;
   const { companyId, personId, personRole } = await resolvePortalBriefFilters(me, sp);
-  const b = await getBrief(new Date(), parseBriefPeriod(sp.get("period")), companyId, { personId, personRole });
+  const b = await getBriefCached(parseBriefPeriod(sp.get("period")), companyId, { personId, personRole });
   const buf = await renderBriefPdf(b);
   // `?download=1` forces a real file download (Save dialog); without it the PDF
   // opens inline in the phone's PDF viewer (save + share from there).

@@ -2,7 +2,9 @@
 
 import { PersonFace } from "@/components/studio/face";
 import { useSearchParams, usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback, type ReactNode } from "react";
+import { createPortal } from "react-dom";
+import { SheetGrip, useDragSheet } from "@/components/studio/drag-sheet";
 import { EntityDrawer, type DrawerTab } from "../kit/entity-drawer";
 import { RecordBody, RecordSidebarBlock } from "../kit/record-page";
 import { taskHref } from "@/lib/tasks/task-href";
@@ -290,7 +292,10 @@ function TaskRecord({ mode, codeProp, stamp }: { mode: "drawer" | "page"; codePr
   // here must match the DrawerTab ids below. Falls back to Conversation — the
   // task view is conversation-first (Administrator unification, owner-approved).
   useEffect(() => {
-    setActiveTab(searchParams.get("dtab") ?? "conversation");
+    // A phone opens on Details (owner, 26 Sept 2026) — it is a tab there; from
+    // md up Details is its own column, so the talk comes first.
+    const phone = window.matchMedia("(max-width: 767px)").matches;
+    setActiveTab(searchParams.get("dtab") ?? (phone ? "details" : "conversation"));
     setConfirmDel(false);
     setFilter("all");
     setRedating(false);
@@ -1320,12 +1325,12 @@ function TaskRecord({ mode, codeProp, stamp }: { mode: "drawer" | "page"; codePr
             )}
           </div>
         </div>
-        {moreOpen && (
-          <div className="fixed inset-0 z-[46] sm:hidden" role="dialog" aria-label="More actions">
-            <button type="button" aria-label="Close" onClick={() => setMoreOpen(false)} className="absolute inset-0 cursor-default bg-[rgba(14,15,16,0.4)]" />
-            <div className="st-pop absolute inset-x-0 bottom-0 rounded-t-[26px] bg-[var(--st-surface)] px-4 pb-[calc(18px+env(safe-area-inset-bottom))] pt-2 text-[var(--st-ink)]">
-              <span aria-hidden className="mx-auto block h-[5px] w-10 rounded-full bg-[var(--st-line)]" />
-              <div className="truncate px-1 pb-1 pt-3 text-[13px] text-[var(--st-muted)]">{t.actionItem} · {t.code}</div>
+        {/* Portalled: the page's transition wrapper is a containing block for
+            `fixed`, so a sheet drawn in the page ended at the page's edge —
+            under the footer, with its last row covered (26 Sept 2026). */}
+        {moreOpen && createPortal(
+          <MoreSheet onClose={() => setMoreOpen(false)}>
+              <div className="truncate px-1 pb-1 pt-1 text-[13px] text-[var(--st-muted)]">{t.actionItem} · {t.code}</div>
               {(prevCode || nextCode) && (
                 <div className="flex gap-2 py-2">
                   <button type="button" disabled={!prevCode} onClick={() => { setMoreOpen(false); if (prevCode) goToCode(prevCode); }} className={cn(stBtn.ghost, "h-11 flex-1 justify-center disabled:opacity-40")}><ChevronLeft size={15} />Previous task</button>
@@ -1354,8 +1359,8 @@ function TaskRecord({ mode, codeProp, stamp }: { mode: "drawer" | "page"; codePr
               <button type="button" onClick={() => { setMoreOpen(false); setConfirmDel(true); }} className="flex h-[50px] w-full items-center gap-3 text-[15px] text-[var(--st-late-text)]">
                 <Trash2 size={17} />Delete…
               </button>
-            </div>
-          </div>
+          </MoreSheet>,
+          document.body,
         )}
 
         {/* Three columns from lg, as the mockup's Expanded board — Details ·
@@ -1407,4 +1412,19 @@ export function TaskRecordPage({ code, stamp }: { code: string; stamp?: number }
  *  app links this way any more — see taskHref() in lib/tasks/task-href.ts. */
 export function TaskDrawer() {
   return <TaskRecord mode="drawer" />;
+}
+
+/** The phone's "…" menu on a task: the draggable sheet every phone sheet uses
+ *  (studio/drag-sheet.tsx) — drag the grip down, tap outside, or pick. */
+function MoreSheet({ onClose, children }: { onClose: () => void; children: ReactNode }) {
+  const sheet = useDragSheet({ enabled: true, onClose, base: "auto", full: "auto" });
+  return (
+    <div className="studio fixed inset-0 z-[60] sm:hidden" role="dialog" aria-label="More actions">
+      <button type="button" aria-label="Close" onClick={sheet.close} className={cn("absolute inset-0 cursor-default bg-[rgba(14,15,16,0.4)] transition-opacity duration-200", sheet.leaving && "opacity-0")} />
+      <div ref={sheet.sheetRef} style={sheet.style} className="st-sheet-up absolute inset-x-0 bottom-0 rounded-t-[26px] bg-[var(--st-surface)] px-4 pb-[calc(18px+env(safe-area-inset-bottom))] text-[var(--st-ink)]">
+        <SheetGrip {...sheet.grip} className="-mx-4 w-[calc(100%+2rem)]" />
+        {children}
+      </div>
+    </div>
+  );
 }

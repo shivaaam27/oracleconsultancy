@@ -74,6 +74,8 @@ export function StaffTaskRecord({ t }: { t: StaffTaskData }) {
   const grid = useRef<HTMLDivElement>(null);
   useFitFrame(grid, { deps: [t.code] });
   const [tab, setTab] = useState<"conversation" | "subtasks" | "details" | "history">("conversation");
+  // A phone opens on Details (owner, 26 Sept 2026); from md up it is a column.
+  useEffect(() => { if (window.matchMedia("(max-width: 767px)").matches) setTab("details"); }, []);
   const [sub, setSub] = useState<{ done: number; total: number } | null>(null);
   // Fetch the subtasks now, so the tab opens with them already there.
   useEffect(() => { fetchSubtasks(t.id).then((l) => setSub({ done: l.filter((x) => x.done).length, total: l.length })).catch(() => {}); }, [t.id]);

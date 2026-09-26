@@ -16,58 +16,68 @@ function filenameFrom(res: Response): string {
   return m ? decodeURIComponent(m[1]) : "director-brief.pdf";
 }
 
-/**
- * Downloads the server-generated Director Brief PDF (the Windows-app-safe
- * route — see below). We hit the PDF route with
- * `?download=1`, which makes the server send `Content-Disposition: attachment`,
- * so the browser saves the file instead of opening it in the PDF viewer. A
- * same-tab navigation to an attachment URL downloads without leaving the page
- * (no blank tab), and works on desktop and mobile alike. We avoid the old
- * blob + synthetic `<a download>` trick — that was silently blocked on iOS
- * Safari and inside the installed app. Used by the Studio Report panel.
- */
-export async function downloadPdf(href: string, setBusy: (b: boolean) => void = () => {}): Promise<void> {
+/** Fetch the PDF as a file (no page navigation). */
+export async function fetchPdf(href: string): Promise<File> {
   const url = href + (href.includes("?") ? "&" : "?") + "download=1";
+  const res = await fetch(url, { credentials: "same-origin" });
+  if (!res.ok || !(res.headers.get("content-type") ?? "").includes("pdf")) throw new Error(`${res.status}`);
+  return new File([await res.blob()], filenameFrom(res), { type: "application/pdf" });
+}
 
-  // ⚠️ THE WINDOWS APP CANNOT BE SENT ON A TOP-LEVEL NAVIGATION TO A FILE.
-  //
-  // WebView2 turns a navigation to an `attachment` response into a download
-  // and then reports the NAVIGATION as failed — correctly, since no page
-  // loaded. The app read that as "the site could not be reached" and put its
-  // offline screen up over a working connection and a file that had just
-  // saved. That window has no back button, so the only way out was closing
-  // the app. (The app itself has been taught the difference; this half means
-  // the fix does not wait on anyone reinstalling it.)
-  //
-  // So inside the app we FETCH the bytes and save them — no navigation, so
-  // nothing can be mistaken for one. Every other browser keeps the same
-  // same-tab navigation it has always used, which is deliberate: the blob +
-  // `<a download>` route is silently ignored by iOS Safari, and this button
-  // is used on a phone.
-  if (inWindowsApp()) {
-    setBusy(true);
+/**
+ * Hand a fetched PDF to the person.
+ *  - A phone or tablet: the share sheet (Save to Files, WhatsApp, Mail…) —
+ *    iOS ignores `<a download>`, and an installed app has no browser around
+ *    it to show a PDF in.
+ *  - A desk (and the Windows app): an ordinary download.
+ * "blocked" = the phone wants a fresh tap before it will share (the tap that
+ * started a slow fetch has gone stale); the caller shows a "Save" button.
+ */
+export async function savePdf(file: File): Promise<"done" | "blocked"> {
+  const nav = navigator as Navigator & { canShare?: (d: ShareData) => boolean };
+  const touch = window.matchMedia("(pointer: coarse)").matches;
+  if (touch && !inWindowsApp() && nav.canShare?.({ files: [file] })) {
     try {
-      const res = await fetch(url, { credentials: "same-origin" });
-      if (!res.ok) throw new Error(`${res.status}`);
-      const blobUrl = URL.createObjectURL(await res.blob());
-      const a = document.createElement("a");
-      a.href = blobUrl;
-      a.download = filenameFrom(res);
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      // Long enough for the save to have taken the bytes, short enough not to
-      // hold a multi-megabyte PDF in memory for the rest of the session.
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
-      return;
-    } catch {
-      // Fall through to the ordinary route rather than leaving the button dead.
-    } finally {
-      setBusy(false);
+      await nav.share({ files: [file], title: file.name.replace(/\.pdf$/i, "") });
+      return "done";
+    } catch (e) {
+      if ((e as DOMException)?.name === "AbortError") return "done"; // they closed the sheet
+      if ((e as DOMException)?.name === "NotAllowedError") return "blocked";
+      // anything else: fall through to a download
     }
   }
+  const blobUrl = URL.createObjectURL(file);
+  const a = document.createElement("a");
+  a.href = blobUrl;
+  a.download = file.name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  // Long enough for the save to take the bytes, short enough not to hold
+  // the PDF in memory for the rest of the session.
+  setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+  return "done";
+}
 
-  // Navigating to an `attachment` URL downloads the file in place — the page
-  // stays put, no blank tab.
-  window.location.href = url;
+/**
+ * Downloads the server-generated Director Brief PDF.
+ *
+ * ⚠️ NEVER A PAGE NAVIGATION (26 Sept 2026). It used to send the page to the
+ * PDF's address, and the PDF takes seconds to draw: the owner saw a blank
+ * screen and, in the installed app, nothing at all. The Windows app could not
+ * take a navigation to a file either (WebView2 reports it as a failed page).
+ * Now the bytes are fetched behind a spinner and then saved or shared.
+ * Only if the fetch itself fails do we fall back to opening the address.
+ */
+export async function downloadPdf(href: string, setBusy: (b: boolean) => void = () => {}, onBlocked?: (file: File) => void): Promise<void> {
+  setBusy(true);
+  try {
+    const file = await fetchPdf(href);
+    const r = await savePdf(file);
+    if (r === "blocked") onBlocked?.(file);
+  } catch {
+    window.location.href = href + (href.includes("?") ? "&" : "?") + "download=1";
+  } finally {
+    setBusy(false);
+  }
 }

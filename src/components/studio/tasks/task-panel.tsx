@@ -38,6 +38,8 @@ import { Dot } from "@/components/studio/kit";
 import { useStudioPick } from "./pick";
 import { STATUS_DOT, deadlineWords, ago } from "./task-words";
 import { cn } from "@/lib/cn";
+import { useMediaQuery } from "@/lib/hooks/use-media-query";
+import { SheetGrip, useDragSheet } from "@/components/studio/drag-sheet";
 
 const STARTERS: [string, string][] = [
   ["Still on it", "Still on it — "],
@@ -71,6 +73,11 @@ function Panel({ task, rows, onClose }: { task: TaskRow; rows: TaskRow[]; onClos
   // "Open the whole task": the panel grows to fill the frame, THEN the page
   // changes — so opening reads as this panel becoming the task, not a jump.
   const [expanding, setExpanding] = useState(false);
+  // Below lg the preview is the same sheet as the Filter panel: it rises from
+  // the foot of the screen at one height, and its grip drags it taller,
+  // shorter or away (owner, 26 Sept 2026).
+  const sheetMode = useMediaQuery("(max-width: 1023px)");
+  const sheet = useDragSheet({ enabled: sheetMode, onClose, base: "min(80dvh, 720px)" });
   const [failed, setFailed] = useState(false);
   const [nonce, setNonce] = useState(0);
   const scroller = useRef<HTMLDivElement>(null);
@@ -122,7 +129,11 @@ function Panel({ task, rows, onClose }: { task: TaskRow; rows: TaskRow[]; onClos
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches || document.documentElement.dataset.motion === "reduced";
     if (reduced) { router.push(expandHref); return; }
     setExpanding(true);
-    window.setTimeout(() => router.push(expandHref), 240);
+    // A phone: the sheet rises to the full screen (it has a real height to
+    // grow from — the old sheet was only as tall as its contents, so there
+    // was nothing to animate and the page just jumped). A desk: it widens.
+    if (sheetMode) sheet.setSize("full");
+    window.setTimeout(() => router.push(expandHref), 260);
   }
 
   function post() {
@@ -168,23 +179,32 @@ function Panel({ task, rows, onClose }: { task: TaskRow; rows: TaskRow[]; onClos
   }
 
   return (
+    <>
+    {sheetMode && (
+      <button type="button" aria-label="Close" onClick={sheet.close}
+        className={cn("studio fixed inset-0 z-[45] cursor-default bg-[rgba(14,15,16,0.35)] transition-opacity duration-200", sheet.leaving && "opacity-0")} />
+    )}
     <aside
+      ref={sheet.sheetRef}
+      style={sheet.style}
       data-task-panel
       data-expanding={expanding || undefined}
       aria-label={`${task.code} — updates`}
       className={cn(
-        "studio st-sheet st-panel-in fixed z-[45] flex flex-col overflow-hidden rounded-3xl border border-[var(--sh-line)] shadow-[0_24px_60px_rgba(17,18,20,0.18)]",
-        // Phone and tablet: a sheet above the footer. Desktop: a column on the right.
-        "inset-x-2 bottom-[calc(var(--foot-h)+var(--foot-safe)+8px)] max-h-[72dvh]",
-        "lg:inset-x-auto lg:right-4 lg:top-4 lg:max-h-none lg:w-[400px]",
+        "studio st-sheet fixed z-[46] flex flex-col overflow-hidden border-[var(--sh-line)] shadow-[0_24px_60px_rgba(17,18,20,0.18)]",
+        // Phone and tablet: a sheet from the foot of the screen (the Filter
+        // panel's). Desktop: a column on the right.
+        "st-panel-in inset-x-0 bottom-0 rounded-t-[26px] border-t",
+        "lg:inset-x-auto lg:bottom-auto lg:right-4 lg:top-4 lg:max-h-none lg:w-[400px] lg:rounded-3xl lg:border",
         // Growing into the full task: the panel takes the whole frame and its
         // contents step back, then the page arrives in its place.
         "transition-[width,right,top,max-height,border-radius] duration-[240ms] ease-[cubic-bezier(0.2,0.8,0.2,1)]",
         expanding && "st-panel-grow",
       )}
     >
+      {sheetMode && <SheetGrip {...sheet.grip} />}
       {/* who and what */}
-      <div className="flex flex-col gap-2.5 border-b border-[var(--sh-line)] px-5 pb-4 pt-4">
+      <div className="flex flex-col gap-2.5 border-b border-[var(--sh-line)] px-5 pb-4 pt-1 lg:pt-4">
         <div className="flex items-center gap-2">
           <span className="st-mono rounded-md bg-[var(--sh-hover)] px-1.5 py-0.5 text-[11px] text-[var(--sh-sub)]">{task.code}</span>
           <span className="min-w-0 flex-1 truncate text-xs text-[var(--sh-muted)]">{task.companyName}</span>
@@ -202,7 +222,7 @@ function Panel({ task, rows, onClose }: { task: TaskRow; rows: TaskRow[]; onClos
           >
             <Maximize2 size={13} />
           </Link>
-          <button type="button" onClick={onClose} aria-label="Close" title="Close (Esc)" className="flex h-10 w-10 items-center justify-center rounded-[10px] border border-[var(--sh-chip-line)] text-[var(--sh-sub)] transition-colors hover:text-[var(--sh-fg)] sm:h-8 sm:w-8">
+          <button type="button" onClick={sheet.close} aria-label="Close" title="Close (Esc)" className="flex h-10 w-10 items-center justify-center rounded-[10px] border border-[var(--sh-chip-line)] text-[var(--sh-sub)] transition-colors hover:text-[var(--sh-fg)] sm:h-8 sm:w-8">
             <X size={13} />
           </button>
         </div>
@@ -268,7 +288,7 @@ function Panel({ task, rows, onClose }: { task: TaskRow; rows: TaskRow[]; onClos
       </div>
 
       {/* reply */}
-      <div className="border-t border-[var(--sh-line)] px-4 pb-4 pt-3">
+      <div className="border-t border-[var(--sh-line)] px-4 pb-[calc(16px+env(safe-area-inset-bottom))] pt-3 lg:pb-4">
         {open ? (
           <form onSubmit={(e) => { e.preventDefault(); post(); }} className="flex flex-col gap-2">
             <div className="flex gap-1 overflow-x-auto [scrollbar-width:none]">
@@ -296,5 +316,6 @@ function Panel({ task, rows, onClose }: { task: TaskRow; rows: TaskRow[]; onClos
         )}
       </div>
     </aside>
+    </>
   );
 }

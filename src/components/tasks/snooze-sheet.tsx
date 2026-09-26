@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { BodyPortal } from "@/components/kit/body-portal";
 import { Sun, CalendarDays, CalendarClock, Calendar, Check } from "lucide-react";
 import { spring } from "@/lib/motion";
 import { Button } from "../ui";
@@ -60,6 +61,7 @@ export function SnoozeSheet({
   ];
 
   return (
+    <BodyPortal>
     <AnimatePresence>
       {open && (
         <>
@@ -116,5 +118,6 @@ export function SnoozeSheet({
         </>
       )}
     </AnimatePresence>
+    </BodyPortal>
   );
 }

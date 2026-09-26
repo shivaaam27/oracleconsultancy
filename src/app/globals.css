@@ -1582,13 +1582,17 @@ html[data-motion="reduced"] .st-slide-l, html[data-motion="reduced"] .st-slide-r
 /* The Tasks side panel slides in from the right on a desk, rises on a phone. */
 @keyframes st-panel-in-x { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: none; } }
 @keyframes st-panel-in-y { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: none; } }
-.st-panel-in { animation: st-panel-in-y 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+/* Below lg the task preview is a sheet from the foot (drag-sheet.tsx):
+   `backwards` so the drag's inline transform is not overridden afterwards. */
+.st-panel-in { animation: st-sheet-up 280ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards; }
 @media (min-width: 1024px) { .st-panel-in { animation-name: st-panel-in-x; } }
 /* "Open the whole task": the panel grows to fill the frame, its contents fade
    back, and the page lands in its place. */
 /* Only properties that can be animated between: `left: auto` cannot, so a
    desk panel grows by WIDTH from its right edge, a phone sheet by HEIGHT. */
-.st-panel-grow { max-height: calc(100dvh - 64px - env(safe-area-inset-bottom) - 20px) !important; border-radius: 28px !important; }
+/* A phone sheet grows by its own height (drag-sheet's "full"); a desk panel
+   by width, below. */
+@media (min-width: 1024px) { .st-panel-grow { border-radius: 28px !important; } }
 @media (min-width: 1024px) { .st-panel-grow { top: 12px !important; right: 12px !important; width: calc(100vw - 24px) !important; } }
 /* Growing into the full task: the header (code, title, who) stays put while
    the body steps back, and a soft wait sign sits in the middle until the page
@@ -1602,6 +1606,13 @@ html[data-motion="reduced"] .st-slide-l, html[data-motion="reduced"] .st-slide-r
 }
 .st-panel-grow::after { opacity: 1; }
 @keyframes st-spin { to { transform: rotate(360deg); } }
+/* A sheet rising from the foot of the screen (studio/drag-sheet.tsx).
+   `backwards`, never `both`: a filled end-frame would override the inline
+   transform the drag and the close use. */
+@keyframes st-sheet-up { from { transform: translateY(100%); } to { transform: none; } }
+.st-sheet-up { animation: st-sheet-up 280ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards; }
+@media (prefers-reduced-motion: reduce) { .st-sheet-up { animation: none; } }
+html[data-motion="reduced"] .st-sheet-up { animation: none; }
 @media (prefers-reduced-motion: reduce) { .st-panel-in { animation: none; } }
 html[data-motion="reduced"] .st-panel-in { animation: none; }
 

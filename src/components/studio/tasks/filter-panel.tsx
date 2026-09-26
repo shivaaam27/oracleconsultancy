@@ -28,6 +28,8 @@ import Link from "next/link";
 import { createPortal } from "react-dom";
 import { Check, Search, SlidersHorizontal, X } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { useMediaQuery } from "@/lib/hooks/use-media-query";
+import { SheetGrip, useDragSheet } from "@/components/studio/drag-sheet";
 
 export type FilterItem = {
   key: string; label: string; count?: number; active: boolean; tone?: string;
@@ -79,6 +81,11 @@ export function FilterPanelButton({ sections, activeCount, clearHref, onClear, e
   }, [open]);
 
   const keep = () => { reopenOn = tab; };
+  // Below md the panel is a sheet from the foot of the screen: one height for
+  // every tab, a grip that drags it taller, shorter or away (owner, 26 Sept
+  // 2026: "the length decreases … then increases. There's no uniformity").
+  const sheetMode = useMediaQuery("(max-width: 767px)");
+  const sheet = useDragSheet({ open, enabled: sheetMode, onClose: () => setOpen(false), base: "content" });
   const onTab = (t: string) => cn("min-w-0", tab !== t && "max-md:hidden");
 
   return (
@@ -94,10 +101,10 @@ export function FilterPanelButton({ sections, activeCount, clearHref, onClear, e
           sticky layer of its own, and inside it the panel sat UNDER the footer. */}
       {open && createPortal(
         <div className="studio fixed inset-0 z-[55]" role="dialog" aria-modal="true" aria-label={label}>
-          <button type="button" aria-label="Close" onClick={() => setOpen(false)} className="absolute inset-0 cursor-default bg-[rgba(14,15,16,0.35)]" />
-          <div className="st-sheet st-sheet-dots st-pop absolute inset-x-0 bottom-0 flex max-h-[calc(100dvh-60px)] flex-col overflow-hidden rounded-t-[26px] bg-[var(--sh-bg)] text-[var(--sh-fg)] shadow-[0_30px_80px_rgba(0,0,0,0.4)] [font-family:var(--font-geist),var(--font-sans)] sm:inset-x-3 sm:bottom-[calc(var(--foot-h)+var(--foot-safe)+8px)] sm:mx-auto sm:max-h-[calc(100dvh-100px)] sm:max-w-[1040px] sm:rounded-3xl">
-            <span aria-hidden className="mx-auto mt-2 h-[5px] w-10 shrink-0 rounded-full bg-[var(--sh-chip-line)] sm:hidden" />
-            <div className="flex items-center gap-3 px-4 pb-3 pt-3 sm:px-5 sm:pt-4">
+          <button type="button" aria-label="Close" onClick={sheet.close} className={cn("absolute inset-0 cursor-default bg-[rgba(14,15,16,0.35)] transition-opacity duration-200", sheet.leaving && "opacity-0")} />
+          <div ref={sheet.sheetRef} style={sheet.style} className="st-sheet st-sheet-dots st-sheet-up absolute inset-x-0 bottom-0 flex max-h-[calc(100dvh-60px)] flex-col overflow-hidden rounded-t-[26px] bg-[var(--sh-bg)] text-[var(--sh-fg)] shadow-[0_30px_80px_rgba(0,0,0,0.4)] [font-family:var(--font-geist),var(--font-sans)] md:inset-x-3 md:bottom-[calc(var(--foot-h)+var(--foot-safe)+8px)] md:mx-auto md:max-h-[calc(100dvh-100px)] md:max-w-[1040px] md:rounded-3xl">
+            <SheetGrip {...sheet.grip} className="md:hidden" />
+            <div className="flex items-center gap-3 px-4 pb-3 pt-1 sm:px-5 md:pt-4">
               <div className="min-w-0 flex-1">
                 <div className="text-[18px] font-medium tracking-[-0.01em]">{label}</div>
                 <div className="text-xs text-[var(--sh-sub)]">{activeCount ? `${activeCount} on · pick as many as you like` : "Pick as many as you like"}</div>
@@ -107,7 +114,7 @@ export function FilterPanelButton({ sections, activeCount, clearHref, onClear, e
               ) : onClear ? (
                 <button type="button" onClick={onClear} className="whitespace-nowrap text-[13px] text-[var(--sh-sub)] underline-offset-2 hover:text-[var(--sh-fg)] hover:underline">Clear all</button>
               ) : null)}
-              <button type="button" onClick={() => setOpen(false)} className="inline-flex h-9 items-center gap-1.5 rounded-[10px] bg-[var(--sh-on-bg)] px-3.5 text-[13px] font-semibold text-[var(--sh-on-fg)] hover:opacity-90">
+              <button type="button" onClick={sheet.close} className="inline-flex h-9 items-center gap-1.5 rounded-[10px] bg-[var(--sh-on-bg)] px-3.5 text-[13px] font-semibold text-[var(--sh-on-fg)] hover:opacity-90">
                 <Check size={14} />Done
               </button>
               <button type="button" onClick={() => setOpen(false)} aria-label="Close" className="hidden h-9 w-9 items-center justify-center rounded-[10px] border border-[var(--sh-chip-line)] text-[var(--sh-sub)] hover:text-[var(--sh-fg)] md:flex"><X size={14} /></button>

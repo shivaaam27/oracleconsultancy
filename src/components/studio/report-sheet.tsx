@@ -21,7 +21,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { Building2, CalendarDays, Check, ChevronDown, Copy, Download, FileText, Loader2, Mail, MessageCircle, Plus, Search, Send, Trash2, UserRound, X } from "lucide-react";
 import { StudioSheet } from "@/components/studio/sheet";
 import { StudioPeoplePick } from "@/components/studio/people-pick";
-import { downloadPdf } from "@/components/documents/brief-pdf-button";
+import { fetchPdf, savePdf } from "@/components/documents/brief-pdf-button";
 import {
   addReportNote, deleteReportNote, draftReport, emailReport, reportOptions, reportRecipients, reportSummary,
   type ReportInput, type ReportOptions, type ReportSummary,
@@ -91,6 +91,12 @@ export function ReportSheet() {
   useEffect(() => {
     if (open && !opts) reportOptions().then(setOpts).catch(() => setFlash("Couldn't load the filters — try again."));
   }, [open, opts]);
+  // The filters' lists are small: fetch them a few seconds after any page
+  // loads, so the sheet opens with them ready.
+  useEffect(() => {
+    const t = setTimeout(() => { reportOptions().then((o) => setOpts((cur) => cur ?? o)).catch(() => {}); }, 4000);
+    return () => clearTimeout(t);
+  }, []);
 
   const input: ReportInput = useMemo(() => ({
     period: months.length ? `on:${[...months].sort().join(",")}` : preset,
@@ -103,11 +109,12 @@ export function ReportSheet() {
     if (!open) return;
     const n = ++seq.current;
     setLoading(true);
+    // At once when the sheet opens; a beat after a filter changes.
     const t = setTimeout(() => {
       reportSummary(input).then((s) => { if (n === seq.current) setSum(s); })
         .catch(() => { if (n === seq.current) setFlash("Couldn't build the report — try again."); })
         .finally(() => { if (n === seq.current) setLoading(false); });
-    }, 220);
+    }, sum ? 220 : 0);
     return () => clearTimeout(t);
   }, [open, input]);
 
@@ -119,6 +126,40 @@ export function ReportSheet() {
     if (personIds.length) q.set("who", personIds.join(","));
     return `${opts.pdfBase}?${q.toString()}`;
   };
+  // The PDF is drawn on the server in the background once the filters have
+  // settled, so Download is usually instant (26 Sept 2026: it took seconds and
+  // showed a blank page). `ready` = a PDF a phone wants a fresh tap to share.
+  const prefetch = useRef<{ href: string; file: Promise<File> } | null>(null);
+  const [ready, setReady] = useState<{ href: string; file: File } | null>(null);
+  useEffect(() => {
+    if (!open || !opts || loading) return;
+    const t = setTimeout(() => {
+      const href = pdfHref();
+      if (!href || prefetch.current?.href === href) return;
+      const file = fetchPdf(href);
+      file.catch(() => { if (prefetch.current?.href === href) prefetch.current = null; });
+      prefetch.current = { href, file };
+    }, 900);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, opts, loading, input]);
+  async function download() {
+    const href = pdfHref();
+    if (!href) return;
+    if (ready?.href === href) { const r = await savePdf(ready.file); if (r === "done") setReady(null); return; }
+    setBusy("pdf");
+    try {
+      const pre = prefetch.current?.href === href ? prefetch.current.file : null;
+      const file = await (pre ?? fetchPdf(href));
+      if (!pre) prefetch.current = { href, file: Promise.resolve(file) };
+      const r = await savePdf(file);
+      if (r === "blocked") { setReady({ href, file }); say("The PDF is ready — tap Save PDF."); }
+    } catch {
+      window.location.href = href + (href.includes("?") ? "&" : "?") + "download=1";
+    } finally {
+      setBusy(null);
+    }
+  }
   const toggle = (list: number[], id: number) => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
   const peopleNames = (opts?.people ?? []).filter((p) => personIds.includes(p.id)).map((p) => p.name);
   const coNames = (opts?.companies ?? []).filter((c) => companyIds.includes(c.id)).map((c) => c.name);
@@ -136,9 +177,9 @@ export function ReportSheet() {
         <div className="flex flex-col gap-2.5">
           {flash && <div role="status" className="text-[12.5px] text-[var(--sh-fg)]">{flash}</div>}
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-            <button type="button" disabled={!opts || busy === "pdf"} onClick={() => void downloadPdf(pdfHref(), (b) => setBusy(b ? "pdf" : null))}
+            <button type="button" disabled={!opts || busy === "pdf"} onClick={() => void download()}
               className="col-span-2 inline-flex h-10 items-center justify-center gap-2 rounded-[12px] bg-[var(--sh-on-bg)] px-3.5 text-[13px] font-semibold text-[var(--sh-on-fg)] transition-opacity hover:opacity-90 disabled:opacity-50 sm:col-span-2">
-              {busy === "pdf" ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}Download PDF
+              {busy === "pdf" ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}{busy === "pdf" ? "Preparing the PDF…" : ready?.href === pdfHref() ? "Save PDF" : "Download PDF"}
             </button>
             <button type="button" onClick={() => setEmailing((v) => !v)} className={cn(BTN, emailing && "border-[var(--sh-fg)]")}><Mail size={14} />Email</button>
             <button type="button" disabled={!sum} onClick={() => sum && window.open(`https://wa.me/?text=${encodeURIComponent(sum.shareText)}`, "_blank")} className={BTN}><MessageCircle size={14} />WhatsApp</button>

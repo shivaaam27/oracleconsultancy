@@ -206,7 +206,7 @@ export function BoardView({ rows, showClosed }: { rows: TaskRow[]; showClosed: b
     const timer = window.setTimeout(() => {
       if (done || started) return;
       if (touch) start(startX, startY);
-      else { swallowClick.current = true; triggerHaptic(); setPeek(r); finish(); }
+      else { swallowClick.current = true; window.setTimeout(() => { swallowClick.current = false; }, 800); triggerHaptic(); setPeek(r); finish(); }
     }, touch ? TOUCH_HOLD_MS : MOUSE_PEEK_MS);
 
     const onMove = (ev: PointerEvent) => {
@@ -223,7 +223,10 @@ export function BoardView({ rows, showClosed }: { rows: TaskRow[]; showClosed: b
     const onUp = (ev: PointerEvent) => {
       const cur = liftRef.current;
       if (started && cur) {
+        // The click that follows this release is not a tap. Cleared on the
+        // next tick, or a drag that ended off its card ate the NEXT real tap.
         swallowClick.current = true;
+        window.setTimeout(() => { swallowClick.current = false; }, 60);
         const target = stageAt(ev.clientX, ev.clientY);
         const row = rowsRef.current.find((x) => x.code === cur.code);
         if (!cur.moved && touch && row) setPeek(row);      // held and let go: a peek
@@ -284,6 +287,8 @@ export function BoardView({ rows, showClosed }: { rows: TaskRow[]; showClosed: b
     { label: "Snooze…", icon: <Clock size={15} />, onClick: () => setSnoozeRow(r) },
   ];
 
+  // A phone shows one stage at a time — the first with anything open in it.
+  const [phoneStage, setPhoneStage] = useState<string>(() => columns.find((c) => c.items.length > 0 && !isDone(c.stage))?.stage ?? "Not Started");
   const lifted = lift ? rows.find((r) => r.code === lift.code) ?? null : null;
   const liftedFrom = lifted ? stageOf(lifted) : null;
   const overOf = (stage: string) => !!lift && lift.over === stage && stage !== liftedFrom;
@@ -291,6 +296,79 @@ export function BoardView({ rows, showClosed }: { rows: TaskRow[]; showClosed: b
   return (
     <>
       <OrderRegistrar codes={orderedCodes} />
+      {phone ? (
+        /* A phone: the stages as one row of buttons, and the chosen stage's
+           cards full width under it (owner, 26 Sept 2026: columns "not
+           fitting"). Hold a card and drop it on a stage to move it. */
+        <div ref={board} className="flex flex-col gap-2.5">
+          <div ref={scroller} className="-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {columns.map((col) => {
+              const on = phoneStage === col.stage;
+              const over = overOf(col.stage);
+              return (
+                <button
+                  key={col.stage}
+                  type="button"
+                  data-stage={col.stage}
+                  onClick={() => setPhoneStage(col.stage)}
+                  aria-pressed={on}
+                  className={cn(
+                    "inline-flex h-10 shrink-0 items-center gap-2 whitespace-nowrap rounded-[12px] border px-3 text-[13px] transition-colors",
+                    over ? "border-[var(--st-ink)] bg-[var(--st-ink)] text-[var(--st-page)] scale-[1.04]"
+                      : on ? "border-[var(--st-ink)] bg-[var(--st-surface)] font-semibold"
+                      : "border-[var(--st-line)] bg-[var(--st-surface)] text-[var(--st-sub)]",
+                  )}
+                >
+                  <Dot color={STATUS_DOT[col.stage]} size={7} />
+                  {col.stage}
+                  <span className={cn("st-mono text-[11px]", over ? "opacity-70" : "text-[var(--st-muted)]")}>{col.items.length}</span>
+                </button>
+              );
+            })}
+          </div>
+          {lift && <div className="text-center text-[12px] text-[var(--st-muted)]">Drop it on a stage above</div>}
+          {(() => {
+            const col = columns.find((c) => c.stage === phoneStage) ?? columns[0];
+            return (
+              <section aria-label={col.stage} className="flex flex-col gap-2">
+                {/* Not Started has "Create a quick task" above the board already. */}
+                {!isDone(col.stage) && col.stage !== "Not Started" && (addIn === col.stage ? (
+                  <ColumnQuickAdd
+                    stage={col.stage}
+                    companies={companies}
+                    people={people}
+                    onClose={() => setAddIn(null)}
+                    onCreated={(code) => {
+                      setAddIn(null);
+                      toast(`${code} added to ${col.stage}`, { tone: "success", duration: 5000 });
+                      router.refresh();
+                    }}
+                  />
+                ) : (
+                  <button type="button" onClick={() => setAddIn(col.stage)} className="flex h-11 items-center gap-2 rounded-[14px] border border-dashed border-[var(--st-field-line)] px-4 text-[13px] text-[var(--st-sub)]">
+                    <Plus size={15} />Add a task to {col.stage}
+                  </button>
+                ))}
+                {col.items.map((r) => (
+                  <BoardCard
+                    key={r.id}
+                    r={r}
+                    stage={stageOf(r)}
+                    picked={pick?.code === r.code}
+                    lifted={lift?.code === r.code}
+                    ticking={ticking}
+                    onTap={() => tap(r)}
+                    onPointerDown={(e) => onCardPointerDown(r, e)}
+                  />
+                ))}
+                {col.items.length === 0 && (
+                  <div className="grid h-24 place-items-center rounded-[14px] border border-dashed border-[var(--st-line)] text-[13px] text-[var(--st-muted)]">Nothing in {col.stage}</div>
+                )}
+              </section>
+            );
+          })()}
+        </div>
+      ) : (
       <div ref={board} className="rounded-[20px] bg-[var(--st-surface)] p-2 sm:p-2.5">
         <div
           ref={scroller}
@@ -388,6 +466,7 @@ export function BoardView({ rows, showClosed }: { rows: TaskRow[]; showClosed: b
           </div>
         </div>
       </div>
+      )}
 
       {/* The lifted card, under the pointer. */}
       {lift && lifted && typeof document !== "undefined" && createPortal(
