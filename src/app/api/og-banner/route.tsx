@@ -1,29 +1,43 @@
-// Generic 1200x630 landscape OG banner for link-preview cards (WhatsApp shows a
-// LARGE card only for ~1.91:1 images — a square logo collapses to a tiny thumbnail).
-// Public, no auth, no DB. Aurora-styled to match the email + summary image.
+// The 1200x630 picture WhatsApp (and any chat) shows when an Oracle link is
+// shared — landscape, because a square image collapses to a tiny thumbnail.
+// Public, no auth, no DB.
+//
+// Studio look (owner, 26 Sept 2026): the Home card's dark tile, "Task
+// Management", and one square per task — the same mark as the app icon. The
+// squares are a FIXED pattern, never live numbers: this picture is public to
+// anyone a link is sent to.
 import { ImageResponse } from "next/og";
-import { appBaseUrl } from "@/lib/app-url";
 
 export const runtime = "nodejs";
 
-const C = {
-  ink: "#0f2742", muted: "#5b7794", faint: "#9db0c8",
-  canvas: "#f7f9fc", wash: "#eef4ff", border: "#e6ebf2", accent: "#1f7aeb", white: "#ffffff",
-};
+const INK = "#141517";
+const BAND = { q: "#CFE05A", m: "#19C37D", s: "#F5A524", l: "#E0479E" } as const;
+// 8 across x 6 down, in the Home card's order: quiet, moving, due soon, late.
+const SQUARES: (keyof typeof BAND)[] = [
+  ...Array<keyof typeof BAND>(6).fill("q"),
+  ...Array<keyof typeof BAND>(24).fill("m"),
+  ...Array<keyof typeof BAND>(5).fill("s"),
+  ...Array<keyof typeof BAND>(13).fill("l"),
+];
+const CELL = 40;
+const GAP = 10;
 
 export function GET() {
-  const logo = `${appBaseUrl()}/icon-512.png`;
   return new ImageResponse(
     (
-      <div style={{ display: "flex", flexDirection: "column", width: "100%", height: "100%", background: C.wash, fontFamily: "sans-serif" }}>
-        <div style={{ display: "flex", height: 12, background: C.accent }} />
-        <div style={{ display: "flex", flex: 1, alignItems: "center", padding: "0 80px" }}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={logo} width={150} height={150} style={{ borderRadius: 36, border: `1px solid ${C.border}` }} alt="" />
-          <div style={{ display: "flex", flexDirection: "column", marginLeft: 44 }}>
-            <div style={{ display: "flex", fontSize: 64, fontWeight: 700, color: C.ink }}>Oracle Consultancy</div>
-            <div style={{ display: "flex", fontSize: 34, color: C.muted, marginTop: 10 }}>Staff portal — your tasks, leave &amp; updates</div>
+      <div style={{ display: "flex", width: "100%", height: "100%", background: INK, padding: "0 84px", alignItems: "center", fontFamily: "sans-serif" }}>
+        <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
+          <div style={{ display: "flex", fontSize: 26, color: "#9A9CA1", letterSpacing: 0.5 }}>Oracle Consultancy</div>
+          <div style={{ display: "flex", flexDirection: "column", marginTop: 18, fontSize: 104, lineHeight: 1, color: "#F2F2F0", letterSpacing: -4, fontWeight: 500 }}>
+            <span>Task</span>
+            <span>Management</span>
           </div>
+          <div style={{ display: "flex", marginTop: 28, fontSize: 25, color: "#C9CBCF" }}>One place for every task, across every company.</div>
+        </div>
+        <div style={{ display: "flex", flexWrap: "wrap", width: CELL * 8 + GAP * 7, gap: GAP }}>
+          {SQUARES.map((k, i) => (
+            <div key={i} style={{ display: "flex", width: CELL, height: CELL, borderRadius: 9, background: BAND[k] }} />
+          ))}
         </div>
       </div>
     ),

@@ -1,5 +1,5 @@
 // Oracle service worker — bump CACHE_VERSION to force clients onto new assets.
-const CACHE_VERSION = "cos-v17"; // v17 = quick start: the last Home is shown at once and refreshed. v16 = the offline screen in the Studio look. v15 = a cached page keeps its own JS (one visit is now enough). v14 = the offline screen matches the real one.
+const CACHE_VERSION = "cos-v18"; // v18 = the one-square-per-task icon. v17 = quick start: the last Home is shown at once and refreshed. v16 = the offline screen in the Studio look. v15 = a cached page keeps its own JS (one visit is now enough). v14 = the offline screen matches the real one.
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const OFFLINE_URL = "/offline.html";
 
