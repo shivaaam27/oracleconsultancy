@@ -168,22 +168,22 @@ export function StudioAssets({ d }: { d: StudioAssetsData }) {
     return { id: "company", title: "Company", kind: "list", searchable: cs.length > 8, items: [opt("co", "", "All companies"), ...cs.map((c) => opt("co", String(c.id), c.name, ids.filter((i) => i === c.id).length))] };
   };
   const filterSections: FilterSection[] = view === "assets" ? [
+    coSection(live.map((a) => a.companyId)),
     { id: "status", title: "Status", kind: "list", items: [
       { key: "st-all", label: "All statuses", href: f.hrefFor({ st: "" }), active: !v.st && !d.archived },
       ...(["in_store", "assigned", "maintenance", "retired"] as AssetStatus[]).map((s) => opt("st", s, STATUS_WORD[s], live.filter((a) => a.status === s).length)),
       { key: "st-archived", label: "Archived", href: f.hrefFor({ st: "archived" }), active: d.archived },
     ] },
-    coSection(live.map((a) => a.companyId)),
     { id: "category", title: "Category", kind: "list", searchable: true, items: [opt("cat", "", "All categories"), ...[...new Set(live.map((a) => a.category).filter(Boolean) as string[])].sort().map((c) => opt("cat", c, c, live.filter((a) => a.category === c).length))] },
   ] : view === "tools" ? [
+    coSection(d.tools.map((t) => t.companyId)),
     { id: "condition", title: "Condition", kind: "list", items: [
       opt("cond", "", "Any condition"), opt("cond", "low", "Low stock", tStats.low), opt("cond", "good", "Good", tStats.good), opt("cond", "needs_repair", "Needs repair", tStats.repair), opt("cond", "retired", "Retired"),
     ] },
-    coSection(d.tools.map((t) => t.companyId)),
     { id: "site", title: "Site", kind: "list", searchable: tStats.sites.length > 8, items: [opt("site", "", "All sites"), ...tStats.sites.map(([s, e]) => opt("site", s, s, e.lines))] },
   ] : [
-    { id: "kind", title: "Kind", kind: "list", items: [opt("kind", "", "Every kind"), ...[...new Set(d.vendors.map((x) => x.category).filter(Boolean) as string[])].sort().map((k) => opt("kind", k, k, d.vendors.filter((x) => x.category === k).length))] },
     coSection(d.vendors.map((x) => x.companyId)),
+    { id: "kind", title: "Kind", kind: "list", items: [opt("kind", "", "Every kind"), ...[...new Set(d.vendors.map((x) => x.category).filter(Boolean) as string[])].sort().map((k) => opt("kind", k, k, d.vendors.filter((x) => x.category === k).length))] },
   ];
   const filterKeys = view === "assets" ? (["co", "cat", "st", "flag"] as const) : view === "tools" ? (["co", "site", "cond", "flag"] as const) : (["co", "kind", "flag"] as const);
   const activeFilters = filterKeys.filter((k) => v[k]).length;

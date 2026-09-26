@@ -516,13 +516,13 @@ export function StudioPeople({ people, companies, hints = {}, readOnly = false }
             <div className="flex shrink-0 items-center gap-1.5">
               <FilterPanelButton
                 sections={[
-                  ...(staff ? [] : [{ id: "show", title: "Show", kind: "list" as const, items: CHIPS.map(([k, l, dot]) => ({ key: k, label: l, count: counts[k], tone: k === "all" ? undefined : dot, href: f.hrefFor({ chip: k, mode: "browse" }), active: f.values.chip === k })) }]),
                   { id: "company", title: "Company", kind: "list" as const, searchable: companies.length > 8, items: [
                     { key: "all", label: "All companies", href: f.hrefFor({ co: "all" }), active: f.values.co === "all" },
                     ...companies.map((c) => ({ key: String(c.id), label: c.name, href: f.hrefFor({ co: String(c.id) }), active: f.values.co === String(c.id) })),
                   ] },
+                  ...(staff ? [] : [{ id: "show", title: "Show", kind: "list" as const, items: CHIPS.map(([k, l, dot]) => ({ key: k, label: l, count: counts[k], tone: k === "all" ? undefined : dot, href: f.hrefFor({ chip: k, mode: "browse" }), active: f.values.chip === k })) }]),
                   // Only once somebody has a work site or residence recorded.
-                  ...(locations.length ? [{ id: "location", title: "Location", kind: "list" as const, searchable: locations.length > 8, items: [
+                  ...(locations.length ? [{ id: "location", title: "Location", kind: "chips" as const, searchable: locations.length > 8, items: [
                     { key: "all", label: "All locations", href: f.hrefFor({ loc: "all" }), active: f.values.loc === "all" },
                     ...locations.map((l) => ({ key: l, label: l, href: f.hrefFor({ loc: l }), active: f.values.loc === l })),
                   ] }] : []),

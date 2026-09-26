@@ -462,7 +462,7 @@ export function CalendarBoard({
                   ...categories.map((c) => ({ key: String(c.id), label: c.name, href: url.hrefFor({ type: String(c.id) }), active: categoryFilter === String(c.id) })),
                   ...(categories.length ? [{ key: "none", label: "Uncategorised", href: url.hrefFor({ type: "none" }), active: categoryFilter === "none" }] : []),
                 ] },
-                { id: "source", title: "Source", kind: "list", items: [{ v: "all", l: "All sources" }, { v: "manual", l: "Manual" }, { v: "meeting", l: "From meeting" }, { v: "task", l: "From task" }]
+                { id: "source", title: "Source", kind: "chips", items: [{ v: "all", l: "All sources" }, { v: "manual", l: "Manual" }, { v: "meeting", l: "From meeting" }, { v: "task", l: "From task" }]
                   .map((x) => ({ key: x.v, label: x.l, href: url.hrefFor({ src: x.v }), active: sourceFilter === x.v })) },
                 { id: "show", title: "Show", kind: "chips", items: [
                   { key: "meetings", label: "Meetings only", active: meetingsOnly, onSelect: () => setMeetingsOnly((v) => !v) },

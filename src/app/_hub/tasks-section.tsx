@@ -620,10 +620,10 @@ export async function TasksSection({ sp }: { sp: Sp }) {
     ...chips.slice(1).map((c) => (c.key === "overdue" ? { ...c, label: "Late" } : c)),
   ];
   const filterSections: FilterSection[] = [
-    { id: "show", title: "Show", items: showItems },
-    { id: "stage", title: "Stage", items: statusOptions },
     { id: "company", title: "Company", items: companyOptions },
     { id: "person", title: "Person", note: personModeCreated ? "tasks they created" : "tasks given to them", items: personOptions },
+    { id: "show", title: "Show", items: showItems },
+    { id: "stage", title: "Stage", items: statusOptions },
     { id: "group", title: "Group by", items: groupOptions },
     { id: "flags", title: "Flags & lanes", items: moreItems },
     ...(view === "cards" && !showArchived

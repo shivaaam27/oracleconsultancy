@@ -158,9 +158,9 @@ export async function StaffStudioTasks({ me, sp }: { me: PortalPerson; sp: Staff
       <StudioSearchBar q={sp.q ?? ""} searchHrefBase={href({ q: undefined })}
         filter={<TaskFilterButton
           sections={[
-            { id: "show", title: "Show", items: lenses },
-            { id: "stage", title: "Stage", items: statusOptions },
             ...(companies.length > 1 ? [{ id: "company", title: "Company", items: companyOptions }] : []),
+            { id: "show", title: "Show", kind: "list" as const, items: lenses },
+            { id: "stage", title: "Stage", items: statusOptions },
           ]}
           activeCount={[sp.flag || sp.done || sp.quiet || sp.unread, sp.status, coId].filter(Boolean).length}
           clearHref={href({ flag: undefined, done: undefined, quiet: undefined, unread: undefined, status: undefined, co: undefined })}
