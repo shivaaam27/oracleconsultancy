@@ -222,7 +222,7 @@ function HeroNum({ n, label, short, color, href }: { n: number; label: string; s
       <div className="mt-1.5 whitespace-nowrap text-[11px] sm:text-xs" style={{ color }}>
         {/* Between lg and xl the card is narrow; the short label keeps the
             greeting on one line. */}
-        {short ? <><span className="hidden lg:inline xl:hidden">{short}</span><span className="lg:hidden xl:inline">{label}</span></> : label}
+        {short ? <><span className="hidden sm:inline xl:hidden">{short}</span><span className="sm:hidden xl:inline">{label}</span></> : label}
       </div>
     </Link>
   );
