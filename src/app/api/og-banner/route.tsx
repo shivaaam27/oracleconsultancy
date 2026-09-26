@@ -12,15 +12,16 @@ export const runtime = "nodejs";
 
 const INK = "#141517";
 const BAND = { q: "#CFE05A", m: "#19C37D", s: "#F5A524", l: "#E0479E" } as const;
-// 8 across x 6 down, in the Home card's order: quiet, moving, due soon, late.
+// The app icon's pattern: 5 across, 4 rows, the last row three long — quiet,
+// moving, due soon, late.
 const SQUARES: (keyof typeof BAND)[] = [
-  ...Array<keyof typeof BAND>(6).fill("q"),
-  ...Array<keyof typeof BAND>(24).fill("m"),
-  ...Array<keyof typeof BAND>(5).fill("s"),
-  ...Array<keyof typeof BAND>(13).fill("l"),
+  ...Array<keyof typeof BAND>(2).fill("q"),
+  ...Array<keyof typeof BAND>(9).fill("m"),
+  ...Array<keyof typeof BAND>(2).fill("s"),
+  ...Array<keyof typeof BAND>(5).fill("l"),
 ];
-const CELL = 40;
-const GAP = 10;
+const CELL = 66;
+const GAP = 13;
 
 export function GET() {
   return new ImageResponse(
@@ -34,9 +35,9 @@ export function GET() {
           </div>
           <div style={{ display: "flex", marginTop: 28, fontSize: 25, color: "#C9CBCF" }}>One place for every task, across every company.</div>
         </div>
-        <div style={{ display: "flex", flexWrap: "wrap", width: CELL * 8 + GAP * 7, gap: GAP }}>
+        <div style={{ display: "flex", flexWrap: "wrap", width: CELL * 5 + GAP * 4, gap: GAP, marginLeft: 40 }}>
           {SQUARES.map((k, i) => (
-            <div key={i} style={{ display: "flex", width: CELL, height: CELL, borderRadius: 9, background: BAND[k] }} />
+            <div key={i} style={{ display: "flex", width: CELL, height: CELL, borderRadius: 15, background: BAND[k] }} />
           ))}
         </div>
       </div>
