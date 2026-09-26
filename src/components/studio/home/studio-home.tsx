@@ -84,7 +84,7 @@ export function StudioHome({ data, links = OWNER_LINKS, heroAction, aside, after
                   live notice is on Announcements and the bell; the date and
                   the count sit quietly under the name. */}
               <div className="text-xs text-[var(--st-on-card-muted)] sm:text-[13px]">{greetDate}</div>
-              <h1 className="m-0 mt-1 text-[28px] font-medium leading-[1.08] tracking-[-0.025em] sm:text-[38px]">{greetHello}</h1>
+              <h1 className="m-0 mt-1 text-[28px] font-medium leading-[1.08] tracking-[-0.025em] sm:text-[34px] lg:text-[32px] xl:text-[38px]">{greetHello}</h1>
               <p className="m-0 mt-1.5 text-[14px] text-[var(--st-on-card-muted)] sm:text-[15px]">
                 Your {data.openCount} open {data.openCount === 1 ? "task" : "tasks"}, at a glance
               </p>
@@ -92,25 +92,10 @@ export function StudioHome({ data, links = OWNER_LINKS, heroAction, aside, after
             <div className="flex shrink-0 gap-[22px] sm:gap-6 sm:text-right">
               <HeroNum n={data.late} label="late" color="#F07BBE" href={links.late} />
               <HeroNum n={data.soon} label="due soon" color="#F5B94E" href={links.soon} />
-              <HeroNum n={data.done} label="done this month" color="#5BE0A5" href={links.done} />
+              <HeroNum n={data.done} label="done this month" short="done" color="#5BE0A5" href={links.done} />
             </div>
           </div>
-          <div className="min-h-3.5 flex-1 sm:min-h-4" />
-          {/* One square per open task (owner, 26 Sept 2026 — option 2 of the
-              mockup; it is also the app icon). Quiet, moving, due soon, late,
-              in that order; each square opens its task. */}
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(13px,1fr))] gap-[3px] sm:grid-cols-[repeat(auto-fill,minmax(15px,1fr))] sm:gap-1" aria-label="Each square is one open task, coloured by how it is doing">
-            {data.bars.map((b, i) => (
-              <Link
-                key={i}
-                href={b.href}
-                title={b.label}
-                aria-label={b.label}
-                className="st-pop block aspect-square rounded-[3px] transition-[transform,opacity] hover:scale-[1.18] hover:opacity-90"
-                style={{ background: BAND[b.band], animationDelay: `${Math.min(i * 6, 500)}ms` }}
-              />
-            ))}
-          </div>
+          <TaskSquares bars={data.bars} />
           {data.bars.length === 0 && <div className="text-[13px] text-[var(--st-on-card-muted)]">No open tasks — a clear desk.</div>}
           <div className="mt-3 flex items-center gap-3 text-[11px] text-[var(--st-on-card-muted)] sm:mt-3.5 sm:text-xs">
             <span className="min-w-0 flex-1 truncate">Each square is one task · tap one to open it</span>
@@ -176,11 +161,69 @@ function DueCard({ data }: { data: StudioHomeData }) {
   );
 }
 
-function HeroNum({ n, label, color, href }: { n: number; label: string; color: string; href: string }) {
+/** One square per open task, SIZED TO THE ROOM the card has (owner, 26 Sept
+ *  2026: "in web the card looks empty and off with the right card"). On a
+ *  desk the card is as tall as the Due card beside it; the squares take the
+ *  largest size that still fits every task into the space under the heading,
+ *  capped so a quiet week does not give three giant tiles. On a phone the card
+ *  grows with its content, so there is no height to fill — a steady 13-15px. */
+function TaskSquares({ bars }: { bars: StudioHomeData["bars"] }) {
+  const box = useRef<HTMLDivElement>(null);
+  const [fit, setFit] = useState<{ s: number; g: number; cols: number } | null>(null);
+  useEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    const measure = () => {
+      // Only from lg up is the card a fixed height (it matches the Due card);
+      // below that it grows with its content, and fitting to that would chase
+      // its own tail.
+      if (!window.matchMedia("(min-width: 1024px)").matches) { setFit(null); return; }
+      const pad = parseFloat(getComputedStyle(el).paddingTop) || 0;
+      const W = el.clientWidth, H = el.clientHeight - pad, n = Math.max(1, bars.length);
+      for (let size = 30; size >= 10; size--) {
+        const gap = Math.max(3, Math.round(size * 0.2));
+        const cols = Math.max(1, Math.floor((W + gap) / (size + gap)));
+        const rows = Math.ceil(n / cols);
+        if (rows * (size + gap) - gap <= H) { setFit({ s: size, g: gap, cols }); return; }
+      }
+      setFit({ s: 10, g: 3, cols: Math.max(1, Math.floor((W + 3) / 13)) });
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [bars.length]);
+  return (
+    <div ref={box} className="flex min-h-0 flex-1 flex-col justify-end pt-4 sm:pt-5">
+      <div
+        className={cn("grid", !fit && "grid-cols-[repeat(auto-fill,minmax(13px,1fr))] gap-[3px] sm:grid-cols-[repeat(auto-fill,minmax(15px,1fr))] sm:gap-1")}
+        style={fit ? { gridTemplateColumns: `repeat(${fit.cols}, ${fit.s}px)`, gap: fit.g } : undefined}
+        aria-label="Each square is one open task, coloured by how it is doing"
+      >
+        {bars.map((b, i) => (
+          <Link
+            key={i}
+            href={b.href}
+            title={b.label}
+            aria-label={b.label}
+            className="st-pop block aspect-square transition-[transform,opacity] hover:scale-[1.15] hover:opacity-90"
+            style={{ background: BAND[b.band], borderRadius: fit ? Math.round(fit.s * 0.24) : 3, animationDelay: `${Math.min(i * 6, 500)}ms` }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function HeroNum({ n, label, short, color, href }: { n: number; label: string; short?: string; color: string; href: string }) {
   return (
     <Link href={href} className="group">
-      <div className="text-[30px] leading-none tracking-[-0.03em] tabular-nums group-hover:opacity-80">{n}</div>
-      <div className="mt-1 text-[11px]" style={{ color }}>{label}</div>
+      <div className="text-[30px] leading-none tracking-[-0.03em] tabular-nums group-hover:opacity-80 sm:text-[40px] xl:text-[52px]">{n}</div>
+      <div className="mt-1.5 whitespace-nowrap text-[11px] sm:text-xs" style={{ color }}>
+        {/* Between lg and xl the card is narrow; the short label keeps the
+            greeting on one line. */}
+        {short ? <><span className="hidden lg:inline xl:hidden">{short}</span><span className="lg:hidden xl:inline">{label}</span></> : label}
+      </div>
     </Link>
   );
 }
