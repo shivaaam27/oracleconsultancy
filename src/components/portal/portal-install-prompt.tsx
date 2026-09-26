@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Download, X, Share, Plus } from "lucide-react";
 
 /* Portal "Install this app" prompt.
@@ -13,7 +13,15 @@ import { Download, X, Share, Plus } from "lucide-react";
  *     Home Screen steps instead.
  *   - Already installed (running standalone): render nothing.
  *
- * Dismissals are remembered for 14 days so we never nag. */
+ * Dismissals are remembered for 14 days so we never nag.
+ *
+ * Studio look (owner, 26 Sept 2026: "make that also look modern"): a card that
+ * floats above the footer instead of a bar pushed across the top of the page,
+ * one nudge at a time — install first, notifications after (portal-notify-
+ * prompt.tsx waits for this one). ⚠️ `beforeinstallprompt` fires BEFORE React
+ * has hydrated, so the offer is read from where the head script parks it
+ * (`window.__cosInstallPrompt`, install-app.tsx) — a listener added here alone
+ * missed it and the Install button almost never appeared on Android. */
 
 const DISMISS_KEY = "cos.installPrompt.dismissedAt";
 const SNOOZE_MS = 14 * 24 * 60 * 60 * 1000; // 14 days
@@ -64,13 +72,18 @@ export function PortalInstallPrompt() {
   useEffect(() => {
     if (isStandalone() || recentlyDismissed()) return;
 
-    // Android / desktop Chromium: the browser tells us install is available.
+    // Android / desktop Chromium: the offer the head script parked, or the
+    // one that arrives later.
+    const w = window as unknown as { __cosInstallPrompt?: BeforeInstallPromptEvent | null };
+    const take = () => { if (w.__cosInstallPrompt) { setDeferred(w.__cosInstallPrompt); setMode("native"); } };
+    take();
     const onBeforeInstall = (e: Event) => {
       e.preventDefault(); // stop Chrome's own mini-infobar; we drive it ourselves
       setDeferred(e as BeforeInstallPromptEvent);
       setMode("native");
     };
     window.addEventListener("beforeinstallprompt", onBeforeInstall);
+    window.addEventListener("cos:installable", take);
 
     // Once installed, never show again this session.
     const onInstalled = () => setMode("hidden");
@@ -81,6 +94,7 @@ export function PortalInstallPrompt() {
 
     return () => {
       window.removeEventListener("beforeinstallprompt", onBeforeInstall);
+      window.removeEventListener("cos:installable", take);
       window.removeEventListener("appinstalled", onInstalled);
     };
   }, []);
@@ -100,51 +114,69 @@ export function PortalInstallPrompt() {
     await deferred.userChoice;
     // Whatever they chose, the event is single-use — drop it and stand down.
     setDeferred(null);
+    (window as unknown as { __cosInstallPrompt?: unknown }).__cosInstallPrompt = null;
     setMode("hidden");
   }
 
   if (mode === "hidden") return null;
 
   return (
-    <div className="glass elevated rounded-2xl p-3.5 print-hidden">
+    <NudgeCard
+      id="install"
+      icon={<img src="/icon-192.png" alt="" className="h-10 w-10 rounded-[11px]" />}
+      title="Install Oracle on this device"
+      onDismiss={dismiss}
+      action={mode === "native" ? { label: "Install", icon: <Download size={14} />, onClick: install } : undefined}
+    >
+      {mode === "native" ? (
+        "One tap to open, full screen, and it starts faster."
+      ) : (
+        <span className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
+          <Step n={1}>Tap <Share size={12} className="inline" aria-label="Share" /> Share</Step>
+          <Step n={2}>Add to Home Screen <Plus size={12} className="inline" aria-hidden /></Step>
+        </span>
+      )}
+    </NudgeCard>
+  );
+}
+
+function Step({ n, children }: { n: number; children: ReactNode }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg bg-[var(--sh-field)] px-2 py-1 text-[12px] text-[var(--sh-fg)]">
+      <span className="flex h-4 w-4 items-center justify-center rounded-full bg-[var(--sh-on-bg)] text-[10px] font-semibold text-[var(--sh-on-fg)]">{n}</span>
+      {children}
+    </span>
+  );
+}
+
+/** A nudge: one small card floating above the footer (install, notifications). */
+export function NudgeCard({ id, icon, title, children, onDismiss, action }: {
+  id: string;
+  icon: ReactNode;
+  title: string;
+  children: ReactNode;
+  onDismiss: () => void;
+  action?: { label: string; icon?: ReactNode; onClick: () => void; busy?: boolean };
+}) {
+  return (
+    <div data-nudge={id} role="dialog" aria-label={title}
+      className="studio st-sheet st-pop print-hidden fixed inset-x-3 bottom-[calc(var(--foot-h)+var(--foot-safe)+12px)] z-[44] rounded-[18px] border border-[var(--sh-line)] bg-[var(--sh-bg)] p-3.5 text-[var(--sh-fg)] shadow-[0_18px_50px_rgba(17,18,20,0.22)] [font-family:var(--font-geist),var(--font-sans)] sm:left-auto sm:right-6 sm:w-[400px]">
       <div className="flex items-start gap-3">
-        <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent/12 text-accent">
-          <Download size={17} />
-        </div>
+        <span className="shrink-0">{icon}</span>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold">Install the Oracle Consultancy app</p>
-          {mode === "native" ? (
-            <p className="mt-0.5 text-xs text-fg-muted">
-              Add it to your device for one-tap access, full-screen and faster opening.
-            </p>
-          ) : (
-            <p className="mt-0.5 text-xs text-fg-muted">
-              In Safari, tap the Share button{" "}
-              <Share size={12} className="inline -mt-0.5 mx-0.5" aria-label="Share" /> then{" "}
-              <span className="whitespace-nowrap font-medium text-fg">
-                Add to Home Screen <Plus size={12} className="inline -mt-0.5" aria-label="add" />
-              </span>
-              .
-            </p>
-          )}
-          {mode === "native" && (
-            <button
-              type="button"
-              onClick={install}
-              className="mt-2.5 inline-flex items-center gap-1.5 rounded-full bg-accent px-3.5 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90"
-            >
-              <Download size={13} /> Install app
-            </button>
-          )}
+          <p className="text-[14px] font-semibold leading-snug">{title}</p>
+          <div className="mt-1 text-[12.5px] leading-relaxed text-[var(--sh-sub)]">{children}</div>
+          <div className="mt-3 flex items-center gap-2">
+            {action && (
+              <button type="button" onClick={action.onClick} disabled={action.busy}
+                className="inline-flex h-9 items-center gap-1.5 rounded-[10px] bg-[var(--sh-on-bg)] px-3.5 text-[13px] font-semibold text-[var(--sh-on-fg)] transition-opacity hover:opacity-90 disabled:opacity-60">
+                {action.icon}{action.label}
+              </button>
+            )}
+            <button type="button" onClick={onDismiss} className="inline-flex h-9 items-center rounded-[10px] px-2.5 text-[13px] text-[var(--sh-sub)] hover:text-[var(--sh-fg)]">Not now</button>
+          </div>
         </div>
-        <button
-          type="button"
-          onClick={dismiss}
-          aria-label="Dismiss"
-          className="-mr-1 -mt-1 rounded-full p-1.5 text-fg-muted transition-colors hover:text-fg"
-        >
-          <X size={15} />
-        </button>
+        <button type="button" onClick={onDismiss} aria-label="Dismiss" className="-mr-1 -mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px] text-[var(--sh-sub)] hover:text-[var(--sh-fg)]"><X size={15} /></button>
       </div>
     </div>
   );

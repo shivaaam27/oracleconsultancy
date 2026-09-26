@@ -16,7 +16,7 @@ import { openReport } from "@/components/studio/report-sheet";
 import { useEffect, useRef, useState, useTransition, type PointerEvent as RPointerEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronDown, ChevronLeft, ChevronRight, FileText, Loader2, Megaphone, Zap } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, FileText, Loader2, Zap } from "lucide-react";
 import { runAutomationsNowAction, sendBriefNowAction, setAutomationPausedAction, setDirectorOutreachPausedAction, setAiEnabledAction, setEmailTestModeAction } from "@/app/_hub/control-actions";
 import { useToast } from "@/components/shell/toast";
 import { StudioScope } from "@/components/studio/kit";
@@ -58,17 +58,19 @@ const OWNER_LINKS: StudioHomeLinks = { late: "/?tab=tasks&flag=overdue", soon: "
  * bottom row (their to-do list); `phone` adds folds on a phone. `heroAction`
  * replaces the Report button, `announcementAction` sits beside the live notice.
  */
-export function StudioHome({ data, links = OWNER_LINKS, heroAction, announcementAction, aside, after, phone }: {
+export function StudioHome({ data, links = OWNER_LINKS, heroAction, aside, after, phone }: {
   data: StudioHomeData;
   links?: StudioHomeLinks;
   heroAction?: React.ReactNode;
-  announcementAction?: React.ReactNode;
   aside?: React.ReactNode;
   after?: React.ReactNode;
   phone?: { before?: React.ReactNode; after?: React.ReactNode };
 }) {
   const grid = useRef<HTMLDivElement>(null);
   useFitFrame(grid, { minimum: 560 });
+  // "Good afternoon, Shivam · Friday 26 September" → the hello, and the date.
+  const [greetHello, ...greetRest] = data.greeting.split(" · ");
+  const greetDate = greetRest.join(" · ");
 
   return (
     <StudioScope>
@@ -77,22 +79,15 @@ export function StudioHome({ data, links = OWNER_LINKS, heroAction, announcement
         <section className="flex min-w-0 flex-col rounded-[18px] bg-[var(--st-card)] px-[18px] py-4 text-[var(--st-on-card)] sm:px-6 sm:py-5 lg:col-span-2">
           <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:gap-4">
             <div className="w-full min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[var(--st-on-card)] sm:text-[13px]">
-                {data.greeting}
-                {data.announcements && (
-                  <span className="inline-flex min-w-0 max-w-full items-center gap-1">
-                  <Link href={links.announcements} className="inline-flex min-w-0 max-w-[22rem] items-center gap-1.5 rounded-lg bg-[#1F2023] px-2 py-0.5 text-xs text-[#E6E6E3] hover:bg-[#26282C]">
-                    <Megaphone size={12} className="shrink-0" />
-                    <span className="truncate">Live: {data.announcements.first}</span>
-                    {data.announcements.count > 1 && <span className="shrink-0 text-[var(--st-on-card-muted)]">+{data.announcements.count - 1}</span>}
-                  </Link>
-                  {announcementAction}
-                  </span>
-                )}
-              </div>
-              <h1 className="m-0 mt-2 text-[24px] font-medium leading-[1.1] tracking-[-0.02em] sm:mt-1.5 sm:text-[30px] sm:leading-tight">
+              {/* The greeting IS the heading (owner, 26 Sept 2026: "remove the
+                  announcement, it's cluttery … make the greeting big"). The
+                  live notice is on Announcements and the bell; the date and
+                  the count sit quietly under the name. */}
+              <div className="text-xs text-[var(--st-on-card-muted)] sm:text-[13px]">{greetDate}</div>
+              <h1 className="m-0 mt-1 text-[28px] font-medium leading-[1.08] tracking-[-0.025em] sm:text-[38px]">{greetHello}</h1>
+              <p className="m-0 mt-1.5 text-[14px] text-[var(--st-on-card-muted)] sm:text-[15px]">
                 Your {data.openCount} open {data.openCount === 1 ? "task" : "tasks"}, at a glance
-              </h1>
+              </p>
             </div>
             <div className="flex shrink-0 gap-[22px] sm:gap-6 sm:text-right">
               <HeroNum n={data.late} label="late" color="#F07BBE" href={links.late} />

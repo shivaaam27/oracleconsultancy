@@ -91,6 +91,32 @@ export function StudioShell({ needs, director = null }: { needs: NonNullable<Stu
     [vis, isDirector, isStaff, directorOutbox, directorCleaning, staffTasks, staffCleaning],
   );
   // Your own order (the Go-to panel's Edit) — the footer's ‹ › follow it too.
+  // The keyboard is up when the visual viewport is much shorter than the
+  // window — then the footer and the frame step aside (globals.css,
+  // html[data-keyboard]). Only on touch screens, and only while a text field
+  // has the focus, so a resized desktop window never trips it.
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv || !window.matchMedia("(pointer: coarse)").matches) return;
+    const html = document.documentElement;
+    const check = () => {
+      const el = document.activeElement as HTMLElement | null;
+      const typing = !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable);
+      const up = typing && window.innerHeight - vv.height > 140;
+      if (up) html.setAttribute("data-keyboard", ""); else html.removeAttribute("data-keyboard");
+    };
+    const onOut = () => window.setTimeout(check, 50);
+    vv.addEventListener("resize", check);
+    document.addEventListener("focusin", check);
+    document.addEventListener("focusout", onOut);
+    return () => {
+      vv.removeEventListener("resize", check);
+      document.removeEventListener("focusin", check);
+      document.removeEventListener("focusout", onOut);
+      html.removeAttribute("data-keyboard");
+    };
+  }, []);
+
   // "+" opens with its lists ready: fetch them once the page has settled.
   useEffect(() => {
     if (isStaff) return;

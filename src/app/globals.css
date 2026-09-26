@@ -1612,6 +1612,15 @@ html[data-motion="reduced"] .st-panel-in { animation: none; }
   }
 }
 html.dark .studio-frame { box-shadow: 0 0 0 100vmax #050506; }
+/* The keyboard is up (owner, 26 Sept 2026: "when I search, around the edges it
+   looks like a separate layer, not unified"). The footer and the dark frame
+   are fixed to the LAYOUT viewport, so with the keyboard open they float
+   mid-screen and the page's rounded edge shows as a band. While typing, the
+   page is the whole screen: no frame, no footer, and a bar that sat above the
+   footer drops to the edge. `data-keyboard` is set by the Studio shell. */
+html[data-keyboard] .studio-frame,
+html[data-keyboard] [data-studio-foot] { display: none !important; }
+html[data-keyboard] { --foot-h: 0px; --foot-safe: 0px; }
 html.dark [data-studio-foot] { background: #050506; }
 /* Sticky bars clear the frame's top edge and the footer. */
 html body:has([data-studio-frame]) [data-sticky-top] { top: calc(var(--page-top) + 8px); }

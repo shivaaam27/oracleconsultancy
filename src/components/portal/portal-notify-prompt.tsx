@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Bell, X, Loader2 } from "lucide-react";
+import { Bell, Loader2 } from "lucide-react";
+import { NudgeCard } from "./portal-install-prompt";
 
 /* Portal "Turn on notifications" nudge.
  *
@@ -54,6 +55,9 @@ export function PortalNotifyPrompt() {
       try {
         const reg = await navigator.serviceWorker.getRegistration();
         const sub = reg ? await reg.pushManager.getSubscription() : null;
+        // One nudge at a time: the install card goes first.
+        await new Promise((r) => setTimeout(r, 1500));
+        if (document.querySelector('[data-nudge="install"]')) return;
         if (!sub) setShow(true);
       } catch {
         setShow(true);
@@ -96,38 +100,14 @@ export function PortalNotifyPrompt() {
   if (!show) return null;
 
   return (
-    <div className="glass elevated rounded-2xl p-3.5 print-hidden">
-      <div className="flex items-start gap-3">
-        <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent/12 text-accent">
-          <Bell size={17} />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold">Turn on notifications</p>
-          <p className="mt-0.5 text-xs text-fg-muted">
-            Get a push alert (with the message) the moment someone messages you or a task needs you — not just the bell.
-          </p>
-          {msg ? (
-            <p className="mt-2 text-xs text-fg-subtle">{msg}</p>
-          ) : (
-            <button
-              type="button"
-              onClick={enable}
-              disabled={busy}
-              className="mt-2.5 inline-flex items-center gap-1.5 rounded-full bg-accent px-3.5 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
-            >
-              {busy ? <Loader2 size={13} className="animate-spin" /> : <Bell size={13} />} Enable on this device
-            </button>
-          )}
-        </div>
-        <button
-          type="button"
-          onClick={dismiss}
-          aria-label="Dismiss"
-          className="-mr-1 -mt-1 rounded-full p-1.5 text-fg-muted transition-colors hover:text-fg"
-        >
-          <X size={15} />
-        </button>
-      </div>
-    </div>
+    <NudgeCard
+      id="notify"
+      icon={<span className="flex h-10 w-10 items-center justify-center rounded-[11px] bg-[var(--sh-on-bg)] text-[var(--sh-on-fg)]"><Bell size={17} /></span>}
+      title="Turn on notifications"
+      onDismiss={dismiss}
+      action={msg ? undefined : { label: "Turn on", icon: busy ? <Loader2 size={14} className="animate-spin" /> : <Bell size={14} />, onClick: () => void enable(), busy }}
+    >
+      {msg ?? "Hear the moment a task is given to you or needs you — not only on the bell."}
+    </NudgeCard>
   );
 }

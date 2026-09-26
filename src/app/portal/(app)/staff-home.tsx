@@ -24,7 +24,7 @@ import { getGivenName } from "@/lib/people/names";
 import { withReturn } from "@/lib/nav/return-to";
 import { portalTaskHref } from "@/lib/portal/portal-task-href";
 import { StudioHome, type StudioHomeData, type HomeItem } from "@/components/studio/home/studio-home";
-import { StaffCheckinCard, StaffCheckinFold, StaffTodoCard, StaffTodoFold, AnnouncementAck } from "@/components/studio/home/staff-cards";
+import { StaffCheckinCard, StaffCheckinFold, StaffTodoCard, StaffTodoFold } from "@/components/studio/home/staff-cards";
 
 const DAY = 86_400_000;
 const QUIET_MS = 7 * DAY;
@@ -151,7 +151,7 @@ export async function StaffStudioHome({ me }: { me: PortalPerson }) {
     <StudioHome
       data={data}
       links={{ late: "/portal/tasks?flag=overdue", soon: "/portal/tasks?flag=due-soon", done: "/portal/tasks?done=1", announcements: "/portal/announcements" }}
-      announcementAction={waiting[0] ? <AnnouncementAck id={waiting[0].id} requireAck={!!waiting[0].requireAck} /> : null}
+
       heroAction={
         <Link href="/portal/profile#kpi" className="inline-flex h-8 items-center gap-1.5 rounded-[9px] bg-[#1F2023] px-3 text-xs font-medium text-[#E6E6E3] transition-colors hover:bg-[#26282C]">
           <Sparkles size={13} />How I did in {monthName}
