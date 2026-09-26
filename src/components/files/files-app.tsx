@@ -476,7 +476,7 @@ export function FilesApp({ library, companies, initialOpen, initialCompany, init
           "all the pages have these two cards… there must be continuity") —
           built from the same kit as Companies' Portfolio + Most at risk.
           Inside a folder they speak for that folder. */}
-      <StudioCardRow className="lg:h-[210px]">
+      <StudioCardRow>
         <StudioCard tone="dark">
           <CardHead label={scopeName} right={`${fmtSize(scopeSize)} stored`} />
           <div className="mt-auto flex flex-wrap items-end gap-x-7 gap-y-3 pt-3 sm:gap-y-4 sm:pt-4">

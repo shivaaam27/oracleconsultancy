@@ -11,7 +11,6 @@ import { type FilterChip, type FilterOption, type IdentityStrip } from "@/compon
 import { parseViewMode } from "@/app/task/_views/view-switcher";
 import { BoardView } from "@/app/task/_views/board-view";
 import { TableView } from "@/app/task/_views/table-view";
-import { CardsView, FocusQueue, type CompanyMeta } from "@/app/task/_views/cards-view";
 import { CalendarView } from "@/app/task/_views/calendar-view";
 import { TimelineView } from "@/app/task/_views/timeline-view";
 import { SelectionProvider, BulkBar } from "@/app/task/_views/selection";
@@ -36,8 +35,6 @@ type Sp = {
   group?: string;
   archived?: string;
   kind?: string; // "auto" = the renewals/admin lane (created_by "automation")
-  /** Cards view: "focus" = the ranked Focus queue. */
-  mode?: string;
   /** "1" = the Done tab (Completed/Closed only). */
   done?: string;
   /** "1" = only tasks quiet 7+ days (no update). */
@@ -91,7 +88,6 @@ function buildHref(sp: Sp, overrides: Partial<Sp>): string {
   if (next.group) u.set("group", next.group);
   if (next.archived) u.set("archived", next.archived);
   if (next.kind) u.set("kind", next.kind);
-  if (next.mode) u.set("mode", next.mode);
   if (next.done) u.set("done", next.done);
   if (next.quiet) u.set("quiet", next.quiet);
   if (next.who) u.set("who", next.who);
@@ -202,8 +198,7 @@ export async function TasksSection({ sp }: { sp: Sp }) {
     ? Object.fromEntries(all.map((r) => [r.id, { code: r.code, legacyCode: r.legacyCode, companyName: r.companyName, companyAccent: r.companyAccent, actionItem: r.actionItem }]))
     : {};
 
-  // Modes: "focus" = the ranked chase queue (cards); done=1 = Completed/Closed only.
-  const focusMode = sp.mode === "focus" && view === "cards" && !showArchived;
+  // done=1 = Completed/Closed only.
   const doneTab = sp.done === "1" && !showArchived;
 
   // Person filter (id) + mode ("created" = tasks they raised, else assigned).
@@ -262,7 +257,7 @@ export async function TasksSection({ sp }: { sp: Sp }) {
 
   // Company logo/accent lookup for the housed group headers + identity strip —
   // built for ALL companies so empty housings still get their logo.
-  const companyMeta: CompanyMeta = {};
+  const companyMeta: Record<string, { logoUrl: string | null; accent: string | null }> = {};
   for (const c of allCompanyRows) {
     companyMeta[c.name] = { logoUrl: logoMap.get(c.id) ?? null, accent: c.accent };
   }
@@ -313,7 +308,7 @@ export async function TasksSection({ sp }: { sp: Sp }) {
 
   // Sort order follows the active filter (owner's ask): most-recent for the
   // default/status views, most-overdue for Overdue, nearest for Due soon,
-  // quietest for Quiet, most-recently-closed for Done. Passed to CardsView.
+  // quietest for Quiet, most-recently-closed for Done.
   const sortMode: "recent" | "overdue" | "duesoon" | "quiet" | "done" =
     doneTab ? "done"
     : sp.flag === "overdue" ? "overdue"
@@ -394,10 +389,9 @@ export async function TasksSection({ sp }: { sp: Sp }) {
     },
   ];
 
-  // Group-by. Cards default to company; "none" is explicit.
+  // Group-by (the list only).
   const groupBy = (["company", "status", "person"].includes(sp.group || "") ? sp.group : null) as
     | "company" | "status" | "person" | null;
-  const cardsGroupBy = view === "cards" ? (sp.group === "none" ? null : (groupBy ?? "company")) : null;
 
   /* ---------- Stage 2: the list's left rail + column sorting ----------
      The rail is the same data as the chips and pickers above — the counts are
@@ -454,8 +448,8 @@ export async function TasksSection({ sp }: { sp: Sp }) {
 
   /** A "group the list this way" switch, placed beside All companies / Everyone. */
   const groupToggle = (key: "company" | "person", label: string): FilterOption => {
-    const on = view === "cards" ? cardsGroupBy === key : groupBy === key;
-    return { key: `group-${key}`, label, href: buildHref(sp, { group: on ? (view === "cards" ? "none" : undefined) : key }), active: on };
+    const on = groupBy === key;
+    return { key: `group-${key}`, label, href: buildHref(sp, { group: on ? undefined : key }), active: on };
   };
 
   /* ---------- Identity strip ---------- */
@@ -624,24 +618,18 @@ export async function TasksSection({ sp }: { sp: Sp }) {
     { id: "show", title: "Show", items: showItems },
     { id: "stage", title: "Stage", items: statusOptions },
     { id: "flags", title: "Flags & lanes", items: moreItems },
-    ...(view === "cards" && !showArchived
-      ? [{ id: "cards", title: "Cards", note: "Focus = the chase queue, worst first", items: [
-          { key: "focus", label: "Focus", href: buildHref(sp, { mode: "focus", done: undefined }), active: focusMode },
-          { key: "browse", label: "Browse", href: buildHref(sp, { mode: undefined }), active: !focusMode },
-        ] }]
-      : []),
   ];
   const activeFilterCount =
     [sp.flag, sp.status, sp.priority, sp.quiet, sp.unread, sp.done, sp.noOwner, sp.archived, sp.kind, sp.company, sp.who].filter(Boolean).length +
     (groupBy ? 1 : 0);
 
-  const empty = total === 0 && view !== "calendar" && view !== "timeline" && !focusMode;
+  const empty = total === 0 && view !== "calendar" && view !== "timeline";
   const quickAddNode = (
     <TaskActions
       companies={companyList}
       people={peopleNames}
       defaultCompanyId={quickDefaultCompanyId}
-      showInline={(view === "table" || view === "board" || view === "cards") && !focusMode && !doneTab}
+      showInline={(view === "table" || view === "board") && !doneTab}
     />
   );
   return (
@@ -674,24 +662,12 @@ export async function TasksSection({ sp }: { sp: Sp }) {
           ) : view === "calendar" ? (
             <CalendarView rows={rows} month={sp.month} queryWithoutMonth={queryWithoutView(sp)} />
           ) : view === "timeline" ? (
-            <TimelineView rows={rows} sources={taskSources} activity={activity} taskMeta={taskMeta} />
+            <TimelineView rows={rows} sources={taskSources} activity={activity} taskMeta={taskMeta} ownerView={!director} />
           ) : (
             <SelectionProvider>
               <BulkBar />
               {view === "board" ? (
                 <BoardView rows={rows} showClosed={showClosed} />
-              ) : view === "cards" ? (
-                focusMode ? (
-                  <FocusQueue rows={rows.filter(isOpenRow)} />
-                ) : (
-                  <CardsView
-                    rows={rows}
-                    groupBy={cardsGroupBy}
-                    companyMeta={companyMeta}
-                    sortMode={sortMode}
-                    allCompanies={cardsGroupBy === "company" ? companyList.map((c) => c.name) : undefined}
-                  />
-                )
               ) : (
                 <TableView
                   rows={rows}

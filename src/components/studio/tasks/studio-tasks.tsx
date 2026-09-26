@@ -8,7 +8,7 @@
  */
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { Archive, Sparkles, CheckSquare, LayoutGrid, LayoutList, Table2, CalendarDays, GitCommitVertical } from "lucide-react";
+import { Archive, Sparkles, CheckSquare, LayoutGrid, Table2, CalendarDays, GitCommitVertical } from "lucide-react";
 import type { TaskRow } from "@/lib/tasks/queries";
 import type { IdentityStrip } from "@/components/tasks/task-filter-bar";
 import type { RecordFilter } from "@/components/kit/record-list";
@@ -22,8 +22,8 @@ import { TaskFilterButton } from "./filter-panel";
 import { VIEW_MODES, type ViewMode } from "@/app/task/_views/view-switcher";
 import { cn } from "@/lib/cn";
 
-const VIEW_LABEL: Record<ViewMode, string> = { table: "List", cards: "Cards", board: "Board", calendar: "Calendar", timeline: "Timeline" };
-const VIEW_ICON: Record<ViewMode, typeof Table2> = { table: Table2, cards: LayoutList, board: LayoutGrid, calendar: CalendarDays, timeline: GitCommitVertical };
+const VIEW_LABEL: Record<ViewMode, string> = { table: "List", board: "Board", calendar: "Calendar", timeline: "Timeline" };
+const VIEW_ICON: Record<ViewMode, typeof Table2> = { table: Table2, board: LayoutGrid, calendar: CalendarDays, timeline: GitCommitVertical };
 
 export type StudioTasksProps = {
   title: string;
@@ -52,6 +52,14 @@ export type StudioTasksProps = {
 };
 
 export function StudioTasks(p: StudioTasksProps) {
+  const search = (inline: boolean) => (
+    <StudioSearchBar
+      inline={inline}
+      q={p.q}
+      searchHrefBase={p.searchHrefBase}
+      filter={<TaskFilterButton sections={p.filterSections} activeCount={p.activeFilterCount} clearHref={p.clearHref} extra={p.savedViews} />}
+    />
+  );
   return (
     <StudioScope className="space-y-5">
       <StudioPickProvider>
@@ -98,14 +106,13 @@ export function StudioTasks(p: StudioTasksProps) {
           <UpdateCard fresh={p.fresh} unreadCount={p.unreadCount} postedToday={p.updatedToday} />
         </StudioCardRow>
 
+        {/* The list keeps its floating bar; the Board, Calendar and Timeline
+            take it inline, above the view, so it never sits over them. */}
+        {p.view !== "table" && search(true)}
         {p.quickAdd}
         {p.body}
 
-        <StudioSearchBar
-          q={p.q}
-          searchHrefBase={p.searchHrefBase}
-          filter={<TaskFilterButton sections={p.filterSections} activeCount={p.activeFilterCount} clearHref={p.clearHref} extra={p.savedViews} />}
-        />
+        {p.view === "table" && search(false)}
         <TaskPanel rows={p.tableRows} extra={p.fresh} />
       </StudioPickProvider>
     </StudioScope>

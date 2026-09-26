@@ -118,7 +118,7 @@ export function StudioCompanies({ data }: { data: StudioCompaniesData }) {
 
       {tab === "companies" && (
         <>
-          <StudioCardRow className="lg:h-[210px]">
+          <StudioCardRow>
             <StudioCard tone="dark">
               <CardHead label={staff ? "Your companies" : "Portfolio"} right={`${cos.length} ${cos.length === 1 ? "company" : "companies"}`} />
               <div className="mt-auto flex flex-wrap items-end gap-x-7 gap-y-4 pt-4">

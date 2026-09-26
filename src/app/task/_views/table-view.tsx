@@ -274,7 +274,7 @@ export function TableView({
       },
     },
     {
-      key: "deadline", label: "Deadline", width: "96px", ...sortProps("deadline"),
+      key: "deadline", label: "Deadline", width: "124px", ...sortProps("deadline"),
       csv: (r) => (r.deadline ? new Date(r.deadline).toISOString().slice(0, 10) : ""),
       render: (r) => <Stop className="min-w-0"><DeadlineEditor code={r.code} deadline={r.deadline} daysToDeadline={r.daysToDeadline} studio /></Stop>,
     },

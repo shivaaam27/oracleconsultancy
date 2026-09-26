@@ -86,7 +86,7 @@ export function StudioAsset({ a, history, services, lists }: { a: AssetRow; hist
         </div>
       </div>
 
-      <StudioCardRow className="lg:h-[230px]">
+      <StudioCardRow>
         <StudioCard className="min-h-[210px]">
           <CardHead label={a.status === "assigned" ? "Held by" : "Where it is"} right={a.location ? <span>{a.location}</span> : undefined} />
           <div className="mt-auto flex items-end gap-4 pt-3">

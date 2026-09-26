@@ -148,7 +148,7 @@ export function OfflineNoteShelf({
 
       {bar}
 
-      <StudioCardRow className="lg:h-[232px]">
+      <StudioCardRow>
         {/* Ask your notes — ORI reads them on the server. Shown, held back, and
             saying why, rather than missing from the page. */}
         <StudioCard texture="dots" className="min-h-[210px]">

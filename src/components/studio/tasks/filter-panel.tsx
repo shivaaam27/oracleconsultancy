@@ -42,7 +42,7 @@ export type FilterItem = {
 export type FilterSection = { id?: string; title: string; note?: string; items: FilterItem[]; kind?: "list" | "chips"; searchable?: boolean };
 
 const TONE_DOT: Record<string, string> = { danger: "#E0479E", warn: "#F5A524", info: "#2490EF", success: "#19C37D" };
-const CHIP_IDS = new Set(["show", "stage", "group", "flags", "cards"]);
+const CHIP_IDS = new Set(["show", "stage", "group", "flags"]);
 const kindOf = (s: FilterSection) => s.kind ?? (s.id && CHIP_IDS.has(s.id) ? "chips" : "list");
 
 // Survives the remount a filter change causes (see the header).

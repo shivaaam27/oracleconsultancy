@@ -110,7 +110,7 @@ export function StudioCleaningToday({ dateIso, today, floor, day, areas, checks,
         }
       />
 
-      <StudioCardRow className="lg:h-[220px]">
+      <StudioCardRow>
         <StudioCard className="min-h-[200px]">
           <CardHead label={longDate(dateIso)} right={<span style={{ color: STATUS_ON_CARD[status] }}>{signed ? `Signed off${day.signedByName ? ` by ${day.signedByName}` : ""}${day.signedAt ? ` · ${time(day.signedAt)}` : ""}` : status === "Complete" ? "Complete — sign it off" : status}</span>} />
           <div className="mt-auto flex items-end gap-6 pt-3">

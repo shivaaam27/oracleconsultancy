@@ -116,7 +116,7 @@ export function StudioSupplies({ items, purchases, issues, companies, people, la
         }
       />
 
-      <StudioCardRow className="lg:h-[220px]">
+      <StudioCardRow>
         <StudioCard className="min-h-[200px]">
           <CardHead label="Stock" right={<span>current = opening + bought − issued</span>} />
           <div className="mt-auto flex items-end gap-6 pt-3">

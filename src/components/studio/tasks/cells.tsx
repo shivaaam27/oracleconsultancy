@@ -181,7 +181,10 @@ export function StudioFaces({ names, max = 3 }: { names: string[]; max?: number 
         </span>
       ))}
       {more > 0 && (
-        <span className="-ml-[7px] flex h-[26px] min-w-[26px] items-center justify-center rounded-full border-2 border-[var(--st-surface)] bg-[var(--st-seg)] px-1 text-[9px] font-semibold text-[var(--st-sub)]">+{more}</span>
+        // Built like a face (and wearing the same outer line — data-face).
+        <span className="-ml-[7px] flex rounded-full border-2 border-[var(--st-surface)]">
+          <span data-face="" className="flex h-[22px] min-w-[22px] items-center justify-center rounded-full bg-[var(--st-seg)] px-1 text-[9px] font-semibold text-[var(--st-sub)]">+{more}</span>
+        </span>
       )}
     </span>
   );

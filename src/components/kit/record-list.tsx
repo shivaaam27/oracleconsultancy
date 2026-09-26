@@ -1006,7 +1006,8 @@ export function RecordList<T>({
               )}
             >
               {studio && listKey && (
-                <span className="absolute right-3 top-0 hidden items-center gap-0.5 sm:flex">
+                // Centred on the header labels (a 24px button on a 16px line).
+                <span className="absolute -top-1 right-3 hidden items-center gap-0.5 sm:flex">
                   <ExportButton rows={rows} columns={visibleColumns} name={exportName ?? listKey} compact />
                   <ColumnChooser columns={columns} hidden={hidden} onToggle={toggle} compact />
                 </span>
@@ -1023,7 +1024,10 @@ export function RecordList<T>({
                   )}
                 </span>
               )}
-              {visibleColumns.map((c) => {
+              {visibleColumns.map((c, ci) => {
+                // The last label keeps clear of the Export / Columns icons
+                // that sit in the header's right corner (owner, 26 Sept 2026).
+                const clearIcons = studio && !!listKey && ci === visibleColumns.length - 1;
                 const inner = (
                   <span className={cn("group/col inline-flex items-center gap-1", c.align === "right" && "flex-row-reverse")}>
                     {c.label}
@@ -1033,7 +1037,7 @@ export function RecordList<T>({
                 return (
                   <div
                     key={c.key}
-                    className={cn("min-w-0 truncate", c.align === "right" && "text-right", c.hideBelow && HIDE[c.hideBelow])}
+                    className={cn("min-w-0 truncate", c.align === "right" && "text-right", c.hideBelow && HIDE[c.hideBelow], clearIcons && "sm:pr-14")}
                   >
                     {c.sortHref ? (
                       <Link href={c.sortHref} scroll={false} className="hover:text-fg">

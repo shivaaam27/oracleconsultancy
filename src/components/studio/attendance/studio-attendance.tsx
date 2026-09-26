@@ -147,7 +147,7 @@ export function StudioAttendance({ month, holidays, companies, view }: {
         }
       />
 
-      <StudioCardRow className="lg:h-[196px]">
+      <StudioCardRow>
         <StudioCard className="min-h-[180px]">
           <CardHead label={`Today · ${dayLabel(today, { weekday: "short", day: "numeric", month: "short" })}`} right={<span>{marked} of {people.length} marked</span>} />
           <div className="mt-auto flex items-end gap-6 pt-3">

@@ -93,7 +93,7 @@ export function StudioAnnouncements({ rows, lists }: { rows: NoticeRow[]; lists:
         }
       />
 
-      <StudioCardRow className="lg:h-[250px]">
+      <StudioCardRow>
         <StudioCard className="min-h-[220px]">
           {live ? (
             <>

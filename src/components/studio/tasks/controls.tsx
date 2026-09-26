@@ -142,8 +142,12 @@ const SEARCH_SETTLE_MS = 300;
  * never pushes (or Back walks through your typing); and while someone is typing
  * the box is the truth — the arriving address must not overwrite it.
  */
-export function StudioSearchBar({ q, searchHrefBase, lenses = [], filter }: {
+export function StudioSearchBar({ q, searchHrefBase, lenses = [], filter, inline = false }: {
   q: string; searchHrefBase: string;
+  /** In the page's flow above the view, not floating over it — the Board,
+   *  Calendar and Timeline (owner, 26 Sept 2026: the floating bar sat over
+   *  the board's columns). */
+  inline?: boolean;
   /** Quick one-tap filters beside the box. The task lists now keep these in the
    *  Filter panel instead (`filter`), so this is usually empty. */
   lenses?: FilterChip[];
@@ -172,8 +176,11 @@ export function StudioSearchBar({ q, searchHrefBase, lenses = [], filter }: {
   return (
     // Below lg the old floating nav pill (z-40) owns the foot of the screen,
     // so the bar rides just above it rather than behind it.
-    <div data-sticky-foot className={cn(stFloatBar.sticky, "mt-3")}>
-      <div className={cn("pointer-events-auto flex w-full max-w-[860px] items-center gap-2.5 rounded-2xl border border-[var(--st-line)] bg-[var(--st-surface)] p-2 pl-4 shadow-[0_10px_28px_rgba(17,18,20,0.12)] sm:h-14 sm:py-0", lenses.length > 0 ? "flex-wrap sm:flex-nowrap" : "h-14")}>
+    <div data-sticky-foot={inline ? undefined : ""} className={inline ? "flex" : cn(stFloatBar.sticky, "mt-3")}>
+      <div className={cn("pointer-events-auto flex w-full items-center gap-2.5 bg-[var(--st-surface)]",
+        inline
+          ? "h-12 rounded-[14px] border border-[var(--st-line)] pl-4 pr-1.5"
+          : cn("max-w-[860px] rounded-2xl border border-[var(--st-line)] p-2 pl-4 shadow-[0_10px_28px_rgba(17,18,20,0.12)] sm:h-14 sm:py-0", lenses.length > 0 ? "flex-wrap sm:flex-nowrap" : "h-14"))}>
         <label className="flex min-w-0 flex-1 items-center gap-2 text-[var(--st-muted)] sm:min-w-[180px]">
           <Search size={15} />
           <span className="sr-only">Search tasks</span>

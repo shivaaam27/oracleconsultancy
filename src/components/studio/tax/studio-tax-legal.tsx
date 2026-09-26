@@ -82,7 +82,7 @@ export function StudioTaxLegal({ view, habits, deadlines, permits }: { view: "de
         }
       />
 
-      <StudioCardRow className="lg:h-[210px]">
+      <StudioCardRow>
         <StudioCard className="min-h-[190px]">
           <CardHead label="Due in this window" right={<span>a tick per company, per period</span>} />
           <div className="mt-auto flex items-end gap-6 pt-3">

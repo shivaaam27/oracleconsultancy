@@ -32,7 +32,12 @@ function ago(d: Date): string {
 
 const NICE: Record<string, string> = { Status: "Stage", "Action Item": "Title", "Owner": "Accountable" };
 
-function auditText(a: TimelineAudit): string {
+/** The portal writes "status", the owner's side "Status" — one spelling. */
+const FIELD_CANON: Record<string, string> = { status: "Status", deadline: "Deadline", priority: "Priority", risk: "Risk", escalation: "Escalation" };
+export const canonField = (f: string | null) => (f ? FIELD_CANON[f] ?? f : f);
+
+/** One change in words: "Stage In Progress → Completed". */
+export function auditText(a: TimelineAudit): string {
   if (a.entryType === "CREATE") return "Task created";
   const field = a.field ? (NICE[a.field] ?? a.field) : "Changed";
   const from = formatAuditValue(a.field, a.oldValue);
@@ -41,7 +46,7 @@ function auditText(a: TimelineAudit): string {
   return from ? `${field} ${from} → ${to ?? "—"}` : `${field} → ${to ?? "—"}`;
 }
 
-function iconFor(a: TimelineAudit | null) {
+export function iconFor(a: TimelineAudit | null) {
   if (!a) return Layers;
   if (a.entryType === "CREATE") return Plus;
   if (a.field === "Status") return CircleDot;

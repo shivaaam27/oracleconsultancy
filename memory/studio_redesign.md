@@ -43,6 +43,18 @@ wrapper), `StudioHeader`, `StudioCardRow` (becomes `StudioSwipeRow`,
 `swipe-row.tsx`, on a phone), `StudioCard` (dark/light + textures
 `rings|contour|hatch|dots|paper-dots|paper-rings`), `CardHead`, `BigNumber`,
 `Ring`, `Arc`, `Dot`, `StudioPill`, `stBtn` (button looks) and `stFloatBar`.
+- **The two cards under every title are ONE height** (26 Sept 2026), set in
+  `swipe-row.tsx` (`.st-cardrow`): 250px desk, 290px tablet, ≥248px phone.
+  **Pages never set their own** `lg:h-[…]` on `StudioCardRow` — make a card's
+  content fit instead. The row also dresses dark cards (`data-st-dark`, set by
+  `StudioCard`): the left one wears `/tex/flow.svg` (flowing lines drawn once,
+  not tiled), the right one the Unread-updates rings — `globals.css`.
+- Every `PersonFace` wears a thin outer line (`[data-face]` in `globals.css`);
+  a "+N" chip beside faces carries `data-face` too.
+- Tasks views: List · Board · Calendar · Timeline (the Cards view was deleted
+  26 Sept 2026; `?view=cards` opens the List). Board/Calendar/Timeline take the
+  search bar inline above the view (`StudioSearchBar inline`); the List keeps
+  the floating one.
 - `stFloatBar.sticky` — a search/filter bar in a panel that ends at the footer
   (Tasks); `.fixedLg` — inside a panel that stops short of it; `.page` — on a
   page where the whole window scrolls (Notes, Assets, Supplies). Always 12px

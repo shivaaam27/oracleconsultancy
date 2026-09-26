@@ -40,6 +40,10 @@ export function StudioSwipeRow({ children, className, cols = 2 }: { children: Re
           "[&>*]:w-full [&>*]:shrink-0 [&>*]:snap-center",
           // tablet and up: the grid it always was
           "md:mx-0 md:grid md:items-stretch md:gap-5 md:overflow-visible md:px-0 md:[&>*]:w-auto",
+          // ONE height on every page, per screen size (owner, 26 Sept 2026: "the two cards …
+          // height, it's not uniform") — the Tasks page's. Pages don't set
+          // their own; a card with more to say scrolls or folds inside it.
+          "st-cardrow min-h-[248px] md:h-[290px] lg:h-[250px]",
           cols === 3 ? "md:grid-cols-2 lg:grid-cols-3" : "md:grid-cols-2",
           className,
         )}

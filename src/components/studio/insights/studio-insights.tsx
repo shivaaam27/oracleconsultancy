@@ -84,7 +84,7 @@ export function StudioInsights({ d }: { d: StudioInsightsData }) {
   const podium = d.finished.slice(0, 3);
   const rest = d.finished.slice(3, 8);
   const top = Math.max(1, ...podium.map((p) => p.n));
-  const H = [150, 112, 84];
+  const H = [128, 96, 72]; // fits the one card height (250px)
   const fill = d.heaviest ? Math.min(100, (d.average / Math.max(d.heaviest.open, 1)) * 100) : 0;
 
   return (
@@ -103,8 +103,8 @@ export function StudioInsights({ d }: { d: StudioInsightsData }) {
         right={<Link href="/?report=1" className="inline-flex h-9 items-center gap-2 rounded-[11px] border border-[var(--st-line)] bg-[var(--st-surface)] px-3.5 text-[13px] hover:bg-[var(--st-page)]"><FileText size={14} />Report</Link>}
       />
 
-      <StudioCardRow className="lg:h-[260px]">
-        <StudioCard className="min-h-[240px]">
+      <StudioCardRow>
+        <StudioCard className="min-h-[220px]">
           <CardHead label={`Finished in ${d.monthLabel}`} right={<span>{d.finishedTotal} tasks completed · directors excluded</span>} />
           {podium.length === 0 ? (
             <div className="mt-auto pt-4 text-[15px] text-[var(--st-on-card-muted)]">Nothing finished yet this month.</div>
@@ -127,7 +127,7 @@ export function StudioInsights({ d }: { d: StudioInsightsData }) {
             </div>
           )}
         </StudioCard>
-        <StudioCard texture="rings" className="min-h-[240px]">
+        <StudioCard texture="rings" className="min-h-[220px]">
           <CardHead label="Workload" right={<span>open tasks per person</span>} />
           <div className="mt-auto grid grid-cols-1 items-end gap-5 pt-4 sm:grid-cols-[minmax(0,240px)_minmax(0,1fr)]">
             <div className="relative mx-auto w-full max-w-[260px]">

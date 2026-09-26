@@ -1,22 +1,29 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+/**
+ * The Tasks calendar, in the Studio look (owner, 26 Sept 2026: "the calendar,
+ * same apply"). Tasks sit on their deadline day; a pill shows the time when one
+ * is set. Week or Month (kept in `cal=`). Overdue and No-deadline tasks sit in
+ * two chips above the grid rather than on a past day, so they stay in reach.
+ *
+ * Reschedule three ways: drag a pill onto a day (mouse), tap a day and change a
+ * date in its sheet, or change a date from the Overdue / No-deadline chips — all
+ * through DeadlineEditor. A long press peeks. Optimistic, with undo.
+ */
+import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { markPush, withReturn } from "@/lib/nav/return-to";
-import { motion, AnimatePresence } from "framer-motion";
-import { ChevronLeft, ChevronRight, ChevronDown, CalendarOff, CalendarClock, X, ExternalLink } from "lucide-react";
+import { CalendarClock, CalendarOff, ChevronDown, ChevronLeft, ChevronRight, ExternalLink } from "lucide-react";
 import type { TaskRow } from "@/lib/tasks/queries";
-import { EmptyState, Button, IconButton, LinkButton, Badge } from "@/components/ui";
-import { TONE, type Tone } from "@/components/kit/surface-kit";
-import { CockpitModule } from "@/components/kit/cockpit-module";
-import { Segmented } from "@/components/forms/macos";
-import { Reveal } from "@/components/kit/reveal";
 import { DeadlineEditor } from "@/components/tasks/deadline-editor";
 import { PeekPreview, type PeekAction } from "@/components/tasks/peek-preview";
 import { TaskContext } from "@/components/tasks/task-context";
 import { hasTime } from "@/components/tasks/deadline";
+import { StudioSheet } from "@/components/studio/sheet";
+import { STATUS_DOT } from "@/components/studio/tasks/task-words";
+import { Dot, stBtn } from "@/components/studio/kit";
 import { cn } from "@/lib/cn";
-import { spring } from "@/lib/motion";
 import { triggerHaptic } from "@/lib/hooks/use-long-press";
 import { useToast } from "@/components/shell/toast";
 import { callUndo } from "@/components/shell/undo-banner";
@@ -25,9 +32,8 @@ import { taskHref } from "@/lib/tasks/task-href";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
-/** Coarse-pointer (touch) detection, evaluated once on the client. Used to gate
- *  the desktop-only "drag onto a day" affordance copy — drag-and-drop never fires
- *  on touchscreens, so on touch we lean on the agenda-sheet / rail reschedule. */
+/** Touch or mouse — drag-and-drop never fires on a touchscreen, so the hints
+ *  say "tap its date" there. */
 function useCoarsePointer(): boolean {
   const [coarse, setCoarse] = useState(false);
   useEffect(() => {
@@ -37,15 +43,6 @@ function useCoarsePointer(): boolean {
   return coarse;
 }
 
-/**
- * Time-aware task calendar (Aurora). Tasks are bucketed by deadline day; a pill
- * shows the time when one is set. Today is highlighted. A Week/Month toggle in the
- * header switches between a 7-day strip and the full month (persisted in `cal=`).
- * Two rails sit above the grid — Overdue and No-deadline. Reschedule three ways:
- * drag a pill onto a day (pointer devices), tap a day → reschedule a row from the
- * agenda sheet, or reschedule a rail chip in place — all via the kit DeadlineEditor.
- * Long-press a pill for a peek. Optimistic + undo throughout; reduced-motion safe.
- */
 export function CalendarView({
   rows, month, queryWithoutMonth,
 }: {
@@ -59,7 +56,7 @@ export function CalendarView({
   const { toast } = useToast();
   const coarse = useCoarsePointer();
 
-  // Week | Month, persisted in the `cal` search param (read on mount).
+  // Week | Month, kept in the `cal` search param.
   const [span, setSpan] = useState<"week" | "month">(searchParams.get("cal") === "week" ? "week" : "month");
   function setSpanPersist(next: "week" | "month") {
     setSpan(next);
@@ -77,7 +74,7 @@ export function CalendarView({
   const [peek, setPeek] = useState<TaskRow | null>(null);
   const railRef = useRef<HTMLDivElement>(null);
 
-  // Long-press → peek (cleared if a drag or scroll starts). Mirrors board-view.
+  // Long press → peek (cleared if a drag or a scroll starts).
   const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pressStart = useRef<{ x: number; y: number } | null>(null);
   const longPressed = useRef(false);
@@ -110,13 +107,11 @@ export function CalendarView({
   const first = new Date(m.year, m.monthIdx, 1);
   const last = new Date(m.year, m.monthIdx + 1, 0);
 
-  // Cells: 42 (6-row month grid) or 7 (the week containing today, Monday-start).
+  // Cells: 42 (a six-row month) or 7 (the week containing today, from Monday).
   const cells: { date: Date; inMonth: boolean }[] = [];
   if (span === "week") {
-    const ref = new Date(today);
-    const startWeekday = (ref.getDay() + 6) % 7; // 0 = Monday
-    const weekStart = new Date(ref);
-    weekStart.setDate(ref.getDate() - startWeekday);
+    const weekStart = new Date(today);
+    weekStart.setDate(today.getDate() - ((today.getDay() + 6) % 7));
     for (let i = 0; i < 7; i++) {
       const d = new Date(weekStart);
       d.setDate(weekStart.getDate() + i);
@@ -131,8 +126,8 @@ export function CalendarView({
     }
   }
 
-  // Overdue = open task whose (optimistic) deadline is before today. These show in
-  // a rail rather than on a past day, so they stay actionable. No-deadline = no date.
+  // Overdue = an open task whose deadline is before today; No deadline = no
+  // date. Both sit in chips above the grid rather than on a day.
   const byDay = new Map<string, TaskRow[]>();
   const overdue: TaskRow[] = [];
   const noDeadline: TaskRow[] = [];
@@ -155,8 +150,6 @@ export function CalendarView({
     return (da ? da.getTime() : 0) - (db ? db.getTime() : 0) || byPriority(a, b);
   });
 
-  const prev = monthString(m.year, m.monthIdx - 1);
-  const next = monthString(m.year, m.monthIdx + 1);
   const buildHref = (mm: string) => {
     const params = new URLSearchParams(queryWithoutMonth);
     params.set("view", "calendar");
@@ -178,11 +171,10 @@ export function CalendarView({
     const fmt = (d: Date) => d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
     return `${fmt(a)} – ${fmt(b)}`;
   })();
-  const weekdayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
   const dueThisMonth = rows.filter((r) => { const d = deadlineOf(r); return d && d >= first && d <= last; }).length;
 
   function openTask(code: string) {
-    // Even the calendar: the month you were looking at is in the address.
+    // The month you were looking at is in the address you come back to.
     const to = withReturn(taskHref(code), `${window.location.pathname}${window.location.search}`);
     markPush(to);
     router.push(to);
@@ -192,7 +184,7 @@ export function CalendarView({
     const r = rows.find((x) => x.code === code);
     if (!r) return;
     const cur = deadlineOf(r);
-    // Keep the time of day if the task had one; otherwise leave it all-day.
+    // Keep the time of day if the task had one; otherwise it stays all-day.
     const next = new Date(day);
     if (cur && hasTime(cur)) next.setHours(cur.getHours(), cur.getMinutes(), 0, 0);
     else next.setHours(0, 0, 0, 0);
@@ -208,7 +200,7 @@ export function CalendarView({
       toast(`${code} moved to ${when}`, { tone: "success", duration: 6000, action: res.undoToken ? { label: "Undo", onClick: async () => { await callUndo(res.undoToken!); setMoved((mm) => { const n = { ...mm }; delete n[code]; return n; }); router.refresh(); } } : undefined });
     } else {
       setMoved((mm) => { const n = { ...mm }; delete n[code]; return n; });
-      toast(res.error || "Move failed", { tone: "warn", duration: 3000 });
+      toast(res.error || "Couldn't move it", { tone: "warn", duration: 3000 });
     }
     router.refresh();
   }
@@ -221,6 +213,7 @@ export function CalendarView({
 
   function Pill({ r }: { r: TaskRow }) {
     const dl = deadlineOf(r);
+    const done = isClosed(r);
     return (
       <button
         type="button"
@@ -234,250 +227,199 @@ export function CalendarView({
         onPointerCancel={clearPress}
         onClick={(e) => { e.stopPropagation(); if (longPressed.current) { longPressed.current = false; return; } openTask(r.code); }}
         className={cn(
-          "block w-full truncate text-left text-xs leading-tight px-1.5 py-0.5 rounded-md border-l-2 select-none",
-          "transition-colors hover:bg-bg-muted/70 cursor-grab active:cursor-grabbing",
-          dragCode === r.code && "opacity-40"
+          "flex w-full min-w-0 cursor-grab select-none items-center gap-1.5 rounded-[7px] bg-[var(--st-surface)] px-1.5 py-[3px] text-left text-[12px] leading-tight shadow-[0_1px_0_rgba(17,18,20,0.04)] transition-colors hover:bg-[var(--st-line-soft)] active:cursor-grabbing",
+          done && "text-[var(--st-muted)] line-through",
+          dragCode === r.code && "opacity-40",
         )}
-        style={{ borderLeftColor: pillColor(r) }}
         title={pillTitle(r, dl)}
       >
-        {dl && hasTime(dl) && <span className="font-mono text-fg-subtle mr-1">{pad(dl.getHours())}:{pad(dl.getMinutes())}</span>}
-        {r.actionItem}
+        <Dot color={pillColor(r)} size={6} />
+        {dl && hasTime(dl) && <span className="st-mono shrink-0 text-[11px] text-[var(--st-muted)]">{pad(dl.getHours())}:{pad(dl.getMinutes())}</span>}
+        <span className="truncate">{r.actionItem}</span>
       </button>
     );
   }
 
-  // A rail chip (Overdue / No-deadline popovers). Drag-to-schedule on pointer
-  // devices; a per-chip DeadlineEditor gives a touch-friendly reschedule too.
-  function RailChip({ r, tone }: { r: TaskRow; tone: Tone }) {
+  // A task in the Overdue / No-deadline chips: drag it onto a day, or change
+  // its date in place (works on touch, where dragging does not).
+  function RailRow({ r, late }: { r: TaskRow; late: boolean }) {
     const dl = deadlineOf(r);
     return (
-      <span
-        className={cn(
-          "inline-flex items-center gap-1.5 max-w-[300px] text-xs px-2 py-1 rounded-md border-l-2",
-          "bg-bg-subtle/80 transition-colors",
-          dragCode === r.code && "opacity-40"
-        )}
-        style={{ borderLeftColor: TONE[tone].stroke }}
-      >
+      <div className={cn("flex items-center gap-2 rounded-[10px] px-2 py-1.5 hover:bg-[var(--st-page)]", dragCode === r.code && "opacity-40")}>
         <button
           type="button"
           draggable
           onDragStart={(e) => startDrag(e, r.code)}
           onDragEnd={() => { setDragCode(null); setOverKey(null); }}
           onClick={() => { setRailOpen(null); openTask(r.code); }}
-          className="inline-flex items-center gap-1.5 min-w-0 cursor-grab active:cursor-grabbing hover:opacity-80 transition-opacity"
+          className="flex min-w-0 flex-1 cursor-grab items-center gap-2 text-left active:cursor-grabbing"
           title={pillTitle(r, dl)}
         >
-          <span className="font-mono text-fg-muted shrink-0">{r.code}</span>
-          <span className="truncate">{r.actionItem}</span>
-          {tone === "danger" && dl && (
-            <span className="shrink-0 tabular text-danger font-medium">{overdueDays(dl, today)}d</span>
-          )}
+          <span className="st-mono shrink-0 text-[11px] text-[var(--st-muted)]">{r.code}</span>
+          <span className="truncate text-[13px]">{r.actionItem}</span>
         </button>
-        <DeadlineEditor code={r.code} deadline={dl} daysToDeadline={r.daysToDeadline} className="shrink-0" />
-      </span>
+        {/* "4d late" / "No date" in its colour — tap it to change the date. */}
+        <DeadlineEditor code={r.code} deadline={dl} daysToDeadline={late && dl ? -overdueDays(dl, today) : r.daysToDeadline} studio className="shrink-0" />
+      </div>
     );
   }
 
   const dayItems = dayOpen ? (byDay.get(dayOpen) || []) : [];
   const dayLabel = dayOpen ? new Date(dayOpen + "T00:00:00").toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" }) : "";
 
-  const peekActions = (r: TaskRow): PeekAction[] => {
-    const done = r.status === "Completed" || r.status === "Closed";
-    return [
-      { label: "Open", icon: <ExternalLink size={15} />, tone: "accent", onClick: () => openTask(r.code) },
-      ...(!done ? [{ label: "Move to today", icon: <CalendarClock size={15} />, onClick: () => reschedule(r.code, today) }] : []),
-    ];
-  };
+  const peekActions = (r: TaskRow): PeekAction[] => [
+    { label: "Open", icon: <ExternalLink size={15} />, tone: "accent", onClick: () => openTask(r.code) },
+    ...(!isClosed(r) ? [{ label: "Move to today", icon: <CalendarClock size={15} />, onClick: () => reschedule(r.code, today) }] : []),
+  ];
 
-  // The month-nav cluster — lives in the CockpitModule action slot.
-  const nav = (
-    <div className="flex items-center gap-1">
-      <Segmented
-        size="sm"
-        value={span}
-        onChange={(v) => setSpanPersist(v)}
-        options={[{ value: "week", label: "Week" }, { value: "month", label: "Month" }]}
-      />
-      {span === "month" && (
-        <>
-          <LinkButton href={buildHref(prev)} variant="ghost" size="sm" className="w-8 px-0" aria-label="Previous month"><ChevronLeft size={15} /></LinkButton>
-          <LinkButton href={buildHref(next)} variant="ghost" size="sm" className="w-8 px-0" aria-label="Next month"><ChevronRight size={15} /></LinkButton>
-        </>
-      )}
-      <LinkButton href={todayHref} variant="ghost" size="sm" className="ml-0.5">Today</LinkButton>
-    </div>
-  );
+  const navBtn = "grid h-8 w-8 place-items-center rounded-[9px] border border-[var(--st-line)] bg-[var(--st-surface)] text-[var(--st-sub)] transition-colors hover:bg-[var(--st-page)] hover:text-[var(--st-ink)]";
+  const weekdayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  const shown = span === "week" ? 8 : 3;
 
   return (
-    <Reveal className="space-y-3">
-      {/* Rails: Overdue + No-deadline. Compact buttons → glass popovers; reschedule a chip in place. */}
+    <div className="rounded-[20px] bg-[var(--st-surface)] p-3 sm:p-4">
+      {/* The month, the way through it, and the two chips of tasks with no day. */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2.5">
+        <div className="mr-auto flex min-w-0 items-baseline gap-2">
+          <h2 className="whitespace-nowrap text-[17px] font-semibold tracking-[-0.01em]">{span === "week" ? weekLabel : monthLabel}</h2>
+          <span className="hidden whitespace-nowrap text-[12px] text-[var(--st-muted)] sm:inline">{dueThisMonth} due this month</span>
+        </div>
+        <div className="flex gap-0.5 rounded-[11px] bg-[var(--st-seg)] p-[3px]" role="tablist" aria-label="Span">
+          {(["week", "month"] as const).map((s) => (
+            <button
+              key={s}
+              type="button"
+              role="tab"
+              aria-selected={span === s}
+              onClick={() => setSpanPersist(s)}
+              className={cn("h-[28px] rounded-lg px-3 text-xs transition-colors", span === s ? "bg-[var(--st-surface)] font-medium shadow-[0_1px_2px_rgba(0,0,0,0.08)]" : "text-[var(--st-sub)] hover:text-[var(--st-ink)]")}
+            >
+              {s === "week" ? "Week" : "Month"}
+            </button>
+          ))}
+        </div>
+        {span === "month" && (
+          <div className="flex gap-1.5">
+            <Link href={buildHref(monthString(m.year, m.monthIdx - 1))} scroll={false} aria-label="Previous month" className={navBtn}><ChevronLeft size={15} /></Link>
+            <Link href={buildHref(monthString(m.year, m.monthIdx + 1))} scroll={false} aria-label="Next month" className={navBtn}><ChevronRight size={15} /></Link>
+          </div>
+        )}
+        <Link href={todayHref} scroll={false} className={stBtn.chip}>Today</Link>
+      </div>
+
       {(overdue.length > 0 || noDeadline.length > 0) && (
-        <div ref={railRef} className="flex flex-wrap items-center gap-2">
+        <div ref={railRef} className="mt-3 flex flex-wrap items-center gap-2">
           {overdue.length > 0 && (
             <RailButton
               open={railOpen === "overdue"}
               onToggle={() => setRailOpen((o) => (o === "overdue" ? null : "overdue"))}
-              onEnter={() => setRailOpen("overdue")}
-              tone="danger"
-              icon={<CalendarClock size={12} />}
+              dot="var(--st-late)"
               label="Overdue"
               count={overdue.length}
-              hint={coarse ? "Tap a chip's date to reschedule." : "Drag any onto a day, or tap its date, to reschedule."}
+              hint={coarse ? "Tap a date to move it." : "Drag one onto a day, or change its date here."}
             >
-              {overdue.map((r) => <RailChip key={r.id} r={r} tone="danger" />)}
+              {overdue.map((r) => <RailRow key={r.id} r={r} late />)}
             </RailButton>
           )}
           {noDeadline.length > 0 && (
             <RailButton
               open={railOpen === "none"}
               onToggle={() => setRailOpen((o) => (o === "none" ? null : "none"))}
-              onEnter={() => setRailOpen("none")}
-              tone="muted"
-              icon={<CalendarOff size={12} />}
+              dot="#B9BBBF"
               label="No deadline"
               count={noDeadline.length}
-              hint={coarse ? "Tap a chip's date to schedule." : "Drag any onto a day, or tap its date, to schedule."}
+              hint={coarse ? "Tap a date to give it one." : "Drag one onto a day, or give it a date here."}
             >
-              {noDeadline.map((r) => <RailChip key={r.id} r={r} tone="muted" />)}
+              {noDeadline.map((r) => <RailRow key={r.id} r={r} late={false} />)}
             </RailButton>
           )}
         </div>
       )}
 
-      {/* Grid in a kit CockpitModule; month nav lives in its action slot. */}
-      <CockpitModule
-        title={
-          <span className="inline-flex items-center gap-2">
-            <span className="whitespace-nowrap">{span === "week" ? weekLabel : monthLabel}</span>
-            {/* The header is title-left, nav-right in one row. On a phone the
-                two together ran past 343px, so the row squeezed and "AUGUST
-                2026 · 21 DUE THIS MONTH" broke into four stacked lines beside
-                the buttons. The count goes; the month and the nav fit. */}
-            <span className="hidden text-xs font-normal text-fg-subtle tabular sm:inline">· {dueThisMonth} due this month</span>
-          </span>
-        }
-        action={nav}
-        className="!p-2 sm:!p-3"
-      >
-        <div className="elevated rounded-2xl overflow-hidden ring-1 ring-border/50">
-          <div className="grid grid-cols-7 border-b border-border/70">
-            {weekdayLabels.map((w) => (
-              <div key={w} className="px-2 py-1.5 text-xs uppercase tracking-[0.12em] text-fg-subtle text-center">{w}</div>
-            ))}
-          </div>
-          <div className="grid grid-cols-7">
-            {cells.map((cell, i) => {
-              const k = ymd(cell.date);
-              const items = byDay.get(k) || [];
-              const isToday = ymd(today) === k;
-              const isOver = overKey === k;
-              return (
-                <div
-                  key={i}
-                  onDragOver={(e) => { e.preventDefault(); setOverKey(k); }}
-                  onDragLeave={() => setOverKey((s) => (s === k ? null : s))}
-                  onDrop={(e) => { e.preventDefault(); if (dragCode) reschedule(dragCode, cell.date); setDragCode(null); setOverKey(null); }}
-                  onClick={() => { if (items.length) setDayOpen(k); }}
-                  className={cn(
-                    span === "week" ? "min-h-[200px] max-sm:min-h-[110px]" : "min-h-[104px] max-sm:min-h-[68px]",
-                    "border-b border-r border-border/60 last:border-r-0 p-1.5 space-y-1 transition-colors",
-                    items.length && "cursor-pointer",
-                    isOver
-                      ? "bg-accent/10 ring-1 ring-accent/40 ring-inset"
-                      : isToday
-                        ? "bg-accent-soft/30"
-                        : cell.inMonth ? "bg-bg-elev hover:bg-bg-muted/30" : "bg-bg-subtle/40"
-                  )}
-                >
-                  <div className={cn(
-                    "text-xs tabular inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full",
-                    isToday ? "bg-accent text-accent-fg font-semibold" : cell.inMonth ? "text-fg-muted" : "text-fg-subtle"
-                  )}>
-                    {cell.date.getDate()}
-                  </div>
-                  {/* A phone gives each day about 53px, and a task pill in 53px
-                      reads "( C…" — a title you cannot recognise sitting in a
-                      cell you cannot use. Dots instead, one per task and
-                      coloured the same way, which is what every phone calendar
-                      does: the day says HOW MUCH, and tapping it opens the day
-                      sheet, which says what. The pills stay from `sm` up, where
-                      a cell is wide enough to read one. */}
-                  <div className="flex flex-wrap items-center gap-1 sm:hidden">
-                    {items.slice(0, 6).map((r) => (
-                      <span key={r.id} className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: pillColor(r) }} />
-                    ))}
-                    {items.length > 6 && (
-                      <span className="text-[9px] leading-none text-fg-subtle">+{items.length - 6}</span>
-                    )}
-                  </div>
-                  <div className="hidden space-y-1 sm:block">
-                    {items.slice(0, span === "week" ? 8 : 3).map((r) => <Pill key={r.id} r={r} />)}
-                    {items.length > (span === "week" ? 8 : 3) && (
-                      <div className="text-xs text-fg-subtle px-1 hover:text-accent transition-colors">+{items.length - (span === "week" ? 8 : 3)} more</div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </CockpitModule>
+      <div className="mt-4 grid grid-cols-7 gap-1 sm:gap-1.5">
+        {weekdayLabels.map((w) => (
+          <div key={w} className="px-1.5 pb-1 text-[11px] font-medium text-[var(--st-muted)]">{w}</div>
+        ))}
+        {cells.map((cell, i) => {
+          const k = ymd(cell.date);
+          const items = byDay.get(k) || [];
+          const isToday = ymd(today) === k;
+          const isOver = overKey === k;
+          return (
+            <div
+              key={i}
+              onDragOver={(e) => { e.preventDefault(); setOverKey(k); }}
+              onDragLeave={() => setOverKey((s) => (s === k ? null : s))}
+              onDrop={(e) => { e.preventDefault(); if (dragCode) reschedule(dragCode, cell.date); setDragCode(null); setOverKey(null); }}
+              onClick={() => { if (items.length) setDayOpen(k); }}
+              className={cn(
+                span === "week" ? "min-h-[200px] max-sm:min-h-[110px]" : "min-h-[108px] max-sm:min-h-[64px]",
+                "flex min-w-0 flex-col gap-1 rounded-[12px] p-1.5 transition-colors",
+                items.length > 0 && "cursor-pointer",
+                cell.inMonth ? "bg-[var(--st-page)]" : "bg-transparent",
+                isToday && "ring-1 ring-inset ring-[var(--st-ink)]",
+                isOver && "bg-[var(--st-seg)] ring-2 ring-inset ring-[var(--st-field-line)]",
+              )}
+            >
+              <span className={cn(
+                "grid h-[22px] min-w-[22px] place-items-center self-start rounded-full px-1 text-[12px] tabular-nums",
+                isToday ? "bg-[var(--st-ink)] font-semibold text-[var(--st-page)]" : cell.inMonth ? "text-[var(--st-sub)]" : "text-[var(--st-muted)] opacity-60",
+              )}>
+                {cell.date.getDate()}
+              </span>
+              {/* A phone's day is ~45px wide — a pill there reads "( C…". Dots
+                  say how many; a tap opens the day. */}
+              <div className="flex flex-wrap items-center gap-1 px-0.5 sm:hidden">
+                {items.slice(0, 6).map((r) => <Dot key={r.id} color={pillColor(r)} size={6} />)}
+                {items.length > 6 && <span className="text-[10px] leading-none text-[var(--st-muted)]">+{items.length - 6}</span>}
+              </div>
+              <div className="hidden min-w-0 flex-col gap-1 sm:flex">
+                {items.slice(0, shown).map((r) => <Pill key={r.id} r={r} />)}
+                {items.length > shown && (
+                  <span className="px-1.5 text-[11px] text-[var(--st-muted)] hover:text-[var(--st-ink)]">+{items.length - shown} more</span>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
 
       {rows.length === 0 && (
-        <EmptyState icon={<CalendarOff size={28} />} title="No tasks in scope." hint="Adjust filters or pick a different view." />
+        <div className="mt-3 flex items-center justify-center gap-2 rounded-[14px] border border-dashed border-[var(--st-line)] py-6 text-[13px] text-[var(--st-muted)]">
+          <CalendarOff size={15} /> No tasks match these filters.
+        </div>
       )}
 
-      {/* Day agenda sheet */}
-      <AnimatePresence>
-        {dayOpen && (
-          <>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }} onClick={() => setDayOpen(null)} className="fixed inset-0 z-[85] bg-black/45 backdrop-blur-[3px]" />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.94, y: 12 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96, y: 8 }} transition={spring}
-              className="fixed z-[86] inset-x-4 top-1/2 -translate-y-1/2 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 sm:w-[420px] mx-auto max-h-[80svh] overflow-hidden flex flex-col glass glass-menu elevated rounded-3xl"
-            >
-              <div className="flex items-center justify-between px-4 py-3 border-b border-border/60">
-                <div className="text-sm font-semibold tracking-tight">{dayLabel}<span className="text-fg-subtle font-normal"> · {dayItems.length}</span></div>
-                <IconButton size="sm" onClick={() => setDayOpen(null)} aria-label="Close"><X size={15} /></IconButton>
+      {/* The day, as a list — and where a date is changed on touch. */}
+      <StudioSheet
+        centred
+        width={460}
+        open={!!dayOpen}
+        onClose={() => setDayOpen(null)}
+        title={<>{dayLabel}<span className="ml-1.5 font-normal text-[var(--st-muted)]">{dayItems.length}</span></>}
+      >
+        <div className="divide-y divide-[var(--st-line-soft)]">
+          {dayItems.map((r) => {
+            const dl = deadlineOf(r);
+            return (
+              <div key={r.id} className="flex items-start gap-3 py-3">
+                <span className="mt-[7px]"><Dot color={pillColor(r)} /></span>
+                <button type="button" onClick={() => { setDayOpen(null); openTask(r.code); }} className="min-w-0 flex-1 text-left">
+                  <span className="line-clamp-2 text-[14px] font-medium leading-snug">{r.actionItem}</span>
+                  <span className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-[12px] text-[var(--st-muted)]">
+                    {dl && hasTime(dl) && <span className="st-mono text-[11px]">{pad(dl.getHours())}:{pad(dl.getMinutes())}</span>}
+                    <span className="st-mono text-[11px]">{r.code}</span>
+                    <span className="truncate">{r.companyName}</span>
+                    <span className="inline-flex items-center gap-1"><Dot color={STATUS_DOT[r.status] ?? "#B9BBBF"} size={6} />{r.status}</span>
+                  </span>
+                </button>
+                <DeadlineEditor code={r.code} deadline={dl} daysToDeadline={r.daysToDeadline} studio="date" className="mt-0.5 shrink-0" />
               </div>
-              <div className="overflow-y-auto divide-y divide-border/50">
-                {dayItems.map((r) => {
-                  const dl = deadlineOf(r);
-                  const st = statusTone(r.status);
-                  return (
-                    <div key={r.id} className="px-4 py-3 hover:bg-bg-muted/50 transition-colors flex items-start gap-2.5">
-                      {/* The leading dot: red late, amber due soon, else the
-                          company's colour. See `pillColor` — it painted nothing
-                          at all until the HSL triplet was wrapped. */}
-                      <span className="inline-block w-1.5 h-1.5 rounded-full mt-1.5 shrink-0" style={{ backgroundColor: pillColor(r) }} />
-                      <button type="button" onClick={() => { setDayOpen(null); openTask(r.code); }} className="min-w-0 flex-1 text-left">
-                        <span className="text-sm leading-snug line-clamp-2">{r.actionItem}</span>
-                        {r.comments && r.comments.trim() && (
-                          <span className="block text-xs text-fg-muted truncate mt-0.5">{r.comments}</span>
-                        )}
-                        <span className="block text-xs text-fg-subtle mt-1 inline-flex items-center gap-1.5">
-                          {dl && hasTime(dl) && <span className="font-mono">{pad(dl.getHours())}:{pad(dl.getMinutes())}</span>}
-                          <span>{r.code} · {r.companyName}</span>
-                          <span className={cn("inline-flex items-center gap-1", TONE[st].text)}>
-                            <span className="inline-block w-1 h-1 rounded-full" style={{ backgroundColor: TONE[st].stroke }} />
-                            {r.status}
-                          </span>
-                        </span>
-                      </button>
-                      {/* Touch-friendly reschedule — works where drag does not. */}
-                      <DeadlineEditor code={r.code} deadline={dl} daysToDeadline={r.daysToDeadline} className="shrink-0 mt-0.5" />
-                    </div>
-                  );
-                })}
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+            );
+          })}
+        </div>
+      </StudioSheet>
 
-      {/* Long-press peek on a pill (reuses the table/board pattern). */}
       <PeekPreview
         open={!!peek}
         onClose={() => setPeek(null)}
@@ -487,53 +429,43 @@ export function CalendarView({
         creator={peek?.latestActivity?.author ?? null}
         whenISO={peek?.latestActivity?.atISO ?? null}
         pills={peek ? (
-          <>
-            <Badge tone={badgeTone(statusTone(peek.status))}>{peek.status}</Badge>
-            <Badge tone="default">{peek.priority}</Badge>
-          </>
+          <span className="inline-flex items-center gap-3 text-xs">
+            <span className="inline-flex items-center gap-1.5"><Dot color={STATUS_DOT[peek.status] ?? "#B9BBBF"} />{peek.status}</span>
+            <span className="text-[var(--st-muted)]">{peek.priority} priority</span>
+          </span>
         ) : undefined}
         body={peek ? <TaskContext comments={peek.comments} latestUpdate={peek.latestUpdate} /> : undefined}
         actions={peek ? peekActions(peek) : []}
         actionsLayout="row"
       />
-    </Reveal>
+    </div>
   );
 }
 
-/** A compact rail trigger that opens a glass popover of draggable chips. */
-function RailButton({
-  open, onToggle, onEnter, tone, icon, label, count, hint, children,
-}: {
+/** A chip that opens a card of the tasks with no day on the grid. */
+function RailButton({ open, onToggle, dot, label, count, hint, children }: {
   open: boolean;
   onToggle: () => void;
-  onEnter: () => void;
-  tone: Tone;
-  icon: React.ReactNode;
+  dot: string;
   label: string;
   count: number;
   hint: string;
   children: React.ReactNode;
 }) {
   return (
-    <div className="relative inline-block" onMouseEnter={onEnter}>
-      <Button type="button" variant="secondary" size="sm" onClick={onToggle}>
-        <span className={tone === "danger" ? "text-danger" : ""}>{icon}</span>
+    <div className="relative">
+      <button type="button" onClick={onToggle} aria-expanded={open} className={cn(stBtn.chip, open && "border-[var(--st-ink)]")}>
+        <Dot color={dot} />
         {label}
-        <span className="tabular text-fg-subtle">· {count}</span>
-        <ChevronDown size={12} className={cn("opacity-50 transition-transform", open && "rotate-180")} />
-      </Button>
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.97, y: -4 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.98, y: -2 }} transition={spring}
-            style={{ transformOrigin: "top left" }}
-            className="absolute z-[60] mt-1.5 left-0 w-[340px] max-h-[52vh] overflow-y-auto glass glass-menu elevated rounded-2xl p-2"
-          >
-            <div className="text-xs text-fg-subtle px-1 pb-1.5">{hint}</div>
-            <div className="flex flex-col gap-1.5">{children}</div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+        <span className="st-mono text-[11px] text-[var(--st-muted)]">{count}</span>
+        <ChevronDown size={13} className={cn("text-[var(--st-muted)] transition-transform", open && "rotate-180")} />
+      </button>
+      {open && (
+        <div className="st-pop absolute left-0 z-[60] mt-1.5 w-[min(380px,calc(100vw-2rem))] rounded-[16px] border border-[var(--st-line)] bg-[var(--st-surface)] p-1.5 shadow-[0_14px_36px_rgba(17,18,20,0.16)]">
+          <div className="px-2 pb-1 pt-1 text-[11px] text-[var(--st-muted)]">{hint}</div>
+          <div className="st-scroll max-h-[52vh] overflow-y-auto">{children}</div>
+        </div>
+      )}
     </div>
   );
 }
@@ -569,38 +501,11 @@ function monthString(year: number, monthIdx: number): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
 }
 
-function statusTone(s: string): Tone {
-  if (s === "Completed" || s === "Closed") return "success";
-  if (s === "Blocked" || s === "Escalated") return "danger";
-  if (s === "Waiting External" || s === "Under Review") return "warn";
-  if (s === "In Progress") return "info";
-  return "muted";
-}
-
-/** Map a surface-kit Tone to the Badge component's narrower tone set. */
-function badgeTone(t: Tone): "default" | "success" | "warn" | "danger" | "info" {
-  if (t === "success") return "success";
-  if (t === "warn") return "warn";
-  if (t === "danger") return "danger";
-  if (t === "info") return "info";
-  return "default";
-}
-
-/**
- * The colour that says WHY this task is on this day: red if it is late or
- * escalated, amber if it is due soon, otherwise the company's own accent.
- *
- * ⚠️ These used to be returned as bare `var(--danger)` / `var(--warn)` /
- * `var(--accent)`, and those custom properties hold an HSL TRIPLET
- * ("0 81% 69%"), not a colour — so as a `background-color` or a
- * `border-left-color` they were invalid and painted NOTHING. It hid for a long
- * time because the last branch returns the company's own hex, which is a real
- * colour, so only the overdue / due-soon / Critical rows were affected: exactly
- * the ones whose colour carries the warning. Wrap the triplet and they paint.
- */
+/** Why this task is on this day: pink if late or escalated, amber if due soon
+ *  or Critical, green when done, else the company's own colour. */
 function pillColor(r: TaskRow): string {
-  if (r.flag === "overdue" || r.flag === "escalate-now" || r.flag === "escalated") return "hsl(var(--danger))";
-  if (r.flag === "due-soon") return "hsl(var(--warn))";
-  if (r.priority === "Critical") return "hsl(var(--danger))";
-  return r.companyAccent || "hsl(var(--accent))";
+  if (r.status === "Completed" || r.status === "Closed") return "var(--st-ok)";
+  if (r.flag === "overdue" || r.flag === "escalate-now" || r.flag === "escalated") return "var(--st-late)";
+  if (r.flag === "due-soon" || r.priority === "Critical") return "var(--st-soon)";
+  return r.companyAccent || "var(--st-blue)";
 }

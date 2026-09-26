@@ -138,7 +138,7 @@ export default async function SettingsPage({
     top: (
       // Phone: one card you swipe, like every Studio page (swipe-row.tsx) —
       // stacked, the two filled the first screen and hid the section picker.
-      <StudioCardRow className="lg:min-h-[196px]">
+      <StudioCardRow>
         <StudioCard className="min-h-[180px]">
           <CardHead label="Security check" right={<span className="hidden text-xs text-[var(--st-muted)] xl:inline">reads the live state · changes nothing</span>} />
           {/* Two across only where the card is wide enough (xl); on a tablet

@@ -1481,6 +1481,21 @@ section[data-page-header],
 .dark .st-tex-paper-dots { background-image: radial-gradient(rgba(255,255,255,0.08) 1px, transparent 1.3px); }
 .dark .st-tex-paper-rings { background-image: repeating-radial-gradient(circle at 110% 120%, rgba(255,255,255,0.05) 0 1.2px, transparent 1.2px 12px); }
 
+/* The two cards under every page title (owner, 26 Sept 2026): the right one
+   wears the rings of "Unread updates"; the left one flowing lines drawn ONCE
+   across the card — no repeating tile. Set here, so every page matches. */
+.st-tex-flow { background-image: url("/tex/flow.svg"); background-repeat: no-repeat; background-size: 100% 100%; }
+.st-cardrow > [data-st-dark]:nth-child(1) { background-image: url("/tex/flow.svg"); background-repeat: no-repeat; background-size: 100% 100%; background-position: 0 0; }
+.st-cardrow > [data-st-dark]:nth-child(2) { background-image: repeating-radial-gradient(circle at 108% -20%, rgba(255,255,255,0.06) 0 1.5px, transparent 1.5px 12px); background-size: auto; }
+
+/* Every face wears a thin outer line in the theme's colour, set off by a
+   hairline of the card behind it (owner, 26 Sept 2026: "add a border to each
+   … an outer theme line"). A stacked face gets a wider gap so the overlap
+   still reads. On a dark card the gap and line follow the card. */
+[data-face] { box-shadow: 0 0 0 1.5px var(--face-gap, var(--st-surface, #fff)), 0 0 0 2.5px var(--face-line, var(--st-field-line, #d4d4d0)); }
+[data-face][data-ring] { box-shadow: 0 0 0 2px var(--face-gap, var(--st-surface, #fff)), 0 0 0 3px var(--face-line, var(--st-field-line, #d4d4d0)); }
+[data-st-dark] [data-face], .st-sheet-dark [data-face] { --face-gap: var(--st-card); --face-line: #4A4D53; }
+
 @keyframes st-pop { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 @keyframes st-rise { from { transform: scaleY(0.15); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes st-draw { from { stroke-dashoffset: var(--st-len, 400); } to { stroke-dashoffset: 0; } }

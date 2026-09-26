@@ -1,102 +1,88 @@
 "use client";
 
+/**
+ * The Tasks board — one column per stage, in the Studio look (owner, 26 Sept
+ * 2026: "the board needs to be improved completely, revamped").
+ *
+ * Drag a card to another column to change its stage (the same write and undo
+ * toast as the list's status menu); a tap opens the side panel, as a list row
+ * does; a long press peeks. "+" on a column adds a task straight into it.
+ *
+ * ⚠️ From `sm` up the board is exactly as tall as the window allows
+ * (useFillViewport) and each column scrolls its own cards, so a column's
+ * heading never scrolls away. A phone shows one column at a time and the page
+ * scrolls — a nested scroller under a thumb fights the page.
+ */
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { markPush, withReturn } from "@/lib/nav/return-to";
-import { motion, LayoutGroup, useReducedMotion } from "framer-motion";
-import {
-  ExternalLink, Clock, CheckCircle2, AlertOctagon, Plus, X, Building2,
-} from "lucide-react";
+import { AlertOctagon, CheckCircle2, Clock, ExternalLink, Loader2, Plus, Repeat } from "lucide-react";
 import type { TaskRow } from "@/lib/tasks/queries";
-import { spring } from "@/lib/motion";
-import { Badge, Button, IconButton, FieldLabel } from "@/components/ui";
-import { Panel } from "@/components/kit/surface-kit";
-import { Reveal } from "@/components/kit/reveal";
-import { FluidSelect, type FluidOption } from "@/components/forms/fluid-select";
-import { Combobox } from "@/components/forms/combobox";
-import { TaskInlineStatus, TaskInlinePriority } from "@/components/tasks/task-inline-edit";
-import { TaskMetaLine, PinnedMarker, WaitingOnChip } from "@/components/tasks/task-meta-line";
-import { TaskUpdateLine } from "@/components/tasks/task-update-line";
-import { TaskRowActions } from "@/components/tasks/task-row-actions";
-import { AssigneeList } from "@/components/tasks/assignee-list";
-import { PeekPreview, type PeekAction } from "@/components/tasks/peek-preview";
-import { TaskContext } from "@/components/tasks/task-context";
-import { PeekQuickUpdate } from "@/components/tasks/peek-quick-update";
-import { SnoozeSheet } from "@/components/tasks/snooze-sheet";
+import { markPush, withReturn } from "@/lib/nav/return-to";
+import { taskHref } from "@/lib/tasks/task-href";
+import { useFillViewport } from "@/lib/hooks/use-fill-viewport";
+import { useMediaQuery } from "@/lib/hooks/use-media-query";
 import { triggerHaptic } from "@/lib/hooks/use-long-press";
 import { useToast } from "@/components/shell/toast";
 import { callUndo } from "@/components/shell/undo-banner";
 import { inlineUpdateTask } from "@/app/task/actions";
 import { createCaptureTask } from "@/app/capture/actions";
-import { SelectCheckbox, OrderRegistrar } from "./selection";
-import { taskHref } from "@/lib/tasks/task-href";
+import { PeekPreview, type PeekAction } from "@/components/tasks/peek-preview";
+import { TaskContext } from "@/components/tasks/task-context";
+import { PeekQuickUpdate } from "@/components/tasks/peek-quick-update";
+import { SnoozeSheet } from "@/components/tasks/snooze-sheet";
+import { PinnedMarker, WaitingOnChip } from "@/components/tasks/task-meta-line";
+import { Combobox } from "@/components/forms/combobox";
+import { StudioChoiceMenu, StudioFaces } from "@/components/studio/tasks/cells";
+import { useStudioPick } from "@/components/studio/tasks/pick";
+import { STATUS_DOT, ago, deadlineWords } from "@/components/studio/tasks/task-words";
+import { Dot, stBtn } from "@/components/studio/kit";
+import { cn } from "@/lib/cn";
+import { SelectCheckbox, OrderRegistrar, useSelection } from "./selection";
 
-const BOARD_STATUSES = [
+const STAGES = [
   "Not Started", "In Progress", "Under Review", "Waiting External",
   "Blocked", "Escalated", "Completed", "Closed",
 ] as const;
 
-function priorityTone(p: string): "default" | "success" | "warn" | "danger" | "info" {
-  if (p === "Critical") return "danger";
-  if (p === "High") return "warn";
-  if (p === "Medium") return "info";
-  return "default";
-}
-
-function statusTone(s: string): "default" | "success" | "warn" | "danger" | "info" {
-  if (s === "Completed" || s === "Closed") return "success";
-  if (s === "Blocked" || s === "Escalated") return "danger";
-  if (s === "Waiting External" || s === "Under Review") return "warn";
-  if (s === "In Progress") return "info";
-  return "default";
-}
-
-/** The coloured priority spine down a card's leading edge (CSS var → token colour). */
-function prioritySpine(p: string): string {
-  if (p === "Critical") return "hsl(var(--danger))";
-  if (p === "High") return "hsl(var(--warn))";
-  if (p === "Medium") return "hsl(var(--info))";
-  return "hsl(var(--fg-subtle))";
-}
-
 const PRIORITY_ORDER = ["Critical", "High", "Medium", "Low"];
+const isDone = (s: string) => s === "Completed" || s === "Closed";
 
 export function BoardView({ rows, showClosed }: { rows: TaskRow[]; showClosed: boolean }) {
   const router = useRouter();
   const { toast } = useToast();
-  const reduce = useReducedMotion();
+  const pick = useStudioPick();
+  const { selected } = useSelection();
+  const ticking = selected.size > 0;
+  const phone = useMediaQuery("(max-width: 639px)");
+  const frame = useRef<HTMLDivElement>(null);
+  useFillViewport(frame, { mode: "exact", minimum: 420, enabled: !phone, deps: [phone] });
 
-  // Optimistic status overrides (code → status) so a dropped card moves instantly.
+  // Optimistic stage overrides (code → stage) so a dropped card moves at once.
   const [moved, setMoved] = useState<Record<string, string>>({});
   const [dragCode, setDragCode] = useState<string | null>(null);
-  const [overStatus, setOverStatus] = useState<string | null>(null);
+  const [overStage, setOverStage] = useState<string | null>(null);
   const [peek, setPeek] = useState<TaskRow | null>(null);
   const [snoozeRow, setSnoozeRow] = useState<TaskRow | null>(null);
-  const [addInStatus, setAddInStatus] = useState<string | null>(null);
+  const [addIn, setAddIn] = useState<string | null>(null);
 
   const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pressStart = useRef<{ x: number; y: number } | null>(null);
   const longPressed = useRef(false);
 
-  // Companies + people derived from the visible rows — the board is global, so we
-  // don't need the host to pass them in for the per-column quick-add.
+  // The per-column quick add offers the companies and people on the board.
   const companies = useMemo(
     () => [...new Map(rows.map((r) => [r.companyId, r.companyName])).entries()]
       .map(([id, name]) => ({ id, name }))
       .sort((a, b) => a.name.localeCompare(b.name)),
     [rows],
   );
-  const people = useMemo(
-    () => [...new Set(rows.flatMap((r) => r.assignees))].filter(Boolean).sort(),
-    [rows],
-  );
+  const people = useMemo(() => [...new Set(rows.flatMap((r) => r.assignees))].filter(Boolean).sort(), [rows]);
 
-  const statusOf = (r: TaskRow) => moved[r.code] ?? r.status;
-  const visible = BOARD_STATUSES.filter((s) => showClosed || s !== "Closed");
-  const columns = visible.map((s) => ({
-    status: s,
+  const stageOf = (r: TaskRow) => moved[r.code] ?? r.status;
+  const columns = STAGES.filter((s) => showClosed || s !== "Closed").map((s) => ({
+    stage: s,
     items: rows
-      .filter((r) => statusOf(r) === s)
+      .filter((r) => stageOf(r) === s)
       .sort((a, b) => PRIORITY_ORDER.indexOf(a.priority) - PRIORITY_ORDER.indexOf(b.priority)),
   }));
   const orderedCodes = columns.flatMap((c) => c.items.map((r) => r.code));
@@ -107,19 +93,26 @@ export function BoardView({ rows, showClosed }: { rows: TaskRow[]; showClosed: b
     router.push(to);
   }
 
-  async function move(r: TaskRow, toStatus: string) {
-    if (statusOf(r) === toStatus) return;
-    setMoved((m) => ({ ...m, [r.code]: toStatus }));
+  /** A tap: the side panel, as a list row (a second tap lets go). */
+  function tap(r: TaskRow) {
+    if (longPressed.current) { longPressed.current = false; return; }
+    if (pick) pick.setCode(pick.code === r.code ? null : r.code);
+    else openTask(r.code);
+  }
+
+  async function move(r: TaskRow, to: string) {
+    if (stageOf(r) === to) return;
+    setMoved((m) => ({ ...m, [r.code]: to }));
     triggerHaptic();
-    const res = await inlineUpdateTask(r.code, "status", toStatus);
+    const res = await inlineUpdateTask(r.code, "status", to);
     if (res.ok) {
-      toast(`${r.code} → ${toStatus}`, {
+      toast(`${r.code} → ${to}`, {
         tone: "success", duration: 6000,
         action: res.undoToken ? { label: "Undo", onClick: async () => { await callUndo(res.undoToken!); setMoved((m) => { const n = { ...m }; delete n[r.code]; return n; }); router.refresh(); } } : undefined,
       });
     } else {
-      setMoved((m) => { const n = { ...m }; delete n[r.code]; return n; }); // revert
-      toast(res.error || "Move failed", { tone: "warn", duration: 3000 });
+      setMoved((m) => { const n = { ...m }; delete n[r.code]; return n; });
+      toast(res.error || "Couldn't move it", { tone: "warn", duration: 3000 });
     }
     router.refresh();
   }
@@ -134,224 +127,129 @@ export function BoardView({ rows, showClosed }: { rows: TaskRow[]; showClosed: b
   }
 
   async function runPeek(action: "complete" | "escalate", r: TaskRow) {
-    const field = action === "complete" ? "status" : "escalation";
-    const value = action === "complete" ? "Completed" : "Yes";
-    const res = await inlineUpdateTask(r.code, field, value);
+    const res = await inlineUpdateTask(r.code, action === "complete" ? "status" : "escalation", action === "complete" ? "Completed" : "Yes");
     if (res.ok) {
       toast(`${r.code} ${action === "complete" ? "completed" : "escalated"}`, {
-        tone: "success",
-        duration: 6000,
+        tone: "success", duration: 6000,
         action: res.undoToken ? { label: "Undo", onClick: async () => { await callUndo(res.undoToken!); router.refresh(); } } : undefined,
       });
       setPeek(null);
     } else {
-      toast(res.error || "Update failed", { tone: "warn", duration: 3000 });
+      toast(res.error || "Couldn't update it", { tone: "warn", duration: 3000 });
     }
     router.refresh();
   }
 
-  // Long-press → peek (cleared if a drag or scroll starts).
+  // Long press → peek (cleared if a drag or a scroll starts).
   function clearPress() { if (pressTimer.current) { clearTimeout(pressTimer.current); pressTimer.current = null; } }
-  function onCardPointerDown(r: TaskRow, e: React.PointerEvent) {
+  function onPointerDown(r: TaskRow, e: React.PointerEvent) {
     longPressed.current = false;
     pressStart.current = { x: e.clientX, y: e.clientY };
     clearPress();
     pressTimer.current = setTimeout(() => { longPressed.current = true; triggerHaptic(); setPeek(r); }, 400);
   }
-  function onCardPointerMove(e: React.PointerEvent) {
+  function onPointerMove(e: React.PointerEvent) {
     if (!pressStart.current) return;
     if (Math.abs(e.clientX - pressStart.current.x) > 8 || Math.abs(e.clientY - pressStart.current.y) > 8) clearPress();
   }
 
-  const peekActions = (r: TaskRow): PeekAction[] => {
-    const done = r.status === "Completed" || r.status === "Closed";
-    return [
-      { label: "Open", icon: <ExternalLink size={15} />, tone: "accent", onClick: () => openTask(r.code) },
-      ...(done ? [] : [{ label: "Complete", icon: <CheckCircle2 size={15} />, onClick: () => runPeek("complete", r) }]),
-      ...(!done && r.escalation !== "Yes" ? [{ label: "Escalate", icon: <AlertOctagon size={15} />, tone: "danger" as const, onClick: () => runPeek("escalate", r) }] : []),
-      { label: "Snooze…", icon: <Clock size={15} />, onClick: () => setSnoozeRow(r) },
-    ];
-  };
+  const peekActions = (r: TaskRow): PeekAction[] => [
+    { label: "Open", icon: <ExternalLink size={15} />, tone: "accent", onClick: () => openTask(r.code) },
+    ...(isDone(r.status) ? [] : [{ label: "Complete", icon: <CheckCircle2 size={15} />, onClick: () => runPeek("complete", r) }]),
+    ...(!isDone(r.status) && r.escalation !== "Yes" ? [{ label: "Escalate", icon: <AlertOctagon size={15} />, tone: "danger" as const, onClick: () => runPeek("escalate", r) }] : []),
+    { label: "Snooze…", icon: <Clock size={15} />, onClick: () => setSnoozeRow(r) },
+  ];
 
   return (
     <>
       <OrderRegistrar codes={orderedCodes} />
-      <LayoutGroup>
-      <Panel className="p-2 sm:p-3">
-      {/* On a phone only one column fits, so a sideways swipe snaps to the next
-          one rather than parking half-way across two. `proximity`, not
-          `mandatory`: a deliberate nudge to peek at the column next door is
-          still allowed.
-
-          ⚠️ From `sm` up the board is BOUNDED and each column scrolls its own
-          cards. The headings were marked `sticky top-0` and never once stuck:
-          `overflow-x: auto` makes this element a scroll container on BOTH axes
-          (a `visible` on the other axis computes to `auto`), so a heading
-          resolved against a box with no vertical overflow to move within, and
-          scrolled away with the page. Columns run to ~3800px, so the heading
-          was gone almost immediately and you could not tell which status you
-          were reading.
-
-          Sticky is not the fix — a heading that sits OUTSIDE the scrolling part
-          is. Each column is a flex column: heading fixed at the top, cards in a
-          `flex-1 min-h-0 overflow-y-auto` body under it. Columns still stretch
-          to the full height, so an empty column is still a full-size drop
-          target. `overflow-y-hidden` on this row stops it scrolling vertically
-          as well and giving you two bars.
-
-          NOT on a phone: there the board starts ~460px down the page, and a
-          nested vertical scroller that far down fights the page's own scroll
-          under a thumb. A phone shows one column at a time and still loses its
-          heading — still open. */}
-      <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 max-sm:snap-x max-sm:snap-proximity sm:max-h-[calc(100svh-19rem)] sm:min-h-[26rem] sm:overflow-y-hidden">
-        {columns.map((col) => (
-          <div
-            key={col.status}
-            onDragOver={(e) => { e.preventDefault(); setOverStatus(col.status); }}
-            onDragLeave={() => setOverStatus((s) => (s === col.status ? null : s))}
-            onDrop={(e) => {
-              e.preventDefault();
-              const r = rows.find((x) => x.code === dragCode);
-              if (r) move(r, col.status);
-              setDragCode(null); setOverStatus(null);
-            }}
-            className={
-              "w-[244px] sm:w-[268px] shrink-0 rounded-2xl transition-colors max-sm:snap-start sm:flex sm:flex-col sm:min-h-0 " +
-              (overStatus === col.status ? "bg-accent/8 ring-1 ring-accent/40" : "")
-            }
-          >
-            {/* Outside the scrolling part of the column, so it is simply always
-                there. It used to be `sticky top-0`, which did nothing — see the
-                note on the row above. */}
-            <div className="flex shrink-0 items-center gap-2 px-2 py-1.5">
-              <span className="inline-flex h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: `hsl(var(--${toneVar(statusTone(col.status))}))` }} />
-              <div className="text-xs font-semibold uppercase tracking-wider text-fg-muted truncate">{col.status}</div>
-              <div className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-bg-subtle text-fg-muted text-xs font-semibold tabular">{col.items.length}</div>
-              {/* + per column → create straight into this status */}
-              {col.status !== "Completed" && col.status !== "Closed" && (
-                <IconButton
-                  variant="ghost"
-                  size="sm"
-                  type="button"
-                  onClick={() => setAddInStatus((s) => (s === col.status ? null : col.status))}
-                  aria-label={`Add a task to ${col.status}`}
-                  title={`Add a task to ${col.status}`}
-                  className="ml-auto h-7 w-7 text-fg-subtle hover:text-accent"
-                >
-                  <Plus size={14} />
-                </IconButton>
+      <div
+        ref={frame}
+        className="st-scroll -mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 sm:mx-0 sm:snap-none sm:px-0 sm:pb-1"
+      >
+        {columns.map((col) => {
+          const over = overStage === col.stage;
+          const canAdd = !isDone(col.stage);
+          return (
+            <section
+              key={col.stage}
+              aria-label={col.stage}
+              onDragOver={(e) => { e.preventDefault(); setOverStage(col.stage); }}
+              onDragLeave={() => setOverStage((s) => (s === col.stage ? null : s))}
+              onDrop={(e) => {
+                e.preventDefault();
+                const r = rows.find((x) => x.code === dragCode);
+                if (r) move(r, col.stage);
+                setDragCode(null); setOverStage(null);
+              }}
+              className={cn(
+                "flex w-[84vw] shrink-0 snap-center flex-col rounded-[20px] p-2 transition-colors sm:w-[284px] sm:min-h-0",
+                "bg-[color-mix(in_srgb,var(--st-seg)_55%,transparent)]",
+                over && "bg-[color-mix(in_srgb,var(--st-seg)_95%,transparent)] ring-2 ring-[var(--st-field-line)]",
               )}
-            </div>
+            >
+              <header className="flex h-10 shrink-0 items-center gap-2 pl-2.5 pr-1">
+                <Dot color={STATUS_DOT[col.stage]} size={8} />
+                <h3 className="truncate text-[13px] font-semibold">{col.stage}</h3>
+                <span className="st-mono text-[11px] text-[var(--st-muted)]">{col.items.length}</span>
+                {canAdd && (
+                  <button
+                    type="button"
+                    onClick={() => setAddIn((s) => (s === col.stage ? null : col.stage))}
+                    aria-label={`Add a task to ${col.stage}`}
+                    title={`Add a task to ${col.stage}`}
+                    className="ml-auto grid h-7 w-7 place-items-center rounded-lg text-[var(--st-muted)] transition-colors hover:bg-[var(--st-surface)] hover:text-[var(--st-ink)]"
+                  >
+                    <Plus size={15} />
+                  </button>
+                )}
+              </header>
 
-            {addInStatus === col.status && (
-              <ColumnQuickAdd
-                status={col.status}
-                companies={companies}
-                people={people}
-                onClose={() => setAddInStatus(null)}
-                onCreated={(code) => {
-                  setAddInStatus(null);
-                  toast(`${code} added to ${col.status}`, { tone: "success", duration: 5000 });
-                  router.refresh();
-                }}
-              />
-            )}
+              {addIn === col.stage && (
+                <ColumnQuickAdd
+                  stage={col.stage}
+                  companies={companies}
+                  people={people}
+                  onClose={() => setAddIn(null)}
+                  onCreated={(code) => {
+                    setAddIn(null);
+                    toast(`${code} added to ${col.stage}`, { tone: "success", duration: 5000 });
+                    router.refresh();
+                  }}
+                />
+              )}
 
-            <div className="space-y-1.5 min-h-[60px] px-0.5 pb-1 sm:min-h-0 sm:flex-1 sm:overflow-y-auto slim-scroll">
-              {col.items.map((r, i) => {
-                const done = r.status === "Completed" || r.status === "Closed";
-                return (
-                <Reveal key={r.id} delay={Math.min(i, 12) * 0.012}>
-                <motion.div layout={!reduce} layoutId={reduce ? undefined : r.code} transition={spring}>
-                <div
-                  draggable
-                  onDragStart={(e) => { clearPress(); setDragCode(r.code); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", r.code); }}
-                  onDragEnd={() => { setDragCode(null); setOverStatus(null); }}
-                  onPointerDown={(e) => onCardPointerDown(r, e)}
-                  onPointerMove={onCardPointerMove}
-                  onPointerUp={clearPress}
-                  onPointerLeave={clearPress}
-                  onPointerCancel={clearPress}
-                  onContextMenu={(e) => e.preventDefault()}
-                  onClick={() => { if (longPressed.current) { longPressed.current = false; return; } openTask(r.code); }}
-                  className={
-                    "group/card relative elevated rounded-xl p-2.5 pl-3 overflow-hidden " +
-                    "cursor-grab active:cursor-grabbing select-none transition-shadow hover:shadow-md " +
-                    "ring-1 ring-transparent hover:ring-border focus-within:ring-accent/30 " +
-                    (dragCode === r.code ? "opacity-40 " : "") + (done ? "opacity-65 " : "")
-                  }
-                >
-                  {/* Coloured priority spine */}
-                  <span
-                    aria-hidden
-                    className="absolute inset-y-0 left-0 w-[3px] rounded-l-xl"
-                    style={{ backgroundColor: prioritySpine(r.priority) }}
+              <div className="st-scroll flex min-h-[88px] flex-col gap-2 sm:min-h-0 sm:flex-1 sm:overflow-y-auto">
+                {col.items.map((r) => (
+                  <BoardCard
+                    key={r.id}
+                    r={r}
+                    stage={stageOf(r)}
+                    picked={pick?.code === r.code}
+                    dragging={dragCode === r.code}
+                    ticking={ticking}
+                    onTap={() => tap(r)}
+                    onDragStart={(e) => { clearPress(); setDragCode(r.code); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", r.code); }}
+                    onDragEnd={() => { setDragCode(null); setOverStage(null); }}
+                    press={{
+                      onPointerDown: (e) => onPointerDown(r, e),
+                      onPointerMove,
+                      onPointerUp: clearPress,
+                      onPointerLeave: clearPress,
+                      onPointerCancel: clearPress,
+                    }}
                   />
-
-                  {/* Header: select · code · pin · trailing actions */}
-                  <div className="flex items-center justify-between gap-2 mb-1.5">
-                    <div className="flex items-center gap-1.5 min-w-0" onClick={(e) => e.stopPropagation()}>
-                      <SelectCheckbox code={r.code} />
-                      <span className="font-mono text-xs text-fg-muted">{r.code}</span>
-                      {r.unread && <span title="New activity since you last looked" className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />}
-                      <PinnedMarker task={r} />
-                    </div>
-                    <div className="opacity-0 group-hover/card:opacity-100 focus-within:opacity-100 transition-opacity shrink-0">
-                      <TaskRowActions task={r} compact onDone={() => router.refresh()} />
-                    </div>
+                ))}
+                {col.items.length === 0 && addIn !== col.stage && (
+                  <div className="grid h-[88px] shrink-0 place-items-center rounded-[14px] border border-dashed border-[var(--st-field-line)] text-[12px] text-[var(--st-muted)]">
+                    Drop a task here
                   </div>
-
-                  {/* Title */}
-                  <div className={"text-base leading-snug mb-1 line-clamp-2" + (done ? " line-through decoration-fg-subtle/40" : "")}>{r.actionItem}</div>
-
-                  {/* Description snippet */}
-                  <TaskMetaLine task={r} className="mb-1.5" />
-
-                  {/* Waiting-on chip for Blocked / Waiting-External */}
-                  {r.waiting && <div className="mb-1.5"><WaitingOnChip task={r} on={r.owner} /></div>}
-
-                  {/* Latest activity (taps through to the Conversation tab) */}
-                  <div onClick={(e) => e.stopPropagation()} className="mb-2">
-                    <TaskUpdateLine task={r} onOpenConversation={() => openTask(r.code)} />
-                  </div>
-
-                  {/* In-row glass inline edits */}
-                  <div className="flex items-center gap-1.5 mb-2" onClick={(e) => e.stopPropagation()}>
-                    <TaskInlineStatus task={r} buttonClassName="text-xs py-0.5" />
-                    <TaskInlinePriority task={r} buttonClassName="text-xs py-0.5" />
-                  </div>
-
-                  {/* Footer: company · assignees */}
-                  <div className="flex items-center justify-between text-xs text-fg-muted gap-2">
-                    <span className="truncate inline-flex items-center gap-1.5 min-w-0">
-                      <span className="inline-block w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: r.companyAccent || "transparent" }} />
-                      <span className="truncate">{r.companyName}</span>
-                    </span>
-                    {r.assignees.length > 0 ? (
-                      <span onClick={(e) => e.stopPropagation()} className="shrink-0 truncate max-w-[55%] text-right">
-                        <AssigneeList names={r.assignees} ids={r.assigneeIds} className="text-fg-muted" />
-                      </span>
-                    ) : (
-                      <span className="shrink-0 italic text-fg-subtle">Unassigned</span>
-                    )}
-                  </div>
-                </div>
-                </motion.div>
-                </Reveal>
-                );
-              })}
-
-              {col.items.length === 0 && addInStatus !== col.status && (
-                <div className="rounded-lg border border-dashed border-border/70 text-center text-xs text-fg-subtle py-6">
-                  Drop here
-                </div>
-              )}
-            </div>
-          </div>
-        ))}
+                )}
+              </div>
+            </section>
+          );
+        })}
       </div>
-      </Panel>
-      </LayoutGroup>
 
       <PeekPreview
         open={!!peek}
@@ -362,10 +260,10 @@ export function BoardView({ rows, showClosed }: { rows: TaskRow[]; showClosed: b
         creator={peek?.latestActivity?.author ?? null}
         whenISO={peek?.latestActivity?.atISO ?? null}
         pills={peek ? (
-          <>
-            <Badge tone={statusTone(peek.status)}>{peek.status}</Badge>
-            <Badge tone={priorityTone(peek.priority)}>{peek.priority}</Badge>
-          </>
+          <span className="inline-flex items-center gap-3 text-xs">
+            <span className="inline-flex items-center gap-1.5"><Dot color={STATUS_DOT[peek.status] ?? "#B9BBBF"} />{peek.status}</span>
+            <span className="text-[var(--st-muted)]">{peek.priority} priority</span>
+          </span>
         ) : undefined}
         body={peek ? <TaskContext comments={peek.comments} latestUpdate={peek.latestUpdate} /> : undefined}
         quickUpdate={peek ? <PeekQuickUpdate row={peek} onPosted={() => { setPeek(null); router.refresh(); }} /> : undefined}
@@ -383,123 +281,135 @@ export function BoardView({ rows, showClosed }: { rows: TaskRow[]; showClosed: b
   );
 }
 
-/** Map a Badge tone to the matching CSS colour variable for the column dot. */
-function toneVar(t: "default" | "success" | "warn" | "danger" | "info"): string {
-  if (t === "success") return "success";
-  if (t === "warn") return "warn";
-  if (t === "danger") return "danger";
-  if (t === "info") return "info";
-  return "fg-subtle";
+/** One task on the board: what it is, who has it, when it is due, and the
+ *  last thing said about it. */
+function BoardCard({ r, stage, picked, dragging, ticking, onTap, onDragStart, onDragEnd, press }: {
+  r: TaskRow;
+  stage: string;
+  picked: boolean;
+  dragging: boolean;
+  ticking: boolean;
+  onTap: () => void;
+  onDragStart: (e: React.DragEvent) => void;
+  onDragEnd: () => void;
+  press: {
+    onPointerDown: (e: React.PointerEvent) => void;
+    onPointerMove: (e: React.PointerEvent) => void;
+    onPointerUp: () => void;
+    onPointerLeave: () => void;
+    onPointerCancel: () => void;
+  };
+}) {
+  const done = isDone(stage);
+  const due = deadlineWords({ ...r, status: stage });
+  const a = r.latestActivity;
+  return (
+    <article
+      draggable
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      {...press}
+      onContextMenu={(e) => e.preventDefault()}
+      onClick={onTap}
+      className={cn(
+        "group/card shrink-0 cursor-pointer select-none rounded-[14px] border bg-[var(--st-surface)] p-3 transition-[border-color,box-shadow,opacity]",
+        picked ? "border-[var(--st-ink)]" : "border-[var(--st-line)] hover:border-[var(--st-field-line)] hover:shadow-[0_4px_14px_rgba(17,18,20,0.06)]",
+        dragging && "opacity-40",
+      )}
+    >
+      <div className="flex min-w-0 items-center gap-1.5">
+        <span onClick={(e) => e.stopPropagation()} className={cn("shrink-0", !ticking && "hidden group-hover/card:inline-flex")}>
+          <SelectCheckbox code={r.code} />
+        </span>
+        <span className="st-mono shrink-0 text-[11px] text-[var(--st-muted)]">{r.code}</span>
+        {r.unread && <span title="New activity since you last looked" className="h-[7px] w-[7px] shrink-0 rounded-full bg-[var(--st-blue)]" />}
+        {!done && (r.priority === "Critical" || r.priority === "High") && (
+          <span title={`${r.priority} priority`} className="h-[7px] w-[7px] shrink-0 rounded-full" style={{ background: r.priority === "Critical" ? "var(--st-late)" : "var(--st-soon)" }} />
+        )}
+        <PinnedMarker task={r} className="shrink-0" />
+        {r.recurringRuleId != null && <Repeat size={11} className="shrink-0 text-[var(--st-muted)]" aria-label="Repeats" />}
+        <span className="ml-auto shrink-0 whitespace-nowrap text-[12px]" style={{ color: due.onPage }}>{due.words}</span>
+      </div>
+
+      <div className={cn("mt-1.5 line-clamp-2 text-[14px] font-medium leading-snug", done && "text-[var(--st-muted)] line-through")}>{r.actionItem}</div>
+      <div className="mt-0.5 truncate text-[12px] text-[var(--st-muted)]">{r.companyName}</div>
+
+      {r.waiting && <div className="mt-2"><WaitingOnChip task={r} on={r.owner} /></div>}
+
+      {a && (
+        <div className="mt-2.5 rounded-[10px] bg-[var(--st-page)] px-2.5 py-2">
+          <div className="line-clamp-2 text-[12px] leading-snug text-[var(--st-sub)]">{a.body}</div>
+          <div className="mt-1 truncate text-[11px] text-[var(--st-muted)]">{a.author} · {ago(a.atISO)}</div>
+        </div>
+      )}
+
+      <div className="mt-2.5 flex min-h-[26px] items-center justify-between gap-2">
+        {r.assignees.length > 0 ? <StudioFaces names={r.assignees} max={4} /> : <span className="text-[12px] text-[var(--st-muted)]">Nobody yet</span>}
+        <span className="truncate text-[11px] text-[var(--st-muted)]">{r.priority}</span>
+      </div>
+    </article>
+  );
 }
 
-/* ------------------------------------------------------------------ *
- * ColumnQuickAdd — a soft inline composer docked under a column header.
- * Creates a task straight into the column's status via createCaptureTask
- * (no new server action). Defaults priority Medium / status = the column.
- * ------------------------------------------------------------------ */
-function ColumnQuickAdd({
-  status,
-  companies,
-  people,
-  onClose,
-  onCreated,
-}: {
-  status: string;
+/** A task straight into a column's stage, in the column itself. */
+function ColumnQuickAdd({ stage, companies, people, onClose, onCreated }: {
+  stage: string;
   companies: { id: number; name: string }[];
   people: string[];
   onClose: () => void;
   onCreated: (code: string) => void;
 }) {
   const { toast } = useToast();
-  const [action, setAction] = useState("");
+  const [text, setText] = useState("");
   const [companyId, setCompanyId] = useState<number | undefined>(companies[0]?.id);
-  const [assignee, setAssignee] = useState("");
+  const [who, setWho] = useState("");
   const [pending, setPending] = useState(false);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
-
-  const companyOptions: FluidOption[] = companies.map((c) => ({ value: String(c.id), label: c.name }));
+  const box = useRef<HTMLTextAreaElement>(null);
 
   async function submit() {
-    const a = action.trim();
-    if (!a) { inputRef.current?.focus(); return; }
+    const a = text.trim();
+    if (!a) { box.current?.focus(); return; }
     if (!companyId) { toast("Pick a company first.", { tone: "warn" }); return; }
     setPending(true);
-    const res = await createCaptureTask({
-      companyId,
-      actionItem: a,
-      status,
-      priority: "Medium",
-      assignees: assignee.trim() || undefined,
-    });
+    const res = await createCaptureTask({ companyId, actionItem: a, status: stage, priority: "Medium", assignees: who.trim() || undefined });
     setPending(false);
-    if (res.ok && res.code) {
-      setAction("");
-      onCreated(res.code);
-    } else {
-      toast(res.error || "Couldn't create task.", { tone: "danger" });
-    }
+    if (res.ok && res.code) { setText(""); onCreated(res.code); }
+    else toast(res.error || "Couldn't create the task.", { tone: "danger" });
   }
 
+  const field = "bare-field w-full rounded-[10px] border border-[var(--st-field-line)] bg-[var(--st-page)] px-3 text-[13px] outline-none placeholder:text-[var(--st-muted)] focus:border-[var(--st-muted)]";
   return (
-    <div className="glass glass-menu elevated rounded-xl p-2 mb-2 mx-0.5 space-y-2">
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold uppercase tracking-wider text-fg-muted">New in {status}</span>
-        <IconButton
-          variant="ghost"
-          size="sm"
-          type="button"
-          onClick={onClose}
-          aria-label="Cancel"
-          className="h-7 w-7 text-fg-subtle hover:text-fg"
-        >
-          <X size={13} />
-        </IconButton>
-      </div>
-      <div>
-        <FieldLabel>What needs doing?</FieldLabel>
-        <textarea
-          ref={inputRef}
-          autoFocus
-          rows={2}
-          value={action}
-          onChange={(e) => setAction(e.target.value)}
-          onKeyDown={(e) => {
-            if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); submit(); }
-            if (e.key === "Escape") onClose();
-          }}
-          placeholder="What needs doing?"
-          className="w-full rounded-lg px-2.5 py-1.5 text-base bg-bg-subtle/60 ring-1 ring-border/50 placeholder:text-fg-subtle resize-none focus:outline-none focus:ring-2 focus:ring-accent/50 transition-shadow"
-        />
-      </div>
-      <div className="flex items-center gap-1.5">
-        <span className="inline-flex items-center gap-1 text-fg-subtle"><Building2 size={12} /></span>
-        <FluidSelect
-          value={String(companyId ?? "")}
-          options={companyOptions}
-          onSelect={(v) => setCompanyId(Number(v))}
-          placeholder="Company"
-          buttonClassName="text-xs py-0.5"
-        />
-      </div>
-      <Combobox
-        options={people}
-        placeholder="Assignee (optional)"
-        onInput={setAssignee}
-        onCommit={setAssignee}
-        className="w-full rounded-lg px-2.5 py-1.5 text-sm bg-bg-subtle/60 ring-1 ring-border/50 placeholder:text-fg-subtle focus:outline-none focus:ring-2 focus:ring-accent/50 transition-shadow"
+    <div className="mb-2 shrink-0 rounded-[14px] border border-[var(--st-line)] bg-[var(--st-surface)] p-2.5">
+      <textarea
+        ref={box}
+        autoFocus
+        rows={2}
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => {
+          if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); submit(); }
+          if (e.key === "Escape") onClose();
+        }}
+        placeholder="What needs doing?"
+        className={cn(field, "resize-none py-2 leading-snug")}
       />
-      <div className="flex items-center justify-end gap-2 pt-0.5">
-        <span className="mr-auto text-xs text-fg-subtle">⌘↵ to add</span>
-        <Button
-          size="sm"
-          type="button"
-          onClick={submit}
-          loading={pending}
-          disabled={pending || !action.trim()}
-        >
-          {!pending && <Plus size={13} />}
-          Add
-        </Button>
+      <div className="mt-2">
+        <StudioChoiceMenu
+          value={companyId ? String(companyId) : null}
+          options={companies.map((c) => ({ value: String(c.id), label: c.name }))}
+          onPick={(v) => setCompanyId(Number(v))}
+          showDot={false}
+          empty="Company"
+          title="Which company"
+        />
+      </div>
+      <Combobox options={people} placeholder="Who (optional)" onInput={setWho} onCommit={setWho} className={cn(field, "mt-2 h-9")} />
+      <div className="mt-2.5 flex items-center justify-end gap-2">
+        <span className="mr-auto text-[11px] text-[var(--st-muted)]">Ctrl+Enter adds it</span>
+        <button type="button" onClick={onClose} className={cn(stBtn.ghost, "h-8 px-3 text-xs")}>Cancel</button>
+        <button type="button" onClick={submit} disabled={pending || !text.trim()} className={cn(stBtn.dark, "h-8 px-3 text-xs disabled:opacity-40")}>
+          {pending ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}Add
+        </button>
       </div>
     </div>
   );

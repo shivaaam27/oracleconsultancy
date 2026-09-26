@@ -221,7 +221,7 @@ export function StudioAssets({ d }: { d: StudioAssetsData }) {
 
       {view === "assets" && (
         <>
-          <StudioCardRow className="lg:h-[220px]">
+          <StudioCardRow>
             <StudioCard className="min-h-[210px]">
               <CardHead label="Equipment" right={<span>{v.co ? d.lists.companies.find((c) => String(c.id) === v.co)?.name : "across every company"}</span>} />
               <div className="mt-auto flex items-end gap-5 pt-3 sm:gap-7">
@@ -311,7 +311,7 @@ export function StudioAssets({ d }: { d: StudioAssetsData }) {
 
       {view === "tools" && (
         <>
-          <StudioCardRow className="lg:h-[220px]">
+          <StudioCardRow>
             <StudioCard className="min-h-[210px]">
               <CardHead label="Site tools" right={<span>{tStats.lines} kinds · {tStats.sites.length} site{tStats.sites.length === 1 ? "" : "s"}</span>} />
               <div className="mt-auto flex items-end gap-5 pt-3 sm:gap-7">
@@ -399,7 +399,7 @@ export function StudioAssets({ d }: { d: StudioAssetsData }) {
 
       {view === "vendors" && (
         <>
-          <StudioCardRow className="lg:h-[220px]">
+          <StudioCardRow>
             <StudioCard className="min-h-[210px]">
               <CardHead label="Suppliers" right={<span>contractors, landlords, services</span>} />
               <div className="mt-auto flex items-end gap-5 pt-3 sm:gap-7">

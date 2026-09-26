@@ -268,7 +268,7 @@ export function StudioPeople({ people, companies, hints = {}, readOnly = false }
       />
 
       {/* ── The two cards ─────────────────────────────────────────────────── */}
-      <StudioCardRow className="lg:h-[220px]">
+      <StudioCardRow>
         <StudioCard className="md:min-h-[200px]">
           <CardHead label={staff ? "Your colleagues" : "Directory"} right={<span className="text-xs text-[var(--st-muted)]">{people.length} people · {companies.length} {companies.length === 1 ? "company" : "companies"}</span>} />
           {staff ? <StaffCompanyBars people={people} companies={companies} pick={(id) => f.set({ co: f.values.co === String(id) ? "all" : String(id) })} on={f.values.co} /> :

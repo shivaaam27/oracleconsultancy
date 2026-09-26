@@ -64,6 +64,7 @@ export function StudioCard({
   return (
     <div
       style={style}
+      data-st-dark={tone === "dark" ? "" : undefined}
       className={cn(
         "relative flex min-w-0 flex-col overflow-hidden rounded-[20px]",
         tone === "dark" ? "bg-[var(--st-card)] px-6 py-5 text-[var(--st-on-card)]" : "bg-[var(--st-surface)] px-[22px] py-5 text-[var(--st-ink)]",

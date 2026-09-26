@@ -85,7 +85,7 @@ export function StudioOri({ data }: { data: StudioOriData }) {
       />
 
       <StudioCardRow>
-        <StudioCard className="min-h-[200px] lg:h-[220px]">
+        <StudioCard className="min-h-[200px]">
           <CardHead label="ORI is watching" right={<span className="max-sm:hidden">paused automations never fire</span>} />
           <div className="flex flex-1 flex-wrap items-end gap-x-7 gap-y-4 pt-3">
             <div>

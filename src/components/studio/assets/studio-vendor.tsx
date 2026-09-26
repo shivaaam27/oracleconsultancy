@@ -60,7 +60,7 @@ export function StudioVendor({ v, assets, services, documents, companies }: {
         </div>
       </div>
 
-      <StudioCardRow className="lg:h-[220px]">
+      <StudioCardRow>
         <StudioCard className="min-h-[200px]">
           <CardHead label="Contact" right={v.email ? <span className="truncate">{v.email}</span> : undefined} />
           <div className="mt-auto flex flex-col gap-3 pt-3">

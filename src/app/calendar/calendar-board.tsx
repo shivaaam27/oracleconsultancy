@@ -518,9 +518,9 @@ export function CalendarBoard({
         </HrmsDialog>
       )}
 
-      <StudioCardRow className="lg:h-[196px]">
+      <StudioCardRow>
         {/* The picked day — today until you pick another in the grid. */}
-        <StudioCard className="min-h-[150px] md:h-[260px] lg:h-auto">
+        <StudioCard className="min-h-[150px]">
           <CardHead
             label={pickedKey === todayKeyGlobal ? `Today · ${dayName(pickedDate)}` : dayName(pickedDate)}
             right={<span className="text-xs text-[var(--st-muted)]">{pickItems} {pickItems === 1 ? "thing" : "things"}{pickItems > 3 && " · scroll for more"}</span>}

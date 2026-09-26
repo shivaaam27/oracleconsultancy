@@ -94,7 +94,7 @@ export function StudioNotesShelf({ rows, folders, counts, tags, savedViews, toda
         }
       />
 
-      <StudioCardRow className="lg:h-[232px]">
+      <StudioCardRow>
         <AskCard />
         <StudioCard texture="rings" className="min-h-[210px]">
           <CardHead label="Today’s page" right={<span>{new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: "Africa/Nairobi" })}</span>} />

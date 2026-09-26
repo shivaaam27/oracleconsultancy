@@ -39,7 +39,7 @@ export function UpdateCard({
 }) {
   const pick = useStudioPick();
   return (
-    <div className="st-tex-rings relative flex min-w-0 flex-col overflow-hidden rounded-[20px] bg-[var(--st-card)] px-[18px] py-4 text-[var(--st-on-card)] sm:px-6 sm:py-5 md:min-h-[244px]">
+    <div data-st-dark="" className="st-tex-rings relative flex min-w-0 flex-col overflow-hidden rounded-[20px] bg-[var(--st-card)] px-[18px] py-4 text-[var(--st-on-card)] sm:px-6 sm:py-5">
       <Idle fresh={fresh} unreadCount={unreadCount} postedToday={postedToday} picked={pick?.code ?? null} onPick={(c) => pick?.setCode(c)} hrefs={hrefs} title={title} />
     </div>
   );
