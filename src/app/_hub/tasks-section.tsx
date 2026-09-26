@@ -19,7 +19,7 @@ import type { TaskRow } from "@/lib/tasks/queries";
 import { getAppSettings } from "@/lib/settings";
 import { StudioTasks, StudioEmpty, StudioLaneNote } from "@/components/studio/tasks/studio-tasks";
 import type { InsightsData } from "@/components/studio/tasks/insights-card";
-import type { FilterSection } from "@/components/studio/tasks/controls";
+import type { FilterSection } from "@/components/studio/tasks/filter-panel";
 
 type Sp = {
   company?: string;
@@ -538,15 +538,7 @@ export async function TasksSection({ sp }: { sp: Sp }) {
   if (stars.size > 0 && !groupBy) {
     rows = [...rows.filter((r) => stars.has(r.id)), ...rows.filter((r) => !stars.has(r.id))];
   }
-  // The mockup's four lenses. The other chips (Quiet, Unread, Done) stay in
-  // the Filters panel, so nothing the old bar could do is lost.
   const onTrackLens = Math.max(0, counts.all - counts.overdue - counts.dueSoon);
-  const studioLenses: FilterChip[] = [
-    chip("all", "All", counts.all, noStatusFilters, {}),
-    chip("ontrack", "On track", onTrackLens, sp.flag === "on-track", { flag: "on-track" }, "success"),
-    chip("duesoon", "Due soon", counts.dueSoon, sp.flag === "due-soon", { flag: "due-soon" }, "warn"),
-    chip("overdue", "Late", counts.overdue, sp.flag === "overdue", { flag: "overdue" }, "danger"),
-  ];
   // Days are Dar es Salaam days (UTC+3), whatever zone the server runs in.
   const eatDay = (ms: number) => Math.floor((ms + 3 * 3_600_000) / 86_400_000);
   const today = eatDay(Date.now());
@@ -619,16 +611,23 @@ export async function TasksSection({ sp }: { sp: Sp }) {
     : freshRaw;
   const updatedToday = withNews.filter((r) => eatDay(new Date(r.latestActivity!.atISO).getTime()) === today).length;
 
-  // The Filters panel: every filter the old page offers, grouped.
+  // The ONE Filter panel (owner, 26 Sept 2026: the title-bar pickers, the
+  // black Filters button and the lenses under the search box were three
+  // copies of the same choices). "Show" gathers the lenses and the chips.
+  const showItems: FilterChip[] = [
+    chips[0],
+    chip("ontrack", "On track", onTrackLens, sp.flag === "on-track", { flag: "on-track" }, "success"),
+    ...chips.slice(1).map((c) => (c.key === "overdue" ? { ...c, label: "Late" } : c)),
+  ];
   const filterSections: FilterSection[] = [
-    { title: "Show", items: chips },
-    { title: "Flags and lanes", items: moreItems },
-    { title: "Stage", items: statusOptions },
-    { title: "Company", note: "also in the title bar", items: companyOptions },
-    { title: "Person", note: personModeCreated ? "tasks they created" : "tasks assigned to them", items: personOptions },
-    { title: "Group the list by", items: groupOptions },
+    { id: "show", title: "Show", items: showItems },
+    { id: "stage", title: "Stage", items: statusOptions },
+    { id: "company", title: "Company", items: companyOptions },
+    { id: "person", title: "Person", note: personModeCreated ? "tasks they created" : "tasks given to them", items: personOptions },
+    { id: "group", title: "Group by", items: groupOptions },
+    { id: "flags", title: "Flags & lanes", items: moreItems },
     ...(view === "cards" && !showArchived
-      ? [{ title: "Cards", note: "Focus = the chase queue, worst first", items: [
+      ? [{ id: "cards", title: "Cards", note: "Focus = the chase queue, worst first", items: [
           { key: "focus", label: "Focus", href: buildHref(sp, { mode: "focus", done: undefined }), active: focusMode },
           { key: "browse", label: "Browse", href: buildHref(sp, { mode: undefined }), active: !focusMode },
         ] }]
@@ -653,13 +652,9 @@ export async function TasksSection({ sp }: { sp: Sp }) {
       view={view}
       queryWithoutView={queryWithoutView(sp)}
       recurringCount={director ? 0 : await recurringRulesCount}
-      company={sp.company ?? null}
-      companyOptions={companyOptions}
-      personLabel={person?.name ?? null}
-      personMode={person ? (personModeCreated ? "created" : "assigned") : null}
-      personOptions={personOptions}
       filterSections={filterSections}
       activeFilterCount={activeFilterCount}
+      clearHref={buildHref({ view: sp.view, month: sp.month, q: sp.q } as Sp, {})}
       savedViews={director ? null :
         <SavedViewsBar initialViews={savedViews} currentQuery={currentQuery} hasFilters={hasFilters} basePath="/" extraQuery="tab=tasks" listKey="task" />
       }
@@ -672,7 +667,6 @@ export async function TasksSection({ sp }: { sp: Sp }) {
       updatedToday={updatedToday}
       q={sp.q || ""}
       searchHrefBase={buildHref(sp, { q: undefined })}
-      lenses={studioLenses}
       quickAdd={view === "table" ? null : quickAddNode}
       body={
         <>

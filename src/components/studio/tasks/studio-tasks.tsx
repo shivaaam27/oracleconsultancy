@@ -10,14 +10,15 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { Archive, Sparkles, CheckSquare, LayoutGrid, LayoutList, Table2, CalendarDays, GitCommitVertical } from "lucide-react";
 import type { TaskRow } from "@/lib/tasks/queries";
-import type { FilterChip, FilterOption, IdentityStrip } from "@/components/tasks/task-filter-bar";
+import type { IdentityStrip } from "@/components/tasks/task-filter-bar";
 import type { RecordFilter } from "@/components/kit/record-list";
 import { StudioScope, StudioHeader, StudioCardRow } from "@/components/studio/kit";
 import { StudioPickProvider } from "./pick";
 import { InsightsCard, type InsightsData } from "./insights-card";
 import { UpdateCard } from "./update-card";
 import { TaskPanel } from "./task-panel";
-import { StudioMenu, FiltersButton, StudioSearchBar, StudioIdentity, type FilterSection } from "./controls";
+import { StudioSearchBar, StudioIdentity, type FilterSection } from "./controls";
+import { TaskFilterButton } from "./filter-panel";
 import { VIEW_MODES, type ViewMode } from "@/app/task/_views/view-switcher";
 import { cn } from "@/lib/cn";
 
@@ -29,13 +30,12 @@ export type StudioTasksProps = {
   view: ViewMode;
   queryWithoutView: string;
   recurringCount: number;
-  company: string | null;
-  companyOptions: FilterOption[];
-  personLabel: string | null;
-  personMode: "assigned" | "created" | null;
-  personOptions: FilterOption[];
+  /** Every filter, in one panel (filter-panel.tsx) — the title bar and the
+   *  search bar no longer carry their own copies (owner, 26 Sept 2026). */
   filterSections: FilterSection[];
   activeFilterCount: number;
+  /** The list with every filter taken off. */
+  clearHref: string;
   savedViews: ReactNode;
   strip: IdentityStrip | null;
   notes: ReactNode;
@@ -46,7 +46,6 @@ export type StudioTasksProps = {
   updatedToday: number;
   q: string;
   searchHrefBase: string;
-  lenses: FilterChip[];
   quickAdd: ReactNode;
   /** The list/board/cards/calendar/timeline body, already built. */
   body: ReactNode;
@@ -58,17 +57,6 @@ export function StudioTasks(p: StudioTasksProps) {
       <StudioPickProvider>
         <StudioHeader
           title={p.title}
-          left={
-            <>
-              <StudioMenu label={p.company ?? "All companies"} options={p.companyOptions} searchable />
-              <StudioMenu
-                label={p.personLabel ?? "Everyone"}
-                sub={p.personMode ? `· ${p.personMode}` : undefined}
-                options={p.personOptions}
-                searchable
-              />
-            </>
-          }
           right={
             <>
               <div className="flex gap-0.5 rounded-[11px] bg-[var(--st-seg)] p-[3px]" role="tablist" aria-label="View">
@@ -98,7 +86,6 @@ export function StudioTasks(p: StudioTasksProps) {
                   );
                 })}
               </div>
-              <FiltersButton sections={p.filterSections} activeCount={p.activeFilterCount} extra={p.savedViews} />
             </>
           }
         />
@@ -117,8 +104,7 @@ export function StudioTasks(p: StudioTasksProps) {
         <StudioSearchBar
           q={p.q}
           searchHrefBase={p.searchHrefBase}
-          lenses={p.lenses}
-          companyMenu={<StudioMenu label="Filter by company" options={p.companyOptions} searchable up plus />}
+          filter={<TaskFilterButton sections={p.filterSections} activeCount={p.activeFilterCount} clearHref={p.clearHref} extra={p.savedViews} />}
         />
         <TaskPanel rows={p.tableRows} extra={p.fresh} />
       </StudioPickProvider>

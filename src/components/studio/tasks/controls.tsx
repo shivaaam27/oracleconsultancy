@@ -12,7 +12,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronDown, Plus, Search, SlidersHorizontal, X } from "lucide-react";
+import { ChevronDown, Plus, Search, X } from "lucide-react";
 import type { FilterChip, FilterOption, IdentityStrip } from "@/components/tasks/task-filter-bar";
 import { adminRemindTask } from "@/app/task/actions";
 import { useToast } from "@/components/shell/toast";
@@ -85,71 +85,10 @@ export function StudioMenu({ label, sub, options, searchable = false, width = 28
 
 /* ------------------------------------------------------- the panel ---- */
 
-export type FilterSection = { title: string; note?: string; items: { key: string; label: string; count?: number; href: string; active: boolean; tone?: FilterChip["tone"] }[] };
+// The Filter panel lives in filter-panel.tsx (one place to filter, 26 Sept 2026).
+export type { FilterSection } from "./filter-panel";
 
 const TONE_DOT: Record<string, string> = { danger: "var(--st-late)", warn: "var(--st-soon)", info: "var(--st-blue)", success: "var(--st-ok)" };
-
-/** The black “Filters” button and the panel it opens. `extra` is rendered at the
- *  foot of the panel — the saved views live there. */
-export function FiltersButton({ sections, activeCount, extra }: { sections: FilterSection[]; activeCount: number; extra?: ReactNode }) {
-  const [open, setOpen] = useState(false);
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { e.preventDefault(); setOpen(false); } };
-    document.addEventListener("keydown", onKey);
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => { document.removeEventListener("keydown", onKey); document.body.style.overflow = prev; };
-  }, [open]);
-  return (
-    <>
-      <button type="button" onClick={() => setOpen(true)} aria-label="Filters" className={cn(stBtn.dark, "max-sm:h-10 max-sm:w-10 max-sm:justify-center max-sm:px-0")}>
-        <SlidersHorizontal size={15} /><span className="hidden sm:inline">Filters</span>
-        {activeCount > 0 && <span className="flex h-[18px] min-w-[18px] items-center justify-center rounded-md bg-[#2E3035] px-1 text-[11px] text-white">{activeCount}</span>}
-      </button>
-      {open && (
-        <div className="studio fixed inset-0 z-50" role="dialog" aria-modal="true" aria-label="Filters">
-          <button type="button" aria-label="Close filters" className="absolute inset-0 bg-[rgba(14,15,16,0.28)]" onClick={() => setOpen(false)} />
-          <div className="st-pop absolute bottom-3 right-3 top-3 flex w-[min(460px,calc(100vw-24px))] flex-col overflow-hidden rounded-[20px] bg-[var(--st-surface)] shadow-[0_24px_60px_rgba(17,18,20,0.25)]">
-            <div className="flex items-center justify-between border-b border-[var(--st-line-soft)] px-5 py-4">
-              <div>
-                <div className="text-lg font-semibold">Filters</div>
-                <div className="text-xs text-[var(--st-muted)]">Each choice is saved in the address, so a view can be kept.</div>
-              </div>
-              <button type="button" onClick={() => setOpen(false)} aria-label="Close" className="flex h-8 w-8 items-center justify-center rounded-[10px] border border-[var(--st-line)]"><X size={14} /></button>
-            </div>
-            <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
-              {sections.map((s) => (
-                <div key={s.title}>
-                  <div className="mb-2 flex justify-between text-xs text-[var(--st-muted)]"><span>{s.title}</span>{s.note && <span className="text-[var(--st-muted)]">{s.note}</span>}</div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {s.items.map((o) => (
-                      <Link
-                        key={o.key}
-                        href={o.href}
-                        scroll={false}
-                        onClick={() => setOpen(false)}
-                        className={cn(
-                          "inline-flex h-[30px] items-center gap-1.5 whitespace-nowrap rounded-[9px] border px-2.5 text-xs transition-colors",
-                          o.active ? "border-[var(--st-ink)] bg-[var(--st-ink)] text-[var(--st-page)]" : "border-[var(--st-line)] bg-[var(--st-surface)] hover:bg-[var(--st-page)]",
-                        )}
-                      >
-                        {o.tone && <Dot color={TONE_DOT[o.tone]} />}
-                        {o.label}
-                        {o.count != null && <span className="st-mono text-[11px] opacity-60">{o.count}</span>}
-                      </Link>
-                    ))}
-                  </div>
-                </div>
-              ))}
-              {extra && <div>{extra}</div>}
-            </div>
-          </div>
-        </div>
-      )}
-    </>
-  );
-}
 
 /* ------------------------------------------------ who / which ---- */
 
@@ -203,7 +142,14 @@ const SEARCH_SETTLE_MS = 300;
  * never pushes (or Back walks through your typing); and while someone is typing
  * the box is the truth — the arriving address must not overwrite it.
  */
-export function StudioSearchBar({ q, searchHrefBase, lenses, companyMenu }: { q: string; searchHrefBase: string; lenses: FilterChip[]; companyMenu?: ReactNode }) {
+export function StudioSearchBar({ q, searchHrefBase, lenses = [], filter }: {
+  q: string; searchHrefBase: string;
+  /** Quick one-tap filters beside the box. The task lists now keep these in the
+   *  Filter panel instead (`filter`), so this is usually empty. */
+  lenses?: FilterChip[];
+  /** The Filter button (filter-panel.tsx) — the one place to filter. */
+  filter?: ReactNode;
+}) {
   const router = useRouter();
   const [text, setText] = useState(q);
   const typing = useRef(false);
@@ -227,8 +173,8 @@ export function StudioSearchBar({ q, searchHrefBase, lenses, companyMenu }: { q:
     // Below lg the old floating nav pill (z-40) owns the foot of the screen,
     // so the bar rides just above it rather than behind it.
     <div data-sticky-foot className={cn(stFloatBar.sticky, "mt-3")}>
-      <div className="pointer-events-auto flex w-full max-w-[860px] flex-wrap items-center gap-2.5 rounded-2xl border border-[var(--st-line)] bg-[var(--st-surface)] p-2 pl-4 shadow-[0_10px_28px_rgba(17,18,20,0.12)] sm:h-14 sm:flex-nowrap sm:py-0">
-        <label className="flex min-w-[180px] flex-1 items-center gap-2 text-[var(--st-muted)]">
+      <div className={cn("pointer-events-auto flex w-full max-w-[860px] items-center gap-2.5 rounded-2xl border border-[var(--st-line)] bg-[var(--st-surface)] p-2 pl-4 shadow-[0_10px_28px_rgba(17,18,20,0.12)] sm:h-14 sm:py-0", lenses.length > 0 ? "flex-wrap sm:flex-nowrap" : "h-14")}>
+        <label className="flex min-w-0 flex-1 items-center gap-2 text-[var(--st-muted)] sm:min-w-[180px]">
           <Search size={15} />
           <span className="sr-only">Search tasks</span>
           <input
@@ -236,15 +182,15 @@ export function StudioSearchBar({ q, searchHrefBase, lenses, companyMenu }: { q:
             value={text}
             onChange={(e) => { typing.current = true; setText(e.target.value); }}
             onKeyDown={(e) => { if (e.key === "Enter") commit(text); }}
-            placeholder="Search — a task, a code, a company or a person"
+            placeholder="Search a task, a code, a company or a person"
             className="bare-field h-9 w-full border-0 bg-transparent text-[13px] text-[var(--st-ink)] outline-none"
           />
         </label>
-        {companyMenu && <div className="hidden shrink-0 md:block">{companyMenu}</div>}
-        <span className="hidden h-6 w-px bg-[var(--st-line)] sm:block" aria-hidden />
+        {filter}
+        {lenses.length > 0 && <span className="hidden h-6 w-px bg-[var(--st-line)] sm:block" aria-hidden />}
         {/* One row that scrolls sideways — wrapped, the lenses made the bar
             three rows tall on a phone and covered the list. */}
-        <div className="flex w-full min-w-0 gap-1 overflow-x-auto [scrollbar-width:none] sm:w-auto">
+        {lenses.length > 0 && <div className="flex w-full min-w-0 gap-1 overflow-x-auto [scrollbar-width:none] sm:w-auto">
           {lenses.map((l) => (
             <Link
               key={l.key}
@@ -261,7 +207,7 @@ export function StudioSearchBar({ q, searchHrefBase, lenses, companyMenu }: { q:
               <span className="st-mono text-[11px] opacity-70">{l.count}</span>
             </Link>
           ))}
-        </div>
+        </div>}
       </div>
     </div>
   );

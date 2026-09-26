@@ -12,7 +12,8 @@ import { visibleTaskIds } from "@/lib/portal/portal-auth";
 import { sb } from "@/db/supabase";
 import { getAllTasks, type TaskRow } from "@/lib/tasks/queries";
 import { StudioScope, StudioHeader, StudioCardRow } from "@/components/studio/kit";
-import { StudioMenu, StudioSearchBar } from "@/components/studio/tasks/controls";
+import { StudioSearchBar } from "@/components/studio/tasks/controls";
+import { TaskFilterButton } from "@/components/studio/tasks/filter-panel";
 import { InsightsCard, type InsightsData } from "@/components/studio/tasks/insights-card";
 import { UpdateCard } from "@/components/studio/tasks/update-card";
 import { StaffTaskList } from "@/components/studio/tasks/staff-task-list";
@@ -136,7 +137,6 @@ export async function StaffStudioTasks({ me, sp }: { me: PortalPerson; sp: Staff
     { key: "all", label: "All statuses", href: href({ status: undefined }), active: !sp.status },
     ...STATUSES.map((s) => ({ key: s, label: s, href: href({ status: s }), active: sp.status === s, count: inCo.filter((r) => r.status === s).length })),
   ];
-  const coName = coId ? companies.find(([id]) => id === coId)?.[1] ?? null : null;
   const filtered = !!(sp.flag || sp.status || sp.quiet || sp.unread || q || coId);
 
   return (
@@ -144,12 +144,6 @@ export async function StaffStudioTasks({ me, sp }: { me: PortalPerson; sp: Staff
       <AutoRefresh seconds={30} />
       <StudioHeader
         title={sp.done ? "Done" : "Tasks"}
-        left={
-          <>
-            {companies.length > 1 && <StudioMenu label={coName ?? "All my companies"} options={companyOptions} />}
-            <StudioMenu label={sp.status ?? "All statuses"} options={statusOptions} />
-          </>
-        }
       />
       <StudioCardRow>
         <InsightsCard data={insights} />
@@ -160,7 +154,17 @@ export async function StaffStudioTasks({ me, sp }: { me: PortalPerson; sp: Staff
       ) : (
         <StaffTaskList rows={rows} back={here} hideCompany={companies.length < 2 || !!coId} />
       )}
-      <StudioSearchBar q={sp.q ?? ""} searchHrefBase={href({ q: undefined })} lenses={lenses} />
+      {/* One place to filter, as on the administrator's Tasks (26 Sept 2026). */}
+      <StudioSearchBar q={sp.q ?? ""} searchHrefBase={href({ q: undefined })}
+        filter={<TaskFilterButton
+          sections={[
+            { id: "show", title: "Show", items: lenses },
+            { id: "stage", title: "Stage", items: statusOptions },
+            ...(companies.length > 1 ? [{ id: "company", title: "Company", items: companyOptions }] : []),
+          ]}
+          activeCount={[sp.flag || sp.done || sp.quiet || sp.unread, sp.status, coId].filter(Boolean).length}
+          clearHref={href({ flag: undefined, done: undefined, quiet: undefined, unread: undefined, status: undefined, co: undefined })}
+        />} />
     </StudioScope>
   );
 }
