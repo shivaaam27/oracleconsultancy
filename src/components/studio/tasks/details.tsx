@@ -113,8 +113,21 @@ export function StudioDetails({
         <div className="flex items-center gap-2 text-[15px] font-semibold">
           Details{busy && <Loader2 size={12} className="animate-spin text-[var(--st-muted)]" />}
         </div>
-        <span className="text-[11px] text-[var(--st-muted)]">Click any value to change it</span>
       </div>
+
+      <Row label="About" top>
+        {editing === "about" ? (
+          <AboutEditor
+            initial={t.comments ?? ""}
+            onSave={(text) => save({ comments: text.trim() || null }, "Description")}
+            onCancel={() => setEditing(null)}
+          />
+        ) : (
+          <Value onClick={() => setEditing("about")} title="Write what this task is about">
+            {t.comments?.trim() ? <span className="line-clamp-4 whitespace-pre-wrap break-words">{t.comments}</span> : <Muted>Add a description</Muted>}
+          </Value>
+        )}
+      </Row>
 
       <Row label="Company" hint="Changing it issues a new task code">
         <StudioChoiceMenu
@@ -206,19 +219,6 @@ export function StudioDetails({
         />
       </Row>
 
-      <Row label="About" top>
-        {editing === "about" ? (
-          <AboutEditor
-            initial={t.comments ?? ""}
-            onSave={(text) => save({ comments: text.trim() || null }, "Description")}
-            onCancel={() => setEditing(null)}
-          />
-        ) : (
-          <Value onClick={() => setEditing("about")} title="Write what this task is about">
-            {t.comments?.trim() ? <span className="line-clamp-4 whitespace-pre-wrap break-words">{t.comments}</span> : <Muted>Add a description</Muted>}
-          </Value>
-        )}
-      </Row>
 
       <div className="mb-1 mt-5 text-[15px] font-semibold">Rules</div>
       <Rule

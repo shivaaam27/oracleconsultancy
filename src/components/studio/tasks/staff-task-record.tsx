@@ -174,9 +174,10 @@ export function StaffTaskRecord({ t }: { t: StaffTaskData }) {
   );
 
   const tabs: { id: typeof tab; label: string; n?: number; only?: string }[] = [
-    { id: "conversation", label: "Conversation", n: t.convo.messages.length || undefined },
-    { id: "subtasks", label: "Subtasks", n: sub?.total || undefined, only: "md:hidden" },
+    // Same order as the administrator's task page: Details, Subtasks, Conversation, History.
     { id: "details", label: "Details", only: "md:hidden" },
+    { id: "subtasks", label: "Subtasks", n: sub?.total || undefined, only: "md:hidden" },
+    { id: "conversation", label: "Conversation", n: t.convo.messages.length || undefined },
     { id: "history", label: "History", n: t.history.length || undefined },
   ];
 

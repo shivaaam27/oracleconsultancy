@@ -478,8 +478,8 @@ export function PortalConversation(props: Props) {
             <form action={runDelete} onSubmit={() => setTimeout(() => setDeletingId(null), 0)} className="mt-1 flex items-center gap-2 px-1 text-[11px]">
               <input type="hidden" name="updateId" value={m.id} />
               <input type="hidden" name="code" value={code} />
-              <span className="text-[var(--st-muted)]">Take this update down? It can be restored.</span>
-              <button type="submit" className="font-semibold text-[var(--st-late-text)]">Take down</button>
+              <span className="text-[var(--st-muted)]">Remove this update? It can be restored.</span>
+              <button type="submit" className="font-semibold text-[var(--st-late-text)]">Remove</button>
               <button type="button" onClick={() => setDeletingId(null)} className="text-[var(--st-muted)]">Keep</button>
             </form>
           ) : (
@@ -493,10 +493,10 @@ export function PortalConversation(props: Props) {
                 </form>
               )}
               {!closed && editAction && (m.me || canModerate) && (
-                <button type="button" onClick={() => { setEditingId(m.id); setDeletingId(null); }} className={link}>Correct</button>
+                <button type="button" onClick={() => { setEditingId(m.id); setDeletingId(null); }} className={link}>Edit</button>
               )}
               {!closed && deleteAction && (m.me || canModerate) && (
-                <button type="button" onClick={() => { setDeletingId(m.id); setEditingId(null); }} className={link}>Take down</button>
+                <button type="button" onClick={() => { setDeletingId(m.id); setEditingId(null); }} className={link}>Remove</button>
               )}
             </div>
           )}

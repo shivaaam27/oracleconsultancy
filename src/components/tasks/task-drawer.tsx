@@ -849,7 +849,7 @@ function TaskRecord({ mode, codeProp, stamp }: { mode: "drawer" | "page"; codePr
   ) : null;
 
   const historyContent = t ? (
-    <SectionCard className="p-4">
+    <div>
       {counts.all > 0 && (
         <div className="-mx-1 mb-3 overflow-x-auto px-1">
           <Segmented<TimelineFilter>
@@ -867,7 +867,7 @@ function TaskRecord({ mode, codeProp, stamp }: { mode: "drawer" | "page"; codePr
       ) : (
         <div className="py-8 text-center text-sm text-fg-muted">{counts.all === 0 ? "No changes yet." : "No changes match this filter."}</div>
       )}
-    </SectionCard>
+    </div>
   ) : null;
 
   const editContent = t && data ? (
@@ -1102,9 +1102,11 @@ function TaskRecord({ mode, codeProp, stamp }: { mode: "drawer" | "page"; codePr
     // the left-hand panel, always in view; the full form is still one click away
     // from it ("edit"), and stays the one writer for the fields it owns.
     const studioTabs: { id: string; label: string; n?: number; phone?: boolean }[] = [
-      { id: "conversation", label: "Conversation", n: convoCount || undefined },
-      { id: "subtasks", label: "Subtasks", n: subCount?.total || undefined },
+      // Details first (a tab on a phone only — it is its own column from md
+      // up), then the steps, the talk, the record (owner, 26 Sept 2026).
       { id: "details", label: "Details", phone: true },
+      { id: "subtasks", label: "Subtasks", n: subCount?.total || undefined },
+      { id: "conversation", label: "Conversation", n: convoCount || undefined },
       { id: "history", label: "History", n: counts.all || undefined },
       ...(data.ownerView ? [{ id: "notes", label: "Notes" }] : []),
     ];
@@ -1359,7 +1361,7 @@ function TaskRecord({ mode, codeProp, stamp }: { mode: "drawer" | "page"; codePr
         {/* Three columns from lg, as the mockup's Expanded board — Details ·
             conversation · People/Share/Similar. The side columns start slim
             and widen with the screen; below lg they stack, conversation first. */}
-        <div ref={studioGridRef} className="grid grid-cols-1 items-start gap-4 md:grid-cols-[minmax(0,1fr)_260px] lg:grid-cols-[250px_minmax(0,1fr)_240px] lg:grid-rows-[minmax(0,1fr)] lg:items-stretch xl:grid-cols-[290px_minmax(0,1fr)_304px] 2xl:grid-cols-[340px_minmax(0,1fr)_320px]">
+        <div ref={studioGridRef} className="grid grid-cols-1 items-start gap-4 md:grid-cols-[minmax(0,1fr)_310px] lg:grid-cols-[300px_minmax(0,1fr)_240px] lg:grid-rows-[minmax(0,1fr)] lg:items-stretch xl:grid-cols-[350px_minmax(0,1fr)_290px] 2xl:grid-cols-[400px_minmax(0,1fr)_310px]">
           <div className="st-scroll order-2 hidden min-w-0 rounded-[18px] md:block lg:order-1 lg:min-h-0 lg:overflow-y-auto">{details}</div>
           <div className="order-1 min-w-0 md:row-span-2 lg:order-2 lg:row-span-1 lg:min-h-0">{centre}</div>
           <div className="st-scroll order-3 hidden min-w-0 rounded-[18px] md:block lg:min-h-0 lg:overflow-y-auto">{rail}</div>
