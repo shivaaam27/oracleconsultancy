@@ -125,7 +125,8 @@ export function StudioChoiceMenu({
           "inline-flex max-w-full items-center gap-[7px] whitespace-nowrap transition-colors",
           tone === "light"
             ? "-mx-1.5 rounded-md px-1.5 py-0.5 text-[13px] hover:bg-[var(--st-page)]"
-            : "h-7 rounded-lg bg-[#1F2023] px-2.5 text-xs text-[#F2F2F0] hover:bg-[#2A2C30]",
+            // A real button on the dark band (owner, 26 Sept 2026: "it feels like a text layer … show a border").
+            : "h-8 rounded-[9px] border border-[#3A3D42] bg-[#1F2023] px-3 text-xs text-[#F2F2F0] hover:border-[#55585E] hover:bg-[#2A2C30]",
           pending && "opacity-60",
           className,
         )}

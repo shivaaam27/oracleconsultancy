@@ -20,6 +20,7 @@ import { DatePopover } from "@/components/forms/date-popover";
 import { Combobox } from "@/components/forms/combobox";
 import { StudioPeoplePick } from "@/components/studio/people-pick";
 import { DraftSubtasks } from "@/components/studio/subtasks";
+import { StudioSheet } from "@/components/studio/sheet";
 import { addSubtasks } from "@/app/task/subtask-actions";
 import { StudioScope, stBtn } from "@/components/studio/kit";
 import { useFitFrame } from "@/components/studio/use-fit-frame";
@@ -390,7 +391,8 @@ export function StudioNewTaskPage({ options, initial, back }: { options: Options
     </div>
   );
   const dateTrigger = "-mx-1.5 inline-flex max-w-full items-center rounded-md px-1.5 py-0.5 text-[13px] transition-colors hover:bg-[var(--st-page)]";
-  const bandChip = "st-dark-chip h-7 rounded-lg bg-[#1F2023] px-2.5 text-xs text-[#F2F2F0] hover:bg-[#2A2C30]";
+  const bandChip = "st-dark-chip h-8 rounded-[9px] border border-[#3A3D42] bg-[#1F2023] px-3 text-xs text-[#F2F2F0] hover:border-[#55585E] hover:bg-[#2A2C30]";
+  const [whoOpen, setWhoOpen] = useState(false);
 
   return (
     <StudioScope className="space-y-4">
@@ -422,11 +424,17 @@ export function StudioNewTaskPage({ options, initial, back }: { options: Options
             style={{ color: "#F2F2F0", background: "transparent", border: 0, borderBottom: "1.5px solid #3A3D42", borderRadius: 0, boxShadow: "none" }}
             className="bare-field min-w-0 flex-1 basis-[420px] px-0 pb-1 text-[28px] font-medium tracking-[-0.03em] outline-none placeholder:text-[#5B5E63] sm:text-[36px]"
           />
+          {/* Everything a task needs to exist, in one row of real buttons
+              (owner, 26 Sept 2026): company, who is accountable, stage,
+              deadline, priority. Details below holds the rest — nothing twice. */}
           <div className="flex flex-wrap items-center gap-1.5">
+            <StudioChoiceMenu value={d.companyId ? String(d.companyId) : null} options={options.companies.map((c) => ({ value: String(c.id), label: c.name }))} onPick={(v) => set({ companyId: Number(v), also: d.also.filter((x) => x !== Number(v)) })} tone="dark" showDot={false} empty="Company" width={260} />
+            <button type="button" onClick={() => setWhoOpen(true)} className={cn(bandChip, "inline-flex max-w-[220px] items-center gap-1.5")}>
+              <UserPlus size={12} className="shrink-0" /><span className="truncate">{d.people.length ? (d.people.length === 1 ? d.people[0] : `${d.people[0]} +${d.people.length - 1}`) : "Accountable"}</span>
+            </button>
             <StudioChoiceMenu value={d.status} options={STATUSES.map((s) => ({ value: s, label: s, dot: STATUS_DOT[s] }))} onPick={(v) => set({ status: v })} tone="dark" />
             <DatePopover value={d.deadline} label={d.deadline ? null : "No deadline"} onChange={(v) => set({ deadline: v || null })} compact triggerClassName={cn(bandChip, "inline-flex items-center gap-1.5")} />
             <StudioChoiceMenu value={d.priority} options={PRIORITIES.map((p) => ({ value: p, label: p, dot: PRIORITY_DOT[p] }))} onPick={(v) => set({ priority: v })} tone="dark" suffix=" priority" showDot={false} />
-            <button type="button" onClick={() => setRepeatOpen((v) => !v)} className={cn(bandChip, "inline-flex items-center gap-1.5")}><Repeat size={12} />{repeatWords(d.repeat)}</button>
           </div>
         </div>
         <div className="flex gap-2 sm:hidden">
@@ -439,16 +447,9 @@ export function StudioNewTaskPage({ options, initial, back }: { options: Options
         {/* Details — the same rows as a task's, set here before it exists. */}
         <div className={cn(panel, "st-scroll order-2 min-w-0 lg:order-1 lg:min-h-0 lg:overflow-y-auto")}>
           <div className="mb-1 flex items-baseline justify-between gap-2">
-            <div className="text-[15px] font-semibold">Details</div>
-            <span className="text-[11px] text-[var(--st-muted)]">Click any value to set it</span>
+            <div className="text-[15px] font-semibold">More details</div>
+            <span className="text-[11px] text-[var(--st-muted)]">Optional</span>
           </div>
-          {row("Company",
-            <StudioChoiceMenu value={d.companyId ? String(d.companyId) : null} options={options.companies.map((c) => ({ value: String(c.id), label: c.name }))} onPick={(v) => set({ companyId: Number(v), also: d.also.filter((x) => x !== Number(v)) })} showDot={false} empty="Pick one" width={260} />,
-            true, prefix ? `Sets the code: ${prefix}-…` : "Sets the task code")}
-          {row("Accountable", <button type="button" onClick={() => setPeopleOpen(true)} className="-mx-1.5 block w-[calc(100%+12px)] truncate rounded-md px-1.5 py-0.5 text-left hover:bg-[var(--st-page)]">{d.people.length ? d.people.join(", ") : <span className="text-[var(--st-muted)]">Nobody yet</span>}</button>)}
-          {row("Status", <StudioChoiceMenu value={d.status} options={STATUSES.map((s) => ({ value: s, label: s, dot: STATUS_DOT[s] }))} onPick={(v) => set({ status: v })} />)}
-          {row("Priority", <StudioChoiceMenu value={d.priority} options={PRIORITIES.map((p) => ({ value: p, label: p, dot: PRIORITY_DOT[p] }))} onPick={(v) => set({ priority: v })} />)}
-          {row("Deadline", <DatePopover value={d.deadline} label={d.deadline ? null : "Not set"} onChange={(v) => set({ deadline: v || null })} compact triggerClassName={dateTrigger} />)}
           {row("Meeting date", <DatePopover value={d.meetingDate} label={d.meetingDate ? null : "Not set"} onChange={(v) => set({ meetingDate: v || null })} compact triggerClassName={dateTrigger} />)}
           {row("Risk", <StudioChoiceMenu value={d.risk} options={[...RISKS.map((r) => ({ value: r, label: r, dot: PRIORITY_DOT[r] })), ...(d.risk ? [{ value: "", label: "Clear it", muted: true }] : [])]} onPick={(v) => set({ risk: v || null })} />)}
           {row("Department", <Combobox options={options.departments} defaultValue={d.department ?? ""} placeholder="Pick, or type a new one" onCommit={(v) => set({ department: v.trim() || null })} onInput={(v) => set({ department: v.trim() || null })} />)}
@@ -556,6 +557,11 @@ export function StudioNewTaskPage({ options, initial, back }: { options: Options
           </div>
         </div>
       </div>
+      <StudioSheet open={whoOpen} onClose={() => setWhoOpen(false)} title="Who is accountable?" icon={<UserPlus size={15} />} width={460} centred
+        footer={<div className="flex justify-end"><button type="button" onClick={() => setWhoOpen(false)} className={cn(stBtn.dark, "h-9")}><Check size={13} />Done</button></div>}>
+        <StudioPeoplePick tone="sheet" autoFocus showChosen people={options.people} value={d.people} onChange={(people) => set({ people })} maxHeight={280} />
+        <p className="mt-2 text-xs text-[var(--st-sub)]">The first person is accountable; anyone after them is also on it.</p>
+      </StudioSheet>
     </StudioScope>
   );
 }
