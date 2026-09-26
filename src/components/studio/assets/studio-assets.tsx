@@ -20,7 +20,7 @@ import {
   ShieldAlert, Undo2, UserPlus, Users, Wrench, Copy, CircleCheck,
 } from "lucide-react";
 import { StudioScope, StudioHeader, StudioCardRow, StudioCard, CardHead, BigNumber, Ring, stBtn, stFloatBar } from "@/components/studio/kit";
-import { StudioMenu } from "@/components/studio/tasks/controls";
+import { FilterPanelButton, type FilterSection } from "@/components/studio/tasks/filter-panel";
 import { PersonFace } from "@/components/studio/face";
 import { useToast } from "@/components/shell/toast";
 import { useUrlFilters } from "@/lib/hooks/use-url-filters";
@@ -160,36 +160,34 @@ export function StudioAssets({ d }: { d: StudioAssetsData }) {
 
   /* ---------------- header menus ---------------- */
   const opt = (key: keyof typeof DEFAULTS, value: string, label: string, count?: number) => ({ key: `${key}-${value || "all"}`, label, count, href: f.hrefFor({ [key]: value }), active: v[key] === value });
+  // One place to filter (owner, 26 Sept 2026): the title-bar pickers became
+  // the groups of the Filter panel in the search bar — per tab.
   const companiesUsed = (ids: (number | null)[]) => d.lists.companies.filter((c) => ids.includes(c.id));
-  const coMenu = (ids: (number | null)[]) => {
+  const coSection = (ids: (number | null)[]): FilterSection => {
     const cs = companiesUsed(ids);
-    const cur = cs.find((c) => String(c.id) === v.co);
-    return <StudioMenu label={cur?.name ?? "All companies"} searchable={cs.length > 8} options={[opt("co", "", "All companies"), ...cs.map((c) => opt("co", String(c.id), c.name, ids.filter((i) => i === c.id).length))]} />;
+    return { id: "company", title: "Company", kind: "list", searchable: cs.length > 8, items: [opt("co", "", "All companies"), ...cs.map((c) => opt("co", String(c.id), c.name, ids.filter((i) => i === c.id).length))] };
   };
-  const left: ReactNode = view === "assets" ? (
-    <>
-      {coMenu(live.map((a) => a.companyId))}
-      <StudioMenu label={v.cat || "All categories"} searchable options={[opt("cat", "", "All categories"), ...[...new Set(live.map((a) => a.category).filter(Boolean) as string[])].sort().map((c) => opt("cat", c, c, live.filter((a) => a.category === c).length))]} />
-      <StudioMenu label={d.archived ? "Archived" : v.st ? STATUS_WORD[v.st as AssetStatus] : "All statuses"} options={[
-        { key: "st-all", label: "All statuses", href: f.hrefFor({ st: "" }), active: !v.st && !d.archived },
-        ...(["in_store", "assigned", "maintenance", "retired"] as AssetStatus[]).map((s) => opt("st", s, STATUS_WORD[s], live.filter((a) => a.status === s).length)),
-        { key: "st-archived", label: "Archived", href: f.hrefFor({ st: "archived" }), active: d.archived },
-      ]} />
-    </>
-  ) : view === "tools" ? (
-    <>
-      {coMenu(d.tools.map((t) => t.companyId))}
-      <StudioMenu label={v.site || "All sites"} searchable={tStats.sites.length > 8} options={[opt("site", "", "All sites"), ...tStats.sites.map(([s, e]) => opt("site", s, s, e.lines))]} />
-      <StudioMenu label={v.cond === "low" ? "Low stock" : v.cond ? TOOL_CONDITION_LABELS[v.cond as keyof typeof TOOL_CONDITION_LABELS] : "Any condition"} options={[
-        opt("cond", "", "Any condition"), opt("cond", "low", "Low stock", tStats.low), opt("cond", "good", "Good", tStats.good), opt("cond", "needs_repair", "Needs repair", tStats.repair), opt("cond", "retired", "Retired"),
-      ]} />
-    </>
-  ) : (
-    <>
-      {coMenu(d.vendors.map((x) => x.companyId))}
-      <StudioMenu label={v.kind || "Every kind"} options={[opt("kind", "", "Every kind"), ...[...new Set(d.vendors.map((x) => x.category).filter(Boolean) as string[])].sort().map((k) => opt("kind", k, k, d.vendors.filter((x) => x.category === k).length))]} />
-    </>
-  );
+  const filterSections: FilterSection[] = view === "assets" ? [
+    { id: "status", title: "Status", kind: "list", items: [
+      { key: "st-all", label: "All statuses", href: f.hrefFor({ st: "" }), active: !v.st && !d.archived },
+      ...(["in_store", "assigned", "maintenance", "retired"] as AssetStatus[]).map((s) => opt("st", s, STATUS_WORD[s], live.filter((a) => a.status === s).length)),
+      { key: "st-archived", label: "Archived", href: f.hrefFor({ st: "archived" }), active: d.archived },
+    ] },
+    coSection(live.map((a) => a.companyId)),
+    { id: "category", title: "Category", kind: "list", searchable: true, items: [opt("cat", "", "All categories"), ...[...new Set(live.map((a) => a.category).filter(Boolean) as string[])].sort().map((c) => opt("cat", c, c, live.filter((a) => a.category === c).length))] },
+  ] : view === "tools" ? [
+    { id: "condition", title: "Condition", kind: "list", items: [
+      opt("cond", "", "Any condition"), opt("cond", "low", "Low stock", tStats.low), opt("cond", "good", "Good", tStats.good), opt("cond", "needs_repair", "Needs repair", tStats.repair), opt("cond", "retired", "Retired"),
+    ] },
+    coSection(d.tools.map((t) => t.companyId)),
+    { id: "site", title: "Site", kind: "list", searchable: tStats.sites.length > 8, items: [opt("site", "", "All sites"), ...tStats.sites.map(([s, e]) => opt("site", s, s, e.lines))] },
+  ] : [
+    { id: "kind", title: "Kind", kind: "list", items: [opt("kind", "", "Every kind"), ...[...new Set(d.vendors.map((x) => x.category).filter(Boolean) as string[])].sort().map((k) => opt("kind", k, k, d.vendors.filter((x) => x.category === k).length))] },
+    coSection(d.vendors.map((x) => x.companyId)),
+  ];
+  const filterKeys = view === "assets" ? (["co", "cat", "st", "flag"] as const) : view === "tools" ? (["co", "site", "cond", "flag"] as const) : (["co", "kind", "flag"] as const);
+  const activeFilters = filterKeys.filter((k) => v[k]).length;
+  const baseHref = `/hrms/assets${view === "assets" ? "" : `?view=${view}`}`;
 
   const seg = (
     <div className="flex gap-0.5 rounded-[11px] bg-[var(--st-seg)] p-[3px]" role="tablist">
@@ -211,7 +209,6 @@ export function StudioAssets({ d }: { d: StudioAssetsData }) {
     <StudioScope className="flex flex-col gap-5">
       <StudioHeader
         title={view === "assets" ? "Assets" : view === "tools" ? "Tools" : "Suppliers"}
-        left={left}
         right={
           <>
             {seg}
@@ -473,7 +470,7 @@ export function StudioAssets({ d }: { d: StudioAssetsData }) {
       )}
 
       <div className={cn(stFloatBar.page, "-mt-20")}>
-        <div className="pointer-events-auto flex w-full max-w-[640px] items-center gap-2.5 rounded-2xl border border-[var(--st-line)] bg-[var(--st-surface)] p-2 pl-4 shadow-[0_10px_28px_rgba(17,18,20,0.12)] sm:h-14 sm:py-0">
+        <div className="pointer-events-auto flex h-14 w-full max-w-[640px] items-center gap-2.5 rounded-2xl border border-[var(--st-line)] bg-[var(--st-surface)] px-2 pl-4 shadow-[0_10px_28px_rgba(17,18,20,0.12)]">
           <label className="flex min-w-0 flex-1 items-center gap-2 text-[var(--st-muted)]">
             <Search size={15} />
             <span className="sr-only">Search</span>
@@ -481,8 +478,8 @@ export function StudioAssets({ d }: { d: StudioAssetsData }) {
               placeholder={view === "assets" ? "Search by name, tag, serial or who has it" : view === "tools" ? "Search tools, sizes or sites" : "Search suppliers or contacts"}
               className="bare-field h-9 w-full border-0 bg-transparent text-[13px] text-[var(--st-ink)] outline-none" />
           </label>
-          <span className="shrink-0 pr-2 text-xs text-[var(--st-muted)] tabular-nums">{busy ? <Loader2 size={13} className="animate-spin" /> : `${view === "assets" ? assets.length : view === "tools" ? tools.length : vendors.length} shown`}</span>
-          {f.dirty && <Link href={`/hrms/assets${view === "assets" ? "" : `?view=${view}`}`} scroll={false} className="shrink-0 rounded-[10px] bg-[var(--st-page)] px-3 py-2 text-xs hover:bg-[var(--st-seg)]">Clear</Link>}
+          <span className="hidden shrink-0 text-xs text-[var(--st-muted)] tabular-nums sm:inline">{busy ? <Loader2 size={13} className="animate-spin" /> : `${view === "assets" ? assets.length : view === "tools" ? tools.length : vendors.length} shown`}</span>
+          <FilterPanelButton sections={filterSections} activeCount={activeFilters} clearHref={baseHref} />
         </div>
       </div>
 

@@ -19,6 +19,7 @@ import { Combobox } from "@/components/forms/combobox";
 import { DateInput } from "@/components/forms/date-input";
 import { useToast } from "@/components/shell/toast";
 import { useUrlFilters } from "@/lib/hooks/use-url-filters";
+import { FilterPanelButton, type FilterSection } from "@/components/studio/tasks/filter-panel";
 import {
   createStockItemAction, updateStockItemAction, archiveStockItemAction, deleteStockItemAction,
   recordPurchaseAction, deletePurchaseAction, recordIssueAction, deleteIssueAction,
@@ -45,7 +46,7 @@ export function StudioSupplies({ items, purchases, issues, companies, people, la
   const router = useRouter();
   const { toast } = useToast();
   const [busy, start] = useTransition();
-  const f = useUrlFilters({ q: "" }, { debounceKeys: ["q"] });
+  const f = useUrlFilters({ q: "", stock: "", cat: "" }, { debounceKeys: ["q"] });
   const [sheet, setSheet] = useState<Sheet>(null);
   const close = () => setSheet(null);
   const act = (fn: () => Promise<{ ok: boolean; error?: string }>, ok: string) =>
@@ -66,7 +67,29 @@ export function StudioSupplies({ items, purchases, issues, companies, people, la
   const spendMonth = purchases.filter((p) => new Date(p.date).getTime() >= monthStart).reduce((s, p) => s + p.qty * p.unitCost, 0);
 
   const q = f.values.q.trim().toLowerCase();
-  const reg = useMemo(() => (archived ? items : live).filter((i) => !q || `${i.code} ${i.name} ${i.category ?? ""}`.toLowerCase().includes(q)), [items, live, archived, q]);
+  const stockF = f.values.stock, catF = f.values.cat;
+  const reg = useMemo(() => (archived ? items : live).filter((i) =>
+    (!q || `${i.code} ${i.name} ${i.category ?? ""}`.toLowerCase().includes(q))
+    && (!catF || (i.category ?? "") === catF)
+    && (!stockF || stockStatus(i, purchases, issues) === (stockF === "out" ? "Out of Stock" : stockF === "low" ? "Reorder" : "OK")),
+  ), [items, live, archived, q, catF, stockF, purchases, issues]);
+  // The register's Filter (one place to filter, 26 Sept 2026) — stock, category, archived.
+  const regSections: FilterSection[] = [
+    { id: "stock", title: "Stock", kind: "list", items: [
+      { key: "all", label: "Everything", href: f.hrefFor({ stock: "" }), active: !stockF },
+      { key: "low", label: "Running low", tone: "warn", count: live.filter((i) => stockStatus(i, purchases, issues) === "Reorder").length, href: f.hrefFor({ stock: "low" }), active: stockF === "low" },
+      { key: "out", label: "Out of stock", tone: "danger", count: live.filter((i) => stockStatus(i, purchases, issues) === "Out of Stock").length, href: f.hrefFor({ stock: "out" }), active: stockF === "out" },
+      { key: "ok", label: "In stock", tone: "success", count: live.filter((i) => stockStatus(i, purchases, issues) === "OK").length, href: f.hrefFor({ stock: "ok" }), active: stockF === "ok" },
+    ] },
+    { id: "category", title: "Category", kind: "list", searchable: true, items: [
+      { key: "all", label: "All categories", href: f.hrefFor({ cat: "" }), active: !catF },
+      ...[...new Set(live.map((i) => i.category).filter(Boolean) as string[])].sort().map((c) => ({ key: c, label: c, count: live.filter((i) => i.category === c).length, href: f.hrefFor({ cat: c }), active: catF === c })),
+    ] },
+    { id: "archived", title: "Archived", kind: "chips", items: [
+      { key: "no", label: "Hide archived", href: "/hrms/supplies", active: !archived },
+      { key: "yes", label: "Show archived", href: "/hrms/supplies?archived=1", active: archived },
+    ] },
+  ];
   const buys = useMemo(() => purchases.filter((p) => { const i = byCode.get(p.itemCode); return !q || `${p.itemCode} ${i?.name ?? ""} ${p.supplier ?? ""} ${p.ref ?? ""}`.toLowerCase().includes(q); }), [purchases, byCode, q]);
   const outs = useMemo(() => issues.filter((x) => { const i = byCode.get(x.itemCode); return !q || `${x.itemCode} ${i?.name ?? ""} ${x.issuedTo ?? ""} ${x.notes ?? ""}`.toLowerCase().includes(q); }), [issues, byCode, q]);
   const coName = (id: number | null) => (id ? companies.find((c) => c.id === id)?.name ?? null : null);
@@ -197,16 +220,14 @@ export function StudioSupplies({ items, purchases, issues, companies, people, la
       </div>
 
       <div className={cn(stFloatBar.page, "-mt-20")}>
-        <div className="pointer-events-auto flex w-full max-w-[620px] items-center gap-2.5 rounded-2xl border border-[var(--st-line)] bg-[var(--st-surface)] p-2 pl-4 shadow-[0_10px_28px_rgba(17,18,20,0.12)] sm:h-14 sm:py-0">
+        <div className="pointer-events-auto flex h-14 w-full max-w-[620px] items-center gap-2.5 rounded-2xl border border-[var(--st-line)] bg-[var(--st-surface)] px-2 pl-4 shadow-[0_10px_28px_rgba(17,18,20,0.12)]">
           <label className="flex min-w-0 flex-1 items-center gap-2 text-[var(--st-muted)]">
             <Search size={15} /><span className="sr-only">Search</span>
             <input type="search" value={f.values.q} onChange={(e) => f.set({ q: e.target.value })} placeholder={lane === "register" ? "Search code, item or category" : lane === "purchases" ? "Search item, supplier or reference" : "Search item or who took it"}
               className="bare-field h-9 w-full border-0 bg-transparent text-[13px] text-[var(--st-ink)] outline-none" />
           </label>
           {lane === "register" && (
-            <Link href={archived ? "/hrms/supplies" : "/hrms/supplies?archived=1"} scroll={false} className="flex shrink-0 items-center gap-2 whitespace-nowrap pr-2 text-xs text-[var(--st-sub)]">
-              <span className={cn("grid h-4 w-4 place-items-center rounded-[5px] border-[1.5px]", archived ? "border-[var(--st-ink)] bg-[var(--st-ink)] text-[var(--st-page)]" : "border-[#CFCFCA]")}>{archived && "✓"}</span>Show archived
-            </Link>
+            <FilterPanelButton sections={regSections} activeCount={[stockF, catF, archived].filter(Boolean).length} clearHref="/hrms/supplies" />
           )}
           {busy && <Loader2 size={14} className="mr-2 animate-spin text-[var(--st-muted)]" />}
         </div>

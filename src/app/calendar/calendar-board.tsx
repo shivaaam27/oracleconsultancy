@@ -9,7 +9,7 @@ import {
   CalendarPlus, Video, MapPin, Users, Bell, Building2, Download, Copy, Check,
   Pencil, Trash2, MessageCircle, CalendarDays, Mail, ChevronLeft, ChevronRight, 
   CheckSquare, Plane, Flag, RefreshCw, Cake, Award, UserCheck, Repeat, ExternalLink, Reply, MoreHorizontal, X,
-  Plus, Paperclip, Send, Link2, Globe, Eye, Undo2, Clock, FolderClosed, Loader2, type LucideIcon,
+  Plus, Paperclip, Send, Link2, Globe, Eye, Undo2, Clock, FolderClosed, Loader2, Search, type LucideIcon,
 } from "lucide-react";
 import { createPortal } from "react-dom";
 import { Button, Card, EmptyState } from "@/components/ui";
@@ -29,9 +29,9 @@ import { useToast } from "@/components/shell/toast";
 import { useContextActions } from "@/components/kit/context-actions";
 import { cn } from "@/lib/cn";
 import { StudioScope, StudioHeader, StudioCardRow, StudioCard, CardHead, BigNumber, stBtn } from "@/components/studio/kit";
-import { StudioMenu } from "@/components/studio/tasks/controls";
 import { useFitFrame } from "@/components/studio/use-fit-frame";
 import { ReturnLink } from "@/components/shell/back-link";
+import { FilterPanelButton } from "@/components/studio/tasks/filter-panel";
 import { hasElapsed, isHappeningNow } from "@/lib/calendar/event-time-shared";
 import type { CalendarEvent, CalendarAttendee } from "@/lib/calendar/calendar";
 import { expandRecurrence } from "@/lib/calendar/ics";
@@ -224,7 +224,6 @@ export function CalendarBoard({
   const search = url.values.q;
   const setSearch = (v: string) => url.set({ q: v });
   const [needInvitesOnly, setNeedInvitesOnly] = useState(false);
-  const [moreOpen, setMoreOpen] = useState(false);
   const [cursor, setCursor] = useState<Date>(() => {
     const d = dayParam ? new Date(`${dayParam}T12:00:00+03:00`) : new Date();
     d.setHours(12, 0, 0, 0);
@@ -433,70 +432,51 @@ export function CalendarBoard({
   // outgrow the 96px the bars have under their labels.
   const perThing = Math.min(18, 96 / Math.max(1, ...next7.map((x) => x.ev + x.other)));
   const live = announcements.filter((a) => a.live);
-  const companyLabel = companyFilter === "all" ? "Companies" : companies.find((c) => String(c.id) === companyFilter)?.name ?? "Companies";
-  const typeLabel = categoryFilter === "all" ? "Types" : categoryFilter === "none" ? "Uncategorised" : categories.find((c) => String(c.id) === categoryFilter)?.name ?? "Types";
   const periodShort = view === "agenda" ? "Upcoming" : view === "month" ? cursor.toLocaleDateString("en-GB", { timeZone: EAT, month: "long", year: "numeric" }) : periodLabel;
   const pick = (d: Date) => { setPickedKey(keyOfDate(d)); setCursor(d); };
-  const menuItem = "flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left hover:bg-[var(--st-page)]";
   return (
     <StudioScope className="flex flex-col gap-5">
       <StudioHeader
         title="Calendar"
         left={
-          <>
-            <StudioMenu label={companyLabel} searchable options={[
-              { key: "all", label: "All companies", href: url.hrefFor({ co: "all" }), active: companyFilter === "all" },
-              ...companies.map((c) => ({ key: String(c.id), label: c.name, href: url.hrefFor({ co: String(c.id) }), active: companyFilter === String(c.id) })),
-            ]} />
-            <StudioMenu label={typeLabel} options={[
-              { key: "all", label: "All types", href: url.hrefFor({ type: "all" }), active: categoryFilter === "all" },
-              ...categories.map((c) => ({ key: String(c.id), label: c.name, href: url.hrefFor({ type: String(c.id) }), active: categoryFilter === String(c.id) })),
-              ...(categories.length ? [{ key: "none", label: "Uncategorised", href: url.hrefFor({ type: "none" }), active: categoryFilter === "none" }] : []),
-            ]} />
-            <DropdownMenu.Root open={moreOpen} onOpenChange={setMoreOpen}>
-              <DropdownMenu.Trigger asChild>
-                <button type="button" className={stBtn.chip}>More <ChevronDownIcon /></button>
-              </DropdownMenu.Trigger>
-              <DropdownMenu.Portal>
-                <DropdownMenu.Content align="start" sideOffset={6} className="studio z-[140] w-60 rounded-xl border border-[var(--st-line)] bg-[var(--st-surface)] p-1.5 text-[13px] shadow-[0_16px_40px_rgba(17,18,20,0.16)]">
-                  <div className="px-2.5 pb-1 pt-1.5 text-[11px] text-[var(--st-muted)]">Search</div>
-                  <div className="px-1.5 pb-1.5">
-                    <input type="text" defaultValue={search} onChange={(e) => setSearch(e.target.value)} onKeyDown={(e) => e.stopPropagation()} placeholder="Events, people, companies…"
-                      style={{ background: "var(--st-page)", border: "1px solid var(--st-line)", color: "var(--st-ink)", boxShadow: "none" }}
-                      className="bare-field h-8 w-full rounded-lg px-2.5 text-[13px] outline-none" />
-                  </div>
-                  <div className="px-2.5 pb-1 pt-1.5 text-[11px] text-[var(--st-muted)]">Source</div>
-                  {[{ v: "all", l: "All sources" }, { v: "manual", l: "Manual" }, { v: "meeting", l: "From meeting" }, { v: "task", l: "From task" }].map((x) => (
-                    <button key={x.v} type="button" onClick={() => setSourceFilter(x.v)} className={menuItem}>
-                      <span className="flex-1">{x.l}</span>{sourceFilter === x.v && <Check size={14} />}
-                    </button>
-                  ))}
-                  <div className="my-1 h-px bg-[var(--st-line)]" />
-                  {figures.needInvites > 0 && (
-                    <button type="button" onClick={() => setNeedInvitesOnly((v) => !v)} className={menuItem}>
-                      <Bell size={14} /><span className="flex-1">Need invites ({figures.needInvites})</span>{needInvitesOnly && <Check size={14} />}
-                    </button>
-                  )}
-                  <button type="button" onClick={() => setMeetingsOnly((v) => !v)} className={menuItem}>
-                    <CalendarDays size={14} /><span className="flex-1">Meetings only</span>{meetingsOnly && <Check size={14} />}
-                  </button>
-                  <button type="button" onClick={() => setCollapseRecurring((v) => !v)} className={menuItem}>
-                    <Repeat size={14} /><span className="flex-1">Hide repeats</span>{collapseRecurring && <Check size={14} />}
-                  </button>
-                  {!readOnly && <>
-                  <div className="my-1 h-px bg-[var(--st-line)]" />
-                  <button type="button" onClick={() => { setMoreOpen(false); setManageCatsOpen(true); }} className={menuItem}>
-                    <Pencil size={14} /><span className="flex-1">Manage categories</span>
-                  </button>
-                  </>}
-                </DropdownMenu.Content>
-              </DropdownMenu.Portal>
-            </DropdownMenu.Root>
-            {(search || sourceFilter !== "all" || needInvitesOnly || meetingsOnly) && (
-              <button type="button" onClick={() => { setSearch(""); setSourceFilter("all"); setNeedInvitesOnly(false); setMeetingsOnly(false); }}
-                className="inline-flex h-8 items-center gap-1 rounded-[10px] px-2 text-xs text-[var(--st-muted)] hover:text-[var(--st-ink)]"><X size={12} />Clear</button>
-            )}
-          </>
+          // One search and one Filter (owner, 26 Sept 2026: "one place to
+          // filter, the same on every list") — the Companies / Types / More
+          // pickers are the groups of the panel now.
+          <div className="flex min-w-0 items-center gap-2">
+            <label className="flex h-9 w-[min(260px,52vw)] min-w-0 items-center gap-2 rounded-[10px] border border-[var(--st-field-line)] bg-[var(--st-surface)] px-3 text-[var(--st-muted)]">
+              <Search size={14} className="shrink-0" />
+              <span className="sr-only">Search the calendar</span>
+              <input type="search" defaultValue={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search events, people…"
+                className="bare-field w-full min-w-0 border-0 bg-transparent text-[13px] text-[var(--st-ink)] outline-none" />
+            </label>
+            <FilterPanelButton
+              activeCount={[companyFilter !== "all", categoryFilter !== "all", sourceFilter !== "all", needInvitesOnly, meetingsOnly, collapseRecurring].filter(Boolean).length}
+              onClear={() => { url.set({ co: "all", type: "all", src: "all" }); setNeedInvitesOnly(false); setMeetingsOnly(false); setCollapseRecurring(false); }}
+              sections={[
+                { id: "company", title: "Company", kind: "list", searchable: companies.length > 8, items: [
+                  { key: "all", label: "All companies", href: url.hrefFor({ co: "all" }), active: companyFilter === "all" },
+                  ...companies.map((c) => ({ key: String(c.id), label: c.name, href: url.hrefFor({ co: String(c.id) }), active: companyFilter === String(c.id) })),
+                ] },
+                { id: "type", title: "Type", kind: "list", items: [
+                  { key: "all", label: "All types", href: url.hrefFor({ type: "all" }), active: categoryFilter === "all" },
+                  ...categories.map((c) => ({ key: String(c.id), label: c.name, href: url.hrefFor({ type: String(c.id) }), active: categoryFilter === String(c.id) })),
+                  ...(categories.length ? [{ key: "none", label: "Uncategorised", href: url.hrefFor({ type: "none" }), active: categoryFilter === "none" }] : []),
+                ] },
+                { id: "source", title: "Source", kind: "list", items: [{ v: "all", l: "All sources" }, { v: "manual", l: "Manual" }, { v: "meeting", l: "From meeting" }, { v: "task", l: "From task" }]
+                  .map((x) => ({ key: x.v, label: x.l, href: url.hrefFor({ src: x.v }), active: sourceFilter === x.v })) },
+                { id: "show", title: "Show", kind: "chips", items: [
+                  { key: "meetings", label: "Meetings only", active: meetingsOnly, onSelect: () => setMeetingsOnly((v) => !v) },
+                  { key: "repeats", label: "Hide repeats", active: collapseRecurring, onSelect: () => setCollapseRecurring((v) => !v) },
+                  ...(figures.needInvites > 0 ? [{ key: "invites", label: `Need invites`, count: figures.needInvites, active: needInvitesOnly, onSelect: () => setNeedInvitesOnly((v) => !v) }] : []),
+                ] },
+              ]}
+              extra={readOnly ? undefined : (
+                <button type="button" onClick={() => setManageCatsOpen(true)} className="inline-flex h-9 items-center gap-1.5 rounded-[10px] border border-[var(--sh-chip-line)] bg-[var(--sh-card)] px-3 text-[13px] text-[var(--sh-fg)] hover:bg-[var(--sh-hover)]">
+                  <Pencil size={13} />Manage categories
+                </button>
+              )}
+            />
+          </div>
         }
         right={
           <>
@@ -869,12 +849,9 @@ function StudioOverlayChip({ item }: { item: OverlayItem }) {
     ? <ReturnLink href={item.href} onClick={(e) => e.stopPropagation()} title={item.title} className={cn(ST_CHIP, "hover:brightness-95")} style={chipVars(c, tint)}>{inner}</ReturnLink>
     : <span title={item.title} className={ST_CHIP} style={chipVars(c, tint)}>{inner}</span>;
 }
-function ChevronDownIcon() {
-  return <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="m6 9 6 6 6-6" /></svg>;
-}
 
 /** Studio's Agenda (mockup board Calendar, view "Agenda"): every coming day that
- *  has anything, as a heading and rows — time, dot, title, kind, Open. */
+ *  has anything, as a heading and rows — time, dot, title, kind; the row opens it. */
 /* Phone, Agenda (mockup M_Calendar): the week as a strip — a letter, the date
    and a dot per kind of thing on it. Tap a day to pick it (the Today card and the
    agenda follow); ‹ › or a sideways swipe move a week. */

@@ -19,7 +19,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Plus, Search, Maximize2, X, Mail, MessageCircle, Phone, CheckSquare, Check, Clock, SkipForward, ArrowUpRight, Loader2, LayoutGrid, Columns3, ChevronLeft, ChevronRight } from "lucide-react";
 import { StudioScope, StudioHeader, StudioCardRow, StudioCard, CardHead, BigNumber, Ring, stBtn, stFloatBar } from "@/components/studio/kit";
-import { StudioMenu } from "@/components/studio/tasks/controls";
+import { FilterPanelButton } from "@/components/studio/tasks/filter-panel";
 import { StudioChoiceMenu } from "@/components/studio/tasks/cells";
 import { useToast } from "@/components/shell/toast";
 import { useUrlFilters } from "@/lib/hooks/use-url-filters";
@@ -242,22 +242,6 @@ export function StudioPeople({ people, companies, hints = {}, readOnly = false }
     <StudioScope className="flex flex-col gap-5">
       <StudioHeader
         title="People"
-        left={
-          <>
-            <StudioMenu label={f.values.co === "all" ? "All companies" : companies.find((c) => String(c.id) === f.values.co)?.name ?? "All companies"} searchable options={[
-              { key: "all", label: "All companies", href: f.hrefFor({ co: "all" }), active: f.values.co === "all" },
-              ...companies.map((c) => ({ key: String(c.id), label: c.name, href: f.hrefFor({ co: String(c.id) }), active: f.values.co === String(c.id) })),
-            ]} />
-            <StudioMenu label={f.values.type === "all" ? "All types" : PERSON_TYPE_LABELS[f.values.type as keyof typeof PERSON_TYPE_LABELS] ?? "All types"} options={[
-              { key: "all", label: "All types", href: f.hrefFor({ type: "all" }), active: f.values.type === "all" },
-              ...PERSON_TYPES.map((t) => ({ key: t, label: PERSON_TYPE_LABELS[t], href: f.hrefFor({ type: t }), active: f.values.type === t })),
-            ]} />
-            <StudioMenu label={f.values.loc === "all" ? "All locations" : f.values.loc} searchable={locations.length > 8} options={[
-              { key: "all", label: "All locations", href: f.hrefFor({ loc: "all" }), active: f.values.loc === "all" },
-              ...locations.map((l) => ({ key: l, label: l, href: f.hrefFor({ loc: l }), active: f.values.loc === l })),
-            ]} />
-          </>
-        }
         right={
           <>
             {!staff && <div className="flex gap-0.5 rounded-[11px] bg-[var(--st-seg)] p-[3px]" role="tablist" aria-label="Mode">
@@ -278,8 +262,6 @@ export function StudioPeople({ people, companies, hints = {}, readOnly = false }
                 </button>
               ))}
             </div>
-            <StudioMenu label="Group" sub={`· ${GROUPS.find(([k]) => k === f.values.group)?.[1] ?? "Company"}`}
-              options={GROUPS.map(([k, l]) => ({ key: k, label: l, href: f.hrefFor({ group: k }), active: f.values.group === k }))} />
             {!readOnly && <button type="button" onClick={openAdd} className={stBtn.dark}><Plus size={15} />Add person</button>}
           </>
         }
@@ -521,28 +503,40 @@ export function StudioPeople({ people, companies, hints = {}, readOnly = false }
             <button type="button" onClick={() => { setSelecting(false); setPicked(new Set()); }} className={stBtn.onCard}>Done</button>
           </div>
         ) : (
-          <div className="pointer-events-auto flex w-full max-w-[1100px] flex-wrap items-center gap-2.5 rounded-2xl border border-[var(--st-line)] bg-[var(--st-surface)] p-2 pl-4 shadow-[0_10px_28px_rgba(17,18,20,0.12)] sm:h-14 sm:flex-nowrap sm:py-0">
-            <label className="flex min-w-[160px] flex-1 items-center gap-2 text-[var(--st-muted)]">
+          <div className="pointer-events-auto flex h-14 w-full max-w-[1100px] items-center gap-2.5 rounded-2xl border border-[var(--st-line)] bg-[var(--st-surface)] px-2 pl-4 shadow-[0_10px_28px_rgba(17,18,20,0.12)]">
+            <label className="flex min-w-0 flex-1 items-center gap-2 text-[var(--st-muted)]">
               <Search size={15} />
               <span className="sr-only">Search people</span>
               <input type="search" value={q} onChange={(e) => { setQ(e.target.value); f.set({ q: e.target.value }); }} placeholder="Search people"
                 className="bare-field h-9 w-full border-0 bg-transparent text-[13px] text-[var(--st-ink)] outline-none" />
             </label>
             {!staff && <span className="hidden h-6 w-px bg-[var(--st-line)] sm:block" aria-hidden />}
-            <div className="flex max-w-full gap-1.5 overflow-x-auto [scrollbar-width:none]">
-              {!staff && CHIPS.map(([k, l, dot]) => {
-                const on = f.values.chip === k;
-                return (
-                  <button key={k} type="button" aria-pressed={on} onClick={() => f.set({ chip: k, mode: "browse" })}
-                    className={cn("flex h-9 shrink-0 items-center gap-[7px] whitespace-nowrap rounded-[10px] border px-3 text-xs transition-colors",
-                      on ? "border-[var(--st-ink)] bg-[var(--st-ink)] text-[var(--st-surface)]" : "border-[var(--st-line)] bg-[var(--st-surface)] hover:bg-[var(--st-page)]")}>
-                    <span className="h-[7px] w-[7px] rounded-full" style={{ background: on && k === "all" ? "var(--st-surface)" : dot }} />
-                    {l}<span className="st-mono text-[11px] opacity-70">{counts[k]}</span>
-                  </button>
-                );
-              })}
-              {!readOnly && <button type="button" onClick={() => setSelecting(true)} className="flex h-9 shrink-0 items-center gap-1.5 rounded-[10px] px-2.5 text-xs text-[var(--st-sub)] hover:text-[var(--st-ink)]" title="Tick several people and change them together">
-                <CheckSquare size={14} />Select
+            {/* One place to filter (owner, 26 Sept 2026) — the title-bar
+                pickers and the chips row were the same choices twice. */}
+            <div className="flex shrink-0 items-center gap-1.5">
+              <FilterPanelButton
+                sections={[
+                  ...(staff ? [] : [{ id: "show", title: "Show", kind: "list" as const, items: CHIPS.map(([k, l, dot]) => ({ key: k, label: l, count: counts[k], tone: k === "all" ? undefined : dot, href: f.hrefFor({ chip: k, mode: "browse" }), active: f.values.chip === k })) }]),
+                  { id: "company", title: "Company", kind: "list" as const, searchable: companies.length > 8, items: [
+                    { key: "all", label: "All companies", href: f.hrefFor({ co: "all" }), active: f.values.co === "all" },
+                    ...companies.map((c) => ({ key: String(c.id), label: c.name, href: f.hrefFor({ co: String(c.id) }), active: f.values.co === String(c.id) })),
+                  ] },
+                  // Only once somebody has a work site or residence recorded.
+                  ...(locations.length ? [{ id: "location", title: "Location", kind: "list" as const, searchable: locations.length > 8, items: [
+                    { key: "all", label: "All locations", href: f.hrefFor({ loc: "all" }), active: f.values.loc === "all" },
+                    ...locations.map((l) => ({ key: l, label: l, href: f.hrefFor({ loc: l }), active: f.values.loc === l })),
+                  ] }] : []),
+                  { id: "type", title: "Type", kind: "chips" as const, items: [
+                    { key: "all", label: "All types", href: f.hrefFor({ type: "all" }), active: f.values.type === "all" },
+                    ...PERSON_TYPES.map((t) => ({ key: t, label: PERSON_TYPE_LABELS[t], href: f.hrefFor({ type: t }), active: f.values.type === t })),
+                  ] },
+                  { id: "group", title: "Group by", kind: "chips" as const, items: GROUPS.map(([k, l]) => ({ key: k, label: l, href: f.hrefFor({ group: k }), active: f.values.group === k })) },
+                ]}
+                activeCount={[f.values.co !== "all", f.values.type !== "all", f.values.loc !== "all", f.values.chip !== "all"].filter(Boolean).length}
+                clearHref={f.hrefFor({ co: "all", type: "all", loc: "all", chip: "all" })}
+              />
+              {!readOnly && <button type="button" onClick={() => setSelecting(true)} aria-label="Select people" className="flex h-9 shrink-0 items-center gap-1.5 rounded-[10px] px-2.5 text-xs text-[var(--st-sub)] hover:text-[var(--st-ink)]" title="Tick several people and change them together">
+                <CheckSquare size={14} /><span className="hidden sm:inline">Select</span>
               </button>}
             </div>
           </div>
