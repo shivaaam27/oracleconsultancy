@@ -29,6 +29,7 @@ import { useToast } from "@/components/shell/toast";
 import { callUndo } from "@/components/shell/undo-banner";
 import { inlineUpdateTask } from "@/app/task/actions";
 import { cn } from "@/lib/cn";
+import { useMediaQuery } from "@/lib/hooks/use-media-query";
 import { useStudioPick } from "@/components/studio/tasks/pick";
 import { StudioStatusCell, StudioFaces, StudioStar } from "@/components/studio/tasks/cells";
 import { ago, deadlineWords } from "@/components/studio/tasks/task-words";
@@ -98,6 +99,7 @@ export function TableView({
   /** Total before filtering, for the "N of M shown" footer. */
   total?: number;
 }) {
+  const phone = useMediaQuery("(max-width: 639px)");
   // Precompute, per row, whether it starts a new group (rows arrive pre-sorted
   // by the group key from the server).
   const headerAt = new Map<number, string>();
@@ -299,6 +301,10 @@ export function TableView({
       {/* Phone (mockup M_Tasks): one two-line row per task in one white card —
           status dot, name, code · company, deadline in its colour, who. Press
           and hold a row to start ticking; the tick boxes show once one is ticked. */}
+      {/* The quick-add line on a phone too (owner, 26 Sept 2026: "the quick
+          add in mobile isn't there"). Drawn in ONE place per screen size — two
+          copies would share the input's id and the "+" would focus the hidden one. */}
+      {studio && studioLead && phone && <div className="mb-2 sm:hidden">{studioLead}</div>}
       <div className="overflow-hidden rounded-[20px] bg-[var(--st-surface)] sm:hidden">
         {rows.map((r) => (
           <div key={r.id}>
@@ -343,7 +349,7 @@ export function TableView({
           groupOf={(r) => (headerAt.has(r.id) ? headerAt.get(r.id)! : null)}
           subRowAlways
           selectionSlot={(r) => <SelectCheckbox code={r.code} />}
-          lead={studio ? studioLead : undefined}
+          lead={studio && !phone ? studioLead : undefined}
           /* Studio has no hover icons on a row — the side panel a click opens
              (studio/tasks/task-panel.tsx) carries Complete / Escalate / Remind. */
           rowActions={studio ? undefined : (r) => composeFor === r.code ? null : <TaskRowActions task={r} onUpdate={() => setComposeFor(r.code)} onDone={() => router.refresh()} />}

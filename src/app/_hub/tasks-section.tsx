@@ -451,17 +451,12 @@ export async function TasksSection({ sp }: { sp: Sp }) {
     ])
   );
 
-  const groupOptions: FilterOption[] = ([
-    { key: null, label: "None" },
-    { key: "company", label: "Company" },
-    { key: "status", label: "Status" },
-    { key: "person", label: "Person" },
-  ] as const).map((g) => ({
-    key: g.label,
-    label: g.label,
-    href: buildHref(sp, { group: g.key ?? (view === "cards" ? "none" : undefined) }),
-    active: view === "cards" ? cardsGroupBy === g.key : (groupBy ?? null) === g.key,
-  }));
+
+  /** A "group the list this way" switch, placed beside All companies / Everyone. */
+  const groupToggle = (key: "company" | "person", label: string): FilterOption => {
+    const on = view === "cards" ? cardsGroupBy === key : groupBy === key;
+    return { key: `group-${key}`, label, href: buildHref(sp, { group: on ? (view === "cards" ? "none" : undefined) : key }), active: on };
+  };
 
   /* ---------- Identity strip ---------- */
   let strip: IdentityStrip | null = null;
@@ -620,11 +615,14 @@ export async function TasksSection({ sp }: { sp: Sp }) {
     ...chips.slice(1).map((c) => (c.key === "overdue" ? { ...c, label: "Late" } : c)),
   ];
   const filterSections: FilterSection[] = [
-    { id: "company", title: "Company", items: companyOptions },
-    { id: "person", title: "Person", note: personModeCreated ? "tasks they created" : "tasks given to them", items: personOptions },
+    // "Company-wise" and "person-wise" sit right beside All companies and
+    // Everyone (owner, 26 Sept 2026: directors use them all the time and they
+    // were buried under More → Group by). Tap again to turn it off. Grouping
+    // by status is gone: Show and Stage already sort by it.
+    { id: "company", title: "Company", items: [companyOptions[0], groupToggle("company", "Company-wise"), ...companyOptions.slice(1)] },
+    { id: "person", title: "Person", note: personModeCreated ? "tasks they created" : "tasks given to them", items: [personOptions[0], groupToggle("person", "Person-wise"), ...personOptions.slice(1)] },
     { id: "show", title: "Show", items: showItems },
     { id: "stage", title: "Stage", items: statusOptions },
-    { id: "group", title: "Group by", items: groupOptions },
     { id: "flags", title: "Flags & lanes", items: moreItems },
     ...(view === "cards" && !showArchived
       ? [{ id: "cards", title: "Cards", note: "Focus = the chase queue, worst first", items: [

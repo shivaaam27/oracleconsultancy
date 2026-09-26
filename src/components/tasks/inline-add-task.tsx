@@ -209,7 +209,7 @@ export function InlineAddTask({
           </span>
         )}
 
-        <div className="relative min-w-[12rem] flex-1 basis-full sm:basis-auto">
+        <div className={cn("relative flex-1", studio ? "min-w-0 basis-0" : "min-w-[12rem] basis-full sm:basis-auto")}>
           <input
             ref={inputRef}
             id="inline-add-action"
