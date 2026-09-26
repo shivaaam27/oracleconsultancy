@@ -448,7 +448,7 @@ export const MCP_TOOLS: McpTool[] = [
       meetingDate: z.string().optional().describe("The meeting this came out of, yyyy-mm-dd"),
       comments: z.string().optional().describe("Standing background on the task — not the same as `note`, which is the first timeline entry"),
       accountability: z.enum(ACCOUNTABILITY).optional()
-        .describe("'shared' (default — everyone on it carries the overdue) or 'lead' (the FIRST name carries it alone; needs at least one assignee)"),
+        .describe("'shared' (default) or 'lead' — marks the FIRST name as the lead. A label only: it changes nothing else. Needs at least one assignee."),
       repeat: z.object({
         cadence: z.enum(["weekly", "monthly"]),
         weekdays: z.array(z.number().int().min(0).max(6)).optional().describe("Weekly only. 0 = Sunday … 6 = Saturday"),
@@ -524,7 +524,7 @@ export const MCP_TOOLS: McpTool[] = [
       comments: z.string().nullable().optional().describe("Standing background on the task"),
       assignees: z.array(z.string()).optional().describe("REPLACES everyone on the task with these existing people"),
       accountability: z.enum(ACCOUNTABILITY).optional()
-        .describe("'shared' (everyone on it carries the overdue) or 'lead' (the first name carries it alone)"),
+        .describe("'shared' or 'lead' — 'lead' marks the first name as the lead (a label only)"),
       requiresAttachment: z.boolean().optional()
         .describe("Whether completing it refuses without a file attached"),
       reason: z.string().optional().describe("Why — recorded against every field this call changes"),

@@ -536,10 +536,10 @@ export function StudioNewTaskPage({ options, initial, back }: { options: Options
   );
 }
 
-function RuleRow({ label, hint, on, onClick }: { label: string; hint: string; on: boolean; onClick: () => void }) {
+function RuleRow({ label, on, onClick }: { label: string; hint?: string; on: boolean; onClick: () => void }) {
   return (
     <div className="flex items-center gap-3 py-2">
-      <span className="min-w-0 flex-1"><span className="block text-[13px]">{label}</span><span className="block text-[11px] text-[var(--st-muted)]">{hint}</span></span>
+      <span className="min-w-0 flex-1 text-[13px]">{label}</span>
       <Toggle on={on} onClick={onClick} label={label} />
     </div>
   );

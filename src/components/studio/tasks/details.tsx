@@ -21,7 +21,7 @@ import { useToast } from "@/components/shell/toast";
 import { DeadlineEditor } from "@/components/tasks/deadline-editor";
 import { DatePopover } from "@/components/forms/date-popover";
 import { Combobox } from "@/components/forms/combobox";
-import { StudioPeoplePick } from "@/components/studio/people-pick";
+import { StudioPeoplePick, shortName } from "@/components/studio/people-pick";
 import { StudioBlocker } from "./blocker";
 import { StudioStatusCell, StudioPriorityCell, StudioChoiceMenu } from "./cells";
 import { stBtn } from "@/components/studio/kit";
@@ -140,7 +140,7 @@ export function StudioDetails({
         />
       </Row>
 
-      <Row label="Accountable" top={editing === "accountable"} stack={editing === "accountable"}>
+      <Row label="Accountable" top={editing === "accountable"}>
         {editing === "accountable" ? (
           <PeopleEditor
             people={people}
@@ -150,7 +150,7 @@ export function StudioDetails({
           />
         ) : (
           <Value onClick={() => setEditing("accountable")} title="Change who is on it">
-            {t.assignees.length ? t.assignees.join(", ") : <Muted>Nobody yet</Muted>}
+            {t.assignees.length ? <span className="line-clamp-2" title={t.assignees.join(", ")}>{t.assignees.map(shortName).join(", ")}</span> : <Muted>Nobody yet</Muted>}
           </Value>
         )}
       </Row>
@@ -273,13 +273,10 @@ function Muted({ children }: { children: ReactNode }) {
   return <span className="text-[var(--st-muted)]">{children}</span>;
 }
 
-function Rule({ label, hint, on, onToggle }: { label: string; hint: string; on: boolean; onToggle: () => void }) {
+function Rule({ label, on, onToggle }: { label: string; hint?: string; on: boolean; onToggle: () => void }) {
   return (
     <button type="button" role="switch" aria-checked={on} onClick={onToggle} className="flex w-full items-center gap-3 py-2 text-left">
-      <span className="min-w-0 flex-1">
-        <span className="block text-[13px]">{label}</span>
-        <span className="block text-[11px] text-[var(--st-muted)]">{hint}</span>
-      </span>
+      <span className="min-w-0 flex-1 text-[13px]">{label}</span>
       <span aria-hidden className={cn("relative h-5 w-[34px] shrink-0 rounded-full transition-colors", on ? "bg-[var(--st-ink)]" : "bg-[#D6D6D2]")}>
         <span className={cn("absolute top-0.5 h-4 w-4 rounded-full bg-white transition-[left]", on ? "left-4" : "left-0.5")} />
       </span>
@@ -291,7 +288,7 @@ function PeopleEditor({ people, initial, onSave, onCancel }: { people: { id: num
   const [names, setNames] = useState<string[]>(initial.filter(Boolean));
   return (
     <div className="space-y-2.5" onKeyDown={(e) => { if (e.key === "Escape") onCancel(); }}>
-      <StudioPeoplePick autoFocus people={people} value={names} onChange={setNames} maxHeight={220} />
+      <StudioPeoplePick autoFocus compact people={people} value={names} onChange={setNames} maxHeight={176} />
       <div className="flex items-center gap-2">
         <button type="button" onClick={() => onSave(names)} className={cn(stBtn.dark, "h-8 px-3 text-xs")}>Save</button>
         <button type="button" onClick={onCancel} className="text-xs text-[var(--st-muted)] hover:text-[var(--st-ink)]">Cancel</button>

@@ -49,7 +49,14 @@ const TONES = {
 
 const bare = (s: string) => s.replace(/^(mr|mrs|ms|miss|dr|chef)\.?\s+/i, "").toLowerCase();
 
-export function StudioPeoplePick({ people, value, onChange, tone = "page", autoFocus = false, maxHeight = 232, showChosen = true }: {
+/** "Mr Jitesh Solanki" → "Mr Jitesh" (the title and first name). */
+export function shortName(n: string): string {
+  const parts = n.trim().split(/\s+/);
+  if (parts.length > 1 && /^(mr|mrs|ms|miss|dr|chef)\.?$/i.test(parts[0])) return `${parts[0]} ${parts[1]}`;
+  return parts[0] ?? n;
+}
+
+export function StudioPeoplePick({ people, value, onChange, tone = "page", autoFocus = false, maxHeight = 232, showChosen = true, compact = false }: {
   people: Person[];
   value: string[];
   onChange: (names: string[]) => void;
@@ -58,6 +65,9 @@ export function StudioPeoplePick({ people, value, onChange, tone = "page", autoF
   maxHeight?: number;
   /** Off where the screen already lists who is chosen (the new-task page). */
   showChosen?: boolean;
+  /** The same size as the rows around it (a task's Details): short names,
+   *  small chips, a normal-height search and list (owner, 26 Sept 2026). */
+  compact?: boolean;
 }) {
   const t = TONES[tone];
   const [q, setQ] = useState("");
@@ -85,16 +95,16 @@ export function StudioPeoplePick({ people, value, onChange, tone = "page", autoF
       {showChosen && value.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {value.map((n, i) => (
-            <span key={n} className={cn("inline-flex h-8 items-center gap-1.5 rounded-full border py-0 pl-1 pr-1.5 text-[12.5px] font-medium", t.chip)}>
-              <PersonFace name={n} size={22} />
-              <span className="max-w-[10rem] truncate">{n}</span>
+            <span key={n} title={n} className={cn("inline-flex items-center gap-1.5 border py-0", compact ? "h-7 rounded-md pl-1 pr-1 text-[12px]" : "h-8 rounded-full pl-1 pr-1.5 text-[12.5px] font-medium", t.chip)}>
+              <PersonFace name={n} size={compact ? 18 : 22} />
+              <span className="max-w-[10rem] truncate">{compact ? shortName(n) : n}</span>
               {i === 0 && value.length > 1 && <span className={cn("text-[10.5px] font-normal", t.muted)}>lead</span>}
               <button type="button" aria-label={`Take ${n} off`} onClick={() => toggle(n)} className={cn("grid h-5 w-5 place-items-center rounded-full", t.muted, t.row)}><X size={12} /></button>
             </span>
           ))}
         </div>
       )}
-      <label className={cn("flex h-10 items-center gap-2 rounded-[11px] border px-3", t.field)}>
+      <label className={cn("flex items-center gap-2 border px-3", compact ? "h-8 rounded-md" : "h-10 rounded-[11px]", t.field)}>
         <Search size={14} className={t.muted} />
         <span className="sr-only">Find someone</span>
         <input
@@ -108,12 +118,12 @@ export function StudioPeoplePick({ people, value, onChange, tone = "page", autoF
               if (shown[0] && typed) toggle(shown[0].name); else if (isNew) toggle(typed);
             } else if (e.key === "Escape" && q) { e.preventDefault(); e.stopPropagation(); setQ(""); }
           }}
-          placeholder="Find someone, or type a new name"
+          placeholder={compact ? "Find someone" : "Find someone, or type a new name"}
           style={{ background: "transparent", border: 0, boxShadow: "none", color: "inherit" }}
-          className={cn("bare-field h-full w-full text-[13.5px] outline-none", tone === "sheet" ? "placeholder:text-[var(--sh-muted)]" : "placeholder:text-[var(--st-muted)]")}
+          className={cn("bare-field h-full w-full outline-none", compact ? "text-[13px]" : "text-[13.5px]", tone === "sheet" ? "placeholder:text-[var(--sh-muted)]" : "placeholder:text-[var(--st-muted)]")}
         />
       </label>
-      <div role="listbox" aria-multiselectable aria-label="People" className={cn("st-scroll overflow-y-auto rounded-[12px] border p-1", t.list)} style={{ maxHeight }}>
+      <div role="listbox" aria-multiselectable aria-label="People" className={cn("st-scroll overflow-y-auto border p-1", compact ? "rounded-md" : "rounded-[12px]", t.list)} style={{ maxHeight: compact ? Math.min(maxHeight, 176) : maxHeight }}>
         {isNew && (
           <button type="button" onClick={() => toggle(typed)} className={cn("flex w-full items-center gap-2.5 rounded-[9px] px-2 py-1.5 text-left text-[13px]", t.row, t.fg)}>
             <span className={cn("grid h-7 w-7 place-items-center rounded-full border border-dashed", t.tickOff)}><Plus size={13} /></span>
@@ -124,10 +134,10 @@ export function StudioPeoplePick({ people, value, onChange, tone = "page", autoF
           const on = chosen.has(p.name.toLowerCase());
           return (
             <button key={p.id} type="button" role="option" aria-selected={on} onClick={() => toggle(p.name)}
-              className={cn("flex w-full items-center gap-2.5 rounded-[9px] px-2 py-1.5 text-left", t.row, on && t.on)}>
-              <PersonFace name={p.name} size={28} />
-              <span className={cn("min-w-0 flex-1 truncate text-[13px]", on ? "font-semibold" : "font-medium", t.fg)}>{p.name}</span>
-              <span className={cn("grid h-5 w-5 shrink-0 place-items-center rounded-full border", on ? t.tick : t.tickOff)}>{on && <Check size={12} strokeWidth={3} />}</span>
+              className={cn("flex w-full items-center rounded-[7px] text-left", compact ? "gap-2 px-1.5 py-1" : "gap-2.5 px-2 py-1.5", t.row, on && t.on)}>
+              <PersonFace name={p.name} size={compact ? 20 : 28} />
+              <span className={cn("min-w-0 flex-1 truncate text-[13px]", compact ? (on ? "font-medium" : "font-normal") : on ? "font-semibold" : "font-medium", t.fg)}>{p.name}</span>
+              <span className={cn("grid shrink-0 place-items-center rounded-full border", compact ? "h-4 w-4" : "h-5 w-5", on ? t.tick : t.tickOff)}>{on && <Check size={compact ? 10 : 12} strokeWidth={3} />}</span>
             </button>
           );
         })}
