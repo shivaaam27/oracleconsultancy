@@ -96,32 +96,30 @@ export function StudioHome({ data, links = OWNER_LINKS, heroAction, aside, after
             </div>
           </div>
           <div className="min-h-3.5 flex-1 sm:min-h-4" />
-          <div className="flex h-[48px] items-end sm:h-[74px] gap-[2px] overflow-hidden sm:gap-[3px]" aria-label="Each bar is one open task, coloured by how it is doing">
+          {/* One square per open task (owner, 26 Sept 2026 — option 2 of the
+              mockup; it is also the app icon). Quiet, moving, due soon, late,
+              in that order; each square opens its task. */}
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(13px,1fr))] gap-[3px] sm:grid-cols-[repeat(auto-fill,minmax(15px,1fr))] sm:gap-1" aria-label="Each square is one open task, coloured by how it is doing">
             {data.bars.map((b, i) => (
               <Link
                 key={i}
                 href={b.href}
                 title={b.label}
                 aria-label={b.label}
-                className="st-rise block min-w-[2px] flex-1 rounded-[3px] transition-opacity hover:opacity-70"
-                style={{ height: `${Math.min(100, (b.h / 74) * 100)}%`, maxWidth: b.wide ? 14 : 9, background: BAND[b.band], animationDelay: `${Math.min(i * 10, 700)}ms` }}
+                className="st-pop block aspect-square rounded-[3px] transition-[transform,opacity] hover:scale-[1.18] hover:opacity-90"
+                style={{ background: BAND[b.band], animationDelay: `${Math.min(i * 6, 500)}ms` }}
               />
             ))}
-            {data.bars.length === 0 && <div className="text-[13px] text-[var(--st-on-card-muted)]">No open tasks — a clear desk.</div>}
           </div>
-          <div className="mt-3 flex flex-wrap items-center gap-x-3.5 gap-y-1 text-[11px] text-[#C9CBCF] sm:mt-3.5 sm:gap-x-[18px] sm:gap-y-1.5 sm:text-xs">
-            {data.legend.map((l) => (
-              <Link key={l.label} href={l.href} className="flex items-center gap-1.5 hover:text-white">
-                <span className="h-2 w-2 rounded-[2px]" style={{ background: l.color }} />{l.label} · {l.n}
-              </Link>
-            ))}
-            <span className="flex-1" />
-            <span className="hidden text-[var(--st-muted)] lg:inline">Tap a bar to open that task</span>
-            {/* The Report — what the Director Brief page became: filters, then
-                PDF · email · WhatsApp · copy · draft. */}
+          {data.bars.length === 0 && <div className="text-[13px] text-[var(--st-on-card-muted)]">No open tasks — a clear desk.</div>}
+          <div className="mt-3 flex items-center gap-3 text-[11px] text-[var(--st-on-card-muted)] sm:mt-3.5 sm:text-xs">
+            <span className="min-w-0 flex-1 truncate">Each square is one task · tap one to open it</span>
+            {/* The Report — filters, then PDF · email · WhatsApp · copy · draft.
+                A small light key in the corner rather than a labelled button. */}
             {heroAction === undefined ? (
-              <button type="button" onClick={() => openReport()} className="inline-flex h-8 items-center gap-1.5 rounded-[9px] bg-[#F2F2F0] px-3 text-xs font-semibold text-[#111214] transition-opacity hover:opacity-90">
-                <FileText size={13} />Report
+              <button type="button" onClick={() => openReport()} aria-label="Report" title="Report"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-[#F2F2F0] text-[#111214] transition-opacity hover:opacity-90">
+                <FileText size={16} />
               </button>
             ) : heroAction}
           </div>
