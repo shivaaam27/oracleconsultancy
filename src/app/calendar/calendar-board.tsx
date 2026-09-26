@@ -238,11 +238,18 @@ export function CalendarBoard({
   const [collapseRecurring, setCollapseRecurring] = useState(false);
   // Studio: the day picked in the month grid (the left card shows it — mockup
   // board Calendar), the Events layer switch, and the lower grid sized to fit.
-  const pickedKey = dayParam || todayKeyGlobal;
-  // Written with history.replaceState, not url.set: a router navigation re-read
-  // the whole (dynamic) calendar from the server on every click of a day.
-  // Next keeps useSearchParams in step with replaceState, so dayParam follows.
+  // ⚠️ The picked day is the page's OWN state, mirrored into the address — not
+  // read back from it. The address is written with history.replaceState
+  // (a router navigation re-read the whole calendar from the server on every
+  // click), and Next does NOT feed that back into useSearchParams when the
+  // state object is its own — so the day went into the URL while the ring and
+  // the left card stayed on today (owner, 26 Sept 2026: "clicking any date in
+  // the month view doesn't really click"). A real navigation (Back to a
+  // `?day=`) still arrives through dayParam and is followed.
+  const [pickedKey, setPickedState] = useState(dayParam || todayKeyGlobal);
+  useEffect(() => { setPickedState(dayParam || todayKeyGlobal); }, [dayParam]);
   const setPickedKey = (k: string) => {
+    setPickedState(k);
     const q = new URLSearchParams(window.location.search);
     if (k === todayKeyGlobal) q.delete("day"); else q.set("day", k);
     const qs = q.toString();
@@ -938,8 +945,12 @@ function StudioAgenda({ evByDay, overlayByDay, onEdit }: {
     return out;
   }, [evByDay, overlayByDay]);
   if (days.length === 0) return <div className="m-auto p-8 text-sm text-[var(--st-muted)]">Nothing in the next two months. Press “New event” to plan something.</div>;
-  const ROW = "grid grid-cols-[52px_8px_minmax(0,1fr)_auto] items-center gap-x-2.5 rounded-[12px] sm:grid-cols-[64px_10px_minmax(0,1fr)_auto_auto] sm:gap-x-3 border border-[var(--st-line-soft)] px-3.5 py-2.5";
-  const OPEN = "flex h-7 items-center rounded-lg border border-[var(--st-line)] px-2.5 text-xs hover:bg-[var(--st-page)]";
+  // The whole row is the door (owner, 26 Sept 2026: "I have to press Open …
+  // make it one whole thing where I can just click"). The chevron says so; the
+  // Open button it replaces said it twice.
+  const ROW = "grid w-full grid-cols-[52px_8px_minmax(0,1fr)_14px] items-center gap-x-2.5 rounded-[12px] border border-[var(--st-line-soft)] px-3.5 py-2.5 text-left sm:grid-cols-[64px_10px_minmax(0,1fr)_auto_14px] sm:gap-x-3";
+  const DOOR = "transition-colors hover:border-[var(--st-line)] hover:bg-[var(--st-page)] focus-visible:outline-2 focus-visible:outline-[var(--st-ink)]";
+  const Chev = () => <ChevronRight size={14} className="text-[var(--st-muted)]" aria-hidden />;
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto px-5 py-4">
       {days.map(({ d, k, evs, ovs }) => {
@@ -955,24 +966,29 @@ function StudioAgenda({ evByDay, overlayByDay, onEdit }: {
               {evs.map((e) => {
                 const done = hasElapsed(e, nowMs);
                 return (
-                  <div key={occKey(e)} className={cn(ROW, done && "opacity-60")}>
+                  <button key={occKey(e)} type="button" onClick={() => onEdit(e)} className={cn(ROW, DOOR, done && "opacity-60")}>
                     <span className="st-mono text-xs text-[var(--st-sub)]">{e.allDay ? "All day" : fmtTime(e.startAt)}</span>
                     <span className="h-2 w-2 rounded-full bg-[var(--st-ink)]" />
                     <span className="truncate text-[13px]">{e.title}</span>
                     <span className="hidden text-[11px] text-[var(--st-muted)] sm:inline">{isHappeningNow(e, nowMs) ? "On now" : done ? "Finished" : "Event"}</span>
-                    <button type="button" onClick={() => onEdit(e)} className={OPEN}>Open</button>
-                  </div>
+                    <Chev />
+                  </button>
                 );
               })}
-              {ovs.map((o) => (
-                <div key={o.id} className={ROW}>
-                  <span className="st-mono text-xs text-[var(--st-sub)]">{o.kind === "task" ? "Due" : "All day"}</span>
-                  <span className="h-2 w-2 rounded-full" style={{ background: STUDIO_LAYER[o.kind].c }} />
-                  <span className="truncate text-[13px]">{o.title}</span>
-                  <span className="hidden text-[11px] text-[var(--st-muted)] sm:inline">{OVERLAY_LABELS[o.kind].replace(/s$/, "")}</span>
-                  {o.href ? <ReturnLink href={o.href} className={OPEN}>Open</ReturnLink> : <span />}
-                </div>
-              ))}
+              {ovs.map((o) => {
+                const row = (
+                  <>
+                    <span className="st-mono text-xs text-[var(--st-sub)]">{o.kind === "task" ? "Due" : "All day"}</span>
+                    <span className="h-2 w-2 rounded-full" style={{ background: STUDIO_LAYER[o.kind].c }} />
+                    <span className="truncate text-[13px]">{o.title}</span>
+                    <span className="hidden text-[11px] text-[var(--st-muted)] sm:inline">{OVERLAY_LABELS[o.kind].replace(/s$/, "")}</span>
+                    {o.href ? <Chev /> : <span />}
+                  </>
+                );
+                return o.href
+                  ? <ReturnLink key={o.id} href={o.href} className={cn(ROW, DOOR)}>{row}</ReturnLink>
+                  : <div key={o.id} className={ROW}>{row}</div>;
+              })}
             </div>
           </div>
         );
